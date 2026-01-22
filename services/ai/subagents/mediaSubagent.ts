@@ -62,13 +62,7 @@ Music generation is only available in the dedicated "Generate Music" mode.
    - Output: GeneratedImage[] (one per scene)
    - IMPORTANT: Only call ONCE (don't retry to "improve")
 
-2. animate_image (OPTIONAL - Call if user wants motion)
-   - Converts still images to video loops
-   - Input: contentPlanId (USE THE SESSIONID), sceneIndex (0-based)
-   - Must call for EACH scene individually
-   - Example: For 5 scenes, call 5 times (index 0, 1, 2, 3, 4)
-
-3. plan_sfx (OPTIONAL - Call if user wants sound effects)
+2. plan_sfx (OPTIONAL - Call if user wants sound effects)
    - Creates ambient sound plan
    - Input: contentPlanId (USE THE SESSIONID)
    - Output: SFX plan with mood-based sounds
@@ -79,10 +73,8 @@ Music generation is only available in the dedicated "Generate Music" mode.
 **SMART DEFAULTS** - Users expect "video" to mean moving pictures with sound!
 
 #### Animation Detection:
-- **EXPLICIT YES**: User says "animated", "motion", "video", "moving", "dynamic", "cinematic"
-- **EXPLICIT NO**: User says "static", "slideshow", "still images", "no animation"
-- **SMART DEFAULT**: If style is "Cinematic", "Commercial", "Story", "Broadcast", "Documentary", "Horror", "Anime" → ANIMATE by default
-- Only skip animation for explicitly static requests or styles like "Tutorial", "Educational", "Podcast"
+- **DISABLED**: Animation (image-to-video) is currently SUSPENDED.
+- **VEO VIDEO**: You can still generate *native* videos using generate_visuals if configured, but do not animate static images.
 
 #### SFX Detection:
 - **EXPLICIT YES**: User says "sound effects", "ambient sounds", "sfx", "audio atmosphere"
@@ -99,12 +91,8 @@ Always execute:
 - generate_visuals (required for all videos)
 
 ### Step 3: Execute Optional Tools (SMART DEFAULTS APPLY)
-Animation (smart default ON for cinematic styles):
-- **CRITICAL**: Before animating, CHECK if the scene visual is already a video!
-  - If generate_visuals returned videos (from Veo), SKIP animate_image for those scenes
-  - Only call animate_image for scenes with STILL IMAGES
-- Call animate_image for each scene that has a still image (0 to sceneCount-1)
-- Look at the generate_visuals response - if a scene's visual URL ends with .mp4 or is a video, it's already animated!
+Animation:
+- **SKIP**: Do not call animate_image.
 
 SFX (smart default ON for immersive styles):
 - Call plan_sfx
@@ -112,65 +100,39 @@ SFX (smart default ON for immersive styles):
 ## EXAMPLES:
 
 **Example 1**: "Create a cinematic video about space exploration" with sessionId="prod_1768266562924_r3zdsyfgc"
-- Animation: "Cinematic" style → SMART DEFAULT: YES, but CHECK if already video
+- Animation: DISABLED
 - SFX: "Cinematic" + "space" → SMART DEFAULT: YES, atmospheric ambience
 - Workflow:
   1. generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-     → Response shows: Scene 0 = video (.mp4), Scene 1 = image (.png), Scene 2 = image (.png)
-  2. SKIP scene 0 (already a video from Veo!)
-  3. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 1 })
-  4. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 2 })
-  5. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+  2. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
 
 **Example 2**: "Make a static slideshow tutorial" with sessionId="prod_1768266562924_r3zdsyfgc"
-- Animation: "Static slideshow" explicitly mentioned → Skip animate_image
+- Animation: DISABLED
 - SFX: Tutorial style → Optional, skip unless requested
 - Workflow: generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-
-**Example 3**: "Create a horror video about an abandoned hospital" with sessionId="prod_1768266562924_r3zdsyfgc"
-- Animation: "Horror" style → SMART DEFAULT: YES, but CHECK visual types first
-- SFX: "Horror" style → SMART DEFAULT: YES, tension/ambience essential
-- Workflow:
-  1. generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-     → Check response: If any scene has isVideo=true or visualUrl contains "video/", SKIP animation for that scene
-  2. animate_image ONLY for scenes with still images
-  3. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-
-**Example 4**: "Direct text-to-video generation (all Veo)" with sessionId="prod_1768266562924_xyz"
-- If generate_visuals returns ALL scenes as videos (from Veo):
-- Workflow:
-  1. generate_visuals({ contentPlanId: "prod_1768266562924_xyz" })
-     → Response: All 5 scenes returned as videos (.mp4)
-  2. SKIP ALL animate_image calls (every scene is already a video!)
-  3. plan_sfx({ contentPlanId: "prod_1768266562924_xyz" })
-  4. Report: "Media complete. Visuals: 5 scenes (all Veo videos). Animation: Skipped (already video)."
 
 ## CONSTRAINTS:
 
 - generate_visuals: Must have ContentPlan with scene visualDescriptions
-- animate_image: Must have generated visuals first
-  - **NEVER animate a scene that is already a video!**
-  - Check the generate_visuals response for: isVideo=true, visualUrl ends with .mp4, type="video"
-  - If in doubt, check the visualUrl extension: .mp4/.webm = video (skip), .png/.jpg = image (can animate)
 - plan_sfx: Must have ContentPlan with scene emotionalTone
 
 ## QUALITY TIPS:
 
 - Visual consistency: Ensure all scenes follow same style/theme
-- Animation pacing: Don't over-animate (subtle motion is better)
 - SFX balance: Ambient sounds should complement, not overpower
 
-When done, report: "Media complete. Visuals: N scenes (X images, Y videos). Animation: Applied to X images / Skipped for Y videos."
+When done, report: "Media complete. Visuals: N scenes. Animation: Suspended (static images only)."
 `;
 
 /**
- * Get media tools (generate_visuals, animate_image, plan_sfx)
+ * Get media tools (generate_visuals, plan_sfx)
  * NOTE: generate_music is excluded - Suno music generation is only available
  * in the dedicated "Generate Music" mode, not in video production
+ * NOTE: animate_image is excluded - Suspended by user request
  */
 function getMediaTools(): StructuredTool[] {
   return productionTools.filter((tool: StructuredTool) =>
-    ["generate_visuals", "animate_image", "plan_sfx"].includes(tool.name)
+    ["generate_visuals", "plan_sfx"].includes(tool.name)
   );
 }
 

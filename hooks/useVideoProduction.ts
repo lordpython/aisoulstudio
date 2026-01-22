@@ -261,7 +261,7 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
                         setValidation(validation);
 
                         const qualityReport = generateQualityReport(
-                            agentResult.contentPlan,
+                            agentResult.contentPlan as ContentPlan,
                             agentResult.narrationSegments,
                             agentResult.sfxPlan,
                             validation,

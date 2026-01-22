@@ -19,8 +19,9 @@ import {
     DEFAULT_EXPORT_CONFIG,
     mergeExportConfig,
 } from "./exportConfig";
-import { preloadAssets } from "./assetLoader";
+import { preloadAssets, clearFrameCache, type AssetLoadProgress } from "./assetLoader";
 import { renderFrameToCanvas } from "./frameRenderer";
+import { cloudAutosave } from "../cloudStorageService";
 
 // Rendering constants
 const RENDER_WIDTH_LANDSCAPE = 1280;
@@ -37,7 +38,8 @@ const BATCH_SIZE = 48;
 export async function exportVideoWithFFmpeg(
     songData: SongData,
     onProgress: ProgressCallback,
-    config: Partial<ExportConfig> = {}
+    config: Partial<ExportConfig> = {},
+    cloudSessionId?: string
 ): Promise<Blob> {
     const mergedConfig = mergeExportConfig(config);
     const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
@@ -64,7 +66,7 @@ export async function exportVideoWithFFmpeg(
     }
     const arrayBuffer = await audioBlob.arrayBuffer();
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
+
     let audioBuffer: AudioBuffer;
     try {
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -102,8 +104,22 @@ export async function exportVideoWithFFmpeg(
         message: "Loading high-res assets...",
     });
 
-    // 4. Preload assets
-    const assets = await preloadAssets(songData);
+    // 4. Preload assets with progress tracking
+    const assets = await preloadAssets(songData, (progress) => {
+        onProgress({
+            stage: "preparing",
+            progress: 20 + Math.round((progress.loaded / progress.total) * 10),
+            message: `Loading asset ${progress.loaded}/${progress.total} (${progress.type})...`,
+            currentAssetIndex: progress.loaded,
+            totalAssets: progress.total,
+            currentAssetType: progress.type,
+        });
+    });
+
+    // Count video assets for logging
+    const videoAssetCount = assets.filter(a => a.type === "video").length;
+    const imageAssetCount = assets.filter(a => a.type === "image").length;
+    console.log(`[FFmpeg] Loaded ${assets.length} assets (${videoAssetCount} videos, ${imageAssetCount} images)`);
 
     const duration = audioBuffer.duration;
     const totalFrames = Math.ceil(duration * FPS);
@@ -111,7 +127,11 @@ export async function exportVideoWithFFmpeg(
     onProgress({
         stage: "rendering",
         progress: 0,
-        message: "Rendering cinematic frames...",
+        message: videoAssetCount > 0
+            ? `Rendering ${totalFrames} frames (includes ${videoAssetCount} video assets)...`
+            : "Rendering cinematic frames...",
+        totalFrames,
+        totalAssets: assets.length,
     });
 
     // 5. Create canvas
@@ -166,13 +186,25 @@ export async function exportVideoWithFFmpeg(
             frameBuffer = [];
         }
 
-        // Update progress
+        // Update progress with detailed frame info
         if (frame % FPS === 0) {
             const progress = Math.round((frame / totalFrames) * 90);
+
+            // Determine current asset type
+            const currentTime = frame / FPS;
+            const currentAsset = assets.find((a, i) => {
+                const nextAsset = assets[i + 1];
+                return currentTime >= a.time && (!nextAsset || currentTime < nextAsset.time);
+            });
+
             onProgress({
                 stage: "rendering",
                 progress,
                 message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(duration)}s`,
+                currentFrame: frame,
+                totalFrames,
+                currentAssetType: currentAsset?.type,
+                isSeekingVideo: currentAsset?.type === "video",
             });
         }
     }
@@ -210,6 +242,23 @@ export async function exportVideoWithFFmpeg(
 
     onProgress({ stage: "complete", progress: 100, message: "Export complete!" });
 
+    // Clear frame cache to free memory
+    clearFrameCache();
+
+    // Upload final video to cloud storage if session context provided
+    if (cloudSessionId) {
+        cloudAutosave.saveAsset(
+            cloudSessionId,
+            videoBlob,
+            'final_video.mp4',
+            'video_clips'
+        ).then(() => {
+            console.log('[FFmpeg] ✓ Final video uploaded to cloud');
+        }).catch(err => {
+            console.warn('[FFmpeg] Cloud upload failed (non-fatal):', err);
+        });
+    }
+
     return videoBlob;
 }
 
@@ -219,7 +268,8 @@ export async function exportVideoWithFFmpeg(
 export async function exportVideoClientSide(
     songData: SongData,
     onProgress: ProgressCallback,
-    config: Partial<ExportConfig> = {}
+    config: Partial<ExportConfig> = {},
+    cloudSessionId?: string
 ): Promise<Blob> {
     const mergedConfig = mergeExportConfig(config);
     const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
@@ -306,7 +356,7 @@ export async function exportVideoClientSide(
     // Decode audio for visualization
     const arrayBuffer = await audioBlob.arrayBuffer();
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
+
     try {
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
     } catch (decodeError: any) {
@@ -324,8 +374,22 @@ export async function exportVideoClientSide(
         message: "Loading high-res assets...",
     });
 
-    // 3. Preload assets
-    const assets = await preloadAssets(songData);
+    // 3. Preload assets with progress tracking
+    const assets = await preloadAssets(songData, (progress) => {
+        onProgress({
+            stage: "preparing",
+            progress: 20 + Math.round((progress.loaded / progress.total) * 10),
+            message: `Loading asset ${progress.loaded}/${progress.total} (${progress.type})...`,
+            currentAssetIndex: progress.loaded,
+            totalAssets: progress.total,
+            currentAssetType: progress.type,
+        });
+    });
+
+    // Count video assets for logging
+    const videoAssetCount = assets.filter(a => a.type === "video").length;
+    const imageAssetCount = assets.filter(a => a.type === "image").length;
+    console.log(`[FFmpeg WASM] Loaded ${assets.length} assets (${videoAssetCount} videos, ${imageAssetCount} images)`);
 
     const duration = audioBuffer.duration;
     const totalFrames = Math.ceil(duration * FPS);
@@ -333,7 +397,11 @@ export async function exportVideoClientSide(
     onProgress({
         stage: "rendering",
         progress: 0,
-        message: "Rendering frames...",
+        message: videoAssetCount > 0
+            ? `Rendering ${totalFrames} frames (includes ${videoAssetCount} video assets)...`
+            : "Rendering frames...",
+        totalFrames,
+        totalAssets: assets.length,
     });
 
     // 4. Create canvas
@@ -371,13 +439,24 @@ export async function exportVideoClientSide(
         const frameName = `frame${frame.toString().padStart(6, "0")}.jpg`;
         await ffmpeg.writeFile(frameName, await fetchFile(blob));
 
-        // Update progress
+        // Update progress with detailed frame info
         if (frame % FPS === 0) {
             const progress = Math.round((frame / totalFrames) * 80);
+
+            // Determine current asset type
+            const currentAsset = assets.find((a, i) => {
+                const nextAsset = assets[i + 1];
+                return currentTime >= a.time && (!nextAsset || currentTime < nextAsset.time);
+            });
+
             onProgress({
                 stage: "rendering",
                 progress,
                 message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(duration)}s`,
+                currentFrame: frame,
+                totalFrames,
+                currentAssetType: currentAsset?.type,
+                isSeekingVideo: currentAsset?.type === "video",
             });
         }
     }
@@ -414,5 +493,24 @@ export async function exportVideoClientSide(
 
     // 7. Read output
     const data = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
-    return new Blob([data.slice()], { type: "video/mp4" });
+    const videoBlob = new Blob([data.slice()], { type: "video/mp4" });
+
+    // Clear frame cache to free memory
+    clearFrameCache();
+
+    // Upload final video to cloud storage if session context provided
+    if (cloudSessionId) {
+        cloudAutosave.saveAsset(
+            cloudSessionId,
+            videoBlob,
+            'final_video.mp4',
+            'video_clips'
+        ).then(() => {
+            console.log('[FFmpeg WASM] ✓ Final video uploaded to cloud');
+        }).catch(err => {
+            console.warn('[FFmpeg WASM] Cloud upload failed (non-fatal):', err);
+        });
+    }
+
+    return videoBlob;
 }

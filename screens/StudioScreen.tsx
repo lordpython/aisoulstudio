@@ -19,6 +19,7 @@ import {
   Edit3,
   Layers,
   Upload,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,12 +38,13 @@ import { MessageBubble, ChatInput, QuickActions, type ChatMessage } from '@/comp
 // Feature Components
 import { QuickExport } from '@/components/QuickExport';
 import { VideoPreviewCard } from '@/components/VideoPreviewCard';
-import { studioAgent, type AgentResponse } from '@/services/ai/studioAgent';
+import { studioAgent, type AgentResponse, type QuickAction } from '@/services/ai/studioAgent';
 import QualityDashboard from '@/components/QualityDashboard';
 import SceneEditor from '@/components/SceneEditor';
 import MusicGeneratorModal from '@/components/MusicGeneratorModal';
+import { SettingsModal } from '@/components/SettingsModal';
 import { GraphiteTimeline } from '@/components/TimelineEditor';
-import { useAppStore, type Message } from '@/stores';
+import { useAppStore } from '@/stores';
 
 // ============================================================
 // Types & Helpers
@@ -90,6 +92,7 @@ export default function StudioScreen() {
     showMusic, setShowMusic,
     showTimeline, setShowTimeline,
   } = useModalState();
+  const [showSettings, setShowSettings] = useState(false);
 
   const [musicModalMode, setMusicModalMode] = useState<'generate' | 'remix'>('generate');
 
@@ -101,6 +104,8 @@ export default function StudioScreen() {
     sfxPlan,
     error,
     setTopic,
+    targetAudience,
+    setTargetAudience,
     setTargetDuration,
     setVideoPurpose,
     setVisualStyle,
@@ -126,6 +131,8 @@ export default function StudioScreen() {
     uploadAndCover,
     addVocals,
     addInstrumental,
+    veoVideoCount,
+    setVeoVideoCount,
   } = useVideoProductionRefactored();
 
   // App Store - Chat & UI State (persistent)
@@ -367,14 +374,14 @@ export default function StudioScreen() {
 
     try {
       const agentResponse: AgentResponse = await studioAgent.processMessage(userInput);
-      const messageUpdate: any = {
+      const messageUpdate: { content: string; quickActions?: QuickAction[] } = {
         content: agentResponse.message,
         quickActions: agentResponse.quickActions || []
       };
 
       switch (agentResponse.action.type) {
         case 'generate_music': {
-          const params = agentResponse.action.params as any;
+          const params = agentResponse.action.params as { prompt?: string; style?: string; title?: string; instrumental?: boolean; customMode?: boolean };
           updateLastMessage(messageUpdate);
           generateMusic({
             prompt: params.prompt,
@@ -389,19 +396,19 @@ export default function StudioScreen() {
           break;
         }
         case 'create_video': {
-          const params = agentResponse.action.params as any;
+          const params = agentResponse.action.params as { topic: string; duration?: number; style?: string };
           updateLastMessage(messageUpdate);
           setTopic(params.topic);
           setTargetDuration(params.duration || 60);
           setVisualStyle(params.style || 'Cinematic');
           setVideoPurpose('documentary');
-          
+
           // Track video creation with actual params
           trackVideoCreation({
             style: params.style || 'Cinematic',
             duration: params.duration || 60
           });
-          
+
           startProduction({
             skipNarration: false,
             targetDuration: params.duration || 60,
@@ -423,20 +430,21 @@ export default function StudioScreen() {
           break;
         }
         case 'browse_sfx': {
-          const params = agentResponse.action.params as any;
+          const params = agentResponse.action.params as { category: string };
           updateLastMessage(messageUpdate);
           try {
             const sound = await browseSfx(params.category);
             if (sound) {
               addMessage('assistant', `Found SFX: "${sound.name}" (${sound.duration.toFixed(1)}s)`);
             }
-          } catch (err: any) {
-            addMessage('assistant', `SFX search failed: ${err.message}`);
+          } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            addMessage('assistant', `SFX search failed: ${errMsg}`);
           }
           break;
         }
         case 'set_camera_style': {
-          const params = agentResponse.action.params as any;
+          const params = agentResponse.action.params as { angle?: string; lighting?: string };
           if (params.angle) setPreferredCameraAngle(params.angle);
           if (params.lighting) setPreferredLightingMood(params.lighting);
           updateLastMessage(messageUpdate);
@@ -464,7 +472,7 @@ export default function StudioScreen() {
     setIsProcessing(false);
   }, [input, isProcessing, addMessage, updateLastMessage, setTyping, setTopic, setTargetDuration, setVisualStyle, setVideoPurpose, startProduction, handleReset, browseSfx, setPreferredCameraAngle, setPreferredLightingMood, qualityReport, generateMusic, t, setShowMusic, setShowExport, setShowQuality]);
 
-  const handleQuickAction = useCallback(async (action: any) => {
+  const handleQuickAction = useCallback(async (action: { type: string; params?: Record<string, unknown> }) => {
     if (isProcessing) return;
 
     setIsProcessing(true);
@@ -474,19 +482,20 @@ export default function StudioScreen() {
     try {
       switch (action.type) {
         case 'create_video': {
-          const params = action.params as any;
-          addMessage('assistant', `🎬 Creating ${params.duration}s ${params.style} video...`);
+          const params = action.params as { topic: string; duration?: number; style?: string } | undefined;
+          if (!params?.topic) break;
+          addMessage('assistant', `🎬 Creating ${params.duration || 60}s ${params.style || 'Cinematic'} video...`);
           setTopic(params.topic);
           setTargetDuration(params.duration || 60);
           setVisualStyle(params.style || 'Cinematic');
           setVideoPurpose('documentary');
-          
+
           // Track video creation with actual params
           trackVideoCreation({
             style: params.style || 'Cinematic',
             duration: params.duration || 60
           });
-          
+
           startProduction({
             skipNarration: false,
             targetDuration: params.duration || 60,
@@ -499,12 +508,12 @@ export default function StudioScreen() {
           break;
         }
         case 'generate_music': {
-          const params = action.params as any;
-          addMessage('assistant', `🎵 Creating ${params.style || 'music'}...`);
+          const params = action.params as { prompt?: string; style?: string; instrumental?: boolean } | undefined;
+          addMessage('assistant', `🎵 Creating ${params?.style || 'music'}...`);
           generateMusic({
-            prompt: params.prompt,
-            style: params.style,
-            instrumental: params.instrumental ?? true,
+            prompt: params?.prompt,
+            style: params?.style,
+            instrumental: params?.instrumental ?? true,
             model: 'V5'
           });
           trackMusicGeneration();
@@ -513,8 +522,8 @@ export default function StudioScreen() {
         }
         case 'ask_clarification': {
           // Handle clarification requests - just send the message
-          const params = action.params as any;
-          if (params.message) {
+          const params = action.params as { message?: string } | undefined;
+          if (params?.message) {
             setInput(params.message);
           }
           break;
@@ -680,6 +689,16 @@ export default function StudioScreen() {
         </button>
       </div>
 
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setShowSettings(true)}
+        className="text-white/50 hover:text-white hover:bg-white/5"
+      >
+        <Settings className="w-4 h-4 me-2" />
+        {t('studio.settings')}
+      </Button>
+
       {/* Action buttons */}
       {(messages.length > 1 || contentPlan) && (
         <Button
@@ -771,7 +790,7 @@ export default function StudioScreen() {
       {/* Welcome State */}
       {messages.length === 1 && !contentPlan && (
         <div className="text-center mb-12 pt-12">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 border border-white/10 flex items-center justify-center" aria-hidden="true">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-violet-600/20 to-fuchsia-600/20 border border-white/10 flex items-center justify-center" aria-hidden="true">
             <Wand2 className="w-8 h-8 text-violet-400" />
           </div>
           <h1 className="text-3xl font-light text-white mb-3">{t('studio.placeholder')}</h1>
@@ -926,6 +945,31 @@ export default function StudioScreen() {
         onExport={handleExport}
         videoTitle={contentPlan?.title}
         duration={totalDuration}
+      />
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        contentType={params.mode === 'music' ? 'music' : 'story'}
+        onContentTypeChange={() => { }}
+        videoPurpose={params.mode === 'video' ? 'documentary' : 'music_video'}
+        onVideoPurposeChange={(purpose) => {
+          if (purpose !== 'documentary') setVideoPurpose(purpose);
+        }}
+        targetAudience={targetAudience}
+        onTargetAudienceChange={setTargetAudience}
+        generationMode={params.mode === 'music' ? 'image' : 'video'}
+        onGenerationModeChange={() => { }}
+        videoProvider="veo"
+        onVideoProviderChange={() => { }}
+        veoVideoCount={veoVideoCount}
+        onVeoVideoCountChange={setVeoVideoCount}
+        aspectRatio="16:9"
+        onAspectRatioChange={() => { }}
+        selectedStyle={params.style || 'Cinematic'}
+        onStyleChange={(style: string) => setVisualStyle(style)}
+        globalSubject=""
+        onGlobalSubjectChange={() => { }}
       />
     </ScreenLayout>
   );

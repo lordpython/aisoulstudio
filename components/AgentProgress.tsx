@@ -79,21 +79,21 @@ export function AgentProgress({ progress, className }: AgentProgressProps) {
     const getAccessibleStatus = () => {
         const stageLabel = getAccessibleStageLabel(progress.stage);
         const progressText = `${Math.round(progress.progress)}% complete`;
-        const sceneText = progress.currentScene && progress.totalScenes 
-            ? `, scene ${progress.currentScene} of ${progress.totalScenes}` 
+        const sceneText = progress.currentScene && progress.totalScenes
+            ? `, scene ${progress.currentScene} of ${progress.totalScenes}`
             : "";
         return `${stageLabel} stage: ${progressText}${sceneText}. ${progress.message}`;
     };
 
     return (
-        <div 
+        <div
             className={cn("rounded-xl bg-slate-900/50 border border-slate-700/50 p-6", className)}
             role="status"
             aria-live="polite"
             aria-label={getAccessibleStatus()}
         >
             {/* Stage indicators */}
-            <nav 
+            <nav
                 className="flex items-center justify-between mb-6"
                 aria-label="Production pipeline stages"
             >
@@ -136,7 +136,7 @@ export function AgentProgress({ progress, className }: AgentProgressProps) {
 
                             {/* Connector line */}
                             {index < STAGES.length - 1 && (
-                                <div 
+                                <div
                                     className="flex-1 mx-2 h-0.5 bg-slate-700 relative"
                                     aria-hidden="true"
                                 >
@@ -144,7 +144,7 @@ export function AgentProgress({ progress, className }: AgentProgressProps) {
                                         className="absolute inset-y-0 left-0 bg-linear-to-r from-cyan-500 to-green-500"
                                         initial={{ width: "0%" }}
                                         animate={{
-                                            width: getStageStatus(STAGES[index + 1].id, progress.stage) !== "pending"
+                                            width: (index + 1 < STAGES.length && getStageStatus(STAGES[index + 1].id, progress.stage) !== "pending")
                                                 ? "100%"
                                                 : getStageStatus(stage.id, progress.stage) === "active"
                                                     ? `${progress.progress}%`
@@ -161,7 +161,7 @@ export function AgentProgress({ progress, className }: AgentProgressProps) {
 
             {/* Progress bar */}
             <div className="mb-4">
-                <div 
+                <div
                     className="h-2 bg-slate-800 rounded-full overflow-hidden"
                     role="progressbar"
                     aria-valuenow={Math.round(progress.progress)}
@@ -210,7 +210,7 @@ export function AgentProgressCompact({ progress, className }: AgentProgressProps
     };
 
     return (
-        <div 
+        <div
             className={cn("flex items-center gap-3", className)}
             role="status"
             aria-live="polite"

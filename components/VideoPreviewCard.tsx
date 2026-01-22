@@ -72,12 +72,37 @@ export function VideoPreviewCard({
         {/* Main Preview Area */}
         <div className="relative aspect-video bg-black/40">
           {/* Current Visual */}
+          {/* Current Visual */}
           {currentVisual ? (
-            <img
-              src={currentVisual}
-              alt={currentScene?.name || 'Scene preview'}
-              className="w-full h-full object-cover"
-            />
+            (() => {
+              // Check if the visual is a video (mp4, webm, or googleapis video)
+              const isVideo = currentVisual.match(/\.(mp4|webm)$/i) ||
+                currentVisual.includes('generativelanguage.googleapis.com');
+
+              if (isVideo) {
+                return (
+                  <video
+                    src={currentVisual}
+                    className="w-full h-full object-cover"
+                    controls={false}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    crossOrigin="anonymous"
+                  />
+                );
+              }
+
+              return (
+                <img
+                  src={currentVisual}
+                  alt={currentScene?.name || 'Scene preview'}
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                />
+              );
+            })()
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-white/30 animate-spin" aria-hidden="true" />
@@ -85,7 +110,7 @@ export function VideoPreviewCard({
           )}
 
           {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-black/40" />
 
           {/* Scene Counter Badge */}
           <div className={cn('absolute top-4', isRTL ? 'right-4' : 'left-4')}>
@@ -147,11 +172,34 @@ export function VideoPreviewCard({
                 )}
               >
                 {visualsMap[scene.id] ? (
-                  <img
-                    src={visualsMap[scene.id]}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  (() => {
+                    const url = visualsMap[scene.id]!;
+                    const isVideo = url.match(/\.(mp4|webm)$/i) ||
+                      url.includes('generativelanguage.googleapis.com');
+
+                    if (isVideo) {
+                      return (
+                        <video
+                          src={url}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          crossOrigin="anonymous"
+                          onMouseOver={(e) => e.currentTarget.play()}
+                          onMouseOut={(e) => e.currentTarget.pause()}
+                        />
+                      );
+                    }
+
+                    return (
+                      <img
+                        src={url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        crossOrigin="anonymous"
+                      />
+                    );
+                  })()
                 ) : (
                   <div className="w-full h-full bg-white/5 flex items-center justify-center text-xs text-white/30">
                     {idx + 1}

@@ -3,9 +3,12 @@
  *
  * Handles scene-to-scene transition effects including fade, dissolve, zoom, and slide.
  * Also includes Ken Burns effect for image zoom during scenes.
+ *
+ * Enhanced with reliable video frame extraction using proper seeking.
  */
 
 import { RenderAsset, ExportConfig } from "./exportConfig";
+import { seekVideoToTime, getCachedFrame, cacheFrame } from "./assetLoader";
 
 /**
  * Ken Burns movement types for visual variety
@@ -26,6 +29,7 @@ function getKenBurnsMovement(assetTime: number): KenBurnsMovement {
 /**
  * Draw a single asset with Ken Burns effect and opacity
  * Enhanced with varied movement types (zoom in/out, pan directions)
+ * Uses reliable video seeking with proper event handling
  */
 export async function drawAsset(
     ctx: CanvasRenderingContext2D,
@@ -58,15 +62,25 @@ export async function drawAsset(
             ? (element as HTMLVideoElement).videoHeight
             : (element as HTMLImageElement).height;
 
-    // Handle Video Seek
+    // Validate dimensions (fallback for edge cases)
+    if (naturalWidth === 0 || naturalHeight === 0) {
+        console.warn(`[Transitions] Invalid asset dimensions (${naturalWidth}x${naturalHeight}), skipping frame`);
+        ctx.restore();
+        return;
+    }
+
+    // Handle Video Seek with reliable seeking
     if (asset.type === "video") {
         const vid = element as HTMLVideoElement;
-        if (vid.duration) {
+        if (vid.duration && isFinite(vid.duration)) {
             // Loop logic: absolute time relative to slide start
             // offsetTime allows "peeking" into next slide for crossfade
             const relativeTime = currentTime + offsetTime - asset.time;
             // Ensure positive modulo for loop
-            vid.currentTime = relativeTime % vid.duration;
+            const targetTime = ((relativeTime % vid.duration) + vid.duration) % vid.duration;
+
+            // Use reliable seeking with proper event handling
+            await seekVideoToTime(vid, targetTime);
         }
     }
 

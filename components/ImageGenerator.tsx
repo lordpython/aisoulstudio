@@ -134,7 +134,7 @@ export const ImageGenerator = React.memo<ImageGeneratorProps>(({
           currentPromptText,
           style,
           globalSubject,
-          aspectRatio,
+          aspectRatio as "16:9" | "9:16",
         );
         resultType = "video";
       } else if (assetType === "video_with_image") {

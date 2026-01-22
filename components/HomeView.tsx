@@ -331,8 +331,8 @@ export function HomeView({ onStartCreation, onSwitchToVisualizer }: HomeViewProp
                         className={cn(
                           "px-3 py-2 rounded-lg text-sm font-medium transition-all",
                           "bg-white/5 hover:bg-white/10 border border-white/10",
-                          ((selectedMode === "video" && videoPurpose === preset.purpose) ||
-                            (selectedMode === "music" && musicStyle === preset.style)) &&
+                          ((selectedMode === "video" && "purpose" in preset && videoPurpose === preset.purpose) ||
+                            (selectedMode === "music" && "style" in preset && musicStyle === preset.style)) &&
                           "bg-violet-500/20 border-violet-500/50"
                         )}
                       >
@@ -411,7 +411,7 @@ export function HomeView({ onStartCreation, onSwitchToVisualizer }: HomeViewProp
                         </Label>
                         <Slider
                           value={[duration]}
-                          onValueChange={(v) => setDuration(v[0])}
+                          onValueChange={(v) => v[0] !== undefined && setDuration(v[0])}
                           min={15}
                           max={180}
                           step={15}

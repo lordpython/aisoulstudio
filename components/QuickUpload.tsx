@@ -93,7 +93,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
         status: "SUCCESS",
         progress: 100,
         generatedTracks: tracks,
-        selectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+        selectedTrackId: tracks.length > 0 ? tracks[0]?.id : null,
       }));
     } catch (err) {
       setMusicState(prev => ({
@@ -255,7 +255,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
       <div className="w-full bg-card/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/5">
 
         {/* Navigation Tabs - Segmented Control */}
-        <nav 
+        <nav
           className="p-2 bg-black/20 m-2 rounded-2xl flex relative"
           role="tablist"
           aria-label="Video creation options"
@@ -298,7 +298,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
           {/* Aspect Ratio Config (Hidden in Studio Mode and Music) */}
           {activeTab !== "production" && activeTab !== "music" && (
             <div className="flex justify-center mb-10">
-              <div 
+              <div
                 className="inline-flex bg-muted/30 p-1.5 rounded-full border border-white/5"
                 role="radiogroup"
                 aria-label="Video aspect ratio"

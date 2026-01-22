@@ -37,7 +37,7 @@ const USE_MULTI_AGENT = import.meta.env.VITE_USE_MULTI_AGENT !== 'false';
 export function useVideoProductionRefactored() {
     // Core state and configuration
     const coreHook = useVideoProductionCore();
-    
+
     // Narration management with proper callbacks
     const narrationHook = useVideoNarration(
         coreHook.contentPlan,
@@ -46,29 +46,29 @@ export function useVideoProductionRefactored() {
         coreHook.setError,
         coreHook.setContentPlan
     );
-    
+
     // Visual generation and management
     const visualsHook = useVideoVisuals();
-    
+
     // Quality monitoring with proper callbacks
     const qualityHook = useVideoQuality(
         coreHook.setProgress,
         coreHook.setError
     );
-    
+
     // SFX and audio mixing with proper callbacks
     const sfxHook = useVideoSFX(
         coreHook.setProgress,
         coreHook.setError
     );
-    
+
     // Prompt quality tools
     const promptToolsHook = useVideoPromptTools(
         coreHook.contentPlan,
         coreHook.visualStyle,
         coreHook.topic
     );
-    
+
     // Music generation (Suno API)
     const musicHook = useSunoMusic();
 
@@ -106,7 +106,8 @@ export function useVideoProductionRefactored() {
 Style: ${coreHook.visualStyle}. Language: ${coreHook.language === 'auto' ? 'detect from topic' : coreHook.language}.
 Target audience: ${coreHook.targetAudience}.
 ${effectiveDuration > 300 ? 'This is a long video, use appropriate number of scenes.' : ''}
-${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the animate_image tool for every scene.' : ''}`;
+${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the animate_image tool for every scene.' : ''}
+${coreHook.veoVideoCount > 0 ? `IMPORTANT: Use generate_visuals with veoVideoCount=${coreHook.veoVideoCount} to generate professional videos for the first ${coreHook.veoVideoCount} scenes.` : ''}`;
 
                 // Choose which agent system to use
                 const productionFunction = USE_MULTI_AGENT
@@ -182,7 +183,7 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
                         coreHook.setValidation(validation);
 
                         const qualityReport = qualityHook.generateAndSaveQualityReport(
-                            agentResult.contentPlan,
+                            agentResult.contentPlan as any,
                             agentResult.narrationSegments,
                             agentResult.sfxPlan,
                             validation,
@@ -215,6 +216,7 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
                             videoPurpose: coreHook.videoPurpose,
                             language: coreHook.language,
                         },
+                        veoVideoCount: coreHook.veoVideoCount,
                         ...config,
                     },
                     (prog) => {
@@ -231,7 +233,7 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
 
                 // Generate quality report
                 const report = qualityHook.generateAndSaveQualityReport(
-                    result.contentPlan,
+                    result.contentPlan as any,
                     result.narrationSegments,
                     result.sfxPlan,
                     result.validation,
@@ -379,6 +381,8 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
         setVisualStyle: coreHook.setVisualStyle,
         setLanguage: coreHook.setLanguage,
         setUseAgentMode: coreHook.setUseAgentMode,
+        veoVideoCount: coreHook.veoVideoCount,
+        setVeoVideoCount: coreHook.setVeoVideoCount,
 
         // Actions
         setTopic: coreHook.setTopic,
@@ -386,7 +390,11 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
         generatePlan,
         generateNarration: narrationHook.generateNarration,
         regenerateSceneNarration: narrationHook.regenerateSceneNarration,
-        runValidation: qualityHook.runValidation,
+        runValidation: () => qualityHook.runValidation(
+            coreHook.contentPlan as any,
+            narrationHook.narrationSegments,
+            visualsHook.visuals
+        ),
         addMusicToTimeline,
         updateScenes: coreHook.updateScenes,
         playNarration: narrationHook.playNarration,

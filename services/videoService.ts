@@ -37,25 +37,25 @@ async function withRetry<T>(
   delayMs: number = 1000
 ): Promise<T> {
   let lastError: Error | null = null;
-  
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
       console.warn(`[Video Service] Attempt ${i + 1}/${maxRetries} failed:`, error.message);
-      
+
       // Don't retry on permission/auth errors
       if (error.status === 403 || error.status === 401 || error.status === 404) {
         throw error;
       }
-      
+
       if (i < maxRetries - 1) {
         await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
       }
     }
   }
-  
+
   throw lastError;
 }
 
@@ -98,6 +98,109 @@ async function pollVideoOperation(
   throw new Error(
     `Video generation timed out after ${(maxAttempts * delayMs) / 1000} seconds`
   );
+}
+
+/**
+ * Extract a thumbnail from a video URL and save to cloud storage.
+ * Uses video element + canvas to capture first frame.
+ * Only runs in browser environment.
+ */
+async function extractVideoThumbnail(
+  videoUrl: string,
+  sessionId: string,
+  sceneIndex: number = 0
+): Promise<string | null> {
+  // Only run in browser (canvas API not available in Node.js)
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    console.log('[Video Service] Thumbnail extraction skipped (server-side)');
+    return null;
+  }
+
+  try {
+    console.log('[Video Service] Extracting thumbnail from video...');
+
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.preload = 'metadata';
+      video.muted = true;
+
+      // Timeout after 30 seconds
+      const timeout = setTimeout(() => {
+        video.remove();
+        console.warn('[Video Service] Thumbnail extraction timed out');
+        resolve(null);
+      }, 30000);
+
+      video.onloadeddata = async () => {
+        try {
+          // Seek to first frame
+          video.currentTime = 0;
+        } catch (err) {
+          clearTimeout(timeout);
+          video.remove();
+          resolve(null);
+        }
+      };
+
+      video.onseeked = async () => {
+        try {
+          // Create canvas and draw frame
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            throw new Error('Failed to get canvas context');
+          }
+
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Convert to blob
+          canvas.toBlob(async (blob) => {
+            clearTimeout(timeout);
+            video.remove();
+
+            if (!blob) {
+              console.warn('[Video Service] Failed to create thumbnail blob');
+              resolve(null);
+              return;
+            }
+
+            // Save to cloud storage
+            const filename = `scene_${sceneIndex}.png`;
+            await cloudAutosave.saveAsset(sessionId, blob, filename, 'visuals');
+            console.log(`[Video Service] ✓ Thumbnail saved: ${filename}`);
+
+            // Return as data URL for immediate use
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          }, 'image/png', 0.9);
+        } catch (err) {
+          clearTimeout(timeout);
+          video.remove();
+          console.warn('[Video Service] Thumbnail extraction failed:', err);
+          resolve(null);
+        }
+      };
+
+      video.onerror = () => {
+        clearTimeout(timeout);
+        video.remove();
+        console.warn('[Video Service] Video load failed for thumbnail');
+        resolve(null);
+      };
+
+      video.src = videoUrl;
+      video.load();
+    });
+  } catch (err) {
+    console.warn('[Video Service] Thumbnail extraction error:', err);
+    return null;
+  }
 }
 
 /**
@@ -256,11 +359,17 @@ Smooth camera motion. No text or watermarks.
 
     console.log(`[Video Service] Video object keys:`, Object.keys(videoObj));
 
-    // Helper to trigger cloud autosave
+    // Helper to trigger cloud autosave and thumbnail extraction
     const triggerAutosave = (videoUrl: string) => {
       if (sessionId && videoUrl) {
+        // Save the video clip
         cloudAutosave.saveVideoClip(sessionId, videoUrl, sceneIndex ?? Date.now()).catch(err => {
           console.warn('[Video Service] Cloud autosave failed (non-fatal):', err);
+        });
+
+        // Extract and save thumbnail as fallback (fire-and-forget)
+        extractVideoThumbnail(videoUrl, sessionId, sceneIndex ?? 0).catch(err => {
+          console.warn('[Video Service] Thumbnail extraction failed (non-fatal):', err);
         });
       }
     };

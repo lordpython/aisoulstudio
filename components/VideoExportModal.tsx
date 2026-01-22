@@ -519,7 +519,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                     step={10}
                     value={[config.syncOffsetMs]}
                     onValueChange={(vals) =>
-                      setConfig({ ...config, syncOffsetMs: vals[0] })
+                      setConfig({ ...config, syncOffsetMs: vals[0] ?? -50 })
                     }
                     className="py-2"
                   />
@@ -597,7 +597,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              visualizerConfig: { ...config.visualizerConfig!, opacity: val },
+                              visualizerConfig: { ...config.visualizerConfig!, opacity: val ?? 0.15 },
                             })
                           }
                         />
@@ -616,7 +616,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              visualizerConfig: { ...config.visualizerConfig!, maxHeightRatio: val },
+                              visualizerConfig: { ...config.visualizerConfig!, maxHeightRatio: val ?? 0.25 },
                             })
                           }
                         />
@@ -691,7 +691,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              textAnimationConfig: { ...config.textAnimationConfig!, revealDuration: val },
+                              textAnimationConfig: { ...config.textAnimationConfig!, revealDuration: val ?? 0.3 },
                             })
                           }
                           className="flex-1"
@@ -730,7 +730,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                             step={0.05}
                             value={[config.sfxMasterVolume || 1.0]}
                             onValueChange={([val]) =>
-                              setConfig({ ...config, sfxMasterVolume: val })
+                              setConfig({ ...config, sfxMasterVolume: val ?? 1.0 })
                             }
                           />
                         </div>
@@ -747,7 +747,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                               step={0.05}
                               value={[config.musicMasterVolume || 0.5]}
                               onValueChange={([val]) =>
-                                setConfig({ ...config, musicMasterVolume: val })
+                                setConfig({ ...config, musicMasterVolume: val ?? 0.5 })
                               }
                             />
                           </div>

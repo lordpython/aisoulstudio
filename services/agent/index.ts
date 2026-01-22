@@ -93,12 +93,15 @@ export {
 // Export Tools exports
 export {
     exportFinalVideoTool,
+    validateExportTool,
+    listExportPresetsTool,
     exportTools,
     getExportResult,
     setExportResult,
     clearExportResult,
     type ExportResult,
     type AssetBundle,
+    type ExportValidationResult,
 } from './exportTools';
 
 // Intent Detection exports

@@ -17,7 +17,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { GEMINI_API_KEY } from "../shared/apiClient";
 
-import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan, Scene } from "../../types";
+import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan } from "../../types";
 import { generateContentPlan, ContentPlannerConfig } from "../contentPlannerService";
 import { narrateAllScenes, NarratorConfig } from "../narratorService";
 import { generateImageFromPrompt } from "../imageService";
@@ -28,7 +28,7 @@ import { extractVisualStyle, injectStyleIntoPrompt, type VisualStyle } from "../
 import { animateImageWithDeApi, isDeApiConfigured } from "../deapiService";
 import { generateMusic as sunoGenerateMusic, waitForCompletion as sunoWaitForCompletion, isSunoConfigured } from "../sunoService";
 import { type VideoPurpose } from "../../constants";
-import { importTools, getImportedContent, type ImportedContent } from "../agent/importTools";
+import { importTools, type ImportedContent } from "../agent/importTools";
 import { exportTools } from "../agent/exportTools";
 import { subtitleTools } from "../agent/subtitleTools";
 import { audioMixingTools } from "../agent/audioMixingTools";
@@ -38,12 +38,10 @@ import {
     toolRegistry,
     ToolGroup,
     createToolDefinition,
-    getGroupDependencyDescription,
 } from "../agent/toolRegistry";
 import {
     analyzeIntent,
     generateIntentHint,
-    type IntentDetectionResult,
 } from "../agent/intentDetection";
 import { type MixedAudioResult } from "../agent/audioMixingTools";
 import { type SubtitleResult } from "../agent/subtitleTools";
@@ -56,7 +54,6 @@ import {
     executeWithRetry,
     applyFallback,
     classifyError,
-    formatErrorsForResponse,
 } from "../agent/errorRecovery";
 import { cloudAutosave } from "../cloudStorageService";
 
@@ -217,6 +214,7 @@ const GenerateVisualsSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     style: z.string().optional().describe("Visual style override"),
     aspectRatio: z.string().optional().describe("Aspect ratio (16:9, 9:16, 1:1)"),
+    veoVideoCount: z.number().optional().describe("Number of scenes to generate with Veo 3.1 professional video (0-5, default 1)"),
 });
 
 const PlanSFXSchema = z.object({
@@ -384,7 +382,7 @@ const planVideoTool = tool(
 );
 
 const narrateScenesTool = tool(
-    async ({ contentPlanId, language, voiceStyle }) => {
+    async ({ contentPlanId, language, voiceStyle: _voiceStyle }) => {
         console.log(`[ProductionAgent] Narrating scenes for ${contentPlanId}`);
 
         // Validate session ID
@@ -459,8 +457,8 @@ const narrateScenesTool = tool(
 const generatingPromises = new Map<string, Promise<string>>();
 
 const generateVisualsTool = tool(
-    async ({ contentPlanId, style, aspectRatio }) => {
-        console.log(`[ProductionAgent] Generating visuals for ${contentPlanId}`);
+    async ({ contentPlanId, style, aspectRatio, veoVideoCount = 1 }) => {
+        console.log(`[ProductionAgent] Generating visuals for ${contentPlanId} (veoVideoCount: ${veoVideoCount})`);
 
         // Validate session ID
         const validationError = validateContentPlanId(contentPlanId);
@@ -496,53 +494,61 @@ const generateVisualsTool = tool(
                 const totalScenes = state.contentPlan.scenes.length;
                 const BATCH_SIZE = 3; // Process 3 scenes concurrently to avoid rate limits
 
-                // --- First Scene: Use Veo 3.1 for cinematic opening ---
-                const firstScene = state.contentPlan.scenes[0];
-                if (firstScene && !visuals[0]?.imageUrl) {
-                    console.log(`[ProductionAgent] Generating first scene with Veo 3.1`);
-                    emitSceneProgress("generate_visuals", 1, totalScenes, `Generating cinematic opening: ${firstScene.name}`);
+                // Clamp veoVideoCount to valid range (0-5, max scenes)
+                const effectiveVeoCount = Math.min(Math.max(0, veoVideoCount), 5, totalScenes);
 
-                    let firstImageUrl: string;
-                    let isVideoScene = false;
+                // --- Veo Scenes: Use Veo 3.1 for first N scenes ---
+                if (effectiveVeoCount > 0) {
+                    const { generateProfessionalVideo } = await import("../videoService");
 
-                    try {
-                        const { generateProfessionalVideo } = await import("../videoService");
-                        firstImageUrl = await generateProfessionalVideo(
-                            firstScene.visualDescription,
-                            style || "Cinematic",
-                            firstScene.emotionalTone || "dramatic",
-                            "", "documentary",
-                            (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
-                            8, true,
-                            undefined,      // outputGcsUri
-                            contentPlanId,  // sessionId for cloud autosave
-                            0               // sceneIndex
-                        );
-                        isVideoScene = true;
-                        console.log(`[ProductionAgent] Veo 3.1 video generated for first scene`);
-                    } catch (veoError) {
-                        console.warn(`[ProductionAgent] Veo 3.1 failed, falling back to Imagen:`, veoError);
-                        firstImageUrl = await generateImageFromPrompt(
-                            firstScene.visualDescription,
-                            style || "Cinematic",
-                            "", aspectRatio || "16:9",
-                            false,          // skipRefine
-                            undefined,      // seed
-                            contentPlanId,  // sessionId for cloud autosave
-                            0               // sceneIndex
-                        );
+                    for (let sceneIdx = 0; sceneIdx < effectiveVeoCount; sceneIdx++) {
+                        const scene = state.contentPlan.scenes[sceneIdx];
+                        if (!scene || visuals[sceneIdx]?.imageUrl) continue; // Skip if exists
+
+                        console.log(`[ProductionAgent] Generating scene ${sceneIdx + 1}/${effectiveVeoCount} with Veo 3.1`);
+                        emitSceneProgress("generate_visuals", sceneIdx + 1, totalScenes, `Generating Veo video: ${scene.name}`);
+
+                        let imageUrl: string;
+                        let isVideoScene = false;
+
+                        try {
+                            imageUrl = await generateProfessionalVideo(
+                                scene.visualDescription,
+                                style || "Cinematic",
+                                scene.emotionalTone || "dramatic",
+                                "", "documentary",
+                                (aspectRatio === "9:16" ? "9:16" : "16:9"),
+                                8, true,
+                                undefined,      // outputGcsUri
+                                contentPlanId,  // sessionId for cloud autosave
+                                sceneIdx        // sceneIndex
+                            );
+                            isVideoScene = true;
+                            console.log(`[ProductionAgent] Veo 3.1 video generated for scene ${sceneIdx + 1}`);
+                        } catch (veoError) {
+                            console.warn(`[ProductionAgent] Veo 3.1 failed for scene ${sceneIdx + 1}, falling back to Imagen:`, veoError);
+                            imageUrl = await generateImageFromPrompt(
+                                scene.visualDescription,
+                                style || "Cinematic",
+                                "", aspectRatio || "16:9",
+                                false,          // skipRefine
+                                undefined,      // seed
+                                contentPlanId,  // sessionId for cloud autosave
+                                sceneIdx        // sceneIndex
+                            );
+                        }
+
+                        visuals[sceneIdx] = {
+                            promptId: scene.id,
+                            imageUrl: imageUrl,
+                            type: isVideoScene ? "video" : "image",
+                        };
+
+                        // Save progress after each Veo scene
+                        const currentState = productionStore.get(contentPlanId) || state;
+                        currentState.visuals = visuals;
+                        productionStore.set(contentPlanId, currentState);
                     }
-
-                    visuals[0] = {
-                        promptId: firstScene.id,
-                        imageUrl: firstImageUrl,
-                        type: isVideoScene ? "video" : "image",
-                    };
-
-                    // Save first scene result immediately
-                    const currentState = productionStore.get(contentPlanId) || state;
-                    currentState.visuals = visuals;
-                    productionStore.set(contentPlanId, currentState);
                 }
 
                 // --- Extract Visual Style from first scene for consistency ---
@@ -558,23 +564,23 @@ const generateVisualsTool = tool(
                 }
 
                 // --- Remaining Scenes: Parallel batch processing with style consistency ---
-                const remainingScenes = state.contentPlan.scenes.slice(1);
+                const remainingScenes = state.contentPlan.scenes.slice(effectiveVeoCount);
 
                 for (let batchStart = 0; batchStart < remainingScenes.length; batchStart += BATCH_SIZE) {
                     const batchEnd = Math.min(batchStart + BATCH_SIZE, remainingScenes.length);
                     const batchScenes = remainingScenes.slice(batchStart, batchEnd);
 
-                    console.log(`[ProductionAgent] Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}: scenes ${batchStart + 2}-${batchEnd + 1}`);
+                    console.log(`[ProductionAgent] Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}: scenes ${batchStart + effectiveVeoCount + 1}-${batchEnd + effectiveVeoCount}`);
                     emitSceneProgress(
                         "generate_visuals",
-                        batchStart + 2,
+                        batchStart + effectiveVeoCount + 1,
                         totalScenes,
-                        `Generating visuals batch ${Math.floor(batchStart / BATCH_SIZE) + 1} (scenes ${batchStart + 2}-${batchEnd + 1})`
+                        `Generating visuals batch ${Math.floor(batchStart / BATCH_SIZE) + 1} (scenes ${batchStart + effectiveVeoCount + 1}-${batchEnd + effectiveVeoCount})`
                     );
 
                     // Generate batch in parallel
                     const batchPromises = batchScenes.map(async (scene, localIndex) => {
-                        const globalIndex = batchStart + localIndex + 1; // +1 because we skip first scene
+                        const globalIndex = batchStart + localIndex + effectiveVeoCount; // Skip Veo scenes
 
                         // Skip if already exists
                         if (visuals[globalIndex]?.imageUrl) {
@@ -653,7 +659,7 @@ const generateVisualsTool = tool(
 );
 
 const planSFXTool = tool(
-    async ({ contentPlanId, mood }) => {
+    async ({ contentPlanId, mood: _mood }) => {
         console.log(`[ProductionAgent] Planning SFX for ${contentPlanId}`);
 
         // Validate session ID
@@ -899,13 +905,14 @@ const markCompleteTool = tool(
 const GenerateVideoSchema = z.object({
     contentPlanId: z.string().describe("Session ID of the production"),
     sceneIndex: z.number().describe("Index of the scene to generate video for (0-based)"),
+    style: z.string().optional().describe("Visual style for the video (default: Cinematic)"),
     aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional().describe("Aspect ratio for the video"),
-    durationSeconds: z.number().optional().describe("Video duration: 4, 6, or 8 seconds (default: 8)"),
+    durationSeconds: z.union([z.literal(4), z.literal(6), z.literal(8)]).optional().describe("Video duration: 4, 6, or 8 seconds (default: 8)"),
     useFastModel: z.boolean().optional().describe("Use Veo 3.1 Fast (40% faster) vs Standard (highest quality) - default true"),
 });
 
 const generateVideoTool = tool(
-    async ({ contentPlanId, sceneIndex, aspectRatio, durationSeconds, useFastModel }) => {
+    async ({ contentPlanId, sceneIndex, style, aspectRatio, durationSeconds, useFastModel }) => {
         console.log(`[ProductionAgent] Generating video for scene ${sceneIndex} using Veo 3.1`);
 
         // Validate session ID
@@ -933,11 +940,11 @@ const generateVideoTool = tool(
             console.log(`[ProductionAgent] Generating professional Veo 3.1 video for scene ${sceneIndex}: ${scene.name}`);
             const videoUrl = await generateProfessionalVideo(
                 scene.visualDescription,
-                state.contentPlan.visualStyle || "Cinematic",
+                style || "Cinematic",
                 scene.emotionalTone || "dramatic",
                 "", // globalSubject
                 "documentary", // videoPurpose - could be enhanced from content plan
-                (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
+                (aspectRatio === "9:16" ? "9:16" : "16:9"),
                 durationSeconds || 8,
                 useFastModel !== false // Default to fast model
             );
@@ -1030,7 +1037,7 @@ const animateImageTool = tool(
                 scene.emotionalTone || "dramatic",
                 "", // globalSubject
                 "documentary", // videoPurpose
-                (aspectRatio as string) || "16:9",
+                (aspectRatio === "9:16" ? "9:16" : "16:9"),
                 6, // 6 seconds
                 true // Use Veo 3.1 Fast
             );
@@ -1077,7 +1084,9 @@ const animateImageTool = tool(
             const videoUrl = await animateImageWithDeApi(
                 visual.imageUrl,
                 motionPrompt,
-                (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9"
+                (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
+                contentPlanId,  // sessionId for cloud autosave
+                sceneIndex      // scene index for file naming
             );
 
 
@@ -1398,16 +1407,20 @@ NOTE: Music generation is NOT available in video production mode. Use the "Gener
 **Dependencies: MEDIA group must complete first**
 - remove_background: Remove background from images for compositing. Requires generate_visuals first.
 - restyle_image: Apply style transfer to images (Anime, Watercolor, Oil Painting, etc.). Requires generate_visuals first.
-- mix_audio_tracks: Combine narration, music, and SFX. **IMPORTANT: Only provide contentPlanId - all audio assets are auto-fetched.**
+- mix_audio_tracks: Combine narration, music, SFX, and Veo video native audio. **IMPORTANT: Only provide contentPlanId - all audio assets are auto-fetched.** Veo video audio is automatically extracted and mixed when includeVideoAudio=true (default).
 
 ### EXPORT (Final Output)
 **Dependencies: ENHANCEMENT group must complete first (or MEDIA if no enhancements)**
+- list_export_presets: Query available platform presets (youtube-shorts, tiktok, instagram-reels, etc.). Use when user asks about export options or to recommend appropriate settings.
+- validate_export: Check export readiness before rendering. Returns detailed validation with asset counts, warnings, errors. Use before export_final_video to catch issues early.
 - generate_subtitles: Create SRT/VTT subtitles from narration transcripts (supports RTL languages). Requires narrate_scenes first.
-- export_final_video: Render final video. **IMPORTANT: Only provide contentPlanId - all assets (visuals, narration, SFX) are auto-fetched.**
+- export_final_video: Render final video. **IMPORTANT: Only provide contentPlanId - all assets (visuals, narration, SFX) are auto-fetched.** Use 'preset' param for platform-optimized settings (e.g., preset='tiktok'). Supports mixed image/video assets (Veo videos handled automatically).
 - upload_production_to_cloud: Upload all production outputs to Google Cloud Storage. **IMPORTANT: Only provide contentPlanId - all assets are auto-fetched.** Creates organized folder with date/time naming.
 
 ### UTILITY (Can be called anytime)
 - get_production_status: Check what's done
+- list_export_presets: Query export presets anytime (can help user choose format early)
+- validate_export: Validate export readiness (can call before EXPORT stage)
 - mark_complete: Finalize the production
 
 ## DECISION TREE
@@ -1487,11 +1500,12 @@ For simple topics (quotes, moods, abstract), use FEWER scenes.
    - Call validate_plan
    - If score < 80 AND iterations < 2: call adjust_timing, then validate_plan again
    - Repeat until score >= 80 OR max iterations reached
-6. **MIX** (optional): Call mix_audio_tracks({ contentPlanId }) - DO NOT provide narrationUrl, it's auto-fetched.
+6. **MIX** (optional): Call mix_audio_tracks({ contentPlanId }) - DO NOT provide narrationUrl, it's auto-fetched. Veo video audio is automatically extracted and included.
 7. **SUBTITLES** (optional): Call generate_subtitles for accessibility.
-8. **EXPORT**: Call export_final_video({ contentPlanId }) - DO NOT provide visuals/narrationUrl/totalDuration, they're auto-fetched.
-9. **UPLOAD** (recommended): Call upload_production_to_cloud({ contentPlanId }) to save all outputs to Google Cloud Storage.
-10. **COMPLETE**: Call mark_complete when satisfied.
+8. **VALIDATE** (recommended): Call validate_export({ contentPlanId }) to check all assets are ready before rendering.
+9. **EXPORT**: Call export_final_video({ contentPlanId }) - DO NOT provide visuals/narrationUrl/totalDuration, they're auto-fetched.
+10. **UPLOAD** (recommended): Call upload_production_to_cloud({ contentPlanId }) to save all outputs to Google Cloud Storage.
+11. **COMPLETE**: Call mark_complete when satisfied.
 
 ### YouTube Import Workflow
 1. **IMPORT**: Call import_youtube_content with the URL. This extracts audio and transcribes it.
@@ -2117,7 +2131,7 @@ export async function runProductionAgent(
                                     productionStore.set(sessionId, state);
                                 }
                             }
-                        } catch { }
+                        } catch { /* Ignore error storage failures */ }
                     }
                 } else {
                     // Tool failed with exception - try fallback (Requirements 6.1, 6.2, 6.3)

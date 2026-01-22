@@ -1,3 +1,5 @@
+import { cloudAutosave } from "./cloudStorageService";
+
 const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 const PROXY_BASE = "/api/deapi/proxy"; // Server-side proxy to bypass CORS
 const DEFAULT_VIDEO_MODEL = "Ltxv_13B_0_9_8_Distilled_FP8";
@@ -110,7 +112,7 @@ interface DeApiResponse {
 }
 
 // Text-to-image models available on DeAPI
-export type DeApiImageModel = 
+export type DeApiImageModel =
   | "Flux1schnell"        // Fast, high-quality (recommended)
   | "ZImageTurbo_INT8";   // Photorealistic, exceptional clarity
 
@@ -179,7 +181,7 @@ async function pollRequest(requestId: string): Promise<string> {
       const headers: Record<string, string> = {
         Accept: "application/json",
       };
-      
+
       // Only add Authorization header for direct API calls (not proxy)
       if (!isBrowser) {
         headers.Authorization = `Bearer ${API_KEY}`;
@@ -203,7 +205,7 @@ async function pollRequest(requestId: string): Promise<string> {
 
         // Exponential backoff on 429: double the delay, up to max
         currentDelay = Math.min(currentDelay * 2, maxDelayMs);
-        
+
         // Check for Retry-After header
         const retryAfter = response.headers.get("Retry-After");
         if (retryAfter) {
@@ -213,7 +215,7 @@ async function pollRequest(requestId: string): Promise<string> {
             console.log(`[DeAPI] Retry-After header: waiting ${currentDelay / 1000}s`);
           }
         }
-        
+
         continue; // Retry with backoff
       }
 
@@ -248,10 +250,12 @@ async function pollRequest(requestId: string): Promise<string> {
         console.log(`[DeAPI] Status: ${data.status || 'pending'} (poll ${attempt + 1}/${maxAttempts})`);
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Network errors - retry with backoff
-      if (error.name === "TypeError" || error.message?.includes("fetch")) {
-        console.warn(`[DeAPI] Network error during poll: ${error.message}`);
+      const errorName = error instanceof Error ? error.name : '';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorName === "TypeError" || errorMessage.includes("fetch")) {
+        console.warn(`[DeAPI] Network error during poll: ${errorMessage}`);
         currentDelay = Math.min(currentDelay * 1.5, maxDelayMs);
         continue;
       }
@@ -291,18 +295,20 @@ export const animateImageWithDeApi = async (
   base64Image: string,
   prompt: string,
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
+  sessionId?: string,
+  sceneIndex?: number,
 ): Promise<string> => {
   if (!isDeApiConfigured()) {
     throw new Error(
       "DeAPI API key is not configured on the server.\n\n" +
-        "DeAPI is an optional video animation provider that converts still images to video loops.\n\n" +
-        "To use DeAPI:\n" +
-        "1. Get an API key from https://deapi.ai ($20 free credits for new accounts)\n" +
-        "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
-        "3. Restart the development server (npm run dev:all)\n\n" +
-        "Alternatives:\n" +
-        "• Switch to 'Google Veo' as your video provider (requires paid Gemini API plan)\n" +
-        "• Use 'Image' generation mode instead of video",
+      "DeAPI is an optional video animation provider that converts still images to video loops.\n\n" +
+      "To use DeAPI:\n" +
+      "1. Get an API key from https://deapi.ai ($20 free credits for new accounts)\n" +
+      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "3. Restart the development server (npm run dev:all)\n\n" +
+      "Alternatives:\n" +
+      "• Switch to 'Google Veo' as your video provider (requires paid Gemini API plan)\n" +
+      "• Use 'Image' generation mode instead of video",
     );
   }
 
@@ -338,7 +344,7 @@ export const animateImageWithDeApi = async (
   // Browser uses dedicated proxy endpoint that handles FormData properly
   // Node.js uses direct API call
   let response: Response;
-  
+
   if (isBrowser) {
     // Use dedicated img2video proxy that handles multipart/form-data
     response = await fetch('/api/deapi/img2video', {
@@ -393,7 +399,7 @@ export const animateImageWithDeApi = async (
 
   const rawData = await response.json();
   console.log(`[DeAPI] Raw response:`, JSON.stringify(rawData, null, 2));
-  
+
   // Handle multiple response structure variations:
   // 1. Nested: { data: { request_id, status, ... } }
   // 2. Flat: { request_id, status, ... }
@@ -403,21 +409,21 @@ export const animateImageWithDeApi = async (
 
   // Check if result is immediately available
   let videoUrl: string;
-  
+
   // Priority 1: Check for immediate result_url (status: "done")
   if (data.result_url) {
     console.log(`[DeAPI] Video ready immediately! Status: ${data.status || 'unknown'}`);
     videoUrl = data.result_url;
-  } 
+  }
   // Priority 2: Check for error status
   else if (data.status === "error") {
     throw new Error(data.error || "Generation failed at provider");
-  } 
+  }
   // Priority 3: Check for request_id to poll
   else if (data.request_id) {
     console.log(`[DeAPI] Polling for request: ${data.request_id}, status: ${data.status}`);
     videoUrl = await pollRequest(data.request_id);
-  } 
+  }
   // Priority 4: Fallback - unexpected structure
   else {
     console.error(`[DeAPI] Unexpected response structure:`, rawData);
@@ -443,6 +449,18 @@ export const animateImageWithDeApi = async (
   const vidBlob = await vidResp.blob();
   console.log(`[DeAPI] Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
+  // Upload to cloud storage if session context is provided
+  if (sessionId && sceneIndex !== undefined) {
+    cloudAutosave.saveAsset(
+      sessionId,
+      vidBlob,
+      `scene_${sceneIndex}_deapi.mp4`,
+      'video_clips'
+    ).catch(err => {
+      console.warn('[DeAPI] Cloud upload failed (non-fatal):', err);
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result as string);
@@ -465,10 +483,10 @@ export const generateImageWithDeApi = async (
   if (!isDeApiConfigured()) {
     throw new Error(
       "DeAPI API key is not configured on the server.\n\n" +
-        "To use DeAPI text-to-image:\n" +
-        "1. Get an API key from https://deapi.ai\n" +
-        "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
-        "3. Restart the development server (npm run dev:all)"
+      "To use DeAPI text-to-image:\n" +
+      "1. Get an API key from https://deapi.ai\n" +
+      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "3. Restart the development server (npm run dev:all)"
     );
   }
 
@@ -490,7 +508,7 @@ export const generateImageWithDeApi = async (
     Accept: "application/json",
     "Content-Type": "application/json",
   };
-  
+
   // Only add Authorization header for direct API calls (proxy handles auth server-side)
   if (!isBrowser) {
     headers.Authorization = `Bearer ${API_KEY}`;
@@ -585,7 +603,7 @@ export const generateImageWithAspectRatio = async (
   negativePrompt?: string
 ): Promise<string> => {
   const dimensions = getDeApiDimensions(aspectRatio);
-  
+
   return generateImageWithDeApi({
     prompt,
     model,

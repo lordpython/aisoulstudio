@@ -24,6 +24,18 @@ export type ExportProgress = {
     stage: "loading" | "preparing" | "rendering" | "encoding" | "complete";
     progress: number;
     message: string;
+    /** Current frame being rendered (for detailed progress) */
+    currentFrame?: number;
+    /** Total frames to render */
+    totalFrames?: number;
+    /** Current asset type being processed */
+    currentAssetType?: "image" | "video";
+    /** Current asset index */
+    currentAssetIndex?: number;
+    /** Total asset count */
+    totalAssets?: number;
+    /** Video-specific: whether seeking is in progress */
+    isSeekingVideo?: boolean;
 };
 
 export type ProgressCallback = (progress: ExportProgress) => void;

@@ -62,7 +62,7 @@ export function MusicChatModalV2({
 }: MusicChatModalV2Props) {
   // Agent instance
   const agentRef = useRef<MusicProducerAgentV2 | null>(null);
-  
+
   // State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -70,7 +70,7 @@ export function MusicChatModalV2({
   const [phase, setPhase] = useState<ModalPhase>("chatting");
   const [credits, setCredits] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Generation state
   const [taskId, setTaskId] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -79,11 +79,11 @@ export function MusicChatModalV2({
 
   // Confirmation state (human-in-the-loop)
   const [pendingAction, setPendingAction] = useState<PendingToolCall | null>(null);
-  
+
   // Audio playback
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
-  
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,7 +97,7 @@ export function MusicChatModalV2({
           setPhase("generating");
         },
       });
-      
+
       setMessages([{
         role: "assistant",
         content: "مرحباً! 🎵 I'm your AI music producer. Tell me about the song you want to create - what genre, mood, language, or style are you going for?\n\nI specialize in Arabic/Khaliji music but can create any genre!",
@@ -108,7 +108,7 @@ export function MusicChatModalV2({
       setTaskId(null);
       setGeneratedTracks([]);
       setGenerationProgress(0);
-      
+
       // Fetch credits
       fetchCredits();
     }
@@ -147,16 +147,17 @@ export function MusicChatModalV2({
 
         if (cancelled) return;
 
-        if (result.status === "SUCCESS" && result.tracks && result.tracks.length > 0) {
-          setGeneratedTracks(result.tracks);
-          setSelectedTrackId(result.tracks[0].id);
+        const tracks = result.tracks;
+        if (result.status === "SUCCESS" && tracks && tracks.length > 0) {
+          setGeneratedTracks(tracks);
+          setSelectedTrackId(tracks[0].id);
           setGenerationProgress(100);
           setPhase("complete");
 
           // Add completion message
           setMessages(prev => [...prev, {
             role: "assistant",
-            content: `🎉 Your song is ready! I've generated ${result.tracks.length} variation${result.tracks.length > 1 ? 's' : ''} for you. Listen and pick your favorite!`,
+            content: `🎉 Your song is ready! I've generated ${tracks.length} variation${tracks.length > 1 ? 's' : ''} for you. Listen and pick your favorite!`,
           }]);
         } else if (result.status === "FAILED") {
           throw new Error(result.errorMessage || "Music generation failed");
@@ -402,7 +403,7 @@ export function MusicChatModalV2({
               )}
             </div>
           ))}
-          
+
           {isThinking && (
             <div className="flex gap-3">
               <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
@@ -413,7 +414,7 @@ export function MusicChatModalV2({
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
 

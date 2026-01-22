@@ -218,7 +218,7 @@ export function MusicGeneratorModal({
     // Use lyrics as prompt when not instrumental and lyrics are provided
     const isInstrumental = formState.vocalMode === "instrumental";
     const hasLyrics = formState.customLyrics.trim().length > 0;
-    
+
     const config: Partial<SunoGenerationConfig> & { prompt: string } = {
       prompt: (!isInstrumental && hasLyrics)
         ? formState.customLyrics
@@ -262,6 +262,7 @@ export function MusicGeneratorModal({
 
     setIsUploading(true);
     try {
+      if (!onUploadAudio) throw new Error("Audio upload not supported");
       const url = await onUploadAudio(file);
       setUploadedUrl(url);
     } catch (error) {
@@ -284,7 +285,8 @@ export function MusicGeneratorModal({
       // If not instrumental: style, prompt (lyrics), title required
       // If instrumental: style, title required
       const isInstrumental = formState.vocalMode === "instrumental";
-      
+
+      if (!onUploadAndCover) throw new Error("Cover generation not supported");
       await onUploadAndCover({
         uploadUrl: uploadedUrl,
         style: formState.style,
@@ -299,6 +301,7 @@ export function MusicGeneratorModal({
         vocalGender: formState.vocalMode === "vocal-male" ? "m" : formState.vocalMode === "vocal-female" ? "f" : undefined,
       });
     } else if (remixAction === "vocals") {
+      if (!onAddVocals) throw new Error("Adding vocals not supported");
       await onAddVocals({
         uploadUrl: uploadedUrl,
         prompt: formState.topic || "Add vocals",
@@ -307,6 +310,7 @@ export function MusicGeneratorModal({
         style: formState.style,
       });
     } else if (remixAction === "instrumental") {
+      if (!onAddInstrumental) throw new Error("Adding instrumental not supported");
       await onAddInstrumental({
         uploadUrl: uploadedUrl,
         prompt: formState.topic || "Instrumental version",
@@ -855,10 +859,10 @@ export function MusicGeneratorModal({
                       {/* Title */}
                       <div className="space-y-1">
                         <Label className="text-xs">Title <span className="text-destructive">*</span></Label>
-                        <Input 
-                          value={formState.title} 
-                          onChange={(e) => updateField("title", e.target.value)} 
-                          placeholder="Cover Title" 
+                        <Input
+                          value={formState.title}
+                          onChange={(e) => updateField("title", e.target.value)}
+                          placeholder="Cover Title"
                         />
                         <p className="text-[10px] text-muted-foreground">{formState.title.length}/100</p>
                       </div>
@@ -947,7 +951,7 @@ export function MusicGeneratorModal({
                       max={1}
                       step={0.05}
                       value={[formState.styleWeight]}
-                      onValueChange={([val]) => updateField("styleWeight", val)}
+                      onValueChange={([val]) => val !== undefined && updateField("styleWeight", val)}
                     />
                     <p className="text-[10px] text-muted-foreground">
                       How strongly the style influences the generation
@@ -965,7 +969,7 @@ export function MusicGeneratorModal({
                       max={1}
                       step={0.05}
                       value={[formState.weirdnessConstraint]}
-                      onValueChange={([val]) => updateField("weirdnessConstraint", val)}
+                      onValueChange={([val]) => val !== undefined && updateField("weirdnessConstraint", val)}
                     />
                     <p className="text-[10px] text-muted-foreground">
                       Higher values produce more creative/experimental results

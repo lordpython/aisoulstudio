@@ -15,6 +15,10 @@ import {
   isClientSideExportAvailable,
   type ExportConfig,
   type ExportProgress,
+  EXPORT_PRESETS,
+  getExportPreset,
+  getAllPresetIds,
+  type ExportPresetId,
 } from "../ffmpeg";
 import { SongData, GeneratedImage, NarrationSegment, VideoSFXPlan, SubtitleItem } from "../../types";
 import { getSubtitles, type SubtitleResult } from "./subtitleTools";
@@ -103,6 +107,12 @@ export function clearExportResult(sessionId: string): boolean {
  */
 const ExportFinalVideoSchema = z.object({
   contentPlanId: z.string().describe("Session ID containing all production assets"),
+  // Platform preset - overrides format, aspectRatio, and quality if provided
+  preset: z.enum([
+    "youtube-landscape", "youtube-shorts", "tiktok",
+    "instagram-feed", "instagram-reels", "instagram-story",
+    "twitter", "linkedin", "draft-preview", "high-quality", "podcast-video"
+  ]).optional().describe("Platform preset (e.g., 'tiktok', 'youtube-shorts', 'instagram-reels'). Overrides format, aspectRatio, and quality settings."),
   format: z.enum(["mp4", "webm"]).default("mp4").describe("Output video format (default: mp4)"),
   aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9").describe("Video aspect ratio (default: 16:9)"),
   includeSubtitles: z.boolean().default(true).describe("Whether to include subtitles in the video (default: true)"),
@@ -249,6 +259,7 @@ function createAssetBundle(
 export const exportFinalVideoTool = tool(
   async ({
     contentPlanId,
+    preset,
     format = "mp4",
     aspectRatio = "16:9",
     includeSubtitles = true,
@@ -260,8 +271,24 @@ export const exportFinalVideoTool = tool(
     totalDuration,
     useMixedAudio = false,
   }) => {
+    // Apply preset if provided
+    let finalFormat = format;
+    let finalAspectRatio = aspectRatio;
+    let finalQuality = quality;
+    let presetConfig: Partial<ExportConfig> = {};
+
+    if (preset) {
+      const presetData = getExportPreset(preset as ExportPresetId);
+      if (presetData) {
+        finalAspectRatio = presetData.aspectRatio === "4:5" ? "1:1" : presetData.aspectRatio; // 4:5 not supported, fallback to 1:1
+        finalQuality = presetData.quality;
+        presetConfig = presetData.config;
+        console.log(`[ExportTools] Using preset: ${preset} (${presetData.name})`);
+      }
+    }
+
     console.log(`[ExportTools] Exporting video for session: ${contentPlanId}`);
-    console.log(`[ExportTools] Format: ${format}, Aspect: ${aspectRatio}, Quality: ${quality}`);
+    console.log(`[ExportTools] Format: ${finalFormat}, Aspect: ${finalAspectRatio}, Quality: ${finalQuality}${preset ? `, Preset: ${preset}` : ""}`);
 
     // Get session state for auto-fetching missing data
     const state = productionStore.get(contentPlanId);
@@ -407,13 +434,16 @@ export const exportFinalVideoTool = tool(
       useMixedAudio && !!mixedAudioUrl
     );
 
-    // Build export config
-    const exportConfig = buildExportConfig(
-      aspectRatio,
-      quality,
+    // Build export config with preset overrides
+    const baseExportConfig = buildExportConfig(
+      finalAspectRatio,
+      finalQuality,
       finalSfxPlan as VideoSFXPlan | null,
       sceneTimings
     );
+
+    // Merge preset config if using a preset
+    const exportConfig = preset ? { ...baseExportConfig, ...presetConfig } : baseExportConfig;
 
     // Track progress
     let lastProgress: ExportProgress | null = null;
@@ -441,8 +471,8 @@ export const exportFinalVideoTool = tool(
       // Build result
       const result: ExportResult = {
         videoBlob,
-        format,
-        aspectRatio,
+        format: finalFormat,
+        aspectRatio: finalAspectRatio,
         duration: finalDuration,
         fileSize: videoBlob.size,
         downloadUrl,
@@ -471,12 +501,14 @@ export const exportFinalVideoTool = tool(
         success: true,
         sessionId: contentPlanId,
         downloadUrl,
-        format,
-        aspectRatio,
+        format: finalFormat,
+        aspectRatio: finalAspectRatio,
+        quality: finalQuality,
+        preset: preset || undefined,
         duration: Math.round(finalDuration * 100) / 100,
         fileSizeMB: Math.round(videoBlob.size / (1024 * 1024) * 100) / 100,
         includedAssets: result.includedAssets,
-        message: `Successfully exported ${format.toUpperCase()} video (${Math.round(finalDuration)}s, ${Math.round(videoBlob.size / (1024 * 1024) * 10) / 10}MB)`,
+        message: `Successfully exported ${finalFormat.toUpperCase()} video (${Math.round(finalDuration)}s, ${Math.round(videoBlob.size / (1024 * 1024) * 10) / 10}MB)${preset ? ` using ${preset} preset` : ""}`,
       });
 
     } catch (error) {
@@ -517,8 +549,309 @@ export const exportFinalVideoTool = tool(
   },
   {
     name: "export_final_video",
-    description: "Export the final video with all available assets. All assets (visuals, narration, SFX) are automatically fetched from the session - you only need to provide contentPlanId. Optionally specify format (mp4/webm), aspectRatio (16:9/9:16/1:1), quality (draft/standard/high), or includeSubtitles. If export fails, provides an asset bundle as fallback for manual assembly.",
+    description: "Export the final video with all available assets. All assets (visuals, narration, SFX) are automatically fetched from the session - you only need to provide contentPlanId. Use 'preset' to apply platform-optimized settings (e.g., 'tiktok', 'youtube-shorts', 'instagram-reels'). Or manually specify format (mp4/webm), aspectRatio (16:9/9:16/1:1), quality (draft/standard/high). Presets automatically configure aspect ratio, quality, orientation, and transitions for the target platform. If export fails, provides an asset bundle as fallback for manual assembly.",
     schema: ExportFinalVideoSchema,
+  }
+);
+
+// --- Validate Export Tool ---
+
+/**
+ * Schema for validate_export tool
+ */
+const ValidateExportSchema = z.object({
+  contentPlanId: z.string().describe("Session ID to validate export readiness for"),
+});
+
+/**
+ * Export validation result
+ */
+export interface ExportValidationResult {
+  /** Whether export is ready to proceed */
+  isReady: boolean;
+  /** Estimated duration in seconds */
+  estimatedDuration: number;
+  /** Estimated file size in MB */
+  estimatedFileSizeMB: number;
+  /** Asset validation results */
+  assets: {
+    visuals: {
+      ready: boolean;
+      count: number;
+      videoCount: number;
+      imageCount: number;
+      missingScenes: string[];
+    };
+    narration: {
+      ready: boolean;
+      segmentCount: number;
+      totalDuration: number;
+    };
+    sfx: {
+      ready: boolean;
+      sceneCount: number;
+    };
+    subtitles: {
+      ready: boolean;
+    };
+    mixedAudio: {
+      ready: boolean;
+      duration: number;
+    };
+  };
+  /** Warnings that won't prevent export but should be noted */
+  warnings: string[];
+  /** Errors that will prevent export */
+  errors: string[];
+  /** Suggestions for fixing issues */
+  suggestions: string[];
+}
+
+/**
+ * Validate Export Tool
+ *
+ * Validates export readiness without actually rendering.
+ * Checks all assets are present, valid, and consistent.
+ */
+export const validateExportTool = tool(
+  async ({ contentPlanId }) => {
+    console.log(`[ExportTools] Validating export readiness for session: ${contentPlanId}`);
+
+    const result: ExportValidationResult = {
+      isReady: true,
+      estimatedDuration: 0,
+      estimatedFileSizeMB: 0,
+      assets: {
+        visuals: { ready: false, count: 0, videoCount: 0, imageCount: 0, missingScenes: [] },
+        narration: { ready: false, segmentCount: 0, totalDuration: 0 },
+        sfx: { ready: false, sceneCount: 0 },
+        subtitles: { ready: false },
+        mixedAudio: { ready: false, duration: 0 },
+      },
+      warnings: [],
+      errors: [],
+      suggestions: [],
+    };
+
+    // Get session state
+    const state = productionStore.get(contentPlanId);
+    if (!state) {
+      result.isReady = false;
+      result.errors.push("Production session not found");
+      result.suggestions.push("Run plan_video first to create a production session");
+      return JSON.stringify({ success: false, validation: result });
+    }
+
+    // Validate content plan
+    if (!state.contentPlan) {
+      result.isReady = false;
+      result.errors.push("No content plan found");
+      result.suggestions.push("Run plan_video to create a content plan");
+    } else {
+      result.estimatedDuration = state.contentPlan.totalDuration || 0;
+    }
+
+    const expectedSceneCount = state.contentPlan?.scenes.length || 0;
+
+    // Validate visuals
+    if (state.visuals && state.visuals.length > 0) {
+      result.assets.visuals.count = state.visuals.length;
+      result.assets.visuals.videoCount = state.visuals.filter(v => v.type === "video").length;
+      result.assets.visuals.imageCount = state.visuals.filter(v => v.type !== "video").length;
+
+      // Check for missing scenes
+      if (state.contentPlan?.scenes) {
+        const visualSceneIds = new Set(state.visuals.map(v => v.promptId));
+        for (const scene of state.contentPlan.scenes) {
+          if (!visualSceneIds.has(scene.id)) {
+            result.assets.visuals.missingScenes.push(scene.id);
+          }
+        }
+      }
+
+      if (result.assets.visuals.missingScenes.length > 0) {
+        result.warnings.push(`Missing visuals for ${result.assets.visuals.missingScenes.length} scenes`);
+      }
+
+      if (result.assets.visuals.count >= expectedSceneCount) {
+        result.assets.visuals.ready = true;
+      } else {
+        result.assets.visuals.ready = result.assets.visuals.count > 0; // Partial is ok
+        result.warnings.push(`Only ${result.assets.visuals.count}/${expectedSceneCount} scenes have visuals`);
+      }
+
+      // Check video assets for validity
+      for (const visual of state.visuals) {
+        if (visual.type === "video" && !visual.imageUrl) {
+          result.warnings.push(`Video asset ${visual.promptId} has no URL`);
+        }
+      }
+
+      // Log video asset info
+      if (result.assets.visuals.videoCount > 0) {
+        console.log(`[ExportTools] Found ${result.assets.visuals.videoCount} Veo video assets`);
+      }
+    } else {
+      result.isReady = false;
+      result.errors.push("No visual assets found");
+      result.suggestions.push("Run generate_visuals to create visual assets");
+    }
+
+    // Validate narration
+    if (state.narrationSegments && state.narrationSegments.length > 0) {
+      result.assets.narration.segmentCount = state.narrationSegments.length;
+      result.assets.narration.totalDuration = state.narrationSegments.reduce(
+        (sum, seg) => sum + (seg.audioDuration || 0),
+        0
+      );
+      result.assets.narration.ready = true;
+
+      // Check for segments without audio
+      const segmentsWithoutAudio = state.narrationSegments.filter(seg => !seg.audioBlob);
+      if (segmentsWithoutAudio.length > 0) {
+        result.warnings.push(`${segmentsWithoutAudio.length} narration segments missing audio`);
+      }
+
+      // Check duration consistency
+      if (Math.abs(result.assets.narration.totalDuration - result.estimatedDuration) > 5) {
+        result.warnings.push(
+          `Narration duration (${result.assets.narration.totalDuration.toFixed(1)}s) differs from plan duration (${result.estimatedDuration.toFixed(1)}s)`
+        );
+      }
+    } else {
+      result.isReady = false;
+      result.errors.push("No narration segments found");
+      result.suggestions.push("Run narrate_scenes to generate narration");
+    }
+
+    // Validate SFX
+    if (state.sfxPlan) {
+      result.assets.sfx.sceneCount = state.sfxPlan.scenes?.length || 0;
+      result.assets.sfx.ready = true;
+
+      // Check for scenes with SFX URLs
+      const scenesWithAudio = state.sfxPlan.scenes?.filter(s => s.ambientTrack?.audioUrl) || [];
+      if (scenesWithAudio.length < result.assets.sfx.sceneCount) {
+        result.warnings.push(
+          `Only ${scenesWithAudio.length}/${result.assets.sfx.sceneCount} SFX scenes have audio URLs`
+        );
+      }
+    }
+
+    // Validate subtitles
+    const subtitles = getSubtitles(contentPlanId);
+    if (subtitles) {
+      result.assets.subtitles.ready = true;
+    }
+
+    // Validate mixed audio
+    const mixedAudio = getMixedAudio(contentPlanId);
+    if (mixedAudio) {
+      result.assets.mixedAudio.ready = true;
+      result.assets.mixedAudio.duration = mixedAudio.duration;
+    }
+
+    // Estimate file size (rough estimate: ~1MB per 10 seconds at standard quality)
+    result.estimatedFileSizeMB = Math.round(result.estimatedDuration * 0.1 * 10) / 10;
+    if (result.assets.visuals.videoCount > 0) {
+      // Videos typically result in larger files
+      result.estimatedFileSizeMB *= 1.5;
+    }
+
+    // Final readiness check
+    result.isReady = result.errors.length === 0 && result.assets.visuals.ready && result.assets.narration.ready;
+
+    // Add general suggestions
+    if (!result.assets.mixedAudio.ready && result.assets.sfx.ready) {
+      result.suggestions.push("Consider running mix_audio_tracks to include SFX in the export");
+    }
+    if (!result.assets.subtitles.ready) {
+      result.suggestions.push("Consider running generate_subtitles for accessibility");
+    }
+
+    console.log(`[ExportTools] Validation complete: ${result.isReady ? '✓ Ready' : '✗ Not ready'}`);
+    console.log(`[ExportTools] Estimated: ${result.estimatedDuration}s, ~${result.estimatedFileSizeMB}MB`);
+
+    return JSON.stringify({
+      success: true,
+      validation: result,
+      message: result.isReady
+        ? `Export ready! ${result.assets.visuals.count} visuals (${result.assets.visuals.videoCount} videos), ${result.assets.narration.segmentCount} narration segments, ~${result.estimatedDuration}s duration`
+        : `Export not ready: ${result.errors.join(", ")}`,
+    });
+  },
+  {
+    name: "validate_export",
+    description:
+      "Validate export readiness without rendering. Checks all assets are present, valid, and consistent. Returns detailed validation results including asset counts, warnings, errors, and suggestions. Use before export_final_video to catch issues early.",
+    schema: ValidateExportSchema,
+  }
+);
+
+// --- List Export Presets Tool ---
+
+/**
+ * Schema for list_export_presets tool
+ */
+const ListExportPresetsSchema = z.object({
+  platform: z.string().optional().describe("Optional platform filter (e.g., 'youtube', 'instagram', 'tiktok')"),
+  aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:5"]).optional().describe("Optional aspect ratio filter"),
+});
+
+/**
+ * List Export Presets Tool
+ *
+ * Returns available export presets with their configurations.
+ * Useful for helping users choose appropriate export settings.
+ */
+export const listExportPresetsTool = tool(
+  async ({ platform, aspectRatio }) => {
+    console.log(`[ExportTools] Listing export presets${platform ? ` for platform: ${platform}` : ""}${aspectRatio ? ` with aspect ratio: ${aspectRatio}` : ""}`);
+
+    let presets = Object.values(EXPORT_PRESETS);
+
+    // Filter by platform if specified
+    if (platform) {
+      presets = presets.filter(p =>
+        p.platform.toLowerCase().includes(platform.toLowerCase()) ||
+        p.id.toLowerCase().includes(platform.toLowerCase())
+      );
+    }
+
+    // Filter by aspect ratio if specified
+    if (aspectRatio) {
+      presets = presets.filter(p => p.aspectRatio === aspectRatio);
+    }
+
+    // Format presets for output
+    const formattedPresets = presets.map(p => ({
+      id: p.id,
+      name: p.name,
+      platform: p.platform,
+      description: p.description,
+      aspectRatio: p.aspectRatio,
+      orientation: p.orientation,
+      fps: p.fps,
+      quality: p.quality,
+      maxDuration: p.maxDuration,
+      minDuration: p.minDuration,
+    }));
+
+    return JSON.stringify({
+      success: true,
+      presets: formattedPresets,
+      count: formattedPresets.length,
+      allPresetIds: getAllPresetIds(),
+      message: formattedPresets.length > 0
+        ? `Found ${formattedPresets.length} export preset(s)${platform ? ` for ${platform}` : ""}${aspectRatio ? ` with ${aspectRatio} aspect ratio` : ""}`
+        : "No presets match the specified filters",
+    });
+  },
+  {
+    name: "list_export_presets",
+    description:
+      "List available export presets for different platforms. Presets provide optimized settings for platforms like YouTube, TikTok, Instagram, etc. Optionally filter by platform name or aspect ratio. Use this when the user asks about export options or to recommend appropriate settings.",
+    schema: ListExportPresetsSchema,
   }
 );
 
@@ -526,4 +859,6 @@ export const exportFinalVideoTool = tool(
 
 export const exportTools = [
   exportFinalVideoTool,
+  validateExportTool,
+  listExportPresetsTool,
 ];

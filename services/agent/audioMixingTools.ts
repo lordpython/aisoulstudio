@@ -1,9 +1,9 @@
 /**
  * Audio Mixing Tools - LangChain tools for audio mixing
- * 
+ *
  * Provides tools for mixing multiple audio tracks:
- * - mix_audio_tracks: Combine narration, music, and SFX with volume control and ducking
- * 
+ * - mix_audio_tracks: Combine narration, music, SFX, and Veo video audio with volume control and ducking
+ *
  * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
  */
 
@@ -13,6 +13,11 @@ import { mixAudioWithSFX, MixConfig, SceneAudioInfo } from "../audioMixerService
 import { VideoSFXPlan } from "../sfxService";
 import { productionStore } from "../ai/productionAgent";
 import { concatenateNarrationSegments } from "./audioUtils";
+import {
+  extractAudioFromVideos,
+  mixVideoAudioWithNarration,
+  type ExtractedVideoAudio,
+} from "../ffmpeg/videoAudioExtractor";
 
 // --- Types ---
 
@@ -29,6 +34,7 @@ export interface MixedAudioResult {
     narration: { volume: number; present: boolean };
     music: { volume: number; present: boolean };
     sfx: { volume: number; present: boolean };
+    videoAudio: { volume: number; present: boolean; sceneCount: number };
   };
   /** Whether ducking was applied to background music */
   duckingApplied: boolean;
@@ -71,6 +77,8 @@ const MixAudioTracksSchema = z.object({
   narrationVolume: z.number().min(0).max(1).default(1.0).describe("Volume level for narration (0-1, default 1.0)"),
   musicVolume: z.number().min(0).max(1).default(0.3).describe("Volume level for background music (0-1, default 0.3)"),
   sfxVolume: z.number().min(0).max(1).default(0.5).describe("Volume level for sound effects (0-1, default 0.5)"),
+  videoAudioVolume: z.number().min(0).max(1).default(0.3).describe("Volume level for Veo video native audio (0-1, default 0.3)"),
+  includeVideoAudio: z.boolean().default(true).describe("Whether to extract and mix native audio from Veo video assets (default true)"),
   duckingEnabled: z.boolean().default(true).describe("Whether to duck background music during narration (default true)"),
   sfxPlan: z.any().optional().describe("Optional SFX plan with audio URLs for ambient sounds and music"),
   scenes: z.array(z.object({
@@ -139,18 +147,22 @@ export const mixAudioTracksTool = tool(
     narrationVolume = 1.0,
     musicVolume = 0.3,
     sfxVolume = 0.5,
+    videoAudioVolume = 0.3,
+    includeVideoAudio = true,
     duckingEnabled = true,
     sfxPlan,
     scenes,
   }) => {
     console.log(`[AudioMixingTools] Mixing audio for session: ${contentPlanId}`);
-    console.log(`[AudioMixingTools] Volumes - Narration: ${narrationVolume}, Music: ${musicVolume}, SFX: ${sfxVolume}`);
-    console.log(`[AudioMixingTools] Ducking enabled: ${duckingEnabled}`);
+    console.log(`[AudioMixingTools] Volumes - Narration: ${narrationVolume}, Music: ${musicVolume}, SFX: ${sfxVolume}, VideoAudio: ${videoAudioVolume}`);
+    console.log(`[AudioMixingTools] Ducking enabled: ${duckingEnabled}, Include video audio: ${includeVideoAudio}`);
+
+    // Get session state
+    const state = productionStore.get(contentPlanId);
 
     // Get narration URL from session if not provided
     let finalNarrationUrl = narrationUrl;
     if (!finalNarrationUrl) {
-      const state = productionStore.get(contentPlanId);
       if (!state || !state.narrationSegments || state.narrationSegments.length === 0) {
         return JSON.stringify({
           success: false,
@@ -184,12 +196,58 @@ export const mixAudioTracksTool = tool(
       });
     }
 
+    // Check for Veo video assets with native audio
+    let videoAudioTracks: ExtractedVideoAudio[] = [];
+    let hasVideoAudio = false;
+
+    if (includeVideoAudio && state?.visuals) {
+      const videoAssets = state.visuals.filter(v => v.type === "video");
+      if (videoAssets.length > 0) {
+        console.log(`[AudioMixingTools] Found ${videoAssets.length} Veo video assets, extracting audio...`);
+
+        // Build scene timings for video assets
+        const sceneList = state.contentPlan?.scenes || [];
+        const videoInfos = videoAssets.map((visual, _index) => {
+          const sceneIndex = sceneList.findIndex(s => s.id === visual.promptId);
+          let startTime = 0;
+          if (sceneIndex >= 0) {
+            for (let i = 0; i < sceneIndex; i++) {
+              startTime += sceneList[i].duration || 0;
+            }
+          }
+          return {
+            sceneId: visual.promptId,
+            videoUrl: visual.imageUrl,
+            startTime,
+          };
+        });
+
+        try {
+          const extractionResult = await extractAudioFromVideos(videoInfos);
+          videoAudioTracks = extractionResult.audioTracks;
+          hasVideoAudio = videoAudioTracks.length > 0;
+
+          if (hasVideoAudio) {
+            console.log(`[AudioMixingTools] Extracted audio from ${videoAudioTracks.length}/${videoAssets.length} Veo videos`);
+          } else {
+            console.log(`[AudioMixingTools] No audio found in Veo videos (may be silent or audio-free)`);
+          }
+
+          if (extractionResult.failedScenes.length > 0) {
+            console.log(`[AudioMixingTools] Video audio extraction failed for scenes: ${extractionResult.failedScenes.join(", ")}`);
+          }
+        } catch (error) {
+          console.warn(`[AudioMixingTools] Video audio extraction failed (non-fatal):`, error);
+        }
+      }
+    }
+
     // Determine what tracks are present
     const hasNarration = true; // Required
     const hasMusic = hasBackgroundMusic(sfxPlan as VideoSFXPlan | null);
     const hasSfx = hasSFXContent(sfxPlan as VideoSFXPlan | null);
 
-    console.log(`[AudioMixingTools] Tracks present - Narration: ${hasNarration}, Music: ${hasMusic}, SFX: ${hasSfx}`);
+    console.log(`[AudioMixingTools] Tracks present - Narration: ${hasNarration}, Music: ${hasMusic}, SFX: ${hasSfx}, VideoAudio: ${hasVideoAudio} (${videoAudioTracks.length} tracks)`);
 
     // Build scene audio info if scenes provided
     const sceneAudioInfo: SceneAudioInfo[] = scenes?.map(s => ({
@@ -209,12 +267,28 @@ export const mixAudioTracksTool = tool(
         sampleRate: 44100,
       };
 
-      // Perform the mix
-      const audioBlob = await mixAudioWithSFX(mixConfig);
+      // Perform the base mix (narration + SFX + music)
+      let audioBlob = await mixAudioWithSFX(mixConfig);
+
+      // Mix in Veo video audio if present
+      if (hasVideoAudio && videoAudioTracks.length > 0) {
+        console.log(`[AudioMixingTools] Mixing in ${videoAudioTracks.length} Veo audio tracks at volume ${videoAudioVolume}`);
+        try {
+          audioBlob = await mixVideoAudioWithNarration(
+            audioBlob,
+            videoAudioTracks,
+            videoAudioVolume
+          );
+          console.log(`[AudioMixingTools] Veo audio mixed successfully`);
+        } catch (error) {
+          console.warn(`[AudioMixingTools] Veo audio mixing failed (non-fatal):`, error);
+          // Continue with the base mix without video audio
+        }
+      }
 
       // Calculate duration from blob (approximate based on WAV format)
-      // WAV header is 44 bytes, 16-bit mono at 44100 Hz
-      const duration = (audioBlob.size - 44) / (44100 * 2);
+      // WAV header is 44 bytes, 16-bit stereo at 44100 Hz = 176400 bytes/sec
+      const duration = (audioBlob.size - 44) / (44100 * 4);
 
       // Create result object
       const result: MixedAudioResult = {
@@ -224,12 +298,19 @@ export const mixAudioTracksTool = tool(
           narration: { volume: narrationVolume, present: hasNarration },
           music: { volume: musicVolume, present: hasMusic },
           sfx: { volume: sfxVolume, present: hasSfx },
+          videoAudio: { volume: videoAudioVolume, present: hasVideoAudio, sceneCount: videoAudioTracks.length },
         },
         duckingApplied: duckingEnabled && hasMusic,
       };
 
       // Store the result
       setMixedAudio(contentPlanId, result);
+
+      // Also update production state with mixed audio info
+      if (state) {
+        state.mixedAudio = result;
+        productionStore.set(contentPlanId, state);
+      }
 
       // Create a blob URL for the mixed audio
       const audioUrl = URL.createObjectURL(audioBlob);
@@ -244,9 +325,10 @@ export const mixAudioTracksTool = tool(
           narration: { volume: narrationVolume, present: hasNarration },
           music: { volume: musicVolume, present: hasMusic },
           sfx: { volume: sfxVolume, present: hasSfx },
+          videoAudio: { volume: videoAudioVolume, present: hasVideoAudio, sceneCount: videoAudioTracks.length },
         },
         duckingApplied: duckingEnabled && hasMusic,
-        message: `Successfully mixed audio (${Math.round(duration)}s, ${Math.round(audioBlob.size / 1024)}KB)`,
+        message: `Successfully mixed audio (${Math.round(duration)}s, ${Math.round(audioBlob.size / 1024)}KB)${hasVideoAudio ? ` including ${videoAudioTracks.length} Veo audio tracks` : ""}`,
       });
 
     } catch (error) {
@@ -272,7 +354,7 @@ export const mixAudioTracksTool = tool(
   },
   {
     name: "mix_audio_tracks",
-    description: "Mix multiple audio tracks (narration, background music, SFX) into a single audio output. Narration is automatically fetched from the session - you only need to provide contentPlanId. Optionally specify volume levels (narrationVolume, musicVolume, sfxVolume) or duckingEnabled. Missing tracks are handled gracefully - the mix will proceed with available tracks.",
+    description: "Mix multiple audio tracks (narration, background music, SFX, and Veo video native audio) into a single audio output. Narration is automatically fetched from the session - you only need to provide contentPlanId. Veo video native audio is automatically extracted and mixed when includeVideoAudio=true (default). Optionally specify volume levels (narrationVolume, musicVolume, sfxVolume, videoAudioVolume) or duckingEnabled. Missing tracks are handled gracefully - the mix will proceed with available tracks.",
     schema: MixAudioTracksSchema,
   }
 );

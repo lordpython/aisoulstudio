@@ -26,6 +26,7 @@ export interface VideoProductionCoreState {
     visualStyle: string;
     language: LanguageCode;
     useAgentMode: boolean;
+    veoVideoCount: number;
 }
 
 export function useVideoProductionCore() {
@@ -44,6 +45,7 @@ export function useVideoProductionCore() {
     const [visualStyle, setVisualStyle] = useState("Cinematic");
     const [language, setLanguage] = useState<LanguageCode>("auto");
     const [useAgentMode, setUseAgentMode] = useState(true);
+    const [veoVideoCount, setVeoVideoCount] = useState(1);
 
     /**
      * Update scenes (from SceneEditor)
@@ -85,6 +87,7 @@ export function useVideoProductionCore() {
         visualStyle,
         language,
         useAgentMode,
+        veoVideoCount,
 
         // Setters
         setAppState,
@@ -99,6 +102,7 @@ export function useVideoProductionCore() {
         setVisualStyle,
         setLanguage,
         setUseAgentMode,
+        setVeoVideoCount,
 
         // Actions
         updateScenes,

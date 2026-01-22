@@ -7,12 +7,11 @@ import {
   Sparkles,
   Film,
   Zap,
-  Layers,
-  Play,
   Target,
   User,
   X,
   Settings,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { ART_STYLES, VIDEO_PURPOSES, type VideoPurpose } from "../constants";
-import { cn } from "@/lib/utils";
+// cn utility removed - not used in this component
 
 export interface SettingsModalProps {
   isOpen: boolean;
@@ -39,6 +38,7 @@ export interface SettingsModalProps {
   videoPurpose: VideoPurpose;
   generationMode: "image" | "video";
   videoProvider: "veo" | "deapi";
+  veoVideoCount: number;
   aspectRatio: string;
   selectedStyle: string;
   globalSubject: string;
@@ -46,12 +46,15 @@ export interface SettingsModalProps {
   onVideoPurposeChange: (purpose: VideoPurpose) => void;
   onGenerationModeChange: (mode: "image" | "video") => void;
   onVideoProviderChange: (provider: "veo" | "deapi") => void;
+  onVeoVideoCountChange: (count: number) => void;
   onAspectRatioChange: (ratio: string) => void;
   onStyleChange: (style: string) => void;
   onGlobalSubjectChange: (subject: string) => void;
+  targetAudience?: string;
+  onTargetAudienceChange?: (audience: string) => void;
 }
 
-const SettingRow = ({ icon: Icon, label, children }: { icon: any, label: string, children: React.ReactNode }) => (
+const SettingRow = ({ icon: Icon, label, children }: { icon: React.ElementType, label: string, children: React.ReactNode }) => (
   <div className="group relative">
     <div className="absolute -inset-2 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
     <div className="relative flex items-center justify-between gap-4 p-1">
@@ -75,6 +78,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   videoPurpose,
   generationMode,
   videoProvider,
+  veoVideoCount,
   aspectRatio,
   selectedStyle,
   globalSubject,
@@ -82,8 +86,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onVideoPurposeChange,
   onGenerationModeChange,
   onVideoProviderChange,
+  onVeoVideoCountChange,
   onAspectRatioChange,
   onStyleChange,
+  targetAudience, // Added prop
+  onTargetAudienceChange, // Added prop
   onGlobalSubjectChange,
 }) => {
   return (
@@ -103,11 +110,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto no-scrollbar">
-          
+
           {/* Section: Project Basics */}
           <section className="space-y-4">
             <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest px-1">Core Settings</h3>
-            
+
             <SettingRow icon={contentType === "music" ? Music : Speech} label="Content Mode">
               <Select value={contentType} onValueChange={onContentTypeChange}>
                 <SelectTrigger className="h-9 bg-black/20 border-white/10">
@@ -146,12 +153,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </SelectContent>
               </Select>
             </SettingRow>
+            <SettingRow icon={User} label="Target Audience">
+              <Input
+                value={targetAudience || ""}
+                onChange={(e) => onTargetAudienceChange?.(e.target.value)}
+                placeholder="e.g. Children, Professionals, General"
+                className="h-9 bg-black/20 border-white/10"
+              />
+            </SettingRow>
           </section>
 
           {/* Section: Output Pipeline */}
           <section className="space-y-4">
             <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest px-1">Rendering Engine</h3>
-            
+
             <SettingRow icon={Film} label="Output Format">
               <Select value={generationMode} onValueChange={onGenerationModeChange}>
                 <SelectTrigger className="h-9 bg-black/20 border-white/10">
@@ -182,6 +197,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </SelectContent>
                     </Select>
                   </SettingRow>
+
+                  {videoProvider === "veo" && (
+                    <SettingRow icon={Video} label="Pro Video Scenes">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="0"
+                          max="5"
+                          value={veoVideoCount}
+                          onChange={(e) => onVeoVideoCountChange(Number(e.target.value))}
+                          className="w-24 h-2 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+                        />
+                        <span className="text-sm font-mono w-6 text-center">{veoVideoCount}</span>
+                      </div>
+                    </SettingRow>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -190,7 +221,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* Section: Aesthetics */}
           <section className="space-y-4">
             <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest px-1">Art Direction</h3>
-            
+
             <SettingRow icon={Sparkles} label="Visual Style">
               <Select value={selectedStyle} onValueChange={onStyleChange}>
                 <SelectTrigger className="h-9 bg-black/20 border-white/10">

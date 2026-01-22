@@ -3,11 +3,74 @@
  * 
  * RAG (Retrieval-Augmented Generation) implementation for video production knowledge.
  * Provides keyword-based search over style guides and best practices.
+ * Supports Arabic query translation for multilingual search.
  */
 
 import { STYLE_GUIDES } from "./documents/styleGuides";
 import { BEST_PRACTICES } from "./documents/bestPractices";
 import { AI_CONFIG } from "../config";
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize Gemini for translations
+const GEMINI_API_KEY = typeof process !== 'undefined'
+  ? (process.env?.VITE_GEMINI_API_KEY || process.env?.GEMINI_API_KEY || '')
+  : '';
+
+/**
+ * Detect if text contains significant Arabic characters.
+ * Returns true if >30% of alphabetic characters are Arabic.
+ */
+function isArabicText(text: string): boolean {
+  let arabicCount = 0;
+  let latinCount = 0;
+
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    // Arabic Unicode range: U+0600 to U+06FF
+    if (code >= 0x0600 && code <= 0x06FF) {
+      arabicCount++;
+    }
+    // Latin letters
+    else if ((code >= 0x0041 && code <= 0x007A) || (code >= 0x00C0 && code <= 0x024F)) {
+      latinCount++;
+    }
+  }
+
+  const totalAlpha = arabicCount + latinCount;
+  return totalAlpha > 0 && (arabicCount / totalAlpha) > 0.3;
+}
+
+/**
+ * Translate Arabic query to English keywords for RAG search.
+ * Uses Gemini API for fast, lightweight translation.
+ */
+async function translateQueryToEnglish(query: string): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    console.warn('[KnowledgeBase] No Gemini API key for translation, using original query');
+    return query;
+  }
+
+  try {
+    const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+    const prompt = `Translate this Arabic text to English keywords for video production search. Return ONLY the English keywords, no explanation:
+
+"${query}"`;
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
+
+    const translation = response.text?.trim() || query;
+
+    console.log(`[KnowledgeBase] Translated Arabic query: "${query.substring(0, 30)}..." → "${translation.substring(0, 50)}..."`);
+    return translation;
+  } catch (error) {
+    console.warn('[KnowledgeBase] Translation failed, using original query:', error);
+    return query;
+  }
+}
 
 interface KnowledgeDocument {
   content: string;
@@ -86,7 +149,14 @@ export class VideoProductionKnowledgeBase {
         return '';
       }
 
-      const queryLower = query.toLowerCase();
+      // Translate Arabic queries to English for keyword matching
+      let searchQuery = query;
+      if (isArabicText(query)) {
+        console.log('[KnowledgeBase] Arabic query detected, translating...');
+        searchQuery = await translateQueryToEnglish(query);
+      }
+
+      const queryLower = searchQuery.toLowerCase();
       const keywords = queryLower.split(/\s+/).filter(w => w.length > 2);
 
       // Score documents based on keyword matches
@@ -118,7 +188,7 @@ export class VideoProductionKnowledgeBase {
 
       // Format results for prompt injection
       const formattedKnowledge = this._formatResults(results);
-      
+
       console.log(
         `[KnowledgeBase] ✅ Retrieved ${results.length} documents for query:`,
         query.substring(0, 50) + '...'
@@ -154,7 +224,7 @@ export class VideoProductionKnowledgeBase {
     const sections = results.map((doc, i) => {
       const title = doc.metadata.title || 'Relevant Knowledge';
       const type = doc.metadata.type || 'unknown';
-      
+
       return `### ${i + 1}. ${title} (${type})
 ${doc.content}`;
     });

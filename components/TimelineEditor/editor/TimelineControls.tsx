@@ -143,7 +143,7 @@ export function TimelineControls({
           <span className="text-xs text-muted-foreground">Zoom</span>
           <Slider
             value={[zoom]}
-            onValueChange={([value]) => onZoomChange(value)}
+            onValueChange={([value]) => onZoomChange(value ?? 10)}
             min={10}
             max={100}
             step={1}
@@ -163,7 +163,7 @@ export function TimelineControls({
             <Volume2 className="h-3.5 w-3.5 text-muted-foreground" />
             <Slider
               value={[volume]}
-              onValueChange={([value]) => onVolumeChange(value)}
+              onValueChange={([value]) => onVolumeChange(value ?? 100)}
               min={0}
               max={100}
               step={1}
