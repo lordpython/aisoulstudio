@@ -14,6 +14,7 @@ import { ai, API_KEY, MODELS, withRetry } from "./shared/apiClient";
 import { Scene, NarrationSegment, EmotionalTone } from "../types";
 import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
+import { cloudAutosave } from "./cloudStorageService";
 
 // --- Voice Configuration ---
 
@@ -671,14 +672,16 @@ function calculateAudioDuration(audioBlob: Blob): number {
 /**
  * Generate narration for a single scene.
  * Automatically applies style prompts based on emotional tone and video purpose.
- * 
+ *
  * @param scene - The scene to narrate
  * @param config - Optional narrator config (includes videoPurpose for auto-styling)
+ * @param sessionId - Optional session ID for cloud autosave
  * @returns Narration segment with audio blob
  */
 export async function narrateScene(
     scene: Scene,
-    config?: NarratorConfig
+    config?: NarratorConfig,
+    sessionId?: string
 ): Promise<NarrationSegment> {
     console.log(`[Narrator] Narrating scene: ${scene.name}`);
 
@@ -720,6 +723,13 @@ export async function narrateScene(
 
     const wordCount = scene.narrationScript.split(/\s+/).filter(w => w.length > 0).length;
     console.log(`[Narrator] Scene "${scene.name}" audio: ${audioDuration.toFixed(1)}s (${wordCount} words, ${audioBlob.size} bytes)`);
+
+    // Cloud autosave trigger (fire-and-forget, non-blocking)
+    if (sessionId) {
+        cloudAutosave.saveNarration(sessionId, audioBlob, scene.id).catch(err => {
+            console.warn('[Narrator] Cloud autosave failed (non-fatal):', err);
+        });
+    }
 
     return {
         sceneId: scene.id,

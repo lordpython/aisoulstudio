@@ -28,6 +28,8 @@ import {
   SubagentResult,
 } from "./index";
 import { productionStore, productionTools } from "../productionAgent";
+import { knowledgeBase } from "../rag/knowledgeBase";
+import { AI_CONFIG } from "../config";
 
 /**
  * Content Subagent System Prompt
@@ -182,6 +184,20 @@ export function createContentSubagent(apiKey: string): Subagent {
         isComplete: false,
       });
 
+      // Retrieve relevant knowledge from RAG knowledge base
+      let ragKnowledge = '';
+      if (AI_CONFIG.rag.enabled) {
+        try {
+          ragKnowledge = await knowledgeBase.getRelevantKnowledge(context.instruction);
+          if (ragKnowledge) {
+            console.log('[ContentSubagent] ✅ Retrieved knowledge from knowledge base');
+          }
+        } catch (error) {
+          console.warn('[ContentSubagent] Failed to retrieve knowledge:', error);
+          // Continue without knowledge - graceful degradation
+        }
+      }
+
       // Initialize model with tools
       const model = new ChatGoogleGenerativeAI({
         model: "gemini-3-flash-preview",
@@ -191,10 +207,15 @@ export function createContentSubagent(apiKey: string): Subagent {
 
       const modelWithTools = model.bindTools(contentTools);
 
+      // Build enhanced instruction with RAG knowledge context
+      const enhancedInstruction = ragKnowledge
+        ? `${ragKnowledge}\n\n---\n\nUser Request: ${context.instruction}`
+        : context.instruction;
+
       // Initialize messages
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(CONTENT_SUBAGENT_PROMPT),
-        new HumanMessage(context.instruction),
+        new HumanMessage(enhancedInstruction),
       ];
 
       let iteration = 0;

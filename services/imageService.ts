@@ -12,6 +12,7 @@ import { ai, MODELS, withRetry } from "./shared/apiClient";
 import { IMAGE_STYLE_MODIFIERS, DEFAULT_NEGATIVE_CONSTRAINTS } from "../constants";
 import { refineImagePrompt } from "./promptService";
 import { traceAsync } from "./tracing";
+import { cloudAutosave } from "./cloudStorageService";
 
 // --- Character Seed Registry ---
 // Stores seeds for character consistency across scenes
@@ -183,6 +184,8 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string): Promi
  * @param aspectRatio - Image aspect ratio (default: "16:9")
  * @param skipRefine - Skip AI refinement if prompt was already refined upstream
  * @param seed - Optional seed for reproducibility. If globalSubject is provided, a consistent seed is auto-generated.
+ * @param sessionId - Optional session ID for cloud autosave
+ * @param sceneIndex - Optional scene index for cloud autosave filename
  */
 export const generateImageFromPrompt = traceAsync(
   async function generateImageFromPromptImpl(
@@ -192,6 +195,8 @@ export const generateImageFromPrompt = traceAsync(
     aspectRatio: string = "16:9",
     skipRefine: boolean = false,
     seed?: number,
+    sessionId?: string,
+    sceneIndex?: number,
   ): Promise<string> {
     return withRetry(async () => {
       const modifier = IMAGE_STYLE_MODIFIERS[style] || IMAGE_STYLE_MODIFIERS["Cinematic"];
@@ -248,11 +253,21 @@ ${negative}
       }
 
       // Check if we're using an Imagen model (requires different API)
+      let imageUrl: string;
       if (isImagenModel(MODELS.IMAGE)) {
-        return await generateWithImagenAPI(finalPrompt, aspectRatio, effectiveSeed);
+        imageUrl = await generateWithImagenAPI(finalPrompt, aspectRatio, effectiveSeed);
       } else {
-        return await generateWithGeminiAPI(finalPrompt, aspectRatio);
+        imageUrl = await generateWithGeminiAPI(finalPrompt, aspectRatio);
       }
+
+      // Cloud autosave trigger (fire-and-forget, non-blocking)
+      if (sessionId && imageUrl) {
+        cloudAutosave.saveImage(sessionId, imageUrl, sceneIndex ?? Date.now()).catch(err => {
+          console.warn('[ImageService] Cloud autosave failed (non-fatal):', err);
+        });
+      }
+
+      return imageUrl;
     });
   },
   "generateImageFromPrompt",

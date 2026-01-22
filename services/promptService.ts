@@ -356,6 +356,7 @@ PURPOSE: News Report/Journalistic
 /**
  * Enhanced prompt generation instruction with visual storytelling.
  * Now injects rich style keywords from styleEnhancements.ts for authentic visual representation.
+ * Also injects persona data from personaData.ts for purpose-specific director guidance.
  */
 export const getPromptGenerationInstruction = (
   style: string,
@@ -366,8 +367,10 @@ export const getPromptGenerationInstruction = (
 ) => {
   // Import style enhancement data for rich visual keywords
   const { getStyleEnhancement } = require('./prompt/styleEnhancements');
+  const { getSystemPersona } = require('./prompt/personaData');
   const styleData = getStyleEnhancement(style);
-  
+  const persona = getSystemPersona(purpose);
+
   const contentType =
     mode === "lyrics" ? "song lyrics" : "spoken-word/narrative transcript";
   const purposeGuidance = getPurposeGuidance(purpose);
@@ -378,6 +381,15 @@ ART STYLE: "${style}"
 VISUAL GUIDELINES (MANDATORY - apply to ALL prompts):
 ${styleData.keywords.map((k: string) => `- ${k}`).join('\n')}
 AESTHETIC GOAL: ${styleData.mediumDescription}`;
+
+  // Build persona block with director-specific guidance
+  const personaBlock = `
+DIRECTOR PERSONA: ${persona.name} (${persona.role})
+CORE DIRECTIVE: ${persona.coreRule}
+VISUAL PRINCIPLES:
+${persona.visualPrinciples.map((p: string) => `- ${p}`).join('\n')}
+STRICTLY AVOID:
+${persona.avoidList.map((a: string) => `- ${a}`).join('\n')}`;
 
   const subjectBlock = globalSubject.trim()
     ? `
@@ -418,6 +430,7 @@ VISUAL VARIETY REQUIREMENTS:
 - Each prompt must specify: subject, action/pose, setting, lighting, camera angle, mood`;
 
   return `You are a professional music video director and visual storyteller creating an image storyboard.
+${personaBlock}
 
 TASK: Analyze this ${contentType} and generate a visual storyboard with detailed image prompts.
 ${richStyleBlock}

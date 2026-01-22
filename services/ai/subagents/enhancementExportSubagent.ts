@@ -71,7 +71,12 @@ is the final exported video file.
    - CRITICAL: Only provide contentPlanId (USE THE SESSIONID)
    - DO NOT provide narrationUrl (auto-fetched from narration segments)
    - DO NOT provide musicUrl (auto-fetched from session state)
-   - Optional: Adjust volumes (narration: 1.0, music: 0.3, sfx: 0.2)
+   - IMPORTANT: Use dynamic mixing (duckingEnabled: true) - this automatically:
+     * Lowers music volume when narration is present (auto-ducking)
+     * Adjusts levels based on scene mood and content
+     * Provides professional broadcast-quality audio mixing
+   - DO NOT use static volume values like "0.3" or "0.2" for all scenes
+   - Let the audioMixerService handle intelligent volume balancing
 
 4. generate_subtitles - Create SRT/VTT subtitles
    - CRITICAL: Only provide contentPlanId (USE THE SESSIONID)

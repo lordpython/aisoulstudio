@@ -4,12 +4,250 @@
  * Uploads production outputs to GCS bucket with organized folder structure
  * Format: gs://aisoul-studio-storage/YYYY-MM-DD_HH-mm-ss/
  *
- * NOTE: This module should only be loaded in Node.js environment.
- * It will throw errors if accessed in browser.
+ * This module has two parts:
+ * 1. Direct GCS uploads (Node.js server-side only)
+ * 2. Real-time autosave via server proxy (works in browser)
  */
 
 // Configuration
 const BUCKET_NAME = 'aisoul-studio-storage';
+
+// Server API base URL for cloud autosave
+const CLOUD_API_BASE = typeof window !== 'undefined'
+  ? (import.meta.env?.DEV ? 'http://localhost:3001' : '')
+  : 'http://localhost:3001';
+
+// --- Real-Time Cloud Autosave (Browser-Compatible) ---
+
+/**
+ * Type for asset categories in cloud storage
+ */
+export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sfx' | 'subtitles';
+
+/**
+ * Cloud autosave state tracker
+ */
+interface AutosaveState {
+  sessionId: string | null;
+  initialized: boolean;
+  uploadQueue: Promise<void>[];
+  failedUploads: Array<{ filename: string; error: string }>;
+}
+
+const autosaveState: AutosaveState = {
+  sessionId: null,
+  initialized: false,
+  uploadQueue: [],
+  failedUploads: [],
+};
+
+/**
+ * Real-Time Cloud Autosave Service
+ * Handles instant incremental backups of assets via server proxy.
+ * Works in both browser and Node.js environments.
+ */
+export const cloudAutosave = {
+  /**
+   * Check if cloud storage is available
+   */
+  async checkAvailability(): Promise<{ available: boolean; message: string }> {
+    try {
+      const response = await fetch(`${CLOUD_API_BASE}/api/cloud/status`);
+      if (!response.ok) {
+        return { available: false, message: 'Cloud service unavailable' };
+      }
+      return await response.json();
+    } catch (e) {
+      return { available: false, message: String(e) };
+    }
+  },
+
+  /**
+   * Initialize cloud session folder.
+   * Call this when the user clicks "Start Production" or "Plan Video".
+   *
+   * @param sessionId - The production session ID (e.g., prod_TIMESTAMP_HASH)
+   */
+  async initSession(sessionId: string): Promise<boolean> {
+    if (!sessionId) {
+      console.warn('[Autosave] No sessionId provided, skipping cloud init');
+      return false;
+    }
+
+    autosaveState.sessionId = sessionId;
+    autosaveState.failedUploads = [];
+
+    try {
+      const response = await fetch(`${CLOUD_API_BASE}/api/cloud/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        autosaveState.initialized = true;
+        console.log(`[Autosave] ✓ Cloud session initialized: ${result.folderPath}`);
+        return true;
+      } else {
+        console.warn('[Autosave] Cloud init failed:', result.error || result.warning);
+        autosaveState.initialized = false;
+        return false;
+      }
+    } catch (e) {
+      console.warn('[Autosave] Cloud init error (non-fatal):', e);
+      autosaveState.initialized = false;
+      return false;
+    }
+  },
+
+  /**
+   * Save an individual asset to cloud storage.
+   * This is fire-and-forget by default to keep the UI responsive.
+   *
+   * @param sessionId - The production session ID
+   * @param blob - The file blob to upload
+   * @param filename - Filename for the asset (e.g., "scene_0.png")
+   * @param type - Asset type category
+   * @param waitForUpload - If true, wait for upload to complete (default: false)
+   */
+  async saveAsset(
+    sessionId: string,
+    blob: Blob,
+    filename: string,
+    type: CloudAssetType,
+    waitForUpload: boolean = false
+  ): Promise<{ success: boolean; path?: string; error?: string }> {
+    if (!sessionId) {
+      return { success: false, error: 'No sessionId' };
+    }
+
+    const formData = new FormData();
+    formData.append('sessionId', sessionId);
+    formData.append('assetType', type);
+    formData.append('filename', filename);
+    formData.append('file', blob, filename);
+
+    const uploadPromise = (async () => {
+      try {
+        const response = await fetch(`${CLOUD_API_BASE}/api/cloud/upload-asset`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log(`[Autosave] ✓ ${type}/${filename} saved to cloud`);
+          return { success: true, path: result.path };
+        } else {
+          console.warn(`[Autosave] ${filename} not saved:`, result.warning || result.error);
+          autosaveState.failedUploads.push({ filename, error: result.error || 'Unknown error' });
+          return { success: false, error: result.error };
+        }
+      } catch (e) {
+        const error = String(e);
+        console.warn(`[Autosave] Upload failed for ${filename}:`, error);
+        autosaveState.failedUploads.push({ filename, error });
+        return { success: false, error };
+      }
+    })();
+
+    if (waitForUpload) {
+      return uploadPromise;
+    }
+
+    // Fire and forget - add to queue for tracking but don't wait
+    autosaveState.uploadQueue.push(uploadPromise.then(() => {}));
+    return { success: true, path: 'upload-pending' };
+  },
+
+  /**
+   * Save image asset with scene metadata
+   */
+  async saveImage(
+    sessionId: string,
+    imageUrl: string,
+    sceneIndex: number
+  ): Promise<void> {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const filename = `scene_${sceneIndex}.png`;
+      await this.saveAsset(sessionId, blob, filename, 'visuals');
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save image for scene ${sceneIndex}:`, e);
+    }
+  },
+
+  /**
+   * Save audio/narration asset
+   */
+  async saveNarration(
+    sessionId: string,
+    audioBlob: Blob,
+    sceneId: string
+  ): Promise<void> {
+    const filename = `narration_${sceneId}.wav`;
+    await this.saveAsset(sessionId, audioBlob, filename, 'audio');
+  },
+
+  /**
+   * Save video clip asset (from Veo)
+   */
+  async saveVideoClip(
+    sessionId: string,
+    videoUrl: string,
+    sceneIndex: number
+  ): Promise<void> {
+    try {
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      const filename = `scene_${sceneIndex}_veo.mp4`;
+      await this.saveAsset(sessionId, blob, filename, 'video_clips');
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save video for scene ${sceneIndex}:`, e);
+    }
+  },
+
+  /**
+   * Wait for all pending uploads to complete
+   */
+  async flush(): Promise<{ completed: number; failed: number }> {
+    const pending = [...autosaveState.uploadQueue];
+    autosaveState.uploadQueue = [];
+
+    await Promise.allSettled(pending);
+
+    return {
+      completed: pending.length - autosaveState.failedUploads.length,
+      failed: autosaveState.failedUploads.length
+    };
+  },
+
+  /**
+   * Get current autosave state
+   */
+  getState(): { sessionId: string | null; initialized: boolean; pendingUploads: number; failedUploads: number } {
+    return {
+      sessionId: autosaveState.sessionId,
+      initialized: autosaveState.initialized,
+      pendingUploads: autosaveState.uploadQueue.length,
+      failedUploads: autosaveState.failedUploads.length
+    };
+  },
+
+  /**
+   * Reset autosave state (call when starting a new session)
+   */
+  reset(): void {
+    autosaveState.sessionId = null;
+    autosaveState.initialized = false;
+    autosaveState.uploadQueue = [];
+    autosaveState.failedUploads = [];
+  }
+};
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || process.env.VITE_GOOGLE_CLOUD_PROJECT;
 
 // Storage client singleton

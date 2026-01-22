@@ -58,6 +58,7 @@ import {
     classifyError,
     formatErrorsForResponse,
 } from "../agent/errorRecovery";
+import { cloudAutosave } from "../cloudStorageService";
 
 // --- Language Detection ---
 
@@ -350,6 +351,11 @@ const planVideoTool = tool(
                 subtitles: null,
                 exportResult: null,
                 exportedVideo: null,
+            });
+
+            // Initialize cloud autosave session (fire-and-forget, non-blocking)
+            cloudAutosave.initSession(sessionId).catch(err => {
+                console.warn('[ProductionAgent] Cloud autosave init failed (non-fatal):', err);
             });
 
             return JSON.stringify({

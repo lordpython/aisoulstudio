@@ -1149,6 +1149,155 @@ app.get('/api/download-video', async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message || 'Failed to download video' });
   }
 });
+// --- Real-Time Cloud Autosave Endpoints ---
+
+// Lazy-load Google Cloud Storage
+let gcsStorage: any = null;
+let GcsStorageClass: any = null;
+const GCS_BUCKET_NAME = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'aisoul-studio-storage';
+
+function getGcsStorageClient(): any {
+  if (gcsStorage) return gcsStorage;
+
+  try {
+    if (!GcsStorageClass) {
+      const gcs = require('@google-cloud/storage');
+      GcsStorageClass = gcs.Storage;
+    }
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.VITE_GOOGLE_CLOUD_PROJECT;
+    gcsStorage = projectId ? new GcsStorageClass({ projectId }) : new GcsStorageClass();
+    return gcsStorage;
+  } catch (error) {
+    console.error('[Cloud] Failed to initialize GCS:', error);
+    throw new Error(`Failed to load @google-cloud/storage: ${error}`);
+  }
+}
+
+/**
+ * Initialize Cloud Session Folder
+ * Called immediately when "Plan Video" is started.
+ */
+app.post('/api/cloud/init', async (req: Request, res: Response) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId is required' });
+  }
+
+  const folderPath = `production_${sessionId}/`;
+
+  try {
+    const storage = getGcsStorageClient();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+
+    const [exists] = await bucket.exists();
+    if (!exists) {
+      console.warn(`[Cloud] Bucket ${GCS_BUCKET_NAME} not found. Auto-save disabled.`);
+      return res.status(404).json({ error: 'Bucket not found', bucketName: GCS_BUCKET_NAME });
+    }
+
+    // Create a "marker" file to officially "start" the folder
+    await bucket.file(`${folderPath}_session_started.txt`).save(
+      `Session Started: ${new Date().toISOString()}\nSessionId: ${sessionId}`
+    );
+
+    console.log(`[Cloud] ✓ Session folder initialized: ${folderPath}`);
+    res.json({ success: true, folderPath, bucketName: GCS_BUCKET_NAME });
+  } catch (error: any) {
+    console.error('[Cloud] Init failed:', error.message);
+    // Return success:false but don't fail - autosave is optional
+    res.json({ success: false, error: error.message, warning: 'Cloud autosave unavailable' });
+  }
+});
+
+/**
+ * Upload Individual Asset to Cloud
+ * Called by services the moment an image/audio/video is generated.
+ * Uses memory storage to handle file before streaming to GCS.
+ */
+const memoryUpload = multer({ storage: multer.memoryStorage() });
+
+app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response) => {
+  const { sessionId, assetType, filename } = req.body;
+
+  if (!req.file || !sessionId) {
+    return res.status(400).json({ error: 'Missing file or sessionId' });
+  }
+
+  // Validate assetType to prevent path traversal
+  const validAssetTypes = ['visuals', 'audio', 'music', 'video_clips', 'sfx', 'subtitles'];
+  const safeAssetType = validAssetTypes.includes(assetType) ? assetType : 'misc';
+
+  // Sanitize filename
+  const safeFilename = path.basename(filename || `asset_${Date.now()}`);
+  const destination = `production_${sessionId}/${safeAssetType}/${safeFilename}`;
+
+  try {
+    const storage = getGcsStorageClient();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const blob = bucket.file(destination);
+
+    const blobStream = blob.createWriteStream({
+      resumable: false,
+      metadata: {
+        contentType: req.file.mimetype || 'application/octet-stream',
+        metadata: {
+          sessionId,
+          assetType: safeAssetType,
+          uploadedAt: new Date().toISOString(),
+        }
+      }
+    });
+
+    blobStream.on('error', (err: Error) => {
+      console.error('[Cloud] Upload stream error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    blobStream.on('finish', () => {
+      console.log(`[Cloud] ✓ Saved: ${destination} (${Math.round(req.file!.size / 1024)}KB)`);
+      res.json({
+        success: true,
+        path: destination,
+        gsUri: `gs://${GCS_BUCKET_NAME}/${destination}`,
+        size: req.file!.size
+      });
+    });
+
+    blobStream.end(req.file.buffer);
+
+  } catch (error: any) {
+    console.error('[Cloud] Upload failed:', error.message);
+    // Return success:false but don't fail hard - autosave is optional
+    res.json({ success: false, error: error.message, warning: 'Asset not saved to cloud' });
+  }
+});
+
+/**
+ * Health check for cloud storage availability
+ */
+app.get('/api/cloud/status', async (req: Request, res: Response) => {
+  try {
+    const storage = getGcsStorageClient();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const [exists] = await bucket.exists();
+
+    res.json({
+      available: exists,
+      bucketName: GCS_BUCKET_NAME,
+      message: exists ? 'Cloud storage ready' : 'Bucket not found'
+    });
+  } catch (error: any) {
+    res.json({
+      available: false,
+      bucketName: GCS_BUCKET_NAME,
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[Server] FFmpeg export server running on http://localhost:${PORT}`);
   console.log(`[Server] Temp directory: ${TEMP_DIR}`);

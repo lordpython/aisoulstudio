@@ -11,6 +11,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { VIDEO_STYLE_MODIFIERS } from "../constants";
 import { generateProfessionalVideoPrompt } from "./promptService";
+import { cloudAutosave } from "./cloudStorageService";
 
 // Initialize the AI client
 const API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
@@ -108,6 +109,8 @@ async function pollVideoOperation(
  * @param durationSeconds - Video duration: 4, 6, or 8 seconds (default: 8)
  * @param useFastModel - Use Veo 3.1 Fast (40% faster, lower cost) vs Standard (highest quality)
  * @param outputGcsUri - Optional GCS URI for output
+ * @param sessionId - Optional session ID for cloud autosave
+ * @param sceneIndex - Optional scene index for cloud autosave filename
  */
 export const generateVideoFromPrompt = async (
   promptText: string,
@@ -116,7 +119,9 @@ export const generateVideoFromPrompt = async (
   aspectRatio: "16:9" | "9:16" = "16:9",
   durationSeconds: 4 | 6 | 8 = 8,
   useFastModel: boolean = true,
-  outputGcsUri?: string
+  outputGcsUri?: string,
+  sessionId?: string,
+  sceneIndex?: number
 ): Promise<string> => {
   if (!API_KEY) {
     throw new Error(
@@ -251,6 +256,15 @@ Smooth camera motion. No text or watermarks.
 
     console.log(`[Video Service] Video object keys:`, Object.keys(videoObj));
 
+    // Helper to trigger cloud autosave
+    const triggerAutosave = (videoUrl: string) => {
+      if (sessionId && videoUrl) {
+        cloudAutosave.saveVideoClip(sessionId, videoUrl, sceneIndex ?? Date.now()).catch(err => {
+          console.warn('[Video Service] Cloud autosave failed (non-fatal):', err);
+        });
+      }
+    };
+
     // Return URI if available
     if (videoObj.uri) {
       console.log(`[Video Service] ✓ Video URI found: ${videoObj.uri}`);
@@ -258,6 +272,10 @@ Smooth camera motion. No text or watermarks.
       const videoUri = videoObj.uri.includes("?")
         ? `${videoObj.uri}&key=${API_KEY}`
         : `${videoObj.uri}?key=${API_KEY}`;
+
+      // Cloud autosave trigger (fire-and-forget, non-blocking)
+      triggerAutosave(videoUri);
+
       return videoUri;
     }
 
@@ -270,7 +288,12 @@ Smooth camera motion. No text or watermarks.
       console.log(`[Video Service] ✓ Video data found inline (${mimeType})`);
       const sizeKB = ((videoData.length * 0.75) / 1024).toFixed(2);
       console.log(`[Video Service] Video size: ~${sizeKB} KB`);
-      return `data:${mimeType};base64,${videoData}`;
+      const dataUrl = `data:${mimeType};base64,${videoData}`;
+
+      // Cloud autosave trigger (fire-and-forget, non-blocking)
+      triggerAutosave(dataUrl);
+
+      return dataUrl;
     }
 
     console.error(

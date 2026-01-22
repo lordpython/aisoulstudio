@@ -27,6 +27,8 @@ import {
   SubagentResult,
 } from "./index";
 import { productionTools } from "../productionAgent";
+import { knowledgeBase } from "../rag/knowledgeBase";
+import { AI_CONFIG } from "../config";
 
 /**
  * Media Subagent System Prompt
@@ -74,40 +76,82 @@ Music generation is only available in the dedicated "Generate Music" mode.
 ## DECISION TREE:
 
 ### Step 1: Detect User Intent (from supervisor instructions)
-- Animation keywords: "animated", "motion", "video", "moving", "dynamic"
-- SFX keywords: "sound effects", "ambient sounds", "sfx"
+**SMART DEFAULTS** - Users expect "video" to mean moving pictures with sound!
+
+#### Animation Detection:
+- **EXPLICIT YES**: User says "animated", "motion", "video", "moving", "dynamic", "cinematic"
+- **EXPLICIT NO**: User says "static", "slideshow", "still images", "no animation"
+- **SMART DEFAULT**: If style is "Cinematic", "Commercial", "Story", "Broadcast", "Documentary", "Horror", "Anime" → ANIMATE by default
+- Only skip animation for explicitly static requests or styles like "Tutorial", "Educational", "Podcast"
+
+#### SFX Detection:
+- **EXPLICIT YES**: User says "sound effects", "ambient sounds", "sfx", "audio atmosphere"
+- **EXPLICIT NO**: User says "no sfx", "silent", "music only"
+- **SMART DEFAULT**: ALWAYS include SFX for immersive styles:
+  - "Cinematic", "Documentary" → Environmental ambience
+  - "Horror", "Mystery" → Atmospheric tension sounds
+  - "Nature", "Travel" → Natural environment sounds
+  - "Commercial", "Ad" → Clean, professional ambience
+- Only skip SFX if explicitly disabled or for minimalist/tutorial content
 
 ### Step 2: Execute Required Tools
 Always execute:
 - generate_visuals (required for all videos)
 
-### Step 3: Execute Optional Tools
-If user wants animation:
-- Call animate_image for each scene (0 to sceneCount-1)
+### Step 3: Execute Optional Tools (SMART DEFAULTS APPLY)
+Animation (smart default ON for cinematic styles):
+- **CRITICAL**: Before animating, CHECK if the scene visual is already a video!
+  - If generate_visuals returned videos (from Veo), SKIP animate_image for those scenes
+  - Only call animate_image for scenes with STILL IMAGES
+- Call animate_image for each scene that has a still image (0 to sceneCount-1)
+- Look at the generate_visuals response - if a scene's visual URL ends with .mp4 or is a video, it's already animated!
 
-If user wants SFX:
+SFX (smart default ON for immersive styles):
 - Call plan_sfx
 
 ## EXAMPLES:
 
 **Example 1**: "Create a cinematic video about space exploration" with sessionId="prod_1768266562924_r3zdsyfgc"
-- Animation: Not mentioned → Skip animate_image
-- SFX: Not mentioned → Skip plan_sfx
+- Animation: "Cinematic" style → SMART DEFAULT: YES, but CHECK if already video
+- SFX: "Cinematic" + "space" → SMART DEFAULT: YES, atmospheric ambience
+- Workflow:
+  1. generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+     → Response shows: Scene 0 = video (.mp4), Scene 1 = image (.png), Scene 2 = image (.png)
+  2. SKIP scene 0 (already a video from Veo!)
+  3. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 1 })
+  4. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 2 })
+  5. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+
+**Example 2**: "Make a static slideshow tutorial" with sessionId="prod_1768266562924_r3zdsyfgc"
+- Animation: "Static slideshow" explicitly mentioned → Skip animate_image
+- SFX: Tutorial style → Optional, skip unless requested
 - Workflow: generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
 
-**Example 2**: "Make an animated tutorial" with sessionId="prod_1768266562924_r3zdsyfgc"
-- Animation: "Animated" mentioned → Call animate_image for all scenes
-- SFX: Not mentioned → Skip plan_sfx
-- Workflow: 
+**Example 3**: "Create a horror video about an abandoned hospital" with sessionId="prod_1768266562924_r3zdsyfgc"
+- Animation: "Horror" style → SMART DEFAULT: YES, but CHECK visual types first
+- SFX: "Horror" style → SMART DEFAULT: YES, tension/ambience essential
+- Workflow:
   1. generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-  2. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 0 })
-  3. animate_image({ contentPlanId: "prod_1768266562924_r3zdsyfgc", sceneIndex: 1 })
-  ... etc
+     → Check response: If any scene has isVideo=true or visualUrl contains "video/", SKIP animation for that scene
+  2. animate_image ONLY for scenes with still images
+  3. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+
+**Example 4**: "Direct text-to-video generation (all Veo)" with sessionId="prod_1768266562924_xyz"
+- If generate_visuals returns ALL scenes as videos (from Veo):
+- Workflow:
+  1. generate_visuals({ contentPlanId: "prod_1768266562924_xyz" })
+     → Response: All 5 scenes returned as videos (.mp4)
+  2. SKIP ALL animate_image calls (every scene is already a video!)
+  3. plan_sfx({ contentPlanId: "prod_1768266562924_xyz" })
+  4. Report: "Media complete. Visuals: 5 scenes (all Veo videos). Animation: Skipped (already video)."
 
 ## CONSTRAINTS:
 
 - generate_visuals: Must have ContentPlan with scene visualDescriptions
 - animate_image: Must have generated visuals first
+  - **NEVER animate a scene that is already a video!**
+  - Check the generate_visuals response for: isVideo=true, visualUrl ends with .mp4, type="video"
+  - If in doubt, check the visualUrl extension: .mp4/.webm = video (skip), .png/.jpg = image (can animate)
 - plan_sfx: Must have ContentPlan with scene emotionalTone
 
 ## QUALITY TIPS:
@@ -116,7 +160,7 @@ If user wants SFX:
 - Animation pacing: Don't over-animate (subtle motion is better)
 - SFX balance: Ambient sounds should complement, not overpower
 
-When done, report: "Media complete. Visuals: N scenes. Animation: Yes/No."
+When done, report: "Media complete. Visuals: N scenes (X images, Y videos). Animation: Applied to X images / Skipped for Y videos."
 `;
 
 /**
@@ -158,6 +202,23 @@ export function createMediaSubagent(apiKey: string): Subagent {
         isComplete: false,
       });
 
+      // Retrieve relevant knowledge from RAG knowledge base for style best practices
+      let ragKnowledge = '';
+      if (AI_CONFIG.rag.enabled) {
+        try {
+          // Search for style-specific and visual generation best practices
+          ragKnowledge = await knowledgeBase.getRelevantKnowledge(
+            `${context.instruction} visual style best practices image generation`
+          );
+          if (ragKnowledge) {
+            console.log('[MediaSubagent] ✅ Retrieved visual style knowledge from knowledge base');
+          }
+        } catch (error) {
+          console.warn('[MediaSubagent] Failed to retrieve knowledge:', error);
+          // Continue without knowledge - graceful degradation
+        }
+      }
+
       // Initialize model with tools
       const model = new ChatGoogleGenerativeAI({
         model: "gemini-3-flash-preview",
@@ -167,9 +228,14 @@ export function createMediaSubagent(apiKey: string): Subagent {
 
       const modelWithTools = model.bindTools(mediaTools);
 
-      // CRITICAL: Inject sessionId into the instruction so the AI knows what to use
-      const enhancedInstruction = `IMPORTANT: Your sessionId is "${context.sessionId}". Use this EXACT value as contentPlanId for ALL tool calls.
+      // Build RAG context block if knowledge is available
+      const ragContextBlock = ragKnowledge
+        ? `\n\n## VISUAL STYLE BEST PRACTICES (from knowledge base):\n${ragKnowledge}\n\n---\n`
+        : '';
 
+      // CRITICAL: Inject sessionId and RAG knowledge into the instruction
+      const enhancedInstruction = `IMPORTANT: Your sessionId is "${context.sessionId}". Use this EXACT value as contentPlanId for ALL tool calls.
+${ragContextBlock}
 ${context.instruction}
 
 REMINDER: contentPlanId = "${context.sessionId}" for all tools (generate_visuals, animate_image, plan_sfx)`;
