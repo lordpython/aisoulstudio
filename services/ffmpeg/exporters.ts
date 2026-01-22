@@ -1,0 +1,418 @@
+/**
+ * Video Exporters Module
+ *
+ * Cloud rendering (server-side FFmpeg) and browser rendering (FFmpeg WASM) export functions.
+ */
+
+import { SongData } from "../../types";
+import { extractFrequencyData } from "../../utils/audioAnalysis";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { applyPolyfills } from "../../lib/utils";
+import { mixAudioWithSFX, canMixSFX } from "../audioMixerService";
+import {
+    ExportConfig,
+    ExportProgress,
+    ProgressCallback,
+    RenderAsset,
+    SERVER_URL,
+    DEFAULT_EXPORT_CONFIG,
+    mergeExportConfig,
+} from "./exportConfig";
+import { preloadAssets } from "./assetLoader";
+import { renderFrameToCanvas } from "./frameRenderer";
+
+// Rendering constants
+const RENDER_WIDTH_LANDSCAPE = 1280;
+const RENDER_WIDTH_PORTRAIT = 720;
+const RENDER_HEIGHT_LANDSCAPE = 720;
+const RENDER_HEIGHT_PORTRAIT = 1280;
+const FPS = 24;
+const JPEG_QUALITY = 0.75;
+const BATCH_SIZE = 48;
+
+/**
+ * Export video using cloud rendering (server-side FFmpeg)
+ */
+export async function exportVideoWithFFmpeg(
+    songData: SongData,
+    onProgress: ProgressCallback,
+    config: Partial<ExportConfig> = {}
+): Promise<Blob> {
+    const mergedConfig = mergeExportConfig(config);
+    const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
+    const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
+
+    onProgress({
+        stage: "preparing",
+        progress: 0,
+        message: "Analyzing audio...",
+    });
+
+    // 1. Fetch and Decode Audio
+    if (!songData.audioUrl) {
+        throw new Error("No audio URL provided. Cannot export video without audio.");
+    }
+
+    const audioResponse = await fetch(songData.audioUrl);
+    if (!audioResponse.ok) {
+        throw new Error(`Failed to fetch audio: ${audioResponse.status} ${audioResponse.statusText}`);
+    }
+    const audioBlob = await audioResponse.blob();
+    if (audioBlob.size === 0) {
+        throw new Error("Audio file is empty. Please ensure audio has been generated.");
+    }
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    let audioBuffer: AudioBuffer;
+    try {
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    } catch (decodeError: any) {
+        throw new Error(`Unable to decode audio data. The audio file may be corrupted or in an unsupported format. (${decodeError.message || 'Unknown error'})`);
+    }
+
+    // 2. Extract Frequency Data
+    const frequencyDataArray = await extractFrequencyData(audioBuffer, FPS);
+
+    onProgress({
+        stage: "preparing",
+        progress: 10,
+        message: "Initializing render session...",
+    });
+
+    // 3. Initialize Session
+    const initFormData = new FormData();
+    initFormData.append("audio", audioBlob, "audio.mp3");
+
+    const initRes = await fetch(`${SERVER_URL}/api/export/init`, {
+        method: "POST",
+        body: initFormData,
+    });
+
+    if (!initRes.ok) {
+        throw new Error("Failed to initialize export session");
+    }
+
+    const { sessionId } = await initRes.json();
+
+    onProgress({
+        stage: "preparing",
+        progress: 20,
+        message: "Loading high-res assets...",
+    });
+
+    // 4. Preload assets
+    const assets = await preloadAssets(songData);
+
+    const duration = audioBuffer.duration;
+    const totalFrames = Math.ceil(duration * FPS);
+
+    onProgress({
+        stage: "rendering",
+        progress: 0,
+        message: "Rendering cinematic frames...",
+    });
+
+    // 5. Create canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    applyPolyfills(ctx);
+
+    // 6. Render Loop with Batch Upload
+    let previousFreqData: Uint8Array | null = null;
+    let frameBuffer: { blob: Blob; name: string }[] = [];
+
+    for (let frame = 0; frame < totalFrames; frame++) {
+        const currentTime = frame / FPS;
+        const freqData = frequencyDataArray[frame] || new Uint8Array(128).fill(0);
+
+        await renderFrameToCanvas(
+            ctx,
+            WIDTH,
+            HEIGHT,
+            currentTime,
+            assets,
+            songData.parsedSubtitles,
+            freqData,
+            previousFreqData,
+            mergedConfig
+        );
+
+        previousFreqData = freqData;
+
+        const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b!), "image/jpeg", JPEG_QUALITY);
+        });
+
+        frameBuffer.push({
+            blob,
+            name: `frame${frame.toString().padStart(6, "0")}.jpg`,
+        });
+
+        // Upload if batch is full
+        if (frameBuffer.length >= BATCH_SIZE) {
+            const chunkFormData = new FormData();
+            frameBuffer.forEach((f) => chunkFormData.append("frames", f.blob, f.name));
+
+            const chunkRes = await fetch(
+                `${SERVER_URL}/api/export/chunk?sessionId=${sessionId}`,
+                { method: "POST", body: chunkFormData }
+            );
+
+            if (!chunkRes.ok) throw new Error("Failed to upload video chunk");
+            frameBuffer = [];
+        }
+
+        // Update progress
+        if (frame % FPS === 0) {
+            const progress = Math.round((frame / totalFrames) * 90);
+            onProgress({
+                stage: "rendering",
+                progress,
+                message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(duration)}s`,
+            });
+        }
+    }
+
+    // Upload remaining frames
+    if (frameBuffer.length > 0) {
+        const chunkFormData = new FormData();
+        frameBuffer.forEach((f) => chunkFormData.append("frames", f.blob, f.name));
+        await fetch(`${SERVER_URL}/api/export/chunk?sessionId=${sessionId}`, {
+            method: "POST",
+            body: chunkFormData,
+        });
+    }
+
+    onProgress({
+        stage: "encoding",
+        progress: 95,
+        message: "Finalizing video on server...",
+    });
+
+    const finalizeRes = await fetch(`${SERVER_URL}/api/export/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, fps: FPS }),
+    });
+
+    if (!finalizeRes.ok) {
+        const error = await finalizeRes.json();
+        throw new Error(error.error || "Export failed");
+    }
+
+    onProgress({ stage: "encoding", progress: 99, message: "Downloading..." });
+
+    const videoBlob = await finalizeRes.blob();
+
+    onProgress({ stage: "complete", progress: 100, message: "Export complete!" });
+
+    return videoBlob;
+}
+
+/**
+ * Export video using browser-side FFmpeg WASM
+ */
+export async function exportVideoClientSide(
+    songData: SongData,
+    onProgress: ProgressCallback,
+    config: Partial<ExportConfig> = {}
+): Promise<Blob> {
+    const mergedConfig = mergeExportConfig(config);
+    const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
+    const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
+
+    onProgress({
+        stage: "loading",
+        progress: 0,
+        message: "Loading FFmpeg Core...",
+    });
+
+    const ffmpeg = new FFmpeg();
+    const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
+
+    try {
+        await ffmpeg.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        });
+    } catch (e) {
+        console.error("FFmpeg load failed", e);
+        throw new Error("Failed to load FFmpeg. Check browser compatibility.");
+    }
+
+    onProgress({
+        stage: "preparing",
+        progress: 0,
+        message: "Analyzing audio...",
+    });
+
+    // Validate audio URL
+    if (!songData.audioUrl) {
+        throw new Error("No audio URL provided. Cannot export video without audio.");
+    }
+
+    // 1. Fetch and potentially mix audio with SFX
+    let audioBlob: Blob;
+    let audioBuffer: AudioBuffer;
+
+    const shouldMixSFX =
+        mergedConfig.sfxPlan &&
+        canMixSFX(mergedConfig.sfxPlan) &&
+        mergedConfig.sceneTimings &&
+        mergedConfig.sceneTimings.length > 0;
+
+    if (shouldMixSFX) {
+        onProgress({
+            stage: "preparing",
+            progress: 5,
+            message: "Mixing audio with SFX...",
+        });
+
+        console.log("[FFmpeg] Mixing narration with SFX...");
+
+        try {
+            audioBlob = await mixAudioWithSFX({
+                narrationUrl: songData.audioUrl,
+                sfxPlan: mergedConfig.sfxPlan!,
+                scenes: mergedConfig.sceneTimings!,
+                sfxMasterVolume: mergedConfig.sfxMasterVolume,
+                musicMasterVolume: mergedConfig.musicMasterVolume,
+            });
+            console.log(`[FFmpeg] Mixed audio size: ${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`);
+        } catch (error) {
+            console.warn("[FFmpeg] SFX mixing failed, using original audio:", error);
+            const audioResponse = await fetch(songData.audioUrl);
+            if (!audioResponse.ok) {
+                throw new Error(`Failed to fetch audio: ${audioResponse.status} ${audioResponse.statusText}`);
+            }
+            audioBlob = await audioResponse.blob();
+        }
+    } else {
+        const audioResponse = await fetch(songData.audioUrl);
+        if (!audioResponse.ok) {
+            throw new Error(`Failed to fetch audio: ${audioResponse.status} ${audioResponse.statusText}`);
+        }
+        audioBlob = await audioResponse.blob();
+    }
+
+    if (audioBlob.size === 0) {
+        throw new Error("Audio file is empty. Please ensure audio has been generated.");
+    }
+
+    // Decode audio for visualization
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    try {
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    } catch (decodeError: any) {
+        throw new Error(`Unable to decode audio data. The audio file may be corrupted or in an unsupported format. (${decodeError.message || 'Unknown error'})`);
+    }
+
+    await ffmpeg.writeFile("audio.wav", await fetchFile(audioBlob));
+
+    // 2. Extract Frequency Data
+    const frequencyDataArray = await extractFrequencyData(audioBuffer, FPS);
+
+    onProgress({
+        stage: "preparing",
+        progress: 20,
+        message: "Loading high-res assets...",
+    });
+
+    // 3. Preload assets
+    const assets = await preloadAssets(songData);
+
+    const duration = audioBuffer.duration;
+    const totalFrames = Math.ceil(duration * FPS);
+
+    onProgress({
+        stage: "rendering",
+        progress: 0,
+        message: "Rendering frames...",
+    });
+
+    // 4. Create canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    applyPolyfills(ctx);
+
+    // 5. Render Loop
+    let previousFreqData: Uint8Array | null = null;
+
+    for (let frame = 0; frame < totalFrames; frame++) {
+        const currentTime = frame / FPS;
+        const freqData = frequencyDataArray[frame] || new Uint8Array(128).fill(0);
+
+        await renderFrameToCanvas(
+            ctx,
+            WIDTH,
+            HEIGHT,
+            currentTime,
+            assets,
+            songData.parsedSubtitles,
+            freqData,
+            previousFreqData,
+            mergedConfig
+        );
+
+        previousFreqData = freqData;
+
+        const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b!), "image/jpeg", JPEG_QUALITY);
+        });
+
+        const frameName = `frame${frame.toString().padStart(6, "0")}.jpg`;
+        await ffmpeg.writeFile(frameName, await fetchFile(blob));
+
+        // Update progress
+        if (frame % FPS === 0) {
+            const progress = Math.round((frame / totalFrames) * 80);
+            onProgress({
+                stage: "rendering",
+                progress,
+                message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(duration)}s`,
+            });
+        }
+    }
+
+    onProgress({
+        stage: "encoding",
+        progress: 85,
+        message: "Encoding MP4 (WASM)...",
+    });
+
+    // 6. Run FFmpeg
+    await ffmpeg.exec([
+        "-framerate",
+        String(FPS),
+        "-i",
+        "frame%06d.jpg",
+        "-i",
+        "audio.wav",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-pix_fmt",
+        "yuv420p",
+        "-shortest",
+        "-preset",
+        "ultrafast",
+        "output.mp4",
+    ]);
+
+    onProgress({ stage: "complete", progress: 100, message: "Done!" });
+
+    // 7. Read output
+    const data = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
+    return new Blob([data.slice()], { type: "video/mp4" });
+}

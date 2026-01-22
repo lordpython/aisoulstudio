@@ -1,0 +1,57 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+temp
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Kiro
+.kiro/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+client.json
+# Test data (generated/sample files)
+test_data/
+
+# Android build artifacts
+android/.gradle/
+android/.idea/
+android/.kotlin/
+android/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+test_output/
+# Screenshots and images (if generated)
+*.png
+!public/*.png
+
+# OS files
+Thumbs.db
+.env.test
+
+# Auto Claude data directory
+.auto-claude/
+test-outputs/
+nul

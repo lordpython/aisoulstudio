@@ -1,0 +1,531 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  LyricLens Design System 2026: "The Invisible Interface"
+  Philosophy: Intentional Minimalism, Deep Space, Bioluminescence
+*/
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --radius-2xl: calc(var(--radius) + 8px);
+    --radius-3xl: calc(var(--radius) + 16px);
+    --radius-full: 9999px;
+
+    --font-sans: "Inter", "Geist Sans", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", monospace;
+    
+    --animate-float: float 8s ease-in-out infinite;
+    --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animate-glow: glow 2s ease-in-out infinite alternate;
+}
+
+:root {
+    --radius: 1rem;
+
+    /* 
+       PALETTE: Deep Space & Bioluminescence 
+       Using OKLCH for wider gamut and perceptual uniformity.
+    */
+
+    /* The Void (Background) - Darker, richer than black */
+    --background: oklch(0.05 0.01 240); 
+    
+    /* Starlight (Foreground) - Pure, crisp white */
+    --foreground: oklch(0.98 0 0);
+
+    /* Event Horizon (Cards) - Subtle surface, almost invisible */
+    --card: oklch(0.12 0.02 245);
+    --card-foreground: oklch(0.98 0 0);
+
+    --popover: oklch(0.08 0.02 245);
+    --popover-foreground: oklch(0.98 0 0);
+
+    /* Nebula (Primary) - Vibrant Cyan/Teal */
+    --primary: oklch(0.70 0.15 190);
+    --primary-foreground: oklch(0.05 0.01 240);
+
+    /* Dark Matter (Secondary) - Deep Indigo */
+    --secondary: oklch(0.15 0.05 240);
+    --secondary-foreground: oklch(0.90 0.05 240);
+
+    /* Stardust (Muted) */
+    --muted: oklch(0.20 0.02 240);
+    --muted-foreground: oklch(0.60 0.05 240);
+
+    /* Supernova (Accent) - Intense Orange/Red */
+    --accent: oklch(0.65 0.25 30);
+    --accent-foreground: oklch(0.98 0 0);
+
+    /* Quasar (Destructive) */
+    --destructive: oklch(0.55 0.25 25);
+    --destructive-foreground: oklch(0.98 0 0);
+
+    /* Boundaries (barely visible) */
+    --border: oklch(0.20 0.03 240);
+    --input: oklch(0.20 0.03 240);
+    --ring: oklch(0.70 0.15 190);
+
+    /* Glow Variables */
+    --glow-primary: oklch(0.70 0.15 190 / 0.5);
+    --glow-accent: oklch(0.65 0.25 30 / 0.5);
+}
+
+/* ==========================================
+   AVANT-GARDE UTILITIES
+   ========================================== */
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+        background-image: 
+            radial-gradient(circle at 50% 0%, oklch(0.15 0.05 240 / 0.3) 0%, transparent 50%),
+            radial-gradient(circle at 100% 100%, oklch(0.12 0.05 280 / 0.2) 0%, transparent 40%);
+        background-attachment: fixed;
+    }
+
+    /* Custom Selection */
+    ::selection {
+        @apply bg-primary/30 text-primary-foreground;
+    }
+}
+
+/* ==========================================
+   GLASSMORPHISM & SURFACES
+   ========================================== */
+
+.glass {
+    background: color-mix(in oklch, var(--card), transparent 30%);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid oklch(1 1 1 / 0.05);
+    box-shadow: 
+        0 4px 30px oklch(0 0 0 / 0.1),
+        inset 0 0 0 1px oklch(1 1 1 / 0.05);
+}
+
+.glass-panel {
+    background: color-mix(in oklch, var(--background), transparent 20%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border-top: 1px solid oklch(1 1 1 / 0.1);
+    border-left: 1px solid oklch(1 1 1 / 0.05);
+}
+
+.glass-button {
+    background: oklch(1 1 1 / 0.03);
+    backdrop-filter: blur(8px);
+    border: 1px solid oklch(1 1 1 / 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-button:hover {
+    background: oklch(1 1 1 / 0.08);
+    border-color: var(--primary);
+    box-shadow: 0 0 20px var(--glow-primary);
+    transform: translateY(-1px);
+}
+
+/* ==========================================
+   TEXT EFFECTS
+   ========================================== */
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--foreground) 0%, var(--muted-foreground) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.text-gradient-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, oklch(0.8 0.1 240) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 10px -5px var(--glow-primary); }
+    to { box-shadow: 0 0 25px 5px var(--glow-primary); }
+}
+
+.animate-in-fade {
+    animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-in-slide-up {
+    animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================
+   MICRO-INTERACTIONS
+   ========================================== */
+
+.hover-glow {
+    transition: box-shadow 0.3s ease;
+}
+.hover-glow:hover {
+    box-shadow: 0 0 30px var(--glow-primary);
+}
+
+.click-scale:active {
+    transform: scale(0.98);
+}
+
+/* Hide scrollbar but allow functionality */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ==========================================
+   RTL (Right-to-Left) SUPPORT
+   ========================================== */
+
+/* RTL direction utilities */
+[dir="rtl"] {
+    /* Flip text alignment */
+    --text-align-start: right;
+    --text-align-end: left;
+}
+
+[dir="ltr"] {
+    --text-align-start: left;
+    --text-align-end: right;
+}
+
+/* RTL-aware flex utilities */
+[dir="rtl"] .rtl\:flex-row-reverse {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .rtl\:space-x-reverse > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+}
+
+/* RTL-aware text alignment */
+[dir="rtl"] .rtl\:text-right {
+    text-align: right;
+}
+
+[dir="rtl"] .rtl\:text-left {
+    text-align: left;
+}
+
+/* RTL-aware margins and padding using logical properties */
+.ms-auto { margin-inline-start: auto; }
+.me-auto { margin-inline-end: auto; }
+.ps-0 { padding-inline-start: 0; }
+.pe-0 { padding-inline-end: 0; }
+.ps-1 { padding-inline-start: 0.25rem; }
+.pe-1 { padding-inline-end: 0.25rem; }
+.ps-2 { padding-inline-start: 0.5rem; }
+.pe-2 { padding-inline-end: 0.5rem; }
+.ps-3 { padding-inline-start: 0.75rem; }
+.pe-3 { padding-inline-end: 0.75rem; }
+.ps-4 { padding-inline-start: 1rem; }
+.pe-4 { padding-inline-end: 1rem; }
+.ps-6 { padding-inline-start: 1.5rem; }
+.pe-6 { padding-inline-end: 1.5rem; }
+.ms-0 { margin-inline-start: 0; }
+.me-0 { margin-inline-end: 0; }
+.ms-1 { margin-inline-start: 0.25rem; }
+.me-1 { margin-inline-end: 0.25rem; }
+.ms-2 { margin-inline-start: 0.5rem; }
+.me-2 { margin-inline-end: 0.5rem; }
+.ms-3 { margin-inline-start: 0.75rem; }
+.me-3 { margin-inline-end: 0.75rem; }
+.ms-4 { margin-inline-start: 1rem; }
+.me-4 { margin-inline-end: 1rem; }
+.ms-6 { margin-inline-start: 1.5rem; }
+.me-6 { margin-inline-end: 1.5rem; }
+
+/* RTL-aware border utilities */
+.border-s { border-inline-start-width: 1px; }
+.border-e { border-inline-end-width: 1px; }
+.border-s-0 { border-inline-start-width: 0; }
+.border-e-0 { border-inline-end-width: 0; }
+.rounded-s { border-start-start-radius: var(--radius); border-end-start-radius: var(--radius); }
+.rounded-e { border-start-end-radius: var(--radius); border-end-end-radius: var(--radius); }
+.rounded-s-lg { border-start-start-radius: var(--radius-lg); border-end-start-radius: var(--radius-lg); }
+.rounded-e-lg { border-start-end-radius: var(--radius-lg); border-end-end-radius: var(--radius-lg); }
+
+/* RTL-aware positioning */
+.start-0 { inset-inline-start: 0; }
+.end-0 { inset-inline-end: 0; }
+.start-1 { inset-inline-start: 0.25rem; }
+.end-1 { inset-inline-end: 0.25rem; }
+.start-2 { inset-inline-start: 0.5rem; }
+.end-2 { inset-inline-end: 0.5rem; }
+.start-4 { inset-inline-start: 1rem; }
+.end-4 { inset-inline-end: 1rem; }
+.start-auto { inset-inline-start: auto; }
+.end-auto { inset-inline-end: auto; }
+
+/* RTL-aware text alignment */
+.text-start { text-align: start; }
+.text-end { text-align: end; }
+
+/* RTL icon flip utility */
+[dir="rtl"] .rtl\:flip,
+[dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+}
+
+/* RTL-aware gap utilities for flex containers */
+[dir="rtl"] .rtl\:gap-reverse {
+    flex-direction: row-reverse;
+}
+
+/* Body RTL class for global RTL state */
+body.rtl {
+    direction: rtl;
+    text-align: right;
+}
+
+body:not(.rtl) {
+    direction: ltr;
+    text-align: left;
+}
+
+
+/* ==========================================
+   ACCESSIBILITY & KEYBOARD NAVIGATION
+   Requirements: 9.4, 9.5 - Keyboard navigation support
+   ========================================== */
+
+/* Screen reader only utility */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Make sr-only visible on focus (for skip links) */
+.sr-only:focus,
+.sr-only:focus-visible {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+}
+
+/* Focus visible styles for keyboard navigation */
+:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+/* Remove default focus outline for mouse users */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Enhanced focus styles for interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px oklch(0.70 0.15 190 / 0.2);
+}
+
+/* Focus styles for cards and interactive containers */
+.focus-ring:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px oklch(0.70 0.15 190 / 0.2);
+}
+
+/* Skip to content link styles */
+.skip-to-content {
+    position: absolute;
+    top: -100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    padding: 0.75rem 1.5rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: var(--radius);
+    font-weight: 600;
+    text-decoration: none;
+    transition: top 0.2s ease;
+}
+
+.skip-to-content:focus {
+    top: 1rem;
+}
+
+/* Ensure all interactive elements have visible focus indicators */
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="radio"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="slider"]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Focus within for composite widgets */
+[role="listbox"]:focus-within,
+[role="menu"]:focus-within,
+[role="tablist"]:focus-within,
+[role="toolbar"]:focus-within {
+    outline: 1px solid oklch(0.70 0.15 190 / 0.3);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    :focus-visible {
+        outline: 3px solid currentColor;
+        outline-offset: 3px;
+    }
+    
+    button:focus-visible,
+    a:focus-visible {
+        outline: 3px solid currentColor;
+        outline-offset: 3px;
+        box-shadow: none;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Ensure disabled elements are not focusable visually */
+[disabled],
+[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+[disabled]:focus,
+[aria-disabled="true"]:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Focus trap container styles */
+[role="dialog"][aria-modal="true"] {
+    /* Ensure modal is above other content */
+    z-index: 50;
+}
+
+/* Ensure proper tab order for RTL */
+[dir="rtl"] [tabindex] {
+    /* Tab order is handled by the browser based on DOM order */
+    /* This ensures visual order matches logical order */
+}
+
+/* Visible focus indicator for custom checkboxes and radios */
+input[type="checkbox"]:focus-visible + label,
+input[type="radio"]:focus-visible + label {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Focus styles for dropdown menu items */
+[role="menuitem"]:focus,
+[role="menuitemcheckbox"]:focus,
+[role="menuitemradio"]:focus {
+    background: oklch(0.70 0.15 190 / 0.1);
+    outline: none;
+}
+
+/* Ensure touch targets are large enough (44x44px minimum) */
+@media (pointer: coarse) {
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    [role="button"],
+    [role="link"] {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}

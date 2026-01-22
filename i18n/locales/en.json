@@ -1,0 +1,91 @@
+{
+  "nav": {
+    "home": "Home",
+    "studio": "Studio",
+    "visualizer": "Visualizer",
+    "back": "Back",
+    "settings": "Settings",
+    "projects": "Projects",
+    "quickCreate": "Quick Create",
+    "help": "Help"
+  },
+  "home": {
+    "title": "LyricLens",
+    "subtitle": "AI-Powered Video Production",
+    "createVideo": "Create Video",
+    "createVideoDesc": "Generate stunning videos from text or topics",
+    "createMusic": "Generate Music",
+    "createMusicDesc": "Create AI-powered music tracks",
+    "visualizer": "Visualizer",
+    "visualizerDesc": "Create lyric videos from audio files",
+    "recentProjects": "Recent Projects",
+    "noProjects": "No recent projects"
+  },
+  "studio": {
+    "title": "Studio",
+    "placeholder": "Describe what you want to create...",
+    "send": "Send",
+    "export": "Export",
+    "edit": "Edit",
+    "timeline": "Timeline",
+    "quality": "Quality",
+    "newProject": "New Project",
+    "simpleMode": "Simple",
+    "advancedMode": "Advanced",
+    "scenes": "Scenes",
+    "preview": "Preview",
+    "generating": "Generating...",
+    "processing": "Processing..."
+  },
+  "visualizer": {
+    "title": "Visualizer",
+    "uploadAudio": "Upload Audio",
+    "uploadSubtitles": "Upload Subtitles",
+    "dropAudio": "Drop audio file here or click to browse",
+    "dropSubtitles": "Drop SRT file here or click to browse",
+    "generate": "Generate Video"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "download": "Download",
+    "upload": "Upload",
+    "search": "Search",
+    "clear": "Clear",
+    "reset": "Reset",
+    "apply": "Apply",
+    "done": "Done",
+    "next": "Next",
+    "previous": "Previous",
+    "comingSoon": "Coming Soon",
+    "unsavedChanges": "Unsaved Changes",
+    "unsavedChangesMessage": "You have unsaved changes. Are you sure you want to leave? Your changes will be lost.",
+    "stay": "Stay",
+    "leaveAnyway": "Leave Anyway",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items"
+  },
+  "a11y": {
+    "languageSwitch": "Switch language",
+    "mainNav": "Main navigation",
+    "skipToContent": "Skip to main content",
+    "currentLanguage": "Current language: {{language}}",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Network error. Please check your connection.",
+    "notFound": "Page not found",
+    "unauthorized": "You are not authorized to view this page"
+  }
+}
