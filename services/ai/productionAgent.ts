@@ -422,7 +422,8 @@ const narrateScenesTool = tool(
                         totalScenes,
                         `Narrating scene ${sceneIndex + 1}/${totalScenes}`
                     );
-                }
+                },
+                contentPlanId  // sessionId for cloud autosave
             );
 
             // Sync durations to actual narration lengths
@@ -512,7 +513,10 @@ const generateVisualsTool = tool(
                             firstScene.emotionalTone || "dramatic",
                             "", "documentary",
                             (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
-                            8, true
+                            8, true,
+                            undefined,      // outputGcsUri
+                            contentPlanId,  // sessionId for cloud autosave
+                            0               // sceneIndex
                         );
                         isVideoScene = true;
                         console.log(`[ProductionAgent] Veo 3.1 video generated for first scene`);
@@ -521,7 +525,11 @@ const generateVisualsTool = tool(
                         firstImageUrl = await generateImageFromPrompt(
                             firstScene.visualDescription,
                             style || "Cinematic",
-                            "", aspectRatio || "16:9"
+                            "", aspectRatio || "16:9",
+                            false,          // skipRefine
+                            undefined,      // seed
+                            contentPlanId,  // sessionId for cloud autosave
+                            0               // sceneIndex
                         );
                     }
 
@@ -582,7 +590,11 @@ const generateVisualsTool = tool(
                         const imageUrl = await generateImageFromPrompt(
                             enhancedPrompt,
                             style || "Cinematic",
-                            "", aspectRatio || "16:9"
+                            "", aspectRatio || "16:9",
+                            false,          // skipRefine
+                            undefined,      // seed
+                            contentPlanId,  // sessionId for cloud autosave
+                            globalIndex     // sceneIndex
                         );
 
                         return {

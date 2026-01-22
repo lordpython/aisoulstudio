@@ -85,11 +85,6 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: [
-        // Force proper ESM interop for CJS modules used by langchain
-        "camelcase",
-        "decamelize",
-      ],
       exclude: [
         "@ffmpeg/ffmpeg",
         "@ffmpeg/util",

@@ -315,7 +315,10 @@ export const generateProfessionalVideo = async (
   videoPurpose: string = "documentary",
   aspectRatio: "16:9" | "9:16" = "16:9",
   durationSeconds: 4 | 6 | 8 = 6,
-  useFastModel: boolean = true
+  useFastModel: boolean = true,
+  outputGcsUri?: string,
+  sessionId?: string,
+  sceneIndex?: number
 ): Promise<string> => {
   console.log(`[Video Service] Generating professional video prompt...`);
   console.log(`[Video Service] Style: ${style}, Mood: ${mood}, Duration: ${durationSeconds}s`);
@@ -341,7 +344,10 @@ export const generateProfessionalVideo = async (
     globalSubject,
     aspectRatio,
     durationSeconds,
-    useFastModel
+    useFastModel,
+    outputGcsUri,
+    sessionId,
+    sceneIndex
   );
 };
 

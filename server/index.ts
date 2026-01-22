@@ -1156,12 +1156,12 @@ let gcsStorage: any = null;
 let GcsStorageClass: any = null;
 const GCS_BUCKET_NAME = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'aisoul-studio-storage';
 
-function getGcsStorageClient(): any {
+async function getGcsStorageClient(): Promise<any> {
   if (gcsStorage) return gcsStorage;
 
   try {
     if (!GcsStorageClass) {
-      const gcs = require('@google-cloud/storage');
+      const gcs = await import('@google-cloud/storage');
       GcsStorageClass = gcs.Storage;
     }
     const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.VITE_GOOGLE_CLOUD_PROJECT;
@@ -1187,7 +1187,7 @@ app.post('/api/cloud/init', async (req: Request, res: Response) => {
   const folderPath = `production_${sessionId}/`;
 
   try {
-    const storage = getGcsStorageClient();
+    const storage = await getGcsStorageClient();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
 
     const [exists] = await bucket.exists();
@@ -1233,7 +1233,7 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
   const destination = `production_${sessionId}/${safeAssetType}/${safeFilename}`;
 
   try {
-    const storage = getGcsStorageClient();
+    const storage = await getGcsStorageClient();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const blob = bucket.file(destination);
 
@@ -1280,7 +1280,7 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
  */
 app.get('/api/cloud/status', async (req: Request, res: Response) => {
   try {
-    const storage = getGcsStorageClient();
+    const storage = await getGcsStorageClient();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const [exists] = await bucket.exists();
 

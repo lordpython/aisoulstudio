@@ -751,7 +751,8 @@ export const narrateAllScenes = traceAsync(
     async function narrateAllScenesImpl(
         scenes: Scene[],
         config?: NarratorConfig,
-        onProgress?: (sceneIndex: number, totalScenes: number) => void
+        onProgress?: (sceneIndex: number, totalScenes: number) => void,
+        sessionId?: string
     ): Promise<NarrationSegment[]> {
         console.log(`[Narrator] Starting narration for ${scenes.length} scenes`);
 
@@ -767,7 +768,7 @@ export const narrateAllScenes = traceAsync(
             }
 
             try {
-                const segment = await narrateScene(scene, config);
+                const segment = await narrateScene(scene, config, sessionId);
                 segments.push(segment);
                 console.log(`[Narrator] Completed scene ${i + 1}/${scenes.length}`);
             } catch (error) {
