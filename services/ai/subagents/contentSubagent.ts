@@ -21,6 +21,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
+import { MODELS } from "../../shared/apiClient";
 import {
   Subagent,
   SubagentName,
@@ -200,7 +201,7 @@ export function createContentSubagent(apiKey: string): Subagent {
 
       // Initialize model with tools
       const model = new ChatGoogleGenerativeAI({
-        model: "gemini-3-flash-preview",
+        model: MODELS.TEXT,
         apiKey,
         temperature: 0.3, // Balance creativity with consistency
       });
@@ -290,7 +291,7 @@ export function createContentSubagent(apiKey: string): Subagent {
                 if (parsed.sessionId) {
                   currentSessionId = parsed.sessionId;
                   console.log(`[ContentSubagent] Session created: ${currentSessionId}`);
-                  
+
                   // Add a reminder message to reinforce the sessionId usage
                   // Using HumanMessage because Google AI requires SystemMessage to be first
                   messages.push(

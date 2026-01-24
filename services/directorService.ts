@@ -13,7 +13,7 @@ import { ImagePrompt } from "../types";
 import { VideoPurpose, CAMERA_ANGLES, LIGHTING_MOODS } from "../constants";
 import { lintPrompt, getPurposeGuidance, getSystemPersona, getStyleEnhancement, generatePromptsFromLyrics, generatePromptsFromStory, refineImagePrompt } from "./promptService";
 import { parseSRTTimestamp } from "../utils/srtParser";
-import { GEMINI_API_KEY, VERTEX_PROJECT } from "./shared/apiClient";
+import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "./shared/apiClient";
 
 // --- Zod Schemas ---
 
@@ -66,7 +66,7 @@ export type StoryboardOutput = z.infer<typeof StoryboardSchema>;
  * Configuration options for the Director Service.
  */
 export interface DirectorConfig {
-  /** Model name to use (defaults to gemini-3-flash-preview) */
+  /** Model name to use (defaults to MODELS.TEXT) */
   model?: string;
   /** Temperature for generation (0-1, defaults to 0.7) */
   temperature?: number;
@@ -79,7 +79,7 @@ export interface DirectorConfig {
 // --- Default Configuration ---
 
 const DEFAULT_CONFIG: Required<DirectorConfig> = {
-  model: "gemini-3-flash-preview",
+  model: MODELS.TEXT,
   temperature: 0.7,
   maxRetries: 2,
   targetAssetCount: 10, // Default fallback if not provided

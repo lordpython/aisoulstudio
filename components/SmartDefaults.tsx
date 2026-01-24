@@ -74,9 +74,9 @@ export const SmartDefaults: React.FC<SmartDefaultsProps> = ({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  const currentStyle = STYLE_PRESETS.find(s => s.id === suggestedStyle) || STYLE_PRESETS[0];
+  const currentStyle = STYLE_PRESETS.find(s => s.id === suggestedStyle) || STYLE_PRESETS[0]!;
   const currentPurpose = VIDEO_PURPOSES.find(p => p.value === suggestedPurpose);
-  const currentDuration = DURATION_PRESETS.find(d => d.value === suggestedDuration) || DURATION_PRESETS[1];
+  const currentDuration = DURATION_PRESETS.find(d => d.value === suggestedDuration) || DURATION_PRESETS[1]!;
 
   return (
     <motion.div

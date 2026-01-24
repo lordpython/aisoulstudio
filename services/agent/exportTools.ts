@@ -7,20 +7,21 @@
  * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
  */
 
-import { z } from "zod";
 import { tool } from "@langchain/core/tools";
+import { ExportFinalVideoSchema, ValidateExportSchema, ListExportPresetsSchema } from "./schemas/exportSchemas";
+import { ServiceError, ResourceNotFoundError, ValidationError } from "./errors";
 import {
   exportVideoWithFFmpeg,
   exportVideoClientSide,
   isClientSideExportAvailable,
-  type ExportConfig,
-  type ExportProgress,
   EXPORT_PRESETS,
   getExportPreset,
   getAllPresetIds,
+  type ExportConfig,
+  type ExportProgress,
   type ExportPresetId,
 } from "../ffmpeg";
-import { SongData, GeneratedImage, NarrationSegment, VideoSFXPlan, SubtitleItem } from "../../types";
+import { SongData, GeneratedImage, VideoSFXPlan, SubtitleItem } from "../../types";
 import { getSubtitles, type SubtitleResult } from "./subtitleTools";
 import { getMixedAudio, type MixedAudioResult } from "./audioMixingTools";
 import { productionStore } from "../ai/productionAgent";
@@ -101,37 +102,7 @@ export function clearExportResult(sessionId: string): boolean {
 }
 
 // --- Tool Schema ---
-
-/**
- * Schema for export_final_video tool
- */
-const ExportFinalVideoSchema = z.object({
-  contentPlanId: z.string().describe("Session ID containing all production assets"),
-  // Platform preset - overrides format, aspectRatio, and quality if provided
-  preset: z.enum([
-    "youtube-landscape", "youtube-shorts", "tiktok",
-    "instagram-feed", "instagram-reels", "instagram-story",
-    "twitter", "linkedin", "draft-preview", "high-quality", "podcast-video"
-  ]).optional().describe("Platform preset (e.g., 'tiktok', 'youtube-shorts', 'instagram-reels'). Overrides format, aspectRatio, and quality settings."),
-  format: z.enum(["mp4", "webm"]).default("mp4").describe("Output video format (default: mp4)"),
-  aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9").describe("Video aspect ratio (default: 16:9)"),
-  includeSubtitles: z.boolean().default(true).describe("Whether to include subtitles in the video (default: true)"),
-  quality: z.enum(["draft", "standard", "high"]).default("standard").describe("Export quality preset (default: standard)"),
-  // Asset inputs - all optional, will be auto-fetched from session if not provided
-  visuals: z.array(z.object({
-    sceneId: z.string().describe("Scene ID"),
-    imageUrl: z.string().describe("URL to the visual asset"),
-    type: z.enum(["image", "video"]).default("image").describe("Asset type"),
-    startTime: z.number().optional().describe("Start time in seconds"),
-    duration: z.number().optional().describe("Duration in seconds"),
-  })).optional().describe("Optional array of visual assets. If not provided, will be auto-fetched from session visuals."),
-  narrationUrl: z.string().optional().describe("Optional URL to the narration audio file. If not provided, will be auto-fetched from session narration."),
-  musicUrl: z.string().optional().describe("URL to the background music file"),
-  sfxPlan: z.any().optional().describe("SFX plan with audio URLs"),
-  totalDuration: z.number().optional().describe("Total video duration in seconds. If not provided, will be calculated from content plan."),
-  // Optional: use pre-mixed audio instead of individual tracks
-  useMixedAudio: z.boolean().default(false).describe("Use pre-mixed audio from mix_audio_tracks instead of individual tracks"),
-});
+// Schemas imported from ./schemas/exportSchemas
 
 // --- Helper Functions ---
 
@@ -191,7 +162,7 @@ function buildExportConfig(
   sceneTimings: Array<{ sceneId: string; startTime: number; duration: number }>
 ): Partial<ExportConfig> {
   const orientation = getOrientation(aspectRatio);
-  
+
   // Quality presets
   const qualitySettings: Record<string, Partial<ExportConfig>> = {
     draft: {
@@ -272,7 +243,7 @@ export const exportFinalVideoTool = tool(
     useMixedAudio = false,
   }) => {
     // Apply preset if provided
-    let finalFormat = format;
+    const finalFormat = format;
     let finalAspectRatio = aspectRatio;
     let finalQuality = quality;
     let presetConfig: Partial<ExportConfig> = {};
@@ -293,22 +264,14 @@ export const exportFinalVideoTool = tool(
     // Get session state for auto-fetching missing data
     const state = productionStore.get(contentPlanId);
     if (!state) {
-      return JSON.stringify({
-        success: false,
-        error: "Production session not found",
-        suggestion: "Run plan_video first to create a production session",
-      });
+      throw new ResourceNotFoundError("Production session not found. Run plan_video first to create a production session.", "export_final_video", contentPlanId);
     }
 
     // Auto-fetch visuals from session if not provided
     let finalVisuals = visuals;
     if (!finalVisuals || finalVisuals.length === 0) {
       if (!state.visuals || state.visuals.length === 0) {
-        return JSON.stringify({
-          success: false,
-          error: "No visuals found in session and none provided",
-          suggestion: "Run generate_visuals first to create visual assets",
-        });
+        throw new ResourceNotFoundError("No visuals found in session and none provided. Run generate_visuals first.", "export_final_video", "visuals");
       }
 
       // Build visuals array from session state
@@ -318,7 +281,7 @@ export const exportFinalVideoTool = tool(
         // Calculate start time by summing durations of all previous scenes
         let startTime = 0;
         for (let i = 0; i < index && i < scenes.length; i++) {
-          startTime += scenes[i].duration || 0;
+          startTime += scenes[i]?.duration || 0;
         }
         return {
           sceneId: visual.promptId,
@@ -335,11 +298,7 @@ export const exportFinalVideoTool = tool(
     let finalNarrationUrl = narrationUrl;
     if (!finalNarrationUrl && !useMixedAudio) {
       if (!state.narrationSegments || state.narrationSegments.length === 0) {
-        return JSON.stringify({
-          success: false,
-          error: "No narration found in session and no narration URL provided",
-          suggestion: "Run narrate_scenes first or set useMixedAudio=true if audio was pre-mixed",
-        });
+        throw new ResourceNotFoundError("No narration found in session. Run narrate_scenes first.", "export_final_video", "narration");
       }
 
       // Concatenate all narration segments into a single audio blob
@@ -365,11 +324,7 @@ export const exportFinalVideoTool = tool(
     }
 
     if (!finalDuration) {
-      return JSON.stringify({
-        success: false,
-        error: "No duration provided and content plan has no duration",
-        suggestion: "Provide totalDuration parameter or ensure content plan has a valid duration",
-      });
+      throw new ValidationError("No duration provided and content plan has no duration.", "export_final_video");
     }
 
     // Auto-fetch SFX plan if not provided
@@ -446,9 +401,7 @@ export const exportFinalVideoTool = tool(
     const exportConfig = preset ? { ...baseExportConfig, ...presetConfig } : baseExportConfig;
 
     // Track progress
-    let lastProgress: ExportProgress | null = null;
     const onProgress = (progress: ExportProgress) => {
-      lastProgress = progress;
       console.log(`[ExportTools] Progress: ${progress.stage} - ${progress.progress}% - ${progress.message}`);
     };
 
@@ -458,7 +411,7 @@ export const exportFinalVideoTool = tool(
       console.log(`[ExportTools] Using ${useClientSide ? 'client-side' : 'server-side'} export`);
 
       let videoBlob: Blob;
-      
+
       if (useClientSide) {
         videoBlob = await exportVideoClientSide(songData, onProgress, exportConfig);
       } else {
@@ -513,7 +466,7 @@ export const exportFinalVideoTool = tool(
 
     } catch (error) {
       console.error("[ExportTools] Export error:", error);
-      
+
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Create asset bundle as fallback
@@ -554,14 +507,10 @@ export const exportFinalVideoTool = tool(
   }
 );
 
-// --- Validate Export Tool ---
-
 /**
  * Schema for validate_export tool
  */
-const ValidateExportSchema = z.object({
-  contentPlanId: z.string().describe("Session ID to validate export readiness for"),
-});
+// Imported from ./schemas/exportSchemas
 
 /**
  * Export validation result
@@ -793,10 +742,7 @@ export const validateExportTool = tool(
 /**
  * Schema for list_export_presets tool
  */
-const ListExportPresetsSchema = z.object({
-  platform: z.string().optional().describe("Optional platform filter (e.g., 'youtube', 'instagram', 'tiktok')"),
-  aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:5"]).optional().describe("Optional aspect ratio filter"),
-});
+// Imported from ./schemas/exportSchemas
 
 /**
  * List Export Presets Tool

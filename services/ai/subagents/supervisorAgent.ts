@@ -30,6 +30,7 @@ import {
   ProgressCallback,
   executeSubagent,
 } from "./index";
+import { MODELS } from "../../shared/apiClient";
 import { createImportSubagent } from "./importSubagent";
 import { createContentSubagent } from "./contentSubagent";
 import { createMediaSubagent } from "./mediaSubagent";
@@ -446,7 +447,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
 
   // Initialize supervisor model
   const model = new ChatGoogleGenerativeAI({
-    model: "gemini-3-flash-preview",
+    model: MODELS.TEXT,
     apiKey,
     temperature: 0.1, // Low temperature for consistent orchestration
   });
@@ -456,7 +457,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
   // Analyze user intent for better tool selection
   const intentResult = analyzeIntent(userRequest);
   const intentHint = generateIntentHint(intentResult);
-  
+
   // Build enhanced user message with intent hints
   let enhancedRequest = userRequest;
   if (intentHint) {

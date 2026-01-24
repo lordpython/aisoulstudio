@@ -21,7 +21,7 @@
  */
 
 import { create } from 'zustand';
-import { persist, StateStorage, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { Scene, SongData, AppState, ContentPlan, NarrationSegment, VideoSFXPlan } from '../types';
 
 // ============================================================
@@ -36,7 +36,7 @@ export interface QuickAction {
     label: string;
     action: {
         type: string;
-        params?: Record<string, unknown>;
+        [key: string]: unknown;
     };
     variant?: 'primary' | 'secondary';
 }
@@ -96,27 +96,27 @@ export type ViewMode = 'simple' | 'advanced' | 'timeline';
 
 // Navigation types (Requirements: 10.1, 10.2)
 export interface NavigationState {
-  lastRoute: string;
-  lastVisitedAt: number;
-  hasUnsavedChanges: boolean;
+    lastRoute: string;
+    lastVisitedAt: number;
+    hasUnsavedChanges: boolean;
 }
 
 // Production persistence types (Requirements: 10.1, 10.2)
 export interface PersistedProductionState {
-  contentPlan: ContentPlan | null;
-  narrationSegments: SerializedNarrationSegment[];
-  sfxPlan: VideoSFXPlan | null;
-  topic: string;
-  visualStyle: string;
-  targetDuration: number;
+    contentPlan: ContentPlan | null;
+    narrationSegments: SerializedNarrationSegment[];
+    sfxPlan: VideoSFXPlan | null;
+    topic: string;
+    visualStyle: string;
+    targetDuration: number;
 }
 
 // Serialized narration segment (Blob cannot be persisted directly)
 export interface SerializedNarrationSegment {
-  sceneId: string;
-  audioDuration: number;
-  transcript: string;
-  audioBase64?: string; // Base64 encoded audio for persistence
+    sceneId: string;
+    audioDuration: number;
+    transcript: string;
+    audioBase64?: string; // Base64 encoded audio for persistence
 }
 
 // ============================================================
@@ -240,7 +240,7 @@ interface AppStore {
     // Navigation Actions
     setLastRoute: (route: string) => void;
     setHasUnsavedChanges: (hasChanges: boolean) => void;
-    
+
     // Production Persistence Actions
     persistProductionState: (state: {
         contentPlan: ContentPlan | null;
@@ -263,208 +263,15 @@ interface AppStore {
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
-/**
- * Maximum localStorage size in bytes (4MB to leave buffer room)
- */
-const MAX_STORAGE_SIZE_BYTES = 4 * 1024 * 1024;
 
-/**
- * Maximum size for a single storage item in KB
- */
-const MAX_ITEM_SIZE_KB = 2000;
 
-/**
- * Maximum number of messages to persist
- */
-const MAX_PERSISTED_MESSAGES = 50;
 
-/**
- * Safe localStorage operations with size validation and error handling.
- */
-const safeStorage: StateStorage = {
-    getItem: (name: string): string | null => {
-        try {
-            const value = localStorage.getItem(name);
-            if (value) {
-                console.log(`[AppStore] Loaded ${name} (${Math.round(value.length / 1024)}KB)`);
-            }
-            return value;
-        } catch (error) {
-            console.error(`[AppStore] Failed to read ${name}:`, error);
-            return null;
-        }
-    },
 
-    setItem: (name: string, value: string): void => {
-        try {
-            const sizeKB = value.length / 1024;
 
-            // Check if value exceeds max item size
-            if (sizeKB > MAX_ITEM_SIZE_KB) {
-                console.warn(
-                    `[AppStore] ${name} exceeds ${MAX_ITEM_SIZE_KB}KB (${Math.round(sizeKB)}KB), trimming data...`
-                );
 
-                // Try to parse and trim the data
-                try {
-                    const parsed = JSON.parse(value);
-                    const state = parsed.state;
 
-                    // Trim messages if they're taking too much space
-                    if (state.messages && Array.isArray(state.messages)) {
-                        const originalCount = state.messages.length;
-                        state.messages = state.messages.slice(-20); // Keep only last 20
-                        console.log(`[AppStore] Trimmed messages from ${originalCount} to ${state.messages.length}`);
-                    }
 
-                    // Remove large fields from persistedProduction if present
-                    if (state.persistedProduction) {
-                        // Don't persist large narration segments
-                        if (state.persistedProduction.narrationSegments) {
-                            state.persistedProduction.narrationSegments =
-                                state.persistedProduction.narrationSegments.map((seg: any) => ({
-                                    sceneId: seg.sceneId,
-                                    audioDuration: seg.audioDuration,
-                                    transcript: seg.transcript?.substring(0, 500) || '', // Limit transcript
-                                    // Remove audioBase64 to save space
-                                }));
-                        }
-                    }
 
-                    value = JSON.stringify(parsed);
-                    console.log(`[AppStore] Trimmed value to ${Math.round(value.length / 1024)}KB`);
-                } catch {
-                    // If parsing fails, just try to save anyway and let it fail naturally
-                }
-            }
-
-            // Check total localStorage usage
-            const totalSize = getTotalLocalStorageSize();
-            if (totalSize + value.length > MAX_STORAGE_SIZE_BYTES) {
-                console.warn('[AppStore] localStorage approaching limit, cleaning up old data...');
-                cleanupOldLocalStorageData();
-            }
-
-            localStorage.setItem(name, value);
-            console.log(`[AppStore] Saved ${name} (${Math.round(value.length / 1024)}KB)`);
-        } catch (error) {
-            if (error instanceof Error && error.name === 'QuotaExceededError') {
-                console.error('[AppStore] LocalStorage quota exceeded. Attempting cleanup...');
-                cleanupOldLocalStorageData();
-
-                // Try again after cleanup
-                try {
-                    localStorage.setItem(name, value);
-                } catch (retryError) {
-                    console.error('[AppStore] Still cannot save after cleanup. Clearing store data.');
-                    localStorage.removeItem(name);
-                }
-            } else {
-                console.error(`[AppStore] Failed to save ${name}:`, error);
-            }
-        }
-    },
-
-    removeItem: (name: string): void => {
-        try {
-            localStorage.removeItem(name);
-            console.log(`[AppStore] Removed ${name}`);
-        } catch (error) {
-            console.error(`[AppStore] Failed to remove ${name}:`, error);
-        }
-    },
-};
-
-/**
- * Get total localStorage usage in bytes.
- */
-function getTotalLocalStorageSize(): number {
-    let total = 0;
-    try {
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key) {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    // UTF-16 uses 2 bytes per character
-                    total += (key.length + value.length) * 2;
-                }
-            }
-        }
-    } catch (error) {
-        console.error('[AppStore] Failed to calculate storage size:', error);
-    }
-    return total;
-}
-
-/**
- * Cleanup old localStorage data to free space.
- */
-function cleanupOldLocalStorageData(): void {
-    try {
-        // List of app-related keys that can be cleaned up
-        const cleanableKeys = ['lyriclens-app-store', 'lyriclens-quality-history'];
-
-        for (const key of cleanableKeys) {
-            const value = localStorage.getItem(key);
-            if (!value) continue;
-
-            try {
-                const parsed = JSON.parse(value);
-
-                // Trim messages
-                if (parsed.state?.messages && Array.isArray(parsed.state.messages)) {
-                    parsed.state.messages = parsed.state.messages.slice(-10);
-                }
-
-                // Clear persisted production (user can regenerate)
-                if (parsed.state?.persistedProduction) {
-                    delete parsed.state.persistedProduction;
-                }
-
-                localStorage.setItem(key, JSON.stringify(parsed));
-                console.log(`[AppStore] Cleaned up ${key}`);
-            } catch {
-                // If we can't parse it, just delete it
-                localStorage.removeItem(key);
-                console.log(`[AppStore] Removed unparseable ${key}`);
-            }
-        }
-
-        // Also remove any old quality reports
-        localStorage.removeItem('lyriclens-quality-history');
-    } catch (error) {
-        console.error('[AppStore] Cleanup failed:', error);
-    }
-}
-
-/**
- * Convert Blob to Base64 string for localStorage persistence.
- * Note: Use sparingly as Base64 increases size by ~33%
- */
-async function blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-        // Size check - don't convert large blobs
-        if (blob.size > 500 * 1024) { // 500KB limit
-            console.warn('[AppStore] Blob too large for Base64 conversion, skipping');
-            resolve('');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = reader.result as string;
-            // Remove data URL prefix (e.g., "data:audio/wav;base64,")
-            const base64Data = base64.split(',')[1] || base64;
-            resolve(base64Data);
-        };
-        reader.onerror = () => {
-            console.error('[AppStore] Failed to convert Blob to Base64');
-            resolve('');
-        };
-        reader.readAsDataURL(blob);
-    });
-}
 
 /**
  * Convert Base64 string back to Blob.

@@ -14,7 +14,6 @@ import {
     Film,
     CheckCircle2,
     Loader2,
-    AlertCircle,
     Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -144,7 +143,7 @@ export function AgentProgress({ progress, className }: AgentProgressProps) {
                                         className="absolute inset-y-0 left-0 bg-linear-to-r from-cyan-500 to-green-500"
                                         initial={{ width: "0%" }}
                                         animate={{
-                                            width: (index + 1 < STAGES.length && getStageStatus(STAGES[index + 1].id, progress.stage) !== "pending")
+                                            width: (index + 1 < STAGES.length && getStageStatus(STAGES[index + 1]!.id, progress.stage) !== "pending")
                                                 ? "100%"
                                                 : getStageStatus(stage.id, progress.stage) === "active"
                                                     ? `${progress.progress}%`

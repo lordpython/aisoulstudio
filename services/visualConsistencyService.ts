@@ -13,6 +13,23 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { API_KEY, MODELS } from "./shared/apiClient";
+import type { CharacterProfile } from "../types";
+
+/**
+ * Result of a character consistency check
+ */
+export interface ConsistencyReport {
+    /** Consistency score from 0 to 100 */
+    score: number;
+    /** Whether the character is considered consistent (score > 75) */
+    isConsistent: boolean;
+    /** List of specific consistency issues found (e.g., "Hair color changed from blonde to brown") */
+    issues: string[];
+    /** Suggestions to fix the issues in subsequent prompts */
+    suggestions: string[];
+    /** Detailed textual analysis from the AI */
+    details: string;
+}
 
 /**
  * Extracted visual style from a reference image
@@ -241,4 +258,145 @@ export function clearStyleCache(sessionId: string): void {
  */
 export function hasStyleCache(sessionId: string): boolean {
     return styleCache.has(sessionId);
+}
+
+/**
+ * Verify character consistency across multiple images using Gemini Vision.
+ * Compares actors in generated shots against the provided CharacterProfile.
+ * 
+ * @param imageUrls - Array of URLs or base64 data for the images to verify
+ * @param profile - The reference character profile
+ * @param language - Optional language for the report (e.g., 'ar')
+ * @returns Comparison report with consistency score and issues
+ */
+export async function verifyCharacterConsistency(
+    imageUrls: string[],
+    profile: CharacterProfile,
+    language: string = 'en'
+): Promise<ConsistencyReport> {
+    console.log(`[VisualConsistency] Verifying consistency for character: ${profile.name} across ${imageUrls.length} images (Language: ${language})`);
+
+    if (!API_KEY) {
+        return {
+            score: 100,
+            isConsistent: true,
+            issues: [],
+            suggestions: [],
+            details: "API Authentication missing - skipped consistency check."
+        };
+    }
+
+    if (imageUrls.length === 0) {
+        return {
+            score: 100,
+            isConsistent: true,
+            issues: [],
+            suggestions: [],
+            details: "No images provided for verification."
+        };
+    }
+
+    try {
+        const model = new ChatGoogleGenerativeAI({
+            apiKey: API_KEY,
+            model: MODELS.TEXT, // Using latest Gemini for vision
+            temperature: 0.2,
+        });
+
+        // Prepare image parts for Gemini
+        const imageParts: any[] = [];
+
+        // Add character profile as text first
+        const profileText = `
+CHARACTER PROFILE:
+Name: ${profile.name}
+Role: ${profile.role}
+Visual Description: ${profile.visualDescription}
+`;
+
+        // Process images (limit to first 5 for performance/quota)
+        const activeImages = imageUrls.slice(0, 5);
+        for (let i = 0; i < activeImages.length; i++) {
+            const url = activeImages[i];
+            if (!url) continue;
+
+            let base64Data: string;
+
+            if (url.startsWith('data:image')) {
+                base64Data = url;
+            } else {
+                // Fetch and convert
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const buffer = await blob.arrayBuffer();
+                const base64 = btoa(
+                    new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                );
+                base64Data = `data:${blob.type || 'image/png'};base64,${base64}`;
+            }
+
+            imageParts.push({
+                type: "image_url",
+                image_url: base64Data
+            });
+        }
+
+        const prompt = `
+You are a Visual Continuity Supervisor. Your task is to verify if the character "${profile.name}" looks consistent across these ${activeImages.length} images.
+
+${profileText}
+
+Compare the actor/character in each image against the profile and against the other images.
+Look specifically for consistency in:
+1. Facial features and bone structure
+2. Hair color and style
+3. Eye color
+4. Apparent age
+5. Body type
+6. Clothing (if applicable to the profile)
+
+IMPORTANT: Provide all text fields (issues, suggestions, details) in ${language === 'ar' ? 'Arabic' : 'the requested language'}.
+
+Return a JSON object with this exact structure:
+{
+  "score": number, // 0-100
+  "isConsistent": boolean, // true if score > 75
+  "issues": ["list of specific discrepancies"],
+  "suggestions": ["how to fix the prompts for better consistency"],
+  "details": "detailed analysis of the character appearance across all shots"
+}
+
+Return ONLY the JSON object.
+`;
+
+        const response = await model.invoke([
+            new HumanMessage({
+                content: [
+                    ...imageParts,
+                    { type: "text", text: prompt }
+                ]
+            })
+        ]);
+
+        const content = typeof response.content === 'string'
+            ? response.content
+            : JSON.stringify(response.content);
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("Failed to parse consistency report JSON");
+        }
+
+        return JSON.parse(jsonMatch[0]) as ConsistencyReport;
+
+    } catch (error) {
+        console.error(`[VisualConsistency] Verification failed:`, error);
+        return {
+            score: 50,
+            isConsistent: false,
+            issues: ["AI verification failed"],
+            suggestions: ["Try manual verification"],
+            details: `Error: ${error instanceof Error ? error.message : String(error)}`
+        };
+    }
 }

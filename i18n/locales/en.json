@@ -87,5 +87,14 @@
     "network": "Network error. Please check your connection.",
     "notFound": "Page not found",
     "unauthorized": "You are not authorized to view this page"
+  },
+  "story": {
+    "charactersEmpty": "Characters haven't been extracted yet.",
+    "continuity": "Continuity",
+    "visualDescription": "Visual Description",
+    "issuesFound": "Issues Found",
+    "suggestions": "Suggestions",
+    "verifyContinuity": "Verify Continuity",
+    "verifying": "Verifying continuity..."
   }
 }

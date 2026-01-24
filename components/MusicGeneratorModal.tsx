@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { SunoModel, SunoGeneratedTrack, SunoGenerationConfig } from "@/services/sunoService";
+import type { SunoModel, SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/sunoService";
 
 // Music style/genre options
 const MUSIC_STYLES = [
@@ -88,11 +88,12 @@ interface MusicGeneratorModalProps {
   // Hook integration
   musicState: {
     isGenerating: boolean;
-    status: string | null;
+    status: SunoTaskStatus | string | null;
     progress: number;
     generatedTracks: SunoGeneratedTrack[];
     selectedTrackId: string | null;
     lyrics: string | null;
+    lyricsTaskId?: string | null;
     credits: number | null;
     error: string | null;
   };

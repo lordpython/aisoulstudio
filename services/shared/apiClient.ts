@@ -33,28 +33,28 @@ if (!isBrowser && !VERTEX_PROJECT && !GEMINI_API_KEY) {
 }
 
 /**
- * Model availability in Vertex AI (as of testing):
- * ✅ Available: gemini-3-flash-preview, gemini-3-flash-preview, gemini-2.5-flash-preview-tts
- * ⚠️ Quota needed: imagen-3.0-*, veo-*, imagegeneration@006
- * ❌ Not available: gemini-1.5-*, text-bison@*, chat-bison@*
+ * Model availability in Vertex AI (as of January 2026):
+ * ✅ Available: gemini-3-flash-preview, gemini-3-pro-preview, veo-3.1-*, imagen-3.0-*
+ * ⚠️ Quota needed: veo-*, imagegeneration@006
  * 
- * Note: TTS requires the dedicated gemini-2.5-flash-preview-tts model with responseModalities: ["AUDIO"]
+ * Note: TTS and Multimodal output supported in Gemini 3.0 and 2.x Flash.
  */
 export const MODELS = {
   TEXT: "gemini-3-flash-preview",
-  IMAGE: "imagen-4.0-fast-generate-001", // Available but needs quota increase
-  VIDEO: "veo-3.1-fast-generate-001", // Veo 3.1 Fast - optimized for speed (4-8 sec videos with audio)
+  IMAGE: "imagen-3.0-generate-001", // Stable generation model
+  VIDEO: "veo-3.1-fast-generate-preview",
   TRANSCRIPTION: "gemini-3-flash-preview",
   TRANSLATION: "gemini-3-flash-preview",
-  TTS: "gemini-2.5-flash-preview-tts", // Dedicated TTS model with audio output
-  
+  TTS: "gemini-2.5-flash-preview-tts", // Supports AUDIO output modality
+
   // Alternative models
-  TEXT_EXP: "gemini-3-flash-preview", // Latest stable Gemini 2.5 Flash
-  TEXT_LEGACY: "gemini-3-flash-preview", // Legacy Gemini 2.0 Flash for backward compatibility
-  IMAGE_STANDARD: "imagen-3.0-generate-001", // Standard quality image generation
-  VIDEO_STANDARD: "veo-3.1-generate-001", // Veo 3.1 Standard - highest quality (4-8 sec videos with audio)
-  VIDEO_FAST: "veo-3.1-fast-generate-001", // Veo 3.1 Fast - 40% faster generation
-  VIDEO_LEGACY: "veo-2.0-generate-001", // Legacy Veo 2.0
+  TEXT_EXP: "gemini-3-pro-preview", // Latest reasoning model
+  TEXT_LEGACY: "gemini-3-pro-preview",
+  IMAGE_STANDARD: "imagen-3.0-generate-001",
+  IMAGE_HD: "gemini-3-pro-image-preview", // Multimodal image understanding & generation
+  VIDEO_STANDARD: "veo-3.1-generate-preview",
+  VIDEO_FAST: "veo-3.1-fast-generate-preview",
+  VIDEO_LEGACY: "veo-2.0-generate-001",
 };
 
 /**
@@ -79,13 +79,13 @@ export function validateVertexConfig(): void {
  */
 export function getModelWithFallback(modelType: keyof typeof MODELS): string {
   const model = MODELS[modelType];
-  
+
   // For image and video models that might hit quota limits,
   // we can fall back to using the text model for prompt generation
   if (modelType === 'IMAGE' || modelType === 'VIDEO') {
     console.warn(`[API Client] Using ${model} - may require quota increase for actual generation`);
   }
-  
+
   return model;
 }
 
@@ -138,12 +138,12 @@ function createAIClient(): GoogleGenAI | ProxyAIClient {
     // Browser: Use Proxy Client
     return new ProxyAIClient() as unknown as GoogleGenAI;
   }
-  
+
   // Re-read environment variables at creation time (for lazy initialization)
   const vertexProject = process.env.GOOGLE_CLOUD_PROJECT || process.env.VITE_GOOGLE_CLOUD_PROJECT || "";
   const vertexLocation = process.env.GOOGLE_CLOUD_LOCATION || process.env.VITE_GOOGLE_CLOUD_LOCATION || "global";
   const geminiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
-  
+
   // Server: Prefer Vertex AI, fall back to API key
   if (vertexProject) {
     console.log(`[API Client] Using Vertex AI with project: ${vertexProject}`);
@@ -153,12 +153,12 @@ function createAIClient(): GoogleGenAI | ProxyAIClient {
       location: vertexLocation,
     });
   }
-  
+
   if (geminiKey) {
     console.log("[API Client] Server using API key auth (Vertex AI not configured)");
     return new GoogleGenAI({ apiKey: geminiKey });
   }
-  
+
   throw new Error(
     "No authentication configured. Set either:\n" +
     "- GOOGLE_CLOUD_PROJECT for Vertex AI\n" +

@@ -8,7 +8,7 @@ export const parseSRT = (srt: string): SubtitleItem[] => {
   let collectingText = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = (lines[i] ?? '').trim();
 
     // Skip empty lines unless they signify end of a block
     if (!line) {
@@ -30,8 +30,8 @@ export const parseSRT = (srt: string): SubtitleItem[] => {
 
       const parts = line.split(/-->|->/).map(s => s.trim());
       if (parts.length >= 2) {
-        const startTime = parseSRTTimestamp(parts[0]);
-        const endTime = parseSRTTimestamp(parts[1]);
+        const startTime = parseSRTTimestamp(parts[0] ?? '');
+        const endTime = parseSRTTimestamp(parts[1] ?? '');
 
         if (startTime !== null && endTime !== null) {
           currentSub.startTime = startTime;
@@ -39,7 +39,7 @@ export const parseSRT = (srt: string): SubtitleItem[] => {
 
           // Guess ID if not set by looking at previous line
           if (!currentSub.id) {
-            const prevLine = i > 0 ? lines[i - 1].trim() : '';
+            const prevLine = i > 0 ? (lines[i - 1] ?? '').trim() : '';
             if (/^\d+$/.test(prevLine)) {
               currentSub.id = parseInt(prevLine);
             } else {
@@ -95,15 +95,15 @@ export const parseSRTTimestamp = (timeStr: string): number | null => {
 
   if (parts.length === 4) {
     // HH:MM:SS:mmm (colon used for ms separator)
-    seconds += parseFloat(parts[0]) * 3600;
-    seconds += parseFloat(parts[1]) * 60;
-    seconds += parseFloat(parts[2]);
-    seconds += parseFloat(parts[3]) / 1000;
+    seconds += parseFloat(parts[0] || '0') * 3600;
+    seconds += parseFloat(parts[1] || '0') * 60;
+    seconds += parseFloat(parts[2] || '0');
+    seconds += parseFloat(parts[3] || '0') / 1000;
   } else if (parts.length === 3) {
     // Ambiguous: HH:MM:SS or MM:SS:mmm
-    const p1 = parseFloat(parts[0]);
-    const p2 = parseFloat(parts[1]);
-    const p3Str = parts[2];
+    const p1 = parseFloat(parts[0] || '0');
+    const p2 = parseFloat(parts[1] || '0');
+    const p3Str = parts[2] || '0';
     const p3 = parseFloat(p3Str);
 
     // Check if the 3rd part looks like milliseconds (3 digits, no decimal)
@@ -128,8 +128,8 @@ export const parseSRTTimestamp = (timeStr: string): number | null => {
     }
   } else if (parts.length === 2) {
     // MM:SS
-    seconds += parseFloat(parts[0]) * 60;
-    seconds += parseFloat(parts[1]);
+    seconds += parseFloat(parts[0] || '0') * 60;
+    seconds += parseFloat(parts[1] || '0');
   } else {
     return null;
   }

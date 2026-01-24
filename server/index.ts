@@ -353,7 +353,7 @@ app.post('/api/export/finalize', express.json(), async (req: Request, res: Respo
 app.use('/api/suno/proxy', async (req: Request, res: Response) => {
   // Extract the endpoint from the URL path (everything after /api/suno/proxy/)
   const endpoint = req.path.startsWith('/') ? req.path.slice(1) : req.path;
-  
+
   const SUNO_API_KEY = process.env.VITE_SUNO_API_KEY || process.env.SUNO_API_KEY;
 
   if (!SUNO_API_KEY) {
@@ -517,37 +517,37 @@ app.post('/api/gemini/proxy/generateContent', async (req: ApiProxyRequest, res: 
     const { model, contents, config } = body;
     console.log(`[Gemini Proxy] Generating content with model: ${model}`);
     console.log(`[Gemini Proxy] Config:`, JSON.stringify(config, null, 2));
-    
+
     if (!GEMINI_API_KEY) {
       throw new Error('VITE_GEMINI_API_KEY not configured on server');
     }
-    
+
     // Dynamically import GoogleGenAI SDK
     const { GoogleGenAI } = await import('@google/genai');
     const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    
+
     // Build request params - config should be nested under 'config' key
     const requestParams: any = {
       model,
       contents
     };
-    
+
     // Add config if provided
     if (config) {
       requestParams.config = config;
     }
-    
+
     console.log(`[Gemini Proxy] Calling SDK with:`, JSON.stringify(requestParams, null, 2));
-    
+
     // Call the actual SDK method (correct signature)
     const result = await client.models.generateContent(requestParams);
-    
+
     console.log(`[Gemini Proxy] Success - response type:`, typeof result);
     res.json(result);
   } catch (error: any) {
     console.error('[Gemini Proxy] generateContent Error:', error);
     console.error('[Gemini Proxy] Error stack:', error.stack);
-    
+
     // Parse error message if it's a JSON string
     let errorMessage = error.message;
     try {
@@ -556,11 +556,11 @@ app.post('/api/gemini/proxy/generateContent', async (req: ApiProxyRequest, res: 
     } catch (e) {
       // Not JSON, use as-is
     }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: errorMessage || 'Gemini proxy failed', 
-      details: error.stack 
+
+    res.status(500).json({
+      success: false,
+      error: errorMessage || 'Gemini proxy failed',
+      details: error.stack
     });
   }
 });
@@ -572,22 +572,22 @@ app.post('/api/gemini/proxy/generateImages', async (req: ApiProxyRequest, res: R
     const { model, prompt, config } = body;
     console.log(`[Gemini Proxy] Generating images with model: ${model}`);
     console.log(`[Gemini Proxy] Prompt:`, prompt?.substring(0, 100));
-    
+
     if (!GEMINI_API_KEY) {
       throw new Error('VITE_GEMINI_API_KEY not configured on server');
     }
-    
+
     // Dynamically import GoogleGenAI SDK
     const { GoogleGenAI } = await import('@google/genai');
     const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    
+
     // Call the actual SDK method (correct signature)
     const result = await client.models.generateImages({
       model,
       prompt,
       ...config
     });
-    
+
     console.log(`[Gemini Proxy] Image generation success`);
     res.json(result);
   } catch (error: any) {
@@ -601,12 +601,12 @@ app.post('/api/gemini/proxy/generateImages', async (req: ApiProxyRequest, res: R
 app.post('/api/director/generate', async (req: Request, res: Response) => {
   try {
     const { srtContent, style, contentType, videoPurpose, globalSubject, config } = req.body;
-    
+
     console.log(`[Director Proxy] Generating prompts for ${contentType} (${style})`);
-    
+
     // Dynamically import the service to avoid loading it on startup if not needed
     const { generatePromptsWithLangChain } = await import('../services/directorService.js');
-    
+
     const prompts = await generatePromptsWithLangChain(
       srtContent,
       style,
@@ -615,13 +615,13 @@ app.post('/api/director/generate', async (req: Request, res: Response) => {
       globalSubject,
       config
     );
-    
+
     res.json({ success: true, prompts });
     return;
   } catch (error: any) {
     console.error('[Director Proxy] Error:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: error.message || 'Director service failed',
       details: error instanceof Error ? error.stack : undefined
     });
@@ -635,23 +635,23 @@ app.post('/api/gemini/generate', async (req: ApiProxyRequest, res: Response) => 
   try {
     const { prompt, options = {} } = req.body;
     // Map old format to new
-    const model = 'gemini-2.0-flash-exp'; // Default
+    const model = 'gemini-3-pro-preview'; // Default
     const contents = { parts: [{ text: prompt }] };
     const config = options; // rough mapping
-    
+
     console.log(`[Gemini Proxy] Redirecting legacy call to generateContent`);
-    
+
     // Dynamically import ai client to ensure env vars are loaded
     const { ai } = await import('../services/shared/apiClient.js');
     const result = await ai.models.generateContent({ model, contents, config });
-    
+
     // Wrap to match old expected format
-    return res.json({ 
-      success: true, 
-      data: { 
+    return res.json({
+      success: true,
+      data: {
         text: result.text || '',
         raw: result
-      } 
+      }
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -666,14 +666,14 @@ app.post('/api/gemini/image', async (req: ApiProxyRequest, res: Response) => {
 
   try {
     const { prompt, options = {} } = req.body;
-    
+
     if (!prompt) {
       return res.status(400).json({ success: false, error: 'Prompt is required' });
     }
-    
+
     // Import the correct function from imageService
     const { generateImageFromPrompt } = await import('../services/imageService.js');
-    
+
     const result = await generateImageFromPrompt(
       prompt,
       options.style || "Cinematic",
@@ -685,9 +685,9 @@ app.post('/api/gemini/image', async (req: ApiProxyRequest, res: Response) => {
     return res.json({ success: true, data: result });
   } catch (error) {
     console.error('[Gemini Image Proxy] Error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -700,14 +700,14 @@ app.post('/api/deapi/image', async (req: ApiProxyRequest, res: Response) => {
 
   try {
     const { prompt, options = {} } = req.body;
-    
+
     if (!prompt) {
       return res.status(400).json({ success: false, error: 'Prompt is required' });
     }
-    
+
     // Import DEAPI service dynamically
     const { generateImageWithDeApi } = await import('../services/deapiService.js');
-    
+
     // Create params object matching Txt2ImgParams interface
     const params = {
       prompt,
@@ -715,14 +715,14 @@ app.post('/api/deapi/image', async (req: ApiProxyRequest, res: Response) => {
       aspect_ratio: options.aspectRatio || "16:9",
       ...options
     };
-    
+
     const result = await generateImageWithDeApi(params);
     return res.json({ success: true, data: result });
   } catch (error) {
     console.error('[DEAPI Image Proxy] Error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -734,29 +734,29 @@ app.post('/api/deapi/animate', async (req: ApiProxyRequest, res: Response) => {
 
   try {
     const { imageUrl, options = {} } = req.body;
-    
+
     if (!imageUrl) {
       return res.status(400).json({ success: false, error: 'Image URL is required' });
     }
-    
+
     if (!options.prompt) {
       return res.status(400).json({ success: false, error: 'Animation prompt is required' });
     }
-    
+
     // Import DEAPI service dynamically
     const { animateImageWithDeApi } = await import('../services/deapiService.js');
-    
+
     // Convert image URL to base64 if needed, or pass as-is if already base64
     const base64Image = imageUrl.startsWith('data:') ? imageUrl : imageUrl;
     const aspectRatio = options.aspectRatio || "16:9";
-    
+
     const result = await animateImageWithDeApi(base64Image, options.prompt, aspectRatio);
     return res.json({ success: true, data: result });
   } catch (error) {
     console.error('[DEAPI Animate Proxy] Error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -797,26 +797,26 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
         // For FormData (img2video), we need to reconstruct it
         // The body is already parsed by express, so we forward as-is
         // Actually, we need multer to handle this - use a different approach
-        
+
         // For multipart, we'll stream the raw request
         // This requires raw body access - let's handle it differently
         console.log(`[DeAPI Proxy] Multipart request detected - forwarding raw body`);
-        
+
         // Get raw body from request
         const chunks: Buffer[] = [];
         req.on('data', (chunk: Buffer) => chunks.push(chunk));
-        
+
         await new Promise<void>((resolve, reject) => {
           req.on('end', () => resolve());
           req.on('error', reject);
         });
-        
+
         const rawBody = Buffer.concat(chunks);
-        
+
         // Forward with original content-type (includes boundary)
         (fetchOptions.headers as Record<string, string>)['Content-Type'] = contentType;
         fetchOptions.body = rawBody;
-        
+
       } else if (contentType.includes('application/json')) {
         (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json';
         fetchOptions.body = JSON.stringify(req.body);
@@ -836,8 +836,8 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
     if (response.status === 429) {
       console.warn(`[DeAPI Proxy] Rate limited (429) for ${endpoint}`);
       const retryAfter = response.headers.get('retry-after') || '30';
-      res.status(429).json({ 
-        error: 'Rate limit exceeded', 
+      res.status(429).json({
+        error: 'Rate limit exceeded',
         retryAfter: parseInt(retryAfter, 10),
         message: 'Too many requests to DeAPI. Please wait before retrying.'
       });
@@ -887,7 +887,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
     // Create FormData for DeAPI
     const formData = new FormData();
     formData.append('first_frame_image', blob, req.file.originalname || 'frame.png');
-    
+
     // Forward all other form fields (guidance is required by API spec)
     const fields = ['prompt', 'frames', 'width', 'height', 'fps', 'model', 'guidance', 'steps', 'seed', 'negative_prompt'];
     fields.forEach(field => {
@@ -919,8 +919,8 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
     if (response.status === 429) {
       console.warn(`[DeAPI img2video] Rate limited (429)`);
       const retryAfter = response.headers.get('retry-after') || '30';
-      res.status(429).json({ 
-        error: 'Rate limit exceeded', 
+      res.status(429).json({
+        error: 'Rate limit exceeded',
         retryAfter: parseInt(retryAfter, 10),
         message: 'Too many requests to DeAPI. Please wait before retrying.'
       });

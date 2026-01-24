@@ -16,6 +16,7 @@
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { MODELS } from "../../shared/apiClient";
 import {
   Subagent,
   SubagentName,
@@ -91,7 +92,7 @@ export function createImportSubagent(apiKey: string): Subagent {
 
       // Initialize model with tools
       const model = new ChatGoogleGenerativeAI({
-        model: "gemini-3-flash-preview",
+        model: MODELS.TEXT,
         apiKey,
         temperature: 0.1, // Low temperature for consistent extraction
       });

@@ -31,7 +31,16 @@ export const fileToGenerativePart = async (file: File): Promise<string> => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result as string;
-      const base64Data = base64String.split(",")[1];
+      if (!base64String) {
+        reject(new Error("Failed to read file"));
+        return;
+      }
+      const parts = base64String.split(",");
+      const base64Data = parts.length > 1 ? parts[1] : base64String;
+      if (!base64Data) {
+        reject(new Error("Empty data in file"));
+        return;
+      }
       resolve(base64Data);
     };
     reader.onerror = reject;
@@ -161,16 +170,16 @@ Rules:
       const parsed: TranscriptionResponse = JSON.parse(jsonStr);
 
       return parsed.lines.map(
-        (line): SubtitleItem => ({
-          id: line.id,
-          startTime: line.startTime,
-          endTime: line.endTime,
-          text: line.text,
-          words: line.words.map(
-            (w): WordTiming => ({
-              word: w.word,
-              startTime: w.start,
-              endTime: w.end,
+        (line: any): SubtitleItem => ({
+          id: line.id || 0,
+          startTime: line.startTime || 0,
+          endTime: line.endTime || 0,
+          text: line.text || "",
+          words: (line.words || []).map(
+            (w: any): WordTiming => ({
+              word: w.word || "",
+              startTime: w.start || 0,
+              endTime: w.end || 0,
             }),
           ),
         }),

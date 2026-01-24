@@ -13,7 +13,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { GEMINI_API_KEY } from "../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
 import { knowledgeBase } from "./rag/knowledgeBase";
 import { exampleLibrary } from "./rag/exampleLibrary";
 import { AI_CONFIG } from "./config";
@@ -188,7 +188,7 @@ class StudioAgent {
 
   constructor() {
     this.model = new ChatGoogleGenerativeAI({
-      model: "gemini-3-flash-preview",
+      model: MODELS.TEXT,
       apiKey: GEMINI_API_KEY,
       temperature: 0.7,
     });
@@ -205,15 +205,15 @@ class StudioAgent {
     // Phase 2: Get relevant knowledge from knowledge base (RAG)
     let knowledge = '';
     let exampleContext = '';
-    
+
     if (AI_CONFIG.rag.enabled) {
       try {
         // Get relevant knowledge for the query
         knowledge = await knowledgeBase.getRelevantKnowledge(userMessage);
-        
+
         // Get similar successful examples
         exampleContext = await exampleLibrary.getExampleContext(userMessage);
-        
+
         if (knowledge) {
           console.log('[StudioAgent] ✅ Retrieved knowledge from knowledge base');
         }

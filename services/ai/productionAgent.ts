@@ -15,20 +15,21 @@ import { z } from "zod";
 import { tool, StructuredTool } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
-import { GEMINI_API_KEY } from "../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
 
-import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan } from "../../types";
+import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan, ScreenplayScene, CharacterProfile, ShotlistEntry } from "../../types";
 import { generateContentPlan, ContentPlannerConfig } from "../contentPlannerService";
 import { narrateAllScenes, NarratorConfig } from "../narratorService";
 import { generateImageFromPrompt } from "../imageService";
 import { generateMotionPrompt } from "../promptService";
 import { generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "../sfxService";
 import { validateContentPlan, syncDurationsToNarration } from "../editorService";
-import { extractVisualStyle, injectStyleIntoPrompt, type VisualStyle } from "../visualConsistencyService";
+import { extractVisualStyle, injectStyleIntoPrompt, verifyCharacterConsistency, type VisualStyle } from "../visualConsistencyService";
 import { animateImageWithDeApi, isDeApiConfigured } from "../deapiService";
 import { generateMusic as sunoGenerateMusic, waitForCompletion as sunoWaitForCompletion, isSunoConfigured } from "../sunoService";
 import { type VideoPurpose } from "../../constants";
-import { importTools, type ImportedContent } from "../agent/importTools";
+import { importTools } from "../agent/importTools";
+import { type ImportedContent } from "../agent/importUtils";
 import { exportTools } from "../agent/exportTools";
 import { subtitleTools } from "../agent/subtitleTools";
 import { audioMixingTools } from "../agent/audioMixingTools";
@@ -244,6 +245,10 @@ export interface ProductionState {
     sfxPlan: VideoSFXPlan | null;
     /** Suno music generation task ID */
     musicTaskId: string | null;
+    /** Suno music URL */
+    musicUrl: string | null;
+    /** Suno music track object */
+    musicTrack: Record<string, any> | null;
     /** Structured errors encountered during production (Requirement 6.4) */
     errors: ToolError[];
     /** Whether production is complete */
@@ -268,8 +273,28 @@ export interface ProductionState {
     partialSuccessReport?: PartialSuccessReport;
 }
 
+/**
+ * Story Mode State
+ * Manages the step-by-step generation workflow
+ */
+export interface StoryModeState {
+    id: string;
+    topic: string;
+    breakdown: string;
+    screenplay: ScreenplayScene[];
+    characters: CharacterProfile[];
+    shotlist: ShotlistEntry[];
+    currentStep: 'breakdown' | 'screenplay' | 'characters' | 'shotlist' | 'production';
+    updatedAt: number;
+}
+
 // Store for intermediate results (in-memory for now)
 export const productionStore: Map<string, ProductionState> = new Map();
+
+/**
+ * Story Mode session store (in-memory) 
+ */
+export const storyModeStore: Map<string, StoryModeState> = new Map();
 
 // Generate unique ID for each production session
 function generateSessionId(): string {
@@ -339,6 +364,8 @@ const planVideoTool = tool(
                 visuals: [],
                 sfxPlan: null,
                 musicTaskId: null,
+                musicUrl: null,
+                musicTrack: null,
                 errors: [],
                 isComplete: false,
                 importedContent: null,
@@ -961,13 +988,15 @@ const generateVideoTool = tool(
             if (!currentState.visuals[sceneIndex]) {
                 currentState.visuals[sceneIndex] = {
                     promptId: scene.id,
-                    imageUrl: "", // No static image for direct video generation
+                    imageUrl: videoUrl, // Used by assetLoader as source
                 };
             }
 
-            (currentState.visuals[sceneIndex] as any).videoUrl = videoUrl;
-            (currentState.visuals[sceneIndex] as any).isAnimated = true;
-            (currentState.visuals[sceneIndex] as any).generatedWithVeo = true;
+            currentState.visuals[sceneIndex].imageUrl = videoUrl;
+            currentState.visuals[sceneIndex].videoUrl = videoUrl;
+            currentState.visuals[sceneIndex].type = "video"; // CRITICAL: Tells assetLoader to use loadVideoAsset
+            currentState.visuals[sceneIndex].isAnimated = true;
+            currentState.visuals[sceneIndex].generatedWithVeo = true;
             productionStore.set(contentPlanId, currentState);
 
             return JSON.stringify({
@@ -1175,12 +1204,12 @@ const generateMusicTool = tool(
         }
 
         try {
-            // Use video duration if not specified
-            const targetDuration = duration || state?.contentPlan?.totalDuration || 60;
+            // Use specified duration if provided
+            const finalDuration = duration || state?.contentPlan?.totalDuration || 60;
 
             // Generate music with Suno
             const taskId = await sunoGenerateMusic({
-                prompt: `Create ${mood} background music in ${style} style. Suitable for video narration.`,
+                prompt: `Create ${mood} background music in ${style} style for a ${finalDuration} second video.`,
                 style: style,
                 title: `BGM - ${mood} ${style}`,
                 instrumental: instrumental !== false, // Default to instrumental for BGM
@@ -1219,6 +1248,283 @@ const generateMusicTool = tool(
     }
 );
 
+const StoryModeSchema = z.object({
+    topic: z.string().describe("The story topic or initial premise"),
+    sessionId: z.string().optional().describe("Existing story session ID"),
+});
+
+const generateBreakdownTool = tool(
+    async ({ topic, sessionId }) => {
+        const id = sessionId || `story_${Date.now()}`;
+        console.log(`[ProductionAgent] Generating story breakdown for: ${topic}`);
+
+        const model = new ChatGoogleGenerativeAI({
+            model: MODELS.TEXT_EXP,
+            apiKey: GEMINI_API_KEY,
+            temperature: 0.7,
+        });
+
+        const prompt = `Create a narrative breakdown for a video story about: "${topic}".
+Divide it into 3-5 distinct acts or chapters. For each act, provide:
+1. Title
+2. Emotional Hook
+3. Key narrative beat
+
+Format as a structured list.`;
+
+        const response = await model.invoke(prompt);
+        const breakdown = response.content as string;
+
+        const state: StoryModeState = storyModeStore.get(id) || {
+            id,
+            topic,
+            breakdown,
+            screenplay: [],
+            characters: [],
+            shotlist: [],
+            currentStep: 'breakdown',
+            updatedAt: Date.now(),
+        };
+
+        state.breakdown = breakdown;
+        state.currentStep = 'breakdown';
+        state.updatedAt = Date.now();
+        storyModeStore.set(id, state);
+
+        return JSON.stringify({ success: true, sessionId: id, breakdown });
+    },
+    {
+        name: "generate_breakdown",
+        description: "Step 1: Generate a narrative breakdown/outline for the story topic.",
+        schema: StoryModeSchema,
+    }
+);
+
+const createScreenplayTool = tool(
+    async ({ sessionId }) => {
+        if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
+        const state = storyModeStore.get(sessionId);
+        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+
+        console.log(`[ProductionAgent] Creating screenplay for: ${sessionId}`);
+
+        const model = new ChatGoogleGenerativeAI({
+            model: MODELS.TEXT_EXP,
+            apiKey: GEMINI_API_KEY,
+            temperature: 0.7,
+        });
+
+        const prompt = `Write a short cinematic screenplay based on this breakdown:
+${state.breakdown}
+
+Format each scene with:
+- SCENE [Number]: [Heading]
+- ACTION: [Description]
+- DIALOGUE: [Character]: [Text]
+
+Limit to 3-5 scenes.`;
+
+        const response = await model.invoke(prompt);
+        const scriptText = response.content as string;
+
+        // Simple parser for the draft screenplay
+        const scenes: ScreenplayScene[] = [];
+        const sceneBlocks = scriptText.split(/SCENE\s+\d+:/i).filter(b => b.trim());
+
+        sceneBlocks.forEach((block, i) => {
+            const lines = block.split('\n').filter(l => l.trim());
+            const heading = lines[0] || 'Untitled Scene';
+            const actionLines = lines.filter(l => l.toUpperCase().startsWith('ACTION:'));
+            const dialogueLines = lines.filter(l => l.includes(':') && !l.toUpperCase().startsWith('ACTION:'));
+
+            scenes.push({
+                id: `scene_${i}`,
+                sceneNumber: i + 1,
+                heading: heading.replace(/ACTION:|DIALOGUE:/gi, '').trim(),
+                action: actionLines.map(l => l.replace('ACTION:', '').trim()).join(' '),
+                dialogue: dialogueLines.map(l => {
+                    const [speaker, ...text] = l.split(':');
+                    return { speaker: (speaker || "").trim(), text: text.join(':').trim() };
+                }),
+                charactersPresent: [],
+            });
+        });
+
+        state.screenplay = scenes;
+        state.currentStep = 'screenplay';
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        return JSON.stringify({ success: true, count: scenes.length, scriptText });
+    },
+    {
+        name: "create_screenplay",
+        description: "Step 2: Transform the breakdown into a formatted screenplay with dialogue.",
+        schema: z.object({ sessionId: z.string() }),
+    }
+);
+
+const generateCharactersTool = tool(
+    async ({ sessionId }) => {
+        if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
+        const state = storyModeStore.get(sessionId);
+        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+
+        console.log(`[ProductionAgent] Extracting characters for: ${sessionId}`);
+        const { extractCharacters, generateAllCharacterReferences } = await import("../characterService");
+
+        const scriptText = state.screenplay.map(s => `${s.heading}\n${s.action}\n${s.dialogue.map(d => `${d.speaker}: ${d.text}`).join('\n')}`).join('\n\n');
+
+        const characters = await extractCharacters(scriptText);
+        const charactersWithRefs = await generateAllCharacterReferences(characters, sessionId);
+
+        state.characters = charactersWithRefs;
+        state.currentStep = 'characters';
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        return JSON.stringify({ success: true, count: characters.length, characters: charactersWithRefs });
+    },
+    {
+        name: "generate_characters",
+        description: "Step 3: Extract characters from the screenplay and generate consistent visual reference sheets.",
+        schema: z.object({ sessionId: z.string() }),
+    }
+);
+
+const generateShotlistTool = tool(
+    async ({ sessionId }) => {
+        if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
+        const state = storyModeStore.get(sessionId);
+        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+
+        console.log(`[ProductionAgent] Generating shotlist for: ${sessionId}`);
+
+        const model = new ChatGoogleGenerativeAI({
+            model: MODELS.TEXT_EXP,
+            apiKey: GEMINI_API_KEY,
+            temperature: 0.5,
+        });
+
+        const prompt = `Based on this screenplay and character list, create a professional shotlist for a storyboard.
+For each scene, provide 1-2 key camera shots.
+
+Screenplay:
+${JSON.stringify(state.screenplay)}
+
+Characters:
+${JSON.stringify(state.characters)}
+
+For each shot, provide:
+1. Shot Type (Wide, Close-up, etc.)
+2. Visual description including character movements and lighting.
+3. Audio/Dialogue for that shot.`;
+
+        const response = await model.invoke(prompt);
+        const shotlistText = response.content as string;
+
+        // Basic mock shotlist for now, ideally parsed from AI response
+        const shots: ShotlistEntry[] = state.screenplay.map((s, i) => ({
+            id: `shot_${i}`,
+            sceneId: s.id,
+            shotNumber: i + 1,
+            description: `Visualizing: ${s.action}`,
+            cameraAngle: "Medium",
+            movement: "Static",
+            lighting: "Cinematic",
+            dialogue: s.dialogue[0]?.text || "",
+        }));
+
+        state.shotlist = shots;
+        state.currentStep = 'shotlist';
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        return JSON.stringify({ success: true, count: shots.length, shotlistText });
+    },
+    {
+        name: "generate_shotlist",
+        description: "Step 4: Create a detailed shotlist/storyboard from the screenplay and characters.",
+        schema: z.object({ sessionId: z.string() }),
+    }
+);
+
+// --- Character Consistency Check Tool ---
+
+const VerifyCharacterConsistencySchema = z.object({
+    sessionId: z.string().describe("Session ID of the production"),
+    characterName: z.string().describe("Name of the character to verify"),
+});
+
+const verifyCharacterConsistencyTool = tool(
+    async ({ sessionId, characterName }) => {
+        console.log(`[ProductionAgent] Verifying consistency for ${characterName} in session ${sessionId}`);
+
+        // Try storyModeStore first (Requirements for Phase 5)
+        const storyState = storyModeStore.get(sessionId);
+        let profileFound: any = storyState?.characters?.find((c: any) => c.name === characterName);
+        let imageUrls: string[] = [];
+
+        if (storyState) {
+            // In Story Mode, shotlist entries have imageUrls
+            imageUrls = storyState.shotlist
+                .filter((s: any) => s.imageUrl)
+                .map((s: any) => s.imageUrl);
+        } else {
+            // Fallback to productionStore
+            const pState = productionStore.get(sessionId);
+            if (pState) {
+                profileFound = pState.contentPlan?.characters?.find(c => c.name === characterName);
+                if (!profileFound) {
+                    // Try to find in characters list if it exists in state
+                    profileFound = (pState as any).characters?.find((c: any) => c.name === characterName);
+                }
+                imageUrls = pState.visuals
+                    .filter(v => !v.isPlaceholder)
+                    .map(v => v.imageUrl);
+            }
+        }
+
+        if (!profileFound) {
+            const availableChars = storyState?.characters?.map((c: any) => c.name).join(", ") ||
+                productionStore.get(sessionId)?.contentPlan?.characters?.map(c => c.name).join(", ") || "None";
+            return JSON.stringify({
+                success: false,
+                error: `Character "${characterName}" not found in session ${sessionId}. Available: ${availableChars}`
+            });
+        }
+
+        if (imageUrls.length === 0) {
+            return JSON.stringify({ success: false, error: "No generated images found for verification. Generate visuals first." });
+        }
+
+        // Map internal structure to CharacterProfile expected by service
+        const characterToVerify: CharacterProfile = {
+            id: profileFound.id || "unknown",
+            name: profileFound.name,
+            role: profileFound.role || "Character",
+            visualDescription: profileFound.visualDescription ||
+                `${profileFound.appearance || ""} ${profileFound.clothing || ""}`
+        };
+
+        // Detect language for report
+        const isArabic = /[\u0600-\u06FF]/.test(characterToVerify.visualDescription + characterToVerify.name);
+        const language = isArabic ? 'ar' : 'en';
+
+        const report = await verifyCharacterConsistency(imageUrls, characterToVerify, language);
+
+        return JSON.stringify({
+            success: true,
+            report
+        });
+    },
+    {
+        name: "verify_character_consistency",
+        description: "Verifies visual consistency of a character across all generated shots. Returns a report with a score and suggestions.",
+        schema: VerifyCharacterConsistencySchema,
+    }
+);
+
 export const productionTools = [
     // Import tools (IMPORT group)
     ...importTools,
@@ -1228,13 +1534,13 @@ export const productionTools = [
     validatePlanTool,
     adjustTimingTool,
     // Media tools (MEDIA group)
-    // NOTE: generateMusicTool is excluded - music generation is only available
-    // in the dedicated "Generate Music" mode, not in video production
+    generateMusicTool,
     generateVisualsTool,
     generateVideoTool, // Veo 3.1 text-to-video generation
     animateImageTool, // DeAPI image-to-video animation
     planSFXTool,
     // Enhancement tools (ENHANCEMENT group)
+    verifyCharacterConsistencyTool,
     ...enhancementTools,
     ...audioMixingTools,
     // Export tools (EXPORT group)
@@ -1244,6 +1550,11 @@ export const productionTools = [
     // Utility tools
     getProductionStatusTool,
     markCompleteTool,
+    // Story Mode tools
+    generateBreakdownTool,
+    createScreenplayTool,
+    generateCharactersTool,
+    generateShotlistTool,
 ];
 
 // --- Tool Registry Registration ---
@@ -1321,6 +1632,11 @@ export function registerProductionTools(): void {
     ));
 
     // Register ENHANCEMENT group tools
+    toolRegistry.register(createToolDefinition(
+        verifyCharacterConsistencyTool.name,
+        ToolGroup.ENHANCEMENT,
+        verifyCharacterConsistencyTool
+    ));
     for (const tool of enhancementTools) {
         toolRegistry.register(createToolDefinition(
             tool.name,
@@ -1355,6 +1671,41 @@ export function registerProductionTools(): void {
             ["generate_visuals", "narrate_scenes"] // Export depends on visuals and narration
         ));
     }
+
+    // Register CLOUD tools
+    for (const tool of cloudStorageTools) {
+        toolRegistry.register(createToolDefinition(
+            tool.name,
+            ToolGroup.EXPORT,
+            tool,
+            ["export_final_video"] // Cloud storage usually after export
+        ));
+    }
+
+    // Register STORY group tools (mapping to CONTENT for dependency flow)
+    toolRegistry.register(createToolDefinition(
+        generateBreakdownTool.name,
+        ToolGroup.CONTENT,
+        generateBreakdownTool
+    ));
+    toolRegistry.register(createToolDefinition(
+        createScreenplayTool.name,
+        ToolGroup.CONTENT,
+        createScreenplayTool,
+        ["generate_breakdown"]
+    ));
+    toolRegistry.register(createToolDefinition(
+        generateCharactersTool.name,
+        ToolGroup.CONTENT,
+        generateCharactersTool,
+        ["create_screenplay"]
+    ));
+    toolRegistry.register(createToolDefinition(
+        generateShotlistTool.name,
+        ToolGroup.CONTENT,
+        generateShotlistTool,
+        ["create_screenplay", "generate_characters"]
+    ));
 
     // Note: Utility tools (get_production_status, mark_complete) are not registered
     // as they don't belong to a specific group and can be called at any time
@@ -1405,9 +1756,17 @@ NOTE: Music generation is NOT available in video production mode. Use the "Gener
 
 ### ENHANCEMENT (Post-Processing)
 **Dependencies: MEDIA group must complete first**
+- verify_character_consistency: Verifies visual consistency of a character across all generated shots. Returns a report with a score and suggestions. Use this for story-driven content or when consistency is critical. Requires generated visuals first.
 - remove_background: Remove background from images for compositing. Requires generate_visuals first.
 - restyle_image: Apply style transfer to images (Anime, Watercolor, Oil Painting, etc.). Requires generate_visuals first.
 - mix_audio_tracks: Combine narration, music, SFX, and Veo video native audio. **IMPORTANT: Only provide contentPlanId - all audio assets are auto-fetched.** Veo video audio is automatically extracted and mixed when includeVideoAudio=true (default).
+
+### STORY (Creative Workflow)
+**Dependencies: None - this is an alternative starting point for complex stories**
+- generate_breakdown: Step 1: Create a narrative breakdown (3-5 acts) from a topic. Returns sessionId.
+- create_screenplay: Step 2: Create a detailed screenplay from the breakdown. Includes dialogue and actions.
+- generate_characters: Step 3: Extract characters from the screenplay and create visual profiles for consistency.
+- generate_shotlist: Step 4: Create a detailed shotlist/storyboard from the screenplay and characters.
 
 ### EXPORT (Final Output)
 **Dependencies: ENHANCEMENT group must complete first (or MEDIA if no enhancements)**

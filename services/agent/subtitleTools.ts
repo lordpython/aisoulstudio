@@ -11,7 +11,7 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { splitTextIntoSegments } from "../subtitleService";
 import { SubtitleItem } from "../../types";
-import { subtitlesToSRT } from "../../utils/srtParser";
+import { _subtitlesToSRT } from "../../utils/srtParser";
 import { productionStore } from "../ai/productionAgent";
 
 // --- Types ---
@@ -97,7 +97,7 @@ export function isRTLLanguage(language: string): boolean {
  * Unicode RTL markers
  */
 const RLM = "\u200F"; // Right-to-Left Mark
-const LRM = "\u200E"; // Left-to-Right Mark
+const _LRM = "\u200E"; // Left-to-Right Mark
 const RLE = "\u202B"; // Right-to-Left Embedding
 const PDF = "\u202C"; // Pop Directional Formatting
 
@@ -225,7 +225,7 @@ export function processNarrationToSubtitles(
       for (let i = 0; i < wordCount; i++) {
         const wordDuration = timePerWord;
         wordTimings.push({
-          word: words[i],
+          word: words[i]!,
           startTime: wordTime,
           endTime: wordTime + wordDuration,
         });
@@ -283,8 +283,8 @@ export const generateSubtitlesTool = tool(
 
       // Build narration input array from session state
       let currentTime = 0;
-      finalNarrationSegments = state.narrationSegments.map((segment, index) => {
-        const scene = state.contentPlan?.scenes[index];
+      finalNarrationSegments = state.narrationSegments.map((segment, _index) => {
+        const _scene = state.contentPlan!.scenes[_index];
         const result = {
           sceneId: segment.sceneId,
           transcript: segment.transcript,
@@ -298,26 +298,25 @@ export const generateSubtitlesTool = tool(
     }
 
     // Validate each segment has required fields
-    for (let i = 0; i < finalNarrationSegments.length; i++) {
-      const seg = finalNarrationSegments[i];
-      if (!seg.transcript || seg.transcript.trim().length === 0) {
+    for (const seg of finalNarrationSegments) {
+      if (!seg || !seg.transcript || seg.transcript.trim().length === 0) {
         return JSON.stringify({
           success: false,
-          error: `Narration segment ${i + 1} has empty transcript`,
+          error: "Narration segment has empty transcript",
           suggestion: "Ensure all narration segments have non-empty transcript text",
         });
       }
       if (typeof seg.startTime !== 'number' || seg.startTime < 0) {
         return JSON.stringify({
           success: false,
-          error: `Narration segment ${i + 1} has invalid startTime`,
+          error: "Narration segment has invalid startTime",
           suggestion: "Ensure all narration segments have a valid startTime >= 0",
         });
       }
       if (typeof seg.duration !== 'number' || seg.duration <= 0) {
         return JSON.stringify({
           success: false,
-          error: `Narration segment ${i + 1} has invalid duration`,
+          error: "Narration segment has invalid duration",
           suggestion: "Ensure all narration segments have a valid duration > 0",
         });
       }
@@ -352,7 +351,7 @@ export const generateSubtitlesTool = tool(
 
       // Calculate total duration
       const lastItem = subtitleItems[subtitleItems.length - 1];
-      const totalDuration = lastItem.endTime;
+      const totalDuration = lastItem ? lastItem.endTime : 0;
 
       // Create result object
       const result: SubtitleResult = {

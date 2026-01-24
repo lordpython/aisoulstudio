@@ -59,6 +59,10 @@ class ParticleSystem {
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
+      if (!p) {
+        this.particles.splice(i, 1);
+        continue;
+      }
       p.x += p.vx;
       p.y += p.vy;
       p.life -= 0.02;
@@ -73,6 +77,7 @@ class ParticleSystem {
   draw(ctx: CanvasRenderingContext2D) {
     ctx.globalCompositeOperation = "lighter";
     this.particles.forEach((p) => {
+      if (!p) return;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
@@ -455,7 +460,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
       let min = 1.0;
       let max = -1.0;
       for (let j = 0; j < step; j++) {
-        const datum = data[i * step + j];
+        const datum = data[i * step + j] ?? 0;
         if (datum < min) min = datum;
         if (datum > max) max = datum;
       }
@@ -573,7 +578,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
           {activeSubtitle ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-[90%]">
               {/* Slim background bar that fits the text */}
-              <div 
+              <div
                 className="inline-block px-4 py-2 rounded-lg"
                 style={{
                   background: "rgba(0, 0, 0, 0.75)",
@@ -598,7 +603,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 </p>
               </div>
               {activeSubtitle.translation && (
-                <div 
+                <div
                   className="inline-block px-3 py-1 rounded-md mt-1"
                   style={{
                     background: "rgba(0, 0, 0, 0.6)",

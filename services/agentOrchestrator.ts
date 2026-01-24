@@ -323,12 +323,12 @@ export const runProductionPipeline = traceAsync(
 
                 log.info("Stage 3: Visual Generation (with timeout and retry per image)");
 
-                const totalScenes = result.contentPlan.scenes.length;
+                const totalScenes = result.contentPlan!.scenes.length;
                 let completedCount = 0;
 
                 // Generate visuals with concurrency limit to avoid API rate limits
                 const visualResults = await runWithConcurrency(
-                    result.contentPlan.scenes,
+                    result.contentPlan!.scenes,
                     async (scene: Scene, index: number) => {
                         checkAbort();
 
@@ -391,12 +391,12 @@ export const runProductionPipeline = traceAsync(
                 );
 
                 // Collect results (filter out errors that were already handled)
-                result.visuals = visualResults
-                    .filter((r): r is GeneratedImage => !(r instanceof Error))
+                result.visuals = (visualResults as any[])
+                    .filter((r): r is GeneratedImage => !(r instanceof Error) && r !== undefined)
                     .sort((a, b) => {
                         // Maintain scene order
-                        const aIdx = result.contentPlan.scenes.findIndex(s => s.id === a.promptId);
-                        const bIdx = result.contentPlan.scenes.findIndex(s => s.id === b.promptId);
+                        const aIdx = result.contentPlan!.scenes.findIndex(s => s.id === a.promptId);
+                        const bIdx = result.contentPlan!.scenes.findIndex(s => s.id === b.promptId);
                         return aIdx - bIdx;
                     });
 
@@ -432,18 +432,17 @@ export const runProductionPipeline = traceAsync(
                 const totalToAnimate = visualsToAnimate.length;
                 let animatedCount = 0;
 
-                for (let i = 0; i < totalToAnimate; i++) {
+                for (const visual of visualsToAnimate) {
                     checkAbort();
-                    const visual = visualsToAnimate[i];
-                    const scene = result.contentPlan.scenes.find(s => s.id === visual.promptId);
+                    const scene = result.contentPlan!.scenes.find(s => s.id === visual.promptId);
 
                     if (!scene || !visual.imageUrl) continue;
 
                     onProgress?.({
                         stage: "animating_visuals",
-                        progress: Math.round((i / totalToAnimate) * 100),
-                        message: `Animating scene ${i + 1}/${totalToAnimate}: ${scene.name}`,
-                        currentScene: i + 1,
+                        progress: Math.round((animatedCount / totalToAnimate) * 100),
+                        message: `Animating scene ${animatedCount + 1}/${totalToAnimate}: ${scene.name}`,
+                        currentScene: animatedCount + 1,
                         totalScenes: totalToAnimate,
                     });
 
@@ -492,23 +491,23 @@ export const runProductionPipeline = traceAsync(
                             animatedCount++;
                         }
 
-                        log.info(`Animated scene ${i + 1} successfully`);
+                        log.info(`Animated scene ${animatedCount} successfully`);
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : String(error);
                         log.error(`Failed to animate scene ${scene.id} with DeAPI:`, error);
 
                         // Check if this is a Cloudflare blocking issue - try Veo as fallback
                         const isCloudflareBlock = errorMessage.includes('Cloudflare') ||
-                                                   errorMessage.includes('blocked') ||
-                                                   errorMessage.includes('503');
+                            errorMessage.includes('blocked') ||
+                            errorMessage.includes('503');
 
                         if (isCloudflareBlock) {
                             log.info(`DeAPI blocked by Cloudflare for "${scene.name}", trying Veo 3.1 with professional prompt...`);
                             onProgress?.({
                                 stage: "animating_visuals",
-                                progress: Math.round((i / totalToAnimate) * 100),
-                                message: `DeAPI blocked - generating professional Veo 3.1 video for scene ${i + 1}`,
-                                currentScene: i + 1,
+                                progress: Math.round((animatedCount / totalToAnimate) * 100),
+                                message: `DeAPI blocked - generating professional Veo 3.1 video for scene ${animatedCount + 1}`,
+                                currentScene: animatedCount + 1,
                                 totalScenes: totalToAnimate,
                             });
 
@@ -522,7 +521,7 @@ export const runProductionPipeline = traceAsync(
                                         scene.emotionalTone || "dramatic",
                                         config.globalSubject || "",
                                         videoPurpose,
-                                        mergedConfig.aspectRatio || "16:9",
+                                        (mergedConfig.aspectRatio as "16:9" | "9:16") || "16:9",
                                         6, // 6 seconds
                                         true // Use Veo 3.1 Fast
                                     ),
@@ -538,7 +537,7 @@ export const runProductionPipeline = traceAsync(
                                     (result.visuals[visualIndex] as any).generatedWithVeo = true;
                                     animatedCount++;
                                 }
-                                log.info(`Veo 3.1 fallback succeeded for scene ${i + 1}`);
+                                log.info(`Veo 3.1 fallback succeeded for scene ${animatedCount}`);
                             } catch (veoError) {
                                 log.error(`Veo fallback also failed for scene ${scene.id}:`, veoError);
                                 result.errors?.push(`Animation failed (DeAPI + Veo) for "${scene.name}": ${errorMessage}`);
@@ -566,14 +565,16 @@ export const runProductionPipeline = traceAsync(
                     message: "Generating professional cinematic videos with Veo 3.1...",
                 });
 
-                const totalScenes = result.contentPlan.scenes.length;
+                const totalScenes = result.contentPlan!.scenes.length;
                 const videoPurpose = mergedConfig.contentPlannerConfig?.videoPurpose || "documentary";
                 let videoCount = 0;
 
                 for (let i = 0; i < totalScenes; i++) {
                     checkAbort();
-                    const scene = result.contentPlan.scenes[i];
+                    const scene = result.contentPlan!.scenes[i];
                     const visual = result.visuals[i];
+
+                    if (!scene || !visual) continue;
 
                     onProgress?.({
                         stage: "animating_visuals",
@@ -592,7 +593,7 @@ export const runProductionPipeline = traceAsync(
                                 scene.emotionalTone || "dramatic",
                                 config.globalSubject || "",
                                 videoPurpose,
-                                mergedConfig.aspectRatio || "16:9",
+                                (mergedConfig.aspectRatio as "16:9" | "9:16") || "16:9",
                                 6, // 6 seconds
                                 true // Use Veo 3.1 Fast
                             ),
@@ -627,7 +628,7 @@ export const runProductionPipeline = traceAsync(
             const videoPurpose = mergedConfig.contentPlannerConfig?.videoPurpose || "documentary";
 
             // Log AI-suggested SFX from content plan
-            const aiSuggestedSfx = result.contentPlan.scenes
+            const aiSuggestedSfx = result.contentPlan!.scenes
                 .filter(s => s.ambientSfx)
                 .map(s => `${s.name}: ${s.ambientSfx}`);
             if (aiSuggestedSfx.length > 0) {

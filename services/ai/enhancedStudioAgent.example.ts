@@ -80,7 +80,7 @@ const createVideoTool = new DynamicStructuredTool({
   }),
   func: async ({ topic, duration, style, language, mood }) => {
     console.log('[Tool] Creating video:', { topic, duration, style });
-    
+
     // This would trigger your actual video production pipeline
     // For now, return success message
     return JSON.stringify({
@@ -103,7 +103,7 @@ const generateMusicTool = new DynamicStructuredTool({
   }),
   func: async ({ prompt, style, instrumental, duration }) => {
     console.log('[Tool] Generating music:', { prompt, style, instrumental });
-    
+
     return JSON.stringify({
       success: true,
       message: `Music generation started: ${style}`,
@@ -150,7 +150,7 @@ export class EnhancedStudioAgent {
 
   constructor() {
     const model = new ChatGoogleGenerativeAI({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-3-flash-preview",
       apiKey: GEMINI_API_KEY,
       temperature: 0.7,
     });
@@ -228,7 +228,7 @@ export class EnhancedStudioAgent {
   private parseAgentResult(result: any): AgentResponse {
     // Extract tool calls if any
     const toolCalls = result.intermediateSteps || [];
-    
+
     // Try to parse JSON from output
     const jsonMatch = result.output.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -256,7 +256,7 @@ export class EnhancedStudioAgent {
 
   private extractThinking(toolCalls: any[]): string {
     if (toolCalls.length === 0) return '';
-    
+
     return toolCalls
       .map(step => `Used ${step.action.tool}: ${step.observation}`)
       .join('\n');

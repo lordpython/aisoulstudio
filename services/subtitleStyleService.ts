@@ -230,10 +230,12 @@ const PURPOSE_THEME_MAP: Partial<Record<VideoPurpose, SubtitleTheme>> = {
     commercial: 'minimalist',
     podcast_visual: 'documentary',
     lyric_video: 'neon',
-    tutorial: 'minimalist',
-    vlog: 'social',
-    news: 'documentary',
-    entertainment: 'cinematic',
+    storytelling: 'cinematic',
+    educational: 'minimalist',
+    horror_mystery: 'horror',
+    travel: 'social',
+    motivational: 'social',
+    news_report: 'documentary',
 };
 
 /**

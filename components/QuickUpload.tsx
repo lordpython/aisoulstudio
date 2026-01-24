@@ -85,15 +85,15 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
 
     try {
       const taskId = await sunoGenerateMusic(config);
-      setMusicState(prev => ({ ...prev, taskId, status: "PROCESSING", progress: 25 }));
+      setMusicState(prev => ({ ...prev, taskId, status: "PROCESSING" as SunoTaskStatus, progress: 25 }));
       const tracks = await waitForCompletion(taskId);
       setMusicState(prev => ({
         ...prev,
         isGenerating: false,
-        status: "SUCCESS",
+        status: "SUCCESS" as SunoTaskStatus,
         progress: 100,
         generatedTracks: tracks,
-        selectedTrackId: tracks.length > 0 ? tracks[0]?.id : null,
+        selectedTrackId: tracks[0]?.id ?? null,
       }));
     } catch (err) {
       setMusicState(prev => ({

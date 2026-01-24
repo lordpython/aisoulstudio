@@ -45,6 +45,8 @@ import MusicGeneratorModal from '@/components/MusicGeneratorModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { GraphiteTimeline } from '@/components/TimelineEditor';
 import { useAppStore } from '@/stores';
+import { useStoryGeneration } from '@/hooks/useStoryGeneration';
+import { StoryWorkspace } from '@/components/story';
 
 // ============================================================
 // Types & Helpers
@@ -83,6 +85,10 @@ export default function StudioScreen() {
 
   // View mode toggle (Requirement 6.6)
   const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
+  const [studioMode, setStudioMode] = useState<'chat' | 'story'>('chat');
+
+  // Story Generation Hook
+  const storyHook = useStoryGeneration();
 
   // Modal state (unified)
   const {
@@ -133,6 +139,7 @@ export default function StudioScreen() {
     addInstrumental,
     veoVideoCount,
     setVeoVideoCount,
+    topic,
   } = useVideoProductionRefactored();
 
   // App Store - Chat & UI State (persistent)
@@ -384,7 +391,7 @@ export default function StudioScreen() {
           const params = agentResponse.action.params as { prompt?: string; style?: string; title?: string; instrumental?: boolean; customMode?: boolean };
           updateLastMessage(messageUpdate);
           generateMusic({
-            prompt: params.prompt,
+            prompt: params.prompt ?? "",
             style: params.style,
             title: params.title,
             instrumental: params.instrumental,
@@ -511,7 +518,7 @@ export default function StudioScreen() {
           const params = action.params as { prompt?: string; style?: string; instrumental?: boolean } | undefined;
           addMessage('assistant', `🎵 Creating ${params?.style || 'music'}...`);
           generateMusic({
-            prompt: params?.prompt,
+            prompt: params?.prompt ?? "",
             style: params?.style,
             instrumental: params?.instrumental ?? true,
             model: 'V5'
@@ -661,6 +668,32 @@ export default function StudioScreen() {
 
   const headerActions = (
     <div className="flex items-center gap-2" role="toolbar" aria-label="Studio actions">
+      {/* Mode Toggle Selection */}
+      <div className="flex items-center bg-zinc-900 border border-zinc-700/50 rounded-lg p-0.5 me-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setStudioMode('chat')}
+          className={cn(
+            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            studioMode === 'chat' ? "bg-violet-600 text-white shadow-lg" : "text-zinc-500 hover:text-white"
+          )}
+        >
+          Chat Mode
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setStudioMode('story')}
+          className={cn(
+            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            studioMode === 'story' ? "bg-blue-600 text-white shadow-lg" : "text-zinc-500 hover:text-white"
+          )}
+        >
+          Story Mode
+        </Button>
+      </div>
+
       {/* Simple/Advanced toggle */}
       <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1" role="group" aria-label="View mode">
         <button
@@ -772,205 +805,240 @@ export default function StudioScreen() {
       showBackButton
       onBack={() => navigate('/')}
       headerActions={headerActions}
-      contentClassName="py-8"
+      contentClassName={cn("py-8", studioMode === 'story' && "p-0")}
       footer={
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSubmit={handleSubmit}
-          placeholder={t('studio.placeholder')}
-          disabled={appState !== AppState.IDLE}
-          isLoading={isProcessing || appState !== AppState.IDLE}
-          isRTL={isRTL}
-          hintText={`${t('studio.send')} (Enter)`}
-          inputId="studio-input"
-        />
+        studioMode === 'chat' ? (
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={handleSubmit}
+            placeholder={t('studio.placeholder')}
+            disabled={appState !== AppState.IDLE}
+            isLoading={isProcessing || appState !== AppState.IDLE}
+            isRTL={isRTL}
+            hintText={`${t('studio.send')} (Enter)`}
+            inputId="studio-input"
+          />
+        ) : null
       }
     >
-      {/* Welcome State */}
-      {messages.length === 1 && !contentPlan && (
-        <div className="text-center mb-12 pt-12">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-violet-600/20 to-fuchsia-600/20 border border-white/10 flex items-center justify-center" aria-hidden="true">
-            <Wand2 className="w-8 h-8 text-violet-400" />
-          </div>
-          <h1 className="text-3xl font-light text-white mb-3">{t('studio.placeholder')}</h1>
-        </div>
-      )}
-
-      {/* Messages */}
-      <div className="space-y-6" role="log" aria-live="polite" aria-label="Chat messages">
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            isRTL={isRTL}
-            onQuickAction={handleQuickAction}
-            onFeedback={handleFeedback}
-          />
-        ))}
-        {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm max-w-2xl mx-auto" role="alert">
-            {error}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Video Preview Card */}
-      {contentPlan && (
-        <VideoPreviewCard
-          scenes={contentPlan.scenes}
-          visualsMap={visualsMap}
-          currentSceneIndex={currentSceneIndex}
-          onSceneSelect={setCurrentSceneIndex}
-          isPlaying={isPlaying}
-          onPlayPause={() => setIsPlaying(!isPlaying)}
-          isReady={isVideoReady ?? false}
-          totalDuration={totalDuration}
-          scenesLabel={t('studio.scenes')}
-          doneLabel={t('common.done')}
-          isRTL={isRTL}
-          className="mt-8 mb-4"
+      {studioMode === 'story' ? (
+        <StoryWorkspace
+          storyState={storyHook.state}
+          initialTopic={topic || ''}
+          onGenerateIdea={(storyTopic, genre) => {
+            storyHook.generateBreakdown(storyTopic, genre);
+          }}
+          onExportScript={storyHook.exportScreenplay}
+          onRegenerateScene={storyHook.regenerateScene}
+          onVerifyConsistency={storyHook.verifyConsistency}
+          onUndo={storyHook.undo}
+          onRedo={storyHook.redo}
+          canUndo={storyHook.canUndo}
+          canRedo={storyHook.canRedo}
+          onNextStep={() => {
+            const step = storyHook.state.currentStep;
+            if (step === 'idea') {
+              storyHook.generateBreakdown(topic || "A generic story", "Drama");
+            } else if (step === 'breakdown') {
+              storyHook.generateScreenplay();
+            } else if (step === 'script') {
+              storyHook.generateCharacters();
+            } else if (step === 'characters') {
+              storyHook.generateShotlist();
+            }
+          }}
+          isProcessing={storyHook.isProcessing}
+          progress={storyHook.progress}
         />
-      )}
-
-      {/* Timeline Editor (Requirement 6.3) */}
-      {showTimeline && contentPlan && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          className="mt-4"
-        >
-          <GraphiteTimeline
-            scenes={contentPlan.scenes}
-            visuals={visualsMap}
-            narrationSegments={narrationSegments}
-            currentTime={playbackTime}
-            duration={totalDuration}
-            isPlaying={isPlaying}
-            onPlayPause={handleTimelinePlayPause}
-            onSeek={handleTimelineSeek}
-            onSceneSelect={handleSceneSelect}
-            selectedSceneId={selectedSceneId}
-            projectName={contentPlan.title}
-            sfxPlan={sfxPlan}
-            className="rounded-xl overflow-hidden border border-white/5"
-          />
-          <audio
-            ref={timelineAudioRef}
-            src={mergedAudioUrl || undefined}
-            onTimeUpdate={(e) => setPlaybackTime(e.currentTarget.currentTime)}
-            onEnded={() => setIsPlaying(false)}
-          />
-        </motion.div>
-      )}
-
-      {/* Quick Actions */}
-      {messages.length === 1 && !contentPlan && (
+      ) : (
         <>
-          <QuickActions
-            actions={quickActionItems}
-            onSelect={(action) => setInput(action.prompt || '')}
-            isRTL={isRTL}
-          />
-          <div className="flex justify-center">
-            <button
-              onClick={() => {
-                setMusicModalMode('remix');
-                setShowMusic(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition-all"
-            >
-              <Upload className="w-4 h-4 text-violet-400" />
-              {t('common.upload')}
-            </button>
+          {/* Welcome State */}
+          {messages.length === 1 && !contentPlan && (
+            <div className="text-center mb-12 pt-12">
+              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-violet-600/20 to-fuchsia-600/20 border border-white/10 flex items-center justify-center" aria-hidden="true">
+                <Wand2 className="w-8 h-8 text-violet-400" />
+              </div>
+              <h1 className="text-3xl font-light text-white mb-3">{t('studio.placeholder')}</h1>
+            </div>
+          )}
+
+          {/* Messages */}
+          <div className="space-y-6" role="log" aria-live="polite" aria-label="Chat messages">
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isRTL={isRTL}
+                onQuickAction={handleQuickAction}
+                onFeedback={handleFeedback}
+              />
+            ))}
+            {error && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm max-w-2xl mx-auto" role="alert">
+                {error}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
+
+          {/* Video Preview Card */}
+          {contentPlan && (
+            <VideoPreviewCard
+              scenes={contentPlan.scenes}
+              visualsMap={visualsMap}
+              currentSceneIndex={currentSceneIndex}
+              onSceneSelect={setCurrentSceneIndex}
+              isPlaying={isPlaying}
+              onPlayPause={() => setIsPlaying(!isPlaying)}
+              isReady={isVideoReady ?? false}
+              totalDuration={totalDuration}
+              scenesLabel={t('studio.scenes')}
+              doneLabel={t('common.done')}
+              isRTL={isRTL}
+              className="mt-8 mb-4"
+            />
+          )}
+
+          {/* Timeline Editor (Requirement 6.3) */}
+          {showTimeline && contentPlan && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="mt-4"
+            >
+              <GraphiteTimeline
+                scenes={contentPlan.scenes}
+                visuals={visualsMap}
+                narrationSegments={narrationSegments}
+                currentTime={playbackTime}
+                duration={totalDuration}
+                isPlaying={isPlaying}
+                onPlayPause={handleTimelinePlayPause}
+                onSeek={handleTimelineSeek}
+                onSceneSelect={handleSceneSelect}
+                selectedSceneId={selectedSceneId}
+                projectName={contentPlan.title}
+                sfxPlan={sfxPlan}
+                className="rounded-xl overflow-hidden border border-white/5"
+              />
+              <audio
+                ref={timelineAudioRef}
+                src={mergedAudioUrl || undefined}
+                onTimeUpdate={(e) => setPlaybackTime(e.currentTarget.currentTime)}
+                onEnded={() => setIsPlaying(false)}
+              />
+            </motion.div>
+          )}
+
+          {/* Quick Actions */}
+          {messages.length === 1 && !contentPlan && (
+            <>
+              <QuickActions
+                actions={quickActionItems}
+                onSelect={(action) => setInput(action.prompt || '')}
+                isRTL={isRTL}
+              />
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setMusicModalMode('remix');
+                    setShowMusic(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition-all"
+                >
+                  <Upload className="w-4 h-4 text-violet-400" />
+                  {t('common.upload')}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Modals & Panels */}
+          <MusicGeneratorModal
+            open={showMusic}
+            onClose={() => {
+              setShowMusic(false);
+              setMusicModalMode('generate');
+            }}
+            musicState={musicState}
+            onGenerateMusic={generateMusic}
+            onGenerateLyrics={generateLyrics}
+            onSelectTrack={selectTrack}
+            onAddToTimeline={() => {
+              addMusicToTimeline();
+              setShowTimeline(true);
+            }}
+            onRefreshCredits={refreshCredits}
+            onUploadAudio={uploadAudio}
+            onUploadAndCover={uploadAndCover}
+            onAddVocals={addVocals}
+            onAddInstrumental={addInstrumental}
+            initialMode={musicModalMode}
+          />
+
+          {qualityReport && (
+            <QualityDashboard
+              report={qualityReport}
+              isOpen={showQuality}
+              onClose={() => setShowQuality(false)}
+            />
+          )}
+
+          <SlidePanel
+            isOpen={showSceneEditor && !!contentPlan}
+            onClose={() => setShowSceneEditor(false)}
+            title={t('studio.edit')}
+            isRTL={isRTL}
+          >
+            {contentPlan && (
+              <SceneEditor
+                scenes={contentPlan.scenes}
+                onChange={updateScenes}
+                onPlayNarration={playNarration}
+                onRegenerateNarration={regenerateSceneNarration}
+                playingSceneId={playingSceneId}
+                visuals={visualsMap}
+                narrationUrls={getAudioUrlMap()}
+              />
+            )}
+          </SlidePanel>
+
+          <QuickExport
+            isOpen={showExport}
+            onClose={() => setShowExport(false)}
+            onExport={handleExport}
+            videoTitle={contentPlan?.title}
+            duration={totalDuration}
+          />
+
+          <SettingsModal
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+            contentType={params.mode === 'music' ? 'music' : 'story'}
+            onContentTypeChange={() => { }}
+            videoPurpose={params.mode === 'video' ? 'documentary' : 'music_video'}
+            onVideoPurposeChange={(purpose) => {
+              if (purpose !== 'documentary') setVideoPurpose(purpose);
+            }}
+            targetAudience={targetAudience}
+            onTargetAudienceChange={setTargetAudience}
+            generationMode={params.mode === 'music' ? 'image' : 'video'}
+            onGenerationModeChange={() => { }}
+            videoProvider="veo"
+            onVideoProviderChange={() => { }}
+            veoVideoCount={veoVideoCount}
+            onVeoVideoCountChange={setVeoVideoCount}
+            aspectRatio="16:9"
+            onAspectRatioChange={() => { }}
+            selectedStyle={params.style || 'Cinematic'}
+            onStyleChange={(style: string) => setVisualStyle(style)}
+            globalSubject=""
+            onGlobalSubjectChange={() => { }}
+          />
         </>
       )}
-
-      {/* Modals & Panels */}
-      <MusicGeneratorModal
-        open={showMusic}
-        onClose={() => {
-          setShowMusic(false);
-          setMusicModalMode('generate');
-        }}
-        musicState={musicState}
-        onGenerateMusic={generateMusic}
-        onGenerateLyrics={generateLyrics}
-        onSelectTrack={selectTrack}
-        onAddToTimeline={() => {
-          addMusicToTimeline();
-          setShowTimeline(true);
-        }}
-        onRefreshCredits={refreshCredits}
-        onUploadAudio={uploadAudio}
-        onUploadAndCover={uploadAndCover}
-        onAddVocals={addVocals}
-        onAddInstrumental={addInstrumental}
-        initialMode={musicModalMode}
-      />
-
-      {qualityReport && (
-        <QualityDashboard
-          report={qualityReport}
-          isOpen={showQuality}
-          onClose={() => setShowQuality(false)}
-        />
-      )}
-
-      <SlidePanel
-        isOpen={showSceneEditor && !!contentPlan}
-        onClose={() => setShowSceneEditor(false)}
-        title={t('studio.edit')}
-        isRTL={isRTL}
-      >
-        {contentPlan && (
-          <SceneEditor
-            scenes={contentPlan.scenes}
-            onChange={updateScenes}
-            onPlayNarration={playNarration}
-            onRegenerateNarration={regenerateSceneNarration}
-            playingSceneId={playingSceneId}
-            visuals={visualsMap}
-            narrationUrls={getAudioUrlMap()}
-          />
-        )}
-      </SlidePanel>
-
-      <QuickExport
-        isOpen={showExport}
-        onClose={() => setShowExport(false)}
-        onExport={handleExport}
-        videoTitle={contentPlan?.title}
-        duration={totalDuration}
-      />
-
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        contentType={params.mode === 'music' ? 'music' : 'story'}
-        onContentTypeChange={() => { }}
-        videoPurpose={params.mode === 'video' ? 'documentary' : 'music_video'}
-        onVideoPurposeChange={(purpose) => {
-          if (purpose !== 'documentary') setVideoPurpose(purpose);
-        }}
-        targetAudience={targetAudience}
-        onTargetAudienceChange={setTargetAudience}
-        generationMode={params.mode === 'music' ? 'image' : 'video'}
-        onGenerationModeChange={() => { }}
-        videoProvider="veo"
-        onVideoProviderChange={() => { }}
-        veoVideoCount={veoVideoCount}
-        onVeoVideoCountChange={setVeoVideoCount}
-        aspectRatio="16:9"
-        onAspectRatioChange={() => { }}
-        selectedStyle={params.style || 'Cinematic'}
-        onStyleChange={(style: string) => setVisualStyle(style)}
-        globalSubject=""
-        onGlobalSubjectChange={() => { }}
-      />
     </ScreenLayout>
   );
 }

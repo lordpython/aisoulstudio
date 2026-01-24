@@ -23,6 +23,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
+import { MODELS } from "../../shared/apiClient";
 import {
   Subagent,
   SubagentName,
@@ -258,19 +259,19 @@ If cloud upload was performed, include the GCS path in your report.
  */
 function getSystemPrompt(): string {
   if (isNode) {
-    return BASE_ENHANCEMENT_EXPORT_PROMPT + 
-           CLOUD_UPLOAD_TOOL_DOCS + 
-           NODE_AUTO_FETCH_RULES + 
-           NODE_WORKFLOW_SECTION + 
-           QUALITY_AND_ERROR_SECTION +
-           NODE_COMPLETION;
+    return BASE_ENHANCEMENT_EXPORT_PROMPT +
+      CLOUD_UPLOAD_TOOL_DOCS +
+      NODE_AUTO_FETCH_RULES +
+      NODE_WORKFLOW_SECTION +
+      QUALITY_AND_ERROR_SECTION +
+      NODE_COMPLETION;
   } else {
-    return BASE_ENHANCEMENT_EXPORT_PROMPT + 
-           BROWSER_CLOUD_NOTE + 
-           AUTO_FETCH_RULES + 
-           BROWSER_WORKFLOW_SECTION + 
-           QUALITY_AND_ERROR_SECTION +
-           BROWSER_COMPLETION;
+    return BASE_ENHANCEMENT_EXPORT_PROMPT +
+      BROWSER_CLOUD_NOTE +
+      AUTO_FETCH_RULES +
+      BROWSER_WORKFLOW_SECTION +
+      QUALITY_AND_ERROR_SECTION +
+      BROWSER_COMPLETION;
   }
 }
 
@@ -286,14 +287,14 @@ function getEnhancementExportTools(): StructuredTool[] {
     "export_final_video",
     "upload_production_to_cloud", // Will be filtered out if not in productionTools (browser)
   ];
-  
+
   const availableTools = productionTools.filter((tool: StructuredTool) =>
     desiredTools.includes(tool.name)
   );
-  
+
   console.log(`[EnhancementExportSubagent] Environment: ${isNode ? 'Node.js' : 'Browser'}`);
   console.log(`[EnhancementExportSubagent] Available tools: ${availableTools.map(t => t.name).join(', ')}`);
-  
+
   return availableTools;
 }
 
@@ -306,7 +307,7 @@ export function createEnhancementExportSubagent(apiKey: string): Subagent {
 
   return {
     name: SubagentName.ENHANCEMENT_EXPORT,
-    description: isNode 
+    description: isNode
       ? "Post-processes visuals, mixes audio, exports video, uploads to cloud"
       : "Post-processes visuals, mixes audio, exports video (cloud upload unavailable in browser)",
     tools: enhancementExportTools,
@@ -334,7 +335,7 @@ export function createEnhancementExportSubagent(apiKey: string): Subagent {
 
       // Initialize model with tools
       const model = new ChatGoogleGenerativeAI({
-        model: "gemini-3-flash-preview",
+        model: MODELS.TEXT,
         apiKey,
         temperature: 0.2, // Low temperature for precise export
       });
@@ -343,10 +344,10 @@ export function createEnhancementExportSubagent(apiKey: string): Subagent {
 
       // CRITICAL: Inject sessionId into the instruction so the AI knows what to use
       // Also remind about cloud upload availability based on environment
-      const cloudUploadReminder = isNode 
+      const cloudUploadReminder = isNode
         ? "upload_production_to_cloud is available if you want to upload to cloud."
         : "NOTE: Cloud upload is NOT available in browser. After export_final_video, you are DONE.";
-      
+
       const enhancedInstruction = `IMPORTANT: Your sessionId is "${context.sessionId}". Use this EXACT value as contentPlanId for ALL tool calls.
 
 ${context.instruction}
@@ -382,7 +383,7 @@ ${cloudUploadReminder}`;
           const content = response.content as string;
 
           // Accept multiple completion patterns
-          const isComplete = content.includes("Export complete") && 
+          const isComplete = content.includes("Export complete") &&
             (content.includes("Format:") || content.includes("available locally"));
 
           if (isComplete) {
@@ -437,16 +438,16 @@ ${cloudUploadReminder}`;
           });
 
           const tool = enhancementExportTools.find(t => t.name === toolName);
-          
+
           // Graceful handling for missing tools (instead of throwing)
           if (!tool) {
             const isCloudUpload = toolName === 'upload_production_to_cloud';
             const errorMessage = isCloudUpload
               ? `Tool "${toolName}" is not available in browser environment. Cloud upload requires server-side execution. Your video export is complete and available locally.`
               : `Tool "${toolName}" is not available in the current environment.`;
-            
+
             console.warn(`[EnhancementExportSubagent] ${errorMessage}`);
-            
+
             context.onProgress?.({
               stage: "export_tool_error",
               tool: toolName,
@@ -454,13 +455,13 @@ ${cloudUploadReminder}`;
               isComplete: false,
               success: false,
             });
-            
+
             messages.push(
               new ToolMessage({
-                content: JSON.stringify({ 
+                content: JSON.stringify({
                   success: false,
                   error: errorMessage,
-                  suggestion: isCloudUpload 
+                  suggestion: isCloudUpload
                     ? "The export workflow is complete. Report completion with the video details. Say: Export complete. Format: [format]. Size: [size] MB. Duration: [duration] s. Video available locally."
                     : "Check tool availability and try an alternative approach."
                 }),

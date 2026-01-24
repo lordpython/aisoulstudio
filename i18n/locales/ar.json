@@ -91,5 +91,14 @@
     "network": "خطأ في الشبكة. يرجى التحقق من اتصالك.",
     "notFound": "الصفحة غير موجودة",
     "unauthorized": "غير مصرح لك بعرض هذه الصفحة"
+  },
+  "story": {
+    "charactersEmpty": "لم يتم استخراج الشخصيات بعد.",
+    "continuity": "الاستمرارية",
+    "visualDescription": "الوصف البصري",
+    "issuesFound": "المشاكل المكتشفة",
+    "suggestions": "الاقتراحات",
+    "verifyContinuity": "تحقق من الاستمرارية",
+    "verifying": "جاري التحقق من الاستمرارية..."
   }
 }

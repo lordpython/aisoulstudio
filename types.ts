@@ -34,6 +34,12 @@ export interface GeneratedImage {
   promptId: string;
   imageUrl: string;
   type?: "image" | "video";
+  /** URL to the generated video file if applicable */
+  videoUrl?: string;
+  /** Whether this is an animated version of an image */
+  isAnimated?: boolean;
+  /** Whether the video was generated using Veo 3.1 */
+  generatedWithVeo?: boolean;
   /** If video_with_image, stores the base image separately */
   baseImageUrl?: string;
   /** Whether this is a placeholder image due to generation failure */
@@ -406,4 +412,70 @@ export interface QuickAction {
   icon: string;
   intentType: IntentType;
   shortcut?: string;
+}
+
+// --- Story Mode Types ---
+
+/**
+ * Character profile for visual consistency across story scenes
+ */
+export interface CharacterProfile {
+  id: string;
+  name: string;
+  role: string;
+  visualDescription: string; // The "Golden Prompt" for consistency
+  referenceImageUrl?: string; // Generated "Sheet" for the character
+}
+
+/**
+ * Screenplay scene in standard format
+ */
+export interface ScreenplayScene {
+  id: string;
+  sceneNumber: number;
+  heading: string; // INT. BEDROOM - DAY
+  action: string;
+  dialogue: Array<{ speaker: string; text: string }>;
+  charactersPresent: string[];
+}
+
+/**
+ * Shotlist entry for storyboard generation
+ */
+export interface ShotlistEntry {
+  id: string;
+  sceneId: string;
+  shotNumber: number;
+  description: string;
+  cameraAngle: string; // "Wide", "Close-up"
+  movement: string; // "Pan", "Static"
+  imageUrl?: string; // The final generated image
+}
+
+/**
+ * Story Mode workflow step
+ */
+export type StoryStep = 'idea' | 'breakdown' | 'script' | 'characters' | 'storyboard';
+
+/**
+ * Result of a character consistency check
+ */
+export interface ConsistencyReport {
+  score: number;
+  isConsistent: boolean;
+  issues: string[];
+  suggestions: string[];
+  details: string;
+}
+
+/**
+ * Story Mode complete state
+ */
+export interface StoryState {
+  currentStep: StoryStep;
+  breakdown: ScreenplayScene[];
+  script: { title: string; scenes: ScreenplayScene[] } | null;
+  characters: CharacterProfile[];
+  shotlist: ShotlistEntry[];
+  consistencyReports?: Record<string, ConsistencyReport>; // characterId -> report
 }

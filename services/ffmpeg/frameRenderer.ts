@@ -54,15 +54,16 @@ export async function renderFrameToCanvas(
             : LAYOUT_PRESETS.landscape;
 
     const zones = {
-        visualizer: getZoneBounds(layoutPreset.zones.visualizer, width, height),
-        text: getZoneBounds(layoutPreset.zones.text, width, height),
-        translation: getZoneBounds(layoutPreset.zones.translation, width, height),
+        visualizer: getZoneBounds(layoutPreset!.zones.visualizer, width, height),
+        text: getZoneBounds(layoutPreset!.zones.text, width, height),
+        translation: getZoneBounds(layoutPreset!.zones.translation, width, height),
     };
 
     // 2. Visual Layer with Ken Burns & Transitions
     let currentIndex = 0;
     for (let i = 0; i < assets.length; i++) {
-        if (currentTime >= assets[i].time) {
+        const asset = assets[i];
+        if (asset && currentTime >= asset.time) {
             currentIndex = i;
         } else {
             break;
@@ -167,7 +168,7 @@ export async function renderFrameToCanvas(
  * @param height - Canvas height
  * @returns Vertical offset adjustment (negative = move up, positive = move down)
  */
-function analyzeSafeTextZone(
+function _analyzeSafeTextZone(
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number
@@ -179,7 +180,7 @@ function analyzeSafeTextZone(
     let imageData: ImageData;
     try {
         imageData = ctx.getImageData(0, lowerThirdStart, width, sampleHeight);
-    } catch (e) {
+    } catch (_e) {
         // Fallback if getImageData fails (e.g., cross-origin)
         return { verticalOffset: 0, optimalY: height * 0.85, brightness: 0.5 };
     }
@@ -215,11 +216,12 @@ function analyzeSafeTextZone(
 
     // Find the darkest band (best for white text)
     let darkestBand = 0;
-    let minBrightness = bandBrightness[0];
+    let minBrightness = bandBrightness[0] ?? 0.5;
 
     for (let i = 1; i < bandBrightness.length; i++) {
-        if (bandBrightness[i] < minBrightness) {
-            minBrightness = bandBrightness[i];
+        const brightness = bandBrightness[i] ?? 0.5;
+        if (brightness < minBrightness) {
+            minBrightness = brightness;
             darkestBand = i;
         }
     }
@@ -337,6 +339,8 @@ function renderSubtitles(
 
         lineData.words.forEach((word, wordIdx) => {
             const globalWordIdx = lineData.wordIndices[wordIdx];
+            if (globalWordIdx === undefined) return;
+
             const wordWidth = ctx.measureText(word).width;
             const spaceWidth = ctx.measureText(" ").width;
 
@@ -535,7 +539,7 @@ function renderTranslation(
         ctx.shadowBlur = 0;
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
         ctx.beginPath();
-        ctx.roundRect(
+        (ctx as any).roundRect(
             width / 2 - transWidth / 2 - padding,
             transY - transFontSize / 2 - 8,
             transWidth + padding * 2,

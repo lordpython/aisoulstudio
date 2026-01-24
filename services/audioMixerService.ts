@@ -65,7 +65,7 @@ export interface MixConfig {
  */
 function calculateDuckingEnvelope(
   narrationBuffer: AudioBuffer,
-  sampleRate: number = 44100,
+  _sampleRate: number = 44100,
   blockSize: number = 4410 // ~100ms blocks
 ): Float32Array {
   const channelData = narrationBuffer.getChannelData(0);
@@ -79,7 +79,8 @@ function calculateDuckingEnvelope(
 
     let sumSquares = 0;
     for (let i = start; i < end; i++) {
-      sumSquares += channelData[i] * channelData[i];
+      const value = channelData[i] ?? 0;
+      sumSquares += value * value;
     }
 
     const rms = Math.sqrt(sumSquares / (end - start));
@@ -106,7 +107,7 @@ function calculateDuckingEnvelope(
     let sum = 0;
     let count = 0;
     for (let j = Math.max(0, i - smoothWindow); j <= Math.min(numBlocks - 1, i + smoothWindow); j++) {
-      sum += envelope[j];
+      sum += envelope[j] ?? 0;
       count++;
     }
     smoothedEnvelope[i] = sum / count;
@@ -131,7 +132,7 @@ function applyDuckingToGain(
 
   for (let i = 0; i < envelope.length; i++) {
     const time = startTime + i * blockDuration;
-    const duckValue = envelope[i];
+    const duckValue = envelope[i] ?? 0;
     const targetVolume = baseVolume - (duckValue * (baseVolume - minVolume));
 
     // Use exponential ramp for smoother transitions
@@ -248,10 +249,10 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
 
   // --- Track 2: Scene-specific SFX ---
   if (sfxPlan && sfxPlan.scenes.length > 0) {
-    let currentTime = 0;
-
     for (let i = 0; i < scenes.length; i++) {
       const sceneInfo = scenes[i];
+      if (!sceneInfo) continue;
+
       const sfxScene = sfxPlan.scenes.find(s => s.sceneId === sceneInfo.sceneId);
 
       if (sfxScene?.ambientTrack?.audioUrl) {
@@ -290,8 +291,6 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
           console.warn(`[AudioMixer] Failed to add SFX for scene ${sceneInfo.sceneId}:`, error);
         }
       }
-
-      currentTime += sceneInfo.duration;
     }
   }
 
@@ -329,9 +328,9 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
           // Apply ducking envelope starting after fade in
           applyDuckingToGain(musicGain, duckingEnvelope, volume, duckingAmount, blockDuration, 2.0);
 
-          // Fade out at end
           if (totalDuration > 4) {
-            musicGain.gain.setValueAtTime(volume * (1 - duckingEnvelope[duckingEnvelope.length - 1] || 0), totalDuration - 2);
+            const lastEnvelopeValue = duckingEnvelope[duckingEnvelope.length - 1] ?? 0;
+            musicGain.gain.setValueAtTime(volume * (1 - lastEnvelopeValue), totalDuration - 2);
             musicGain.gain.linearRampToValueAtTime(0, totalDuration);
           }
         } else {
@@ -414,7 +413,7 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
 
   for (let i = 0; i < samples; i++) {
     // Clamp and convert to 16-bit
-    const sample = Math.max(-1, Math.min(1, channelData[i]));
+    const sample = Math.max(-1, Math.min(1, channelData[i] ?? 0));
     const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
     view.setInt16(offset, intSample, true);
     offset += 2;
@@ -450,7 +449,7 @@ export async function mergeConsecutiveAudioBlobs(
 
   // If only one blob, just return it (or converting if needed, but assuming compatible)
   if (blobs.length === 1) {
-    return blobs[0];
+    return blobs[0]!;
   }
 
   console.log(`[AudioMixer] Merging ${blobs.length} blobs...`);

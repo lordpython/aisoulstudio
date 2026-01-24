@@ -16,7 +16,7 @@ import {
   getSystemPersona,
   getStyleEnhancement,
 } from "./promptService";
-import { GEMINI_API_KEY, VERTEX_PROJECT } from "./shared/apiClient";
+import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "./shared/apiClient";
 import { parseSRTTimestamp } from "../utils/srtParser";
 import { generateCompleteFormatGuidance } from "./promptFormatService";
 
@@ -58,7 +58,7 @@ export interface AgentDirectorConfig {
 }
 
 const DEFAULT_AGENT_CONFIG: Required<AgentDirectorConfig> = {
-  model: "gemini-3-flash-preview",
+  model: MODELS.TEXT,
   temperature: 0.7,
   maxIterations: 2,
   qualityThreshold: 70,

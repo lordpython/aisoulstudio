@@ -30,7 +30,7 @@ class SunoRateLimiter {
    */
   async waitForSlot(): Promise<void> {
     const now = Date.now();
-    
+
     // Remove timestamps outside the sliding window
     this.requestTimestamps = this.requestTimestamps.filter(
       ts => now - ts < this.windowMs
@@ -38,13 +38,13 @@ class SunoRateLimiter {
 
     // If at capacity, wait for the oldest request to expire
     if (this.requestTimestamps.length >= this.maxRequests) {
-      const oldestTimestamp = this.requestTimestamps[0];
+      const oldestTimestamp = this.requestTimestamps[0]!;
       const waitTime = this.windowMs - (now - oldestTimestamp) + 10; // +10ms buffer
-      
+
       if (waitTime > 0) {
         console.log(`[Suno] Rate limit reached, waiting ${waitTime}ms...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
-        
+
         // Clean up again after waiting
         const newNow = Date.now();
         this.requestTimestamps = this.requestTimestamps.filter(
@@ -136,12 +136,12 @@ async function callSunoProxy(endpoint: string, body?: any, method: string = "POS
   const response = await fetch(`${SERVER_URL}/api/suno/proxy/${endpoint}`, fetchOptions);
 
   const data = await response.json();
-  
+
   // Enhanced error handling based on error codes
   if (!response.ok || (data.code && data.code !== 200)) {
     const errorCode = data.code || response.status;
     const errorMessage = data.msg || data.error || data.message || `Suno API error: ${endpoint}`;
-    
+
     // Use the error mapping helper function
     throw mapErrorCodeToError(errorCode, endpoint, errorMessage);
   }
@@ -165,7 +165,7 @@ export type SunoModel = "V4" | "V4_5" | "V4_5PLUS" | "V4_5ALL" | "V5";
  * Status of a Suno generation task.
  * Extended to include all documented statuses from the Suno API.
  */
-export type SunoTaskStatus = 
+export type SunoTaskStatus =
   | "PENDING"
   | "PROCESSING"
   | "TEXT_SUCCESS"
@@ -544,7 +544,7 @@ export function isSunoConfigured(): boolean {
 export async function generateMusic(config: SunoGenerationConfig): Promise<string> {
   // Auto-generate title if not provided (required for customMode: true)
   const autoTitle = config.title || config.prompt.slice(0, 50) || "AI Generated Track";
-  
+
   const requestBody = {
     prompt: config.prompt,
     customMode: true, // Always use custom mode for full control
@@ -579,10 +579,10 @@ export async function generateMusic(config: SunoGenerationConfig): Promise<strin
  */
 function mapToSunoTaskStatus(rawStatus: string | undefined): SunoTaskStatus {
   if (!rawStatus) return "PENDING";
-  
+
   // Normalize to uppercase for comparison
   const normalizedStatus = rawStatus.toUpperCase();
-  
+
   // Map all documented statuses
   const statusMap: Record<string, SunoTaskStatus> = {
     "PENDING": "PENDING",
@@ -596,7 +596,7 @@ function mapToSunoTaskStatus(rawStatus: string | undefined): SunoTaskStatus {
     "SENSITIVE_WORD_ERROR": "SENSITIVE_WORD_ERROR",
     "FAILED": "FAILED",
   };
-  
+
   return statusMap[normalizedStatus] || "PENDING";
 }
 
@@ -678,13 +678,13 @@ export async function getTaskStatus(taskId: string): Promise<SunoTaskResult> {
   // Include error details for failed statuses
   if (isFailedStatus(status)) {
     // Extract error code from various possible locations in the response
-    result.errorCode = data.errorCode 
-      || data.code 
+    result.errorCode = data.errorCode
+      || data.code
       || data.response?.sunoData?.[0]?.errorCode;
-    
+
     // Extract error message from various possible locations in the response
-    result.errorMessage = data.errorMessage 
-      || data.msg 
+    result.errorMessage = data.errorMessage
+      || data.msg
       || data.response?.sunoData?.[0]?.errorMessage
       || getDefaultErrorMessage(status);
   }
@@ -770,13 +770,13 @@ export async function getDetailedTaskStatus(taskId: string): Promise<SunoDetaile
   // Include error details for failed statuses
   if (isFailedStatus(status)) {
     // Extract error code from various possible locations in the response
-    result.errorCode = data.errorCode 
-      || data.code 
+    result.errorCode = data.errorCode
+      || data.code
       || data.response?.sunoData?.[0]?.errorCode;
-    
+
     // Extract error message from various possible locations in the response
-    result.errorMessage = data.errorMessage 
-      || data.msg 
+    result.errorMessage = data.errorMessage
+      || data.msg
       || data.response?.sunoData?.[0]?.errorMessage
       || getDefaultErrorMessage(status);
   }
@@ -817,8 +817,8 @@ export async function waitForCompletion(
 
     // Check for any failure status
     if (isFailedStatus(result.status)) {
-      const errorDetails = result.errorCode 
-        ? ` (code: ${result.errorCode})` 
+      const errorDetails = result.errorCode
+        ? ` (code: ${result.errorCode})`
         : '';
       throw new Error(
         result.errorMessage || `Music generation failed with status: ${result.status}${errorDetails}`
@@ -959,20 +959,20 @@ export async function testSunoAPI(): Promise<void> {
  * @returns taskId for video generation
  */
 export async function createMusicVideo(
-  taskId: string, 
+  taskId: string,
   audioId: string,
   author?: string,
   domainName?: string
 ): Promise<string> {
   try {
-    const requestBody: any = { 
-      taskId, 
-      audioId, 
+    const requestBody: any = {
+      taskId,
+      audioId,
       callBackUrl: "playground"
     };
     if (author) requestBody.author = author;
     if (domainName) requestBody.domainName = domainName;
-    
+
     // Full path: /api/v1/create-music-video
     return await callSunoProxy("create-music-video", requestBody);
   } catch (e) {
@@ -1135,7 +1135,7 @@ export async function extendMusic(config: SunoExtendConfig): Promise<string> {
   };
 
   // Clean up undefined values
-  Object.keys(requestBody).forEach(key => 
+  Object.keys(requestBody).forEach(key =>
     (requestBody as any)[key] === undefined && delete (requestBody as any)[key]
   );
 
@@ -1171,7 +1171,7 @@ export async function uploadAndExtend(config: SunoUploadConfig): Promise<string>
   };
 
   // Clean up undefined values
-  Object.keys(requestBody).forEach(key => 
+  Object.keys(requestBody).forEach(key =>
     (requestBody as any)[key] === undefined && delete (requestBody as any)[key]
   );
 
@@ -1367,8 +1367,8 @@ export async function waitForStemSeparation(
  */
 export async function uploadFileBase64(base64Data: string, fileName: string): Promise<string> {
   // Strip data URI prefix if present (e.g., "data:audio/mp3;base64,")
-  const cleanBase64 = base64Data.includes(',') 
-    ? base64Data.split(',')[1] 
+  const cleanBase64 = base64Data.includes(',')
+    ? base64Data.split(',')[1]
     : base64Data;
 
   const requestBody = {
@@ -1378,10 +1378,10 @@ export async function uploadFileBase64(base64Data: string, fileName: string): Pr
 
   // Call the upload endpoint via proxy
   const result = await callSunoProxy("upload/base64", requestBody);
-  
+
   // Extract the file URL from the response
   const fileUrl = result?.fileUrl || result?.url || result;
-  
+
   if (!fileUrl || typeof fileUrl !== 'string') {
     throw new SunoApiError('Upload failed: No file URL returned', 500, 'upload/base64');
   }
@@ -1410,10 +1410,10 @@ export async function uploadFileUrl(sourceUrl: string): Promise<string> {
 
   // Call the upload endpoint via proxy
   const result = await callSunoProxy("upload/url", requestBody);
-  
+
   // Extract the file URL from the response
   const fileUrl = result?.fileUrl || result?.url || result;
-  
+
   if (!fileUrl || typeof fileUrl !== 'string') {
     throw new SunoApiError('Upload failed: No file URL returned', 500, 'upload/url');
   }

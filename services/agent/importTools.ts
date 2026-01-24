@@ -8,9 +8,10 @@
  * Requirements: 1.1, 1.2, 1.3, 1.4, 1.5
  */
 
-import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { transcribeAudioWithWordTiming } from "../transcriptionService";
+import { ImportYouTubeSchema, TranscribeAudioSchema } from "./schemas/importSchemas";
+import { ServiceError, ValidationError, ResourceNotFoundError } from "./errors";
 import {
   ImportedContent,
   TranscriptResult,
@@ -25,41 +26,8 @@ import {
   getServerBaseUrl,
 } from "./importUtils";
 
-// Re-export types and utilities for external use
-export type {
-  ImportedContent,
-  TranscriptResult,
-  TranscriptSegment,
-  WordTimingInfo,
-} from "./importUtils";
-
-export {
-  getImportedContent,
-  setImportedContent,
-  clearImportedContent,
-  subtitleItemsToTranscriptResult,
-  isValidYouTubeUrl,
-  extractYouTubeVideoId,
-  SUPPORTED_AUDIO_FORMATS,
-  SUPPORTED_MIME_TYPES,
-} from "./importUtils";
-
-// --- Tool Schemas ---
-
-/**
- * Schema for YouTube import tool
- */
-const ImportYouTubeSchema = z.object({
-  url: z.string().describe("YouTube or X (Twitter) video URL to import audio from"),
-});
-
-/**
- * Schema for audio transcription tool
- */
-const TranscribeAudioSchema = z.object({
-  contentPlanId: z.string().describe("Session ID where audio is stored"),
-  language: z.string().optional().describe("Language code for transcription (e.g., 'en', 'ar'). Auto-detected if omitted."),
-});
+// Re-export types for consumers
+export type { ImportedContent } from "./importUtils";
 
 // --- Tool Implementations ---
 
@@ -70,20 +38,19 @@ const TranscribeAudioSchema = z.object({
  * Requirements: 1.1, 1.4
  */
 export const importYouTubeTool = tool(
-  async ({ url }) => {
+  async ({ url }: { url: string }) => {
     console.log(`[ImportTools] Importing from YouTube: ${url}`);
 
     // Validate URL
     if (!isValidYouTubeUrl(url)) {
-      return JSON.stringify({
-        success: false,
-        error: "Invalid YouTube/X URL. Please provide a valid YouTube (youtube.com, youtu.be) or X (twitter.com, x.com) video URL.",
-        suggestion: "Example valid URLs: https://youtube.com/watch?v=VIDEO_ID, https://youtu.be/VIDEO_ID",
-      });
+      throw new ValidationError("Invalid YouTube/X URL. Please provide a valid YouTube (youtube.com, youtu.be) or X (twitter.com, x.com) video URL.", "import_youtube_content");
     }
 
     try {
       const serverUrl = getServerBaseUrl();
+      if (!serverUrl) {
+        throw new ServiceError("Server URL configuration missing", "import_youtube_content", "Configuration");
+      }
       const response = await fetch(`${serverUrl}/api/import/youtube`, {
         method: "POST",
         headers: {
@@ -94,22 +61,14 @@ export const importYouTubeTool = tool(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        return JSON.stringify({
-          success: false,
-          error: errorData.error || `Failed to import from YouTube (HTTP ${response.status})`,
-          suggestion: "Check if the video is available and not private/age-restricted.",
-        });
+        throw new ServiceError(errorData.error || `Failed to import from YouTube (HTTP ${response.status})`, "import_youtube_content", "YouTube Import Service");
       }
 
       // Get the audio blob
       const audioBlob = await response.blob();
-      
+
       if (audioBlob.size === 0) {
-        return JSON.stringify({
-          success: false,
-          error: "Downloaded audio is empty",
-          suggestion: "The video may not have audio or the download failed.",
-        });
+        throw new ServiceError("Downloaded audio is empty", "import_youtube_content", "YouTube Import Service");
       }
 
       // Convert to base64 for storage
@@ -130,8 +89,8 @@ export const importYouTubeTool = tool(
       const transcript = subtitleItemsToTranscriptResult(subtitleItems, "auto");
 
       // Calculate duration from transcript
-      const duration = subtitleItems.length > 0 
-        ? subtitleItems[subtitleItems.length - 1].endTime 
+      const duration = subtitleItems.length > 0
+        ? subtitleItems[subtitleItems.length - 1]!.endTime
         : 0;
 
       // Store the imported content
@@ -188,19 +147,13 @@ export const transcribeAudioTool = tool(
 
     // Check if we have imported content
     const importedContent = getImportedContent(contentPlanId);
-    
+
     if (!importedContent) {
-      return JSON.stringify({
-        success: false,
-        error: "No imported content found for this session. Import content first using import_youtube_content.",
-      });
+      throw new ResourceNotFoundError("No imported content found for this session. Import content first using import_youtube_content.", "transcribe_audio_file", contentPlanId);
     }
 
     if (!importedContent.audioBase64 || !importedContent.audioMimeType) {
-      return JSON.stringify({
-        success: false,
-        error: "No audio data available in the imported content.",
-      });
+      throw new ValidationError("No audio data available in the imported content.", "transcribe_audio_file");
     }
 
     // Check if already transcribed
@@ -211,7 +164,7 @@ export const transcribeAudioTool = tool(
         segmentCount: importedContent.transcript.segments.length,
         language: importedContent.transcript.language,
         duration: importedContent.duration,
-        transcriptPreview: importedContent.transcript.text.substring(0, 200) + 
+        transcriptPreview: importedContent.transcript.text.substring(0, 200) +
           (importedContent.transcript.text.length > 200 ? "..." : ""),
         message: `Transcript already exists (${importedContent.transcript.segments.length} segments)`,
       });
@@ -229,8 +182,8 @@ export const transcribeAudioTool = tool(
 
       // Update the imported content with transcript
       importedContent.transcript = transcript;
-      importedContent.duration = subtitleItems.length > 0 
-        ? subtitleItems[subtitleItems.length - 1].endTime 
+      importedContent.duration = subtitleItems.length > 0
+        ? subtitleItems[subtitleItems.length - 1]!.endTime
         : importedContent.duration;
 
       setImportedContent(contentPlanId, importedContent);
@@ -247,7 +200,7 @@ export const transcribeAudioTool = tool(
 
     } catch (error) {
       console.error("[ImportTools] Transcription error:", error);
-      
+
       // Check for unsupported format error
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.toLowerCase().includes("format") || errorMessage.toLowerCase().includes("mime")) {

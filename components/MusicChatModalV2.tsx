@@ -149,16 +149,19 @@ export function MusicChatModalV2({
 
         const tracks = result.tracks;
         if (result.status === "SUCCESS" && tracks && tracks.length > 0) {
-          setGeneratedTracks(tracks);
-          setSelectedTrackId(tracks[0].id);
-          setGenerationProgress(100);
-          setPhase("complete");
+          const firstTrack = tracks[0];
+          if (firstTrack) {
+            setGeneratedTracks(tracks);
+            setSelectedTrackId(firstTrack.id);
+            setGenerationProgress(100);
+            setPhase("complete");
 
-          // Add completion message
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: `🎉 Your song is ready! I've generated ${tracks.length} variation${tracks.length > 1 ? 's' : ''} for you. Listen and pick your favorite!`,
-          }]);
+            // Add completion message
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: `🎉 Your song is ready! I've generated ${tracks.length} variation${tracks.length > 1 ? 's' : ''} for you. Listen and pick your favorite!`,
+            }]);
+          }
         } else if (result.status === "FAILED") {
           throw new Error(result.errorMessage || "Music generation failed");
         } else {

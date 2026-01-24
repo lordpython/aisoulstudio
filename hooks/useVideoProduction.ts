@@ -194,6 +194,7 @@ ${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the
                 const agentResult = await productionFunction(
                     userRequest,
                     (agentProg: AgentProgress) => {
+                        if (!agentProg) return;
                         // Map agent progress to our progress format
                         setProgress({
                             stage: agentProg.stage as any,
