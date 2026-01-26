@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useCallback, forwardRef } from "react";
 import { SubtitleItem } from "../types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn, isRTL } from "@/lib/utils";
@@ -9,6 +9,106 @@ interface TranscriptListProps {
   currentTime: number;
   onSeek: (time: number) => void;
 }
+
+const formatTimestamp = (time: number) => {
+  const mins = Math.floor(time / 60);
+  const secs = Math.floor(time % 60);
+  const ms = Math.floor((time % 1) * 1000);
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(3, "0")}`;
+};
+
+interface SubtitleItemRowProps {
+  sub: SubtitleItem;
+  isActive: boolean;
+  isTranscriptRTL: boolean;
+  onSeek: (time: number) => void;
+}
+
+const SubtitleItemRow = React.memo(
+  forwardRef<HTMLDivElement, SubtitleItemRowProps>(
+    ({ sub, isActive, isTranscriptRTL, onSeek }, ref) => {
+      const isSubtitleRTL = isRTL(sub.text);
+      const isTranslationRTL = sub.translation ? isRTL(sub.translation) : false;
+      const handleClick = useCallback(() => onSeek(sub.startTime), [onSeek, sub.startTime]);
+
+      return (
+        <motion.div
+          layout
+          ref={ref}
+          onClick={handleClick}
+          className={cn(
+            "relative flex items-start gap-3 p-3 rounded-lg transition-colors cursor-pointer text-sm group",
+            !isActive && "hover:bg-muted/50",
+            isTranscriptRTL && "flex-row-reverse",
+          )}
+        >
+          {isActive && (
+            <motion.div
+              layoutId="active-transcript-item"
+              className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-lg shadow-sm"
+              initial={false}
+              transition={{
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+              }}
+            />
+          )}
+
+          {/* Start Time */}
+          <div
+            className={cn(
+              "relative font-mono text-[10px] shrink-0 pt-1 w-16 transition-colors",
+              isTranscriptRTL ? "text-left" : "text-right",
+              isActive
+                ? "text-primary font-bold"
+                : "text-muted-foreground group-hover:text-foreground/70",
+            )}
+          >
+            {formatTimestamp(sub.startTime)}
+          </div>
+
+          {/* Text Content */}
+          <div className="relative flex-1 min-w-0">
+            <p
+              className={cn(
+                "leading-relaxed transition-colors",
+                isActive
+                  ? "text-foreground font-medium"
+                  : "text-muted-foreground group-hover:text-foreground",
+              )}
+              style={{
+                direction: isSubtitleRTL ? "rtl" : "ltr",
+                textAlign: isSubtitleRTL ? "right" : "left",
+                unicodeBidi: "isolate",
+              }}
+            >
+              {sub.text}
+            </p>
+            {sub.translation && (
+              <p
+                className={cn(
+                  "mt-1 text-xs italic transition-colors",
+                  isActive
+                    ? "text-primary/70"
+                    : "text-muted-foreground/70",
+                )}
+                style={{
+                  direction: isTranslationRTL ? "rtl" : "ltr",
+                  textAlign: isTranslationRTL ? "right" : "left",
+                  unicodeBidi: "isolate",
+                }}
+              >
+                {sub.translation}
+              </p>
+            )}
+          </div>
+        </motion.div>
+      );
+    }
+  )
+);
+SubtitleItemRow.displayName = "SubtitleItemRow";
 
 export const TranscriptList: React.FC<TranscriptListProps> = ({
   subtitles,
@@ -41,13 +141,6 @@ export const TranscriptList: React.FC<TranscriptListProps> = ({
     }
   }, [activeSubtitleId]);
 
-  const formatTimestamp = (time: number) => {
-    const mins = Math.floor(time / 60);
-    const secs = Math.floor(time % 60);
-    const ms = Math.floor((time % 1) * 1000);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(3, "0")}`;
-  };
-
   return (
     <Card className="h-full bg-transparent border-0 shadow-none flex flex-col p-0 overflow-hidden">
       <CardHeader className="px-0 py-2 border-b border-border/50 mb-2">
@@ -70,89 +163,16 @@ export const TranscriptList: React.FC<TranscriptListProps> = ({
           ) : (
             <div className="space-y-1 relative">
               {subtitles.map((sub) => {
-                const isActive =
-                  currentTime >= sub.startTime && currentTime <= sub.endTime;
-                // Check if this specific subtitle is RTL
-                const isSubtitleRTL = isRTL(sub.text);
-                const isTranslationRTL = sub.translation
-                  ? isRTL(sub.translation)
-                  : false;
-
+                const isActive = currentTime >= sub.startTime && currentTime <= sub.endTime;
                 return (
-                  <motion.div
-                    layout
+                  <SubtitleItemRow
                     key={sub.id}
                     ref={isActive ? activeItemRef : null}
-                    onClick={() => onSeek(sub.startTime)}
-                    className={cn(
-                      "relative flex items-start gap-3 p-3 rounded-lg transition-colors cursor-pointer text-sm group",
-                      !isActive && "hover:bg-muted/50",
-                      // Reverse flex direction for RTL transcripts
-                      isTranscriptRTL && "flex-row-reverse",
-                    )}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="active-transcript-item"
-                        className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-lg shadow-sm"
-                        initial={false}
-                        transition={{
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 30,
-                        }}
-                      />
-                    )}
-
-                    {/* Start Time */}
-                    <div
-                      className={cn(
-                        "relative font-mono text-[10px] shrink-0 pt-1 w-16 transition-colors",
-                        isTranscriptRTL ? "text-left" : "text-right",
-                        isActive
-                          ? "text-primary font-bold"
-                          : "text-muted-foreground group-hover:text-foreground/70",
-                      )}
-                    >
-                      {formatTimestamp(sub.startTime)}
-                    </div>
-
-                    {/* Text Content */}
-                    <div className="relative flex-1 min-w-0">
-                      <p
-                        className={cn(
-                          "leading-relaxed transition-colors",
-                          isActive
-                            ? "text-foreground font-medium"
-                            : "text-muted-foreground group-hover:text-foreground",
-                        )}
-                        style={{
-                          direction: isSubtitleRTL ? "rtl" : "ltr",
-                          textAlign: isSubtitleRTL ? "right" : "left",
-                          unicodeBidi: "isolate",
-                        }}
-                      >
-                        {sub.text}
-                      </p>
-                      {sub.translation && (
-                        <p
-                          className={cn(
-                            "mt-1 text-xs italic transition-colors",
-                            isActive
-                              ? "text-primary/70"
-                              : "text-muted-foreground/70",
-                          )}
-                          style={{
-                            direction: isTranslationRTL ? "rtl" : "ltr",
-                            textAlign: isTranslationRTL ? "right" : "left",
-                            unicodeBidi: "isolate",
-                          }}
-                        >
-                          {sub.translation}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
+                    sub={sub}
+                    isActive={isActive}
+                    isTranscriptRTL={isTranscriptRTL}
+                    onSeek={onSeek}
+                  />
                 );
               })}
             </div>

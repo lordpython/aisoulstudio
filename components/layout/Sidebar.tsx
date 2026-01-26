@@ -21,7 +21,7 @@ interface NavItemProps {
   t: (key: string) => string; // Add translation function
 }
 
-const NavItem: React.FC<NavItemProps> = ({
+const NavItem = React.memo<NavItemProps>(({
   icon,
   label,
   onClick,
@@ -96,7 +96,8 @@ const NavItem: React.FC<NavItemProps> = ({
       </TooltipContent>
     </Tooltip>
   );
-};
+});
+NavItem.displayName = "NavItem";
 
 // Navigation item configuration interface
 interface NavItemConfig {
@@ -156,14 +157,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
         {/* Main Nav */}
         <div className="flex flex-col gap-3 w-full items-center">
-          {navItems.slice(0, 2).map((item, index) => {
+          {navItems.slice(0, 2).map((item) => {
             const Icon = item.icon;
             const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
             const isDisabled = item.route === undefined;
-            
+
             return (
               <NavItem
-                key={index}
+                key={item.labelKey}
                 icon={<Icon size={20} strokeWidth={1.5} />}
                 label={t(item.labelKey)}
                 onClick={item.route ? () => navigate(item.route!) : undefined}
@@ -182,14 +183,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
         {/* Creation Tools */}
         <div className="flex flex-col gap-3 w-full items-center">
-          {navItems.slice(2).map((item, index) => {
+          {navItems.slice(2).map((item) => {
             const Icon = item.icon;
             const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
             const isDisabled = item.route === undefined;
-            
+
             return (
               <NavItem
-                key={index}
+                key={item.labelKey}
                 icon={<Icon size={20} strokeWidth={1.5} />}
                 label={t(item.labelKey)}
                 onClick={item.route ? () => navigate(item.route!) : undefined}
@@ -205,14 +206,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
         {/* Bottom Actions */}
         <div className="mt-auto flex flex-col gap-3 w-full items-center pt-6">
-          {bottomNavItems.map((item, index) => {
+          {bottomNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
             const isDisabled = item.route === undefined;
-            
+
             return (
               <NavItem
-                key={index}
+                key={item.labelKey}
                 icon={<Icon size={20} strokeWidth={1.5} />}
                 label={t(item.labelKey)}
                 onClick={item.route ? () => navigate(item.route!) : undefined}

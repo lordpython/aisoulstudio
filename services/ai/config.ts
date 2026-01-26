@@ -1,11 +1,14 @@
 /**
  * AI Configuration
- * 
+ *
  * Centralized configuration for Phase 2 AI features:
  * - RAG (Retrieval-Augmented Generation)
  * - Semantic Memory
  * - Observability with LangSmith
  */
+
+import { agentLogger } from "../logger";
+const log = agentLogger.child('Config');
 
 export const AI_CONFIG = {
   /**
@@ -102,13 +105,13 @@ export const AI_CONFIG = {
  * Log configuration status on startup
  */
 export function logAIConfigStatus(): void {
-  console.log('[AI Config] Phase 2 Features:');
-  console.log(`  RAG: ${AI_CONFIG.rag.enabled ? '✅ Enabled' : '❌ Disabled'}`);
-  console.log(`  Semantic Memory: ${AI_CONFIG.semanticMemory.enabled ? '✅ Enabled' : '❌ Disabled'}`);
-  console.log(`  Entity Memory: ${AI_CONFIG.entityMemory.enabled ? '✅ Enabled' : '❌ Disabled'}`);
-  console.log(`  Observability: ${AI_CONFIG.observability.enabled ? '✅ Enabled' : '❌ Disabled'}`);
-  
+  log.info('Phase 2 Features:');
+  log.info(`  RAG: ${AI_CONFIG.rag.enabled ? 'Enabled' : 'Disabled'}`);
+  log.info(`  Semantic Memory: ${AI_CONFIG.semanticMemory.enabled ? 'Enabled' : 'Disabled'}`);
+  log.info(`  Entity Memory: ${AI_CONFIG.entityMemory.enabled ? 'Enabled' : 'Disabled'}`);
+  log.info(`  Observability: ${AI_CONFIG.observability.enabled ? 'Enabled' : 'Disabled'}`);
+
   if (AI_CONFIG.observability.enabled) {
-    console.log(`  LangSmith Project: ${AI_CONFIG.observability.project}`);
+    log.info(`  LangSmith Project: ${AI_CONFIG.observability.project}`);
   }
 }

@@ -23,6 +23,9 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Supervisor');
 import {
   SubagentName,
   UserPreferences,
@@ -317,7 +320,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
   const { apiKey, userRequest, onProgress } = options;
   const startTime = Date.now();
 
-  console.log("[SupervisorAgent] Starting production:", userRequest);
+  log.info(" Starting production:", userRequest);
   onProgress?.({
     stage: "supervisor_starting",
     message: "Analyzing request and planning workflow...",
@@ -462,7 +465,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
   let enhancedRequest = userRequest;
   if (intentHint) {
     enhancedRequest = `${userRequest}\n\n---\nSYSTEM INTENT ANALYSIS:\n${intentHint}`;
-    console.log(`[SupervisorAgent] Intent detected:`, {
+    log.info(` Intent detected:`, {
       wantsAnimation: intentResult.wantsAnimation,
       wantsMusic: intentResult.wantsMusic,
       detectedStyle: intentResult.detectedStyle,
@@ -483,7 +486,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
   while (iteration < MAX_ITERATIONS) {
     iteration++;
 
-    console.log(`[SupervisorAgent] Iteration ${iteration}/${MAX_ITERATIONS}`);
+    log.info(` Iteration ${iteration}/${MAX_ITERATIONS}`);
 
     // Get response from model
     const response = await modelWithTools.invoke(messages);
@@ -513,7 +516,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
       }
 
       // Model finished without completing production
-      console.warn("[SupervisorAgent] Model finished without completion signal");
+      log.warn(" Model finished without completion signal");
       continue;
     }
 
@@ -521,7 +524,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
     for (const toolCall of response.tool_calls) {
       const toolName = toolCall.name;
 
-      console.log(`[SupervisorAgent] Delegating to: ${toolName}`);
+      log.info(` Delegating to: ${toolName}`);
 
       const tool = supervisorTools.find(t => t.name === toolName);
       if (!tool) {
@@ -536,7 +539,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
         // Extract sessionId if returned
         if (parsed.sessionId && !sessionId) {
           sessionId = parsed.sessionId;
-          console.log(`[SupervisorAgent] Session created: ${sessionId}`);
+          log.info(` Session created: ${sessionId}`);
         }
 
         // Record completed stage
@@ -570,7 +573,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        console.error(`[SupervisorAgent] Delegation failed:`, errorMessage);
+        log.error(` Delegation failed:`, errorMessage);
 
         // Add error message to context
         messages.push(

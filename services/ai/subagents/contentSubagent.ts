@@ -22,6 +22,9 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
 import { MODELS } from "../../shared/apiClient";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Content');
 import {
   Subagent,
   SubagentName,
@@ -178,7 +181,7 @@ export function createContentSubagent(apiKey: string): Subagent {
     async invoke(context: SubagentContext): Promise<SubagentResult> {
       const startTime = Date.now();
 
-      console.log(`[ContentSubagent] Starting content creation: ${context.instruction}`);
+      log.info(` Starting content creation: ${context.instruction}`);
       context.onProgress?.({
         stage: "content_starting",
         message: "Starting content subagent...",
@@ -191,10 +194,10 @@ export function createContentSubagent(apiKey: string): Subagent {
         try {
           ragKnowledge = await knowledgeBase.getRelevantKnowledge(context.instruction);
           if (ragKnowledge) {
-            console.log('[ContentSubagent] ✅ Retrieved knowledge from knowledge base');
+            log.info(' ✅ Retrieved knowledge from knowledge base');
           }
         } catch (error) {
-          console.warn('[ContentSubagent] Failed to retrieve knowledge:', error);
+          log.warn(' Failed to retrieve knowledge:', error);
           // Continue without knowledge - graceful degradation
         }
       }
@@ -261,7 +264,7 @@ export function createContentSubagent(apiKey: string): Subagent {
           }
 
           // Model finished without completing content
-          console.warn("[ContentSubagent] Model finished without completion signal:", content);
+          log.warn(" Model finished without completion signal:", content);
           continue; // Give model another chance
         }
 
@@ -290,7 +293,7 @@ export function createContentSubagent(apiKey: string): Subagent {
                 const parsed = JSON.parse(result);
                 if (parsed.sessionId) {
                   currentSessionId = parsed.sessionId;
-                  console.log(`[ContentSubagent] Session created: ${currentSessionId}`);
+                  log.info(` Session created: ${currentSessionId}`);
 
                   // Add a reminder message to reinforce the sessionId usage
                   // Using HumanMessage because Google AI requires SystemMessage to be first

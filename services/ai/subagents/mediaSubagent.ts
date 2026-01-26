@@ -21,6 +21,9 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
 import { MODELS } from "../../shared/apiClient";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Media');
 import {
   Subagent,
   SubagentName,
@@ -158,7 +161,7 @@ export function createMediaSubagent(apiKey: string): Subagent {
         throw new Error("MediaSubagent requires a sessionId from the Content stage. Cannot proceed without it.");
       }
 
-      console.log(`[MediaSubagent] Starting media generation with sessionId: ${context.sessionId}`);
+      log.info(` Starting media generation with sessionId: ${context.sessionId}`);
       context.onProgress?.({
         stage: "media_starting",
         message: "Starting media subagent...",
@@ -174,10 +177,10 @@ export function createMediaSubagent(apiKey: string): Subagent {
             `${context.instruction} visual style best practices image generation`
           );
           if (ragKnowledge) {
-            console.log('[MediaSubagent] ✅ Retrieved visual style knowledge from knowledge base');
+            log.info(' ✅ Retrieved visual style knowledge from knowledge base');
           }
         } catch (error) {
-          console.warn('[MediaSubagent] Failed to retrieve knowledge:', error);
+          log.warn(' Failed to retrieve knowledge:', error);
           // Continue without knowledge - graceful degradation
         }
       }
@@ -250,7 +253,7 @@ REMINDER: contentPlanId = "${context.sessionId}" for all tools (generate_visuals
           }
 
           // Model finished without completing media
-          console.warn("[MediaSubagent] Model finished without completion signal:", content);
+          log.warn(" Model finished without completion signal:", content);
           continue; // Give model another chance
         }
 

@@ -39,14 +39,14 @@ importers:
         specifier: ^1.38.0
         version: 1.38.0
       '@langchain/community':
-        specifier: ^1.1.5
-        version: 1.1.5(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6))(@google-cloud/storage@7.18.0)(@ibm-cloud/watsonx-ai@1.7.6)(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(fast-xml-parser@4.5.3)(google-auth-library@10.5.0)(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsdom@27.4.0)(jsonwebtoken@9.0.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(playwright@1.57.0)(ws@8.19.0)
+        specifier: ^1.1.7
+        version: 1.1.7(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6))(@google-cloud/storage@7.18.0)(@ibm-cloud/watsonx-ai@1.7.6)(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(fast-xml-parser@4.5.3)(google-auth-library@10.5.0)(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsdom@27.4.0)(jsonwebtoken@9.0.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(playwright@1.58.0)(ws@8.19.0)
       '@langchain/core':
-        specifier: ^1.1.16
-        version: 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+        specifier: ^1.1.17
+        version: 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
       '@langchain/google-genai':
-        specifier: ^2.1.11
-        version: 2.1.11(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))
+        specifier: ^2.1.13
+        version: 2.1.13(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -117,8 +117,8 @@ importers:
         specifier: ^0.4.8
         version: 0.4.8(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.3)
+        specifier: ^0.563.0
+        version: 0.563.0(react@19.2.3)
       multer:
         specifier: ^2.0.2
         version: 2.0.2
@@ -132,8 +132,8 @@ importers:
         specifier: ^16.5.3
         version: 16.5.3(i18next@25.8.0(typescript@5.9.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       react-router-dom:
-        specifier: ^7.12.0
-        version: 7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^7.13.0
+        version: 7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -141,7 +141,7 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@4.1.18)
       zod:
-        specifier: ^4.3.5
+        specifier: ^4.3.6
         version: 4.3.6
       zustand:
         specifier: ^5.0.10
@@ -151,8 +151,8 @@ importers:
         specifier: ^9.39.2
         version: 9.39.2
       '@playwright/test':
-        specifier: ^1.57.0
-        version: 1.57.0
+        specifier: ^1.58.0
+        version: 1.58.0
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
@@ -184,7 +184,7 @@ importers:
         specifier: ^5.1.2
         version: 5.1.2(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       '@vitest/ui':
-        specifier: ^4.0.17
+        specifier: ^4.0.18
         version: 4.0.18(vitest@4.0.18)
       autoprefixer:
         specifier: ^10.4.23
@@ -202,8 +202,8 @@ importers:
         specifier: ^4.5.3
         version: 4.5.3
       globals:
-        specifier: ^17.0.0
-        version: 17.0.0
+        specifier: ^17.1.0
+        version: 17.1.0
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0
@@ -229,7 +229,7 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
       vitest:
-        specifier: ^4.0.17
+        specifier: ^4.0.18
         version: 4.0.18(@types/node@25.0.10)(@vitest/ui@4.0.18)(jiti@2.6.1)(jsdom@27.4.0)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
 
 packages:
@@ -776,8 +776,8 @@ packages:
       typeorm:
         optional: true
 
-  '@langchain/community@1.1.5':
-    resolution: {integrity: sha512-gY8Eof4iUJpxefyZ0keZHzqGgXfdSZn+g0Z6V7NMB17Qvjve1DZ+VRM6l2A1OfR+IX12OVBXWbJvBiAH39cqcA==}
+  '@langchain/community@1.1.7':
+    resolution: {integrity: sha512-oljiTJJ2PJGh/61U5VJ9NqjlF6jk6xwuMrjb6VzL+Bz5CNmPmUzsGm/88tXfROctnqwu5uiT+YxU9kMaJGehPQ==}
     engines: {node: '>=20'}
     peerDependencies:
       '@arcjet/redact': ^v1.0.0-alpha.23
@@ -870,7 +870,7 @@ packages:
       it-all: ^3.0.4
       jsdom: '*'
       jsonwebtoken: ^9.0.2
-      lodash: ^4.17.21
+      lodash: ^4.17.23
       lunary: ^0.7.10
       mammoth: ^1.11.0
       mariadb: ^3.4.0
@@ -886,7 +886,7 @@ packages:
       pg: ^8.11.0
       pg-copy-streams: ^6.0.5
       pickleparser: ^0.2.1
-      playwright: ^1.32.1
+      playwright: ^1.56.0
       portkey-ai: ^0.1.11
       puppeteer: '*'
       pyodide: '>=0.24.1 <0.27.0'
@@ -1138,15 +1138,15 @@ packages:
       youtubei.js:
         optional: true
 
-  '@langchain/core@1.1.16':
-    resolution: {integrity: sha512-2XKQKxvQdeQiuIo0tacAmDVojhSVAci8D2WDdmmyN+6CqDusLHEHyIDaOt4o+UBvpkyHXbCdrljzDTQY/AKeqg==}
+  '@langchain/core@1.1.17':
+    resolution: {integrity: sha512-g7/kcKbKEwNZSyyT7aT0utxn7wTOtKErqz0cL6VjrV4v/aOb9g+dKcfj17YkSm42YQmJp/rB2IXGc17vQPEBqA==}
     engines: {node: '>=20'}
 
-  '@langchain/google-genai@2.1.11':
-    resolution: {integrity: sha512-2pfwpEZDNFkaNRaegi1y4E3iFgSWlIdpNvn2Fq7oQwdxObTw73A1OQ0gGH7Eg0ZGd5x2AGuqremrsPdIZau9Iw==}
+  '@langchain/google-genai@2.1.13':
+    resolution: {integrity: sha512-XWypAcTV8c32H+83ktfjgkzPC6hO/EmCz/G78HlYddAkJ0MP7kSeZ5+MIzFbdl6ShCLbIiTH+NZ9OLE+75cWfA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@langchain/core': 1.1.16
+      '@langchain/core': 1.1.17
 
   '@langchain/openai@1.2.3':
     resolution: {integrity: sha512-+bKR4+Obz5a/NHEw0bAm3f/s4k0cXc/g46ZRRXqjcyDYP+9wFarItvGNn6DEEk5S7pGp1QqApAQNt9IZk1Ic1Q==}
@@ -1164,8 +1164,8 @@ packages:
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
 
-  '@playwright/test@1.57.0':
-    resolution: {integrity: sha512-6TyEnHgd6SArQO8UO2OMTxshln3QMWBtPGrOCgs3wVEmQmwyuNtB10IZMfmYDE0riwNR1cu4q+pPcxMVtaG3TA==}
+  '@playwright/test@1.58.0':
+    resolution: {integrity: sha512-fWza+Lpbj6SkQKCrU6si4iu+fD2dD3gxNHFhUPxsfXBPhnv3rRSQVd0NtBUT9Z/RhF/boCBcuUaMUSTRTopjZg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -2938,8 +2938,8 @@ packages:
     resolution: {integrity: sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==}
     engines: {node: '>=18'}
 
-  globals@17.0.0:
-    resolution: {integrity: sha512-gv5BeD2EssA793rlFWVPMMCqefTlpusw6/2TbAVMy0FzcG8wKJn4O+NqJ4+XWmmwrayJgw5TzrmWjFgmz1XPqw==}
+  globals@17.1.0:
+    resolution: {integrity: sha512-8HoIcWI5fCvG5NADj4bDav+er9B9JMj2vyL2pI8D0eismKyUvPLTSs+Ln3wqhwcp306i73iyVnEKx3F6T47TGw==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -3447,8 +3447,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@0.562.0:
-    resolution: {integrity: sha512-82hOAu7y0dbVuFfmO4bYF1XEwYk/mEbM5E+b1jgci/udUBEE/R7LF5Ip0CCEmXe8AybRM8L+04eP+LGZeDvkiw==}
+  lucide-react@0.563.0:
+    resolution: {integrity: sha512-8dXPB2GI4dI8jV4MgUDGBeLdGk8ekfqVZ0BdLcrRzocGgG75ltNEmWS+gE7uokKF/0oSUuczNDT+g9hFJ23FkA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -3745,13 +3745,13 @@ packages:
     resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
     engines: {node: '>=12'}
 
-  playwright-core@1.57.0:
-    resolution: {integrity: sha512-agTcKlMw/mjBWOnD6kFZttAAGHgi/Nw0CZ2o6JqWSbMlI219lAFLZZCyqByTsvVAJq5XA5H8cA6PrvBRpBWEuQ==}
+  playwright-core@1.58.0:
+    resolution: {integrity: sha512-aaoB1RWrdNi3//rOeKuMiS65UCcgOVljU46At6eFcOFPFHWtd2weHRRow6z/n+Lec0Lvu0k9ZPKJSjPugikirw==}
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.57.0:
-    resolution: {integrity: sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==}
+  playwright@1.58.0:
+    resolution: {integrity: sha512-2SVA0sbPktiIY/MCOPX8e86ehA/e+tDNq+e5Y8qjKYti2Z/JG7xnronT/TXTIkKbYGWlCbuucZ6dziEgkoEjQQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -3876,15 +3876,15 @@ packages:
       '@types/react':
         optional: true
 
-  react-router-dom@7.12.0:
-    resolution: {integrity: sha512-pfO9fiBcpEfX4Tx+iTYKDtPbrSLLCbwJ5EqP+SPYQu1VYCXdy79GSj0wttR0U4cikVdlImZuEZ/9ZNCgoaxwBA==}
+  react-router-dom@7.13.0:
+    resolution: {integrity: sha512-5CO/l5Yahi2SKC6rGZ+HDEjpjkGaG/ncEP7eWFTvFxbHP8yeeI0PxTDjimtpXYlR3b3i9/WIL4VJttPrESIf2g==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
 
-  react-router@7.12.0:
-    resolution: {integrity: sha512-kTPDYPFzDVGIIGNLS5VJykK0HfHLY5MF3b+xj0/tTyNYL1gF1qs7u67Z9jEhQk2sQ98SUaHxlG31g1JtF7IfVw==}
+  react-router@7.13.0:
+    resolution: {integrity: sha512-PZgus8ETambRT17BUm/LL8lX3Of+oiLaPuVTRH3l1eLvSPpKO3AvhAEb5N7ihAFZQrYDqkvvWfFh9p0z9VsjLw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -4856,11 +4856,11 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6)':
+  '@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.27.3
       '@browserbasehq/sdk': 2.6.0
-      '@playwright/test': 1.57.0
+      '@playwright/test': 1.58.0
       deepmerge: 4.3.1
       dotenv: 17.2.3
       openai: 6.16.0(ws@8.19.0)(zod@4.3.6)
@@ -5264,11 +5264,11 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@langchain/classic@1.0.10(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)':
+  '@langchain/classic@1.0.10(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)':
     dependencies:
-      '@langchain/core': 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
-      '@langchain/openai': 1.2.3(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)
-      '@langchain/textsplitters': 1.0.1(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))
+      '@langchain/core': 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/openai': 1.2.3(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)
+      '@langchain/textsplitters': 1.0.1(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))
       handlebars: 4.7.8
       js-yaml: 4.1.1
       jsonpointer: 5.0.1
@@ -5285,13 +5285,13 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.5(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6))(@google-cloud/storage@7.18.0)(@ibm-cloud/watsonx-ai@1.7.6)(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(fast-xml-parser@4.5.3)(google-auth-library@10.5.0)(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsdom@27.4.0)(jsonwebtoken@9.0.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(playwright@1.57.0)(ws@8.19.0)':
+  '@langchain/community@1.1.7(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6))(@google-cloud/storage@7.18.0)(@ibm-cloud/watsonx-ai@1.7.6)(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(fast-xml-parser@4.5.3)(google-auth-library@10.5.0)(ibm-cloud-sdk-core@5.4.5)(ignore@5.3.2)(jsdom@27.4.0)(jsonwebtoken@9.0.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(playwright@1.58.0)(ws@8.19.0)':
     dependencies:
-      '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6)
+      '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(zod@4.3.6)
       '@ibm-cloud/watsonx-ai': 1.7.6
-      '@langchain/classic': 1.0.10(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
-      '@langchain/core': 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
-      '@langchain/openai': 1.2.3(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)
+      '@langchain/classic': 1.0.10(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(openai@6.16.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+      '@langchain/core': 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/openai': 1.2.3(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)
       binary-extensions: 2.3.0
       flat: 5.0.2
       ibm-cloud-sdk-core: 5.4.5
@@ -5308,7 +5308,7 @@ snapshots:
       ignore: 5.3.2
       jsdom: 27.4.0
       jsonwebtoken: 9.0.3
-      playwright: 1.57.0
+      playwright: 1.58.0
       ws: 8.19.0
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -5316,7 +5316,7 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - peggy
 
-  '@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))':
+  '@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
@@ -5334,32 +5334,32 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/google-genai@2.1.11(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))':
+  '@langchain/google-genai@2.1.13(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))':
     dependencies:
       '@google/generative-ai': 0.24.1
-      '@langchain/core': 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/core': 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
       uuid: 11.1.0
 
-  '@langchain/openai@1.2.3(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)':
+  '@langchain/openai@1.2.3(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))(ws@8.19.0)':
     dependencies:
-      '@langchain/core': 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/core': 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
       js-tiktoken: 1.0.21
       openai: 6.16.0(ws@8.19.0)(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - ws
 
-  '@langchain/textsplitters@1.0.1(@langchain/core@1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))':
+  '@langchain/textsplitters@1.0.1(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6)))':
     dependencies:
-      '@langchain/core': 1.1.16(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
+      '@langchain/core': 1.1.17(openai@6.16.0(ws@8.19.0)(zod@4.3.6))
       js-tiktoken: 1.0.21
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@playwright/test@1.57.0':
+  '@playwright/test@1.58.0':
     dependencies:
-      playwright: 1.57.0
+      playwright: 1.58.0
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -7279,7 +7279,7 @@ snapshots:
 
   globals@14.0.0: {}
 
-  globals@17.0.0: {}
+  globals@17.1.0: {}
 
   globalthis@1.0.4:
     dependencies:
@@ -7819,7 +7819,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.562.0(react@19.2.3):
+  lucide-react@0.563.0(react@19.2.3):
     dependencies:
       react: 19.2.3
 
@@ -8083,11 +8083,11 @@ snapshots:
 
   picomatch@4.0.3: {}
 
-  playwright-core@1.57.0: {}
+  playwright-core@1.58.0: {}
 
-  playwright@1.57.0:
+  playwright@1.58.0:
     dependencies:
-      playwright-core: 1.57.0
+      playwright-core: 1.58.0
     optionalDependencies:
       fsevents: 2.3.2
 
@@ -8214,13 +8214,13 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.9
 
-  react-router-dom@7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  react-router-dom@7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-      react-router: 7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-router: 7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
-  react-router@7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  react-router@7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       cookie: 1.1.1
       react: 19.2.3

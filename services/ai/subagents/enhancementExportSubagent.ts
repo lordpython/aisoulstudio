@@ -24,6 +24,9 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
 import { MODELS } from "../../shared/apiClient";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Enhancement');
 import {
   Subagent,
   SubagentName,
@@ -292,8 +295,8 @@ function getEnhancementExportTools(): StructuredTool[] {
     desiredTools.includes(tool.name)
   );
 
-  console.log(`[EnhancementExportSubagent] Environment: ${isNode ? 'Node.js' : 'Browser'}`);
-  console.log(`[EnhancementExportSubagent] Available tools: ${availableTools.map(t => t.name).join(', ')}`);
+  log.info(` Environment: ${isNode ? 'Node.js' : 'Browser'}`);
+  log.info(` Available tools: ${availableTools.map(t => t.name).join(', ')}`);
 
   return availableTools;
 }
@@ -322,8 +325,8 @@ export function createEnhancementExportSubagent(apiKey: string): Subagent {
         throw new Error("EnhancementExportSubagent requires a sessionId from prior stages. Cannot proceed without it.");
       }
 
-      console.log(`[EnhancementExportSubagent] Starting enhancement/export with sessionId: ${context.sessionId}`);
-      console.log(`[EnhancementExportSubagent] Environment: ${isNode ? 'Node.js' : 'Browser'}`);
+      log.info(` Starting enhancement/export with sessionId: ${context.sessionId}`);
+      log.info(` Environment: ${isNode ? 'Node.js' : 'Browser'}`);
       context.onProgress?.({
         stage: "export_starting",
         message: "Starting enhancement/export subagent...",
@@ -406,7 +409,7 @@ ${cloudUploadReminder}`;
           }
 
           // Model finished without completing export
-          console.warn("[EnhancementExportSubagent] Model finished without completion signal:", content);
+          log.warn(" Model finished without completion signal:", content);
           continue; // Give model another chance
         }
 
@@ -416,7 +419,7 @@ ${cloudUploadReminder}`;
 
           // Check if tool was already completed (prevent duplicate expensive operations)
           if (completedTools.has(toolName)) {
-            console.log(`[EnhancementExportSubagent] Tool ${toolName} already completed, returning cached result`);
+            log.info(` Tool ${toolName} already completed, returning cached result`);
             messages.push(
               new ToolMessage({
                 content: JSON.stringify({
@@ -446,7 +449,7 @@ ${cloudUploadReminder}`;
               ? `Tool "${toolName}" is not available in browser environment. Cloud upload requires server-side execution. Your video export is complete and available locally.`
               : `Tool "${toolName}" is not available in the current environment.`;
 
-            console.warn(`[EnhancementExportSubagent] ${errorMessage}`);
+            log.warn(` ${errorMessage}`);
 
             context.onProgress?.({
               stage: "export_tool_error",

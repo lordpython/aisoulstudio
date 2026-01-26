@@ -15,6 +15,9 @@
 import { StructuredTool } from "@langchain/core/tools";
 import { ToolError } from "../../agent/errorRecovery";
 import { ProductionProgress } from "../productionAgent";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Subagent');
 
 /**
  * Subagent names enum
@@ -210,11 +213,11 @@ export async function executeSubagent(
       return result;
     } catch (error) {
       lastError = error as Error;
-      console.error(`[Subagent:${subagent.name}] Attempt ${attempt} failed:`, error);
+      log.error(`[Subagent:${subagent.name}] Attempt ${attempt} failed:`, error);
 
       if (attempt <= strategy.maxRetries) {
         const delay = strategy.initialDelayMs * Math.pow(2, attempt - 1);
-        console.log(`[Subagent:${subagent.name}] Retrying in ${delay}ms...`);
+        log.info(`[Subagent:${subagent.name}] Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -222,7 +225,7 @@ export async function executeSubagent(
 
   // All retries failed
   if (strategy.continueOnFailure && strategy.fallbackAction) {
-    console.warn(
+    log.warn(
       `[Subagent:${subagent.name}] All retries failed. Applying fallback: ${strategy.fallbackAction}`
     );
 

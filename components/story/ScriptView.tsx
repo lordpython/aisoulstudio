@@ -33,7 +33,7 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
 
                     <div className="flex flex-col gap-2 pl-8 pr-8">
                         {scene.dialogue.map((line, idx) => (
-                            <div key={idx} className="flex flex-col items-center mb-4">
+                            <div key={`${scene.id}-dialogue-${idx}`} className="flex flex-col items-center mb-4">
                                 <div className="font-bold text-white uppercase text-sm mb-1">{line.speaker}</div>
                                 <div className="text-center max-w-md">{line.text}</div>
                             </div>

@@ -1,9 +1,13 @@
 /**
  * Example Library
- * 
+ *
  * Stores successful video creations as examples for future recommendations.
  * Uses simple keyword matching for finding similar examples.
  */
+
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('ExampleLibrary');
 
 export interface VideoExample {
   id: string;
@@ -29,7 +33,7 @@ export class ExampleLibrary {
   private examples: VideoExample[] = [];
 
   constructor() {
-    console.log('[ExampleLibrary] ✅ Initialized');
+    log.info(' ✅ Initialized');
   }
 
   /**
@@ -45,11 +49,11 @@ export class ExampleLibrary {
         this.examples = this.examples.slice(-500);
       }
 
-      console.log(
+      log.info(
         `[ExampleLibrary] ✅ Added example: ${example.style} video about "${example.topic.substring(0, 30)}..."`
       );
     } catch (error) {
-      console.error('[ExampleLibrary] Failed to add example:', error);
+      log.error(' Failed to add example:', error);
     }
   }
 
@@ -83,7 +87,7 @@ export class ExampleLibrary {
       const examples = scored.slice(0, k).map(item => item.example);
 
       if (examples.length > 0) {
-        console.log(
+        log.info(
           `[ExampleLibrary] ✅ Found ${examples.length} similar examples for query:`,
           query.substring(0, 50) + '...'
         );
@@ -91,7 +95,7 @@ export class ExampleLibrary {
 
       return examples;
     } catch (error) {
-      console.error('[ExampleLibrary] Failed to find similar examples:', error);
+      log.error(' Failed to find similar examples:', error);
       return [];
     }
   }

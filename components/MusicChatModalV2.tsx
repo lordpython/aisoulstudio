@@ -47,10 +47,14 @@ interface MusicChatModalV2Props {
 }
 
 interface ChatMessage {
+  id: string;
   role: "user" | "assistant";
   content: string;
   isGenerating?: boolean;
 }
+
+let messageCounter = 0;
+const generateMessageId = () => `msg-${Date.now()}-${++messageCounter}`;
 
 type ModalPhase = "chatting" | "confirming" | "generating" | "complete";
 
@@ -99,6 +103,7 @@ export function MusicChatModalV2({
       });
 
       setMessages([{
+        id: generateMessageId(),
         role: "assistant",
         content: "مرحباً! 🎵 I'm your AI music producer. Tell me about the song you want to create - what genre, mood, language, or style are you going for?\n\nI specialize in Arabic/Khaliji music but can create any genre!",
       }]);
@@ -158,6 +163,7 @@ export function MusicChatModalV2({
 
             // Add completion message
             setMessages(prev => [...prev, {
+              id: generateMessageId(),
               role: "assistant",
               content: `🎉 Your song is ready! I've generated ${tracks.length} variation${tracks.length > 1 ? 's' : ''} for you. Listen and pick your favorite!`,
             }]);
@@ -215,7 +221,7 @@ export function MusicChatModalV2({
     setError(null);
 
     // Add user message
-    setMessages(prev => [...prev, { role: "user", content: userMessage }]);
+    setMessages(prev => [...prev, { id: generateMessageId(), role: "user", content: userMessage }]);
     setIsThinking(true);
 
     try {
@@ -224,6 +230,7 @@ export function MusicChatModalV2({
       if (response.type === "error") {
         setError(response.error || response.message);
         setMessages(prev => [...prev, {
+          id: generateMessageId(),
           role: "assistant",
           content: response.message
         }]);
@@ -234,6 +241,7 @@ export function MusicChatModalV2({
           pendingAction: response.pendingAction,
         });
         setMessages(prev => [...prev, {
+          id: generateMessageId(),
           role: "assistant",
           content: response.message
         }]);
@@ -242,6 +250,7 @@ export function MusicChatModalV2({
         console.log("[MusicChatV2] Set phase to confirming");
       } else if (response.type === "generating") {
         setMessages(prev => [...prev, {
+          id: generateMessageId(),
           role: "assistant",
           content: response.message,
           isGenerating: true,
@@ -249,6 +258,7 @@ export function MusicChatModalV2({
         // Phase change handled by callback
       } else {
         setMessages(prev => [...prev, {
+          id: generateMessageId(),
           role: "assistant",
           content: response.message
         }]);
@@ -285,6 +295,7 @@ export function MusicChatModalV2({
   const handleReset = useCallback(() => {
     agentRef.current = createMusicProducerAgentV2();
     setMessages([{
+      id: generateMessageId(),
       role: "assistant",
       content: "Let's create something new! 🎵 What kind of music would you like?",
     }]);
@@ -310,6 +321,7 @@ export function MusicChatModalV2({
         setPhase("chatting");
       } else if (response.type === "generating") {
         setMessages(prev => [...prev, {
+          id: generateMessageId(),
           role: "assistant",
           content: response.message,
           isGenerating: true,
@@ -339,6 +351,7 @@ export function MusicChatModalV2({
     try {
       const response = await agentRef.current.chat("I want to change something before generating.");
       setMessages(prev => [...prev, {
+        id: generateMessageId(),
         role: "assistant",
         content: response.message
       }]);
@@ -373,9 +386,9 @@ export function MusicChatModalV2({
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-[300px] max-h-[400px]">
-          {messages.map((msg, idx) => (
+          {messages.map((msg) => (
             <div
-              key={idx}
+              key={msg.id}
               className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}
             >
               {msg.role === "assistant" && (

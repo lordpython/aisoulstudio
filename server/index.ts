@@ -1,3 +1,6 @@
+// MUST be first import to load environment variables before other modules
+import './env.js';
+
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -5,22 +8,27 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { config } from 'dotenv';
+import { createLogger } from '../services/logger.js';
 
-// Load environment variables from .env.local
-config({ path: '.env.local', debug: true });
-config({ path: '.env', debug: true }); // fallback
+// Create contextual loggers
+const serverLog = createLogger('Server');
+const sunoLog = createLogger('Suno');
+const geminiLog = createLogger('Gemini');
+const deapiLog = createLogger('DeAPI');
+const cloudLog = createLogger('Cloud');
+const videoLog = createLogger('Video');
+
+// Import modular routes
+import exportRoutes from './routes/export.js';
+import importRoutes from './routes/import.js';
+import healthRoutes from './routes/health.js';
+import { ensureTempDir, TEMP_DIR, GEMINI_API_KEY, DEAPI_API_KEY, MAX_FILE_SIZE, MAX_FILES, sanitizeId, getSessionDir, cleanupSession } from './utils/index.js';
+
+// Environment variables are loaded by ./env.js import at the top
 
 // --- Configuration & Constants ---
 const PORT = process.env.PORT || 3001;
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_FILES = 10000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMP_DIR = path.join(__dirname, '../temp');
-
-// API Keys (server-side only)
-const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
-const DEAPI_API_KEY = process.env.VITE_DEAPI_API_KEY;
 
 // --- Types ---
 interface ExportRequest extends Request {
@@ -40,74 +48,28 @@ interface ApiProxyRequest extends Request {
 const app = express();
 
 // Ensure temp directory exists
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-}
+ensureTempDir();
 
 // --- Middleware ---
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Enable JSON body parsing with 50MB limit for large image data
+app.use(express.json({ limit: '50mb' }));
 
-// Helpers
-const sanitizeId = (id: string): string => {
-  // Allow only alphanumeric characters, underscores, and hyphens to prevent path traversal
-  return id.replace(/[^a-zA-Z0-9_-]/g, '');
-};
+// --- Modular Routes ---
+app.use('/api/export', exportRoutes);
+app.use('/api/import', importRoutes);
+app.use('/api/health', healthRoutes);
 
-const getSessionDir = (sessionId: string): string => {
-  return path.join(TEMP_DIR, sanitizeId(sessionId));
-};
-
-const cleanupSession = (sessionId: string) => {
-  const dir = getSessionDir(sessionId);
-  if (fs.existsSync(dir)) {
-    try {
-      fs.rmSync(dir, { recursive: true, force: true });
-      console.log(`[Cleanup] Successfully removed session ${sessionId}`);
-    } catch (e) {
-      console.error(`[Cleanup] Failed to remove session ${sessionId}:`, e);
-    }
-  }
-};
-
-// --- Multer Configuration ---
+// --- Multer Configuration (for remaining routes) ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const request = req as ExportRequest;
-
-    // 1. Try to get sessionId from query or headers (Chunk Upload)
-    let sessionId = (req.query.sessionId as string) || (req.headers['x-session-id'] as string);
-
-    // 2. If not found, check if we already generated one in this request (unlikely for first file, but good for safety)
-    if (!sessionId && request.sessionId) {
-      sessionId = request.sessionId;
-    }
-
-    // 3. If still not found, generate a new one (Init Session)
-    if (!sessionId) {
-      sessionId = Date.now().toString();
-      request.sessionId = sessionId; // Attach to request for controller access
-    }
-
-    // Sanitize and ensure existence
-    sessionId = sanitizeId(sessionId);
-    request.sessionId = sessionId;
-
-    const sessionDir = getSessionDir(sessionId);
+    const sessionDir = getSessionDir(Date.now().toString());
     if (!fs.existsSync(sessionDir)) {
       fs.mkdirSync(sessionDir, { recursive: true });
     }
-
     cb(null, sessionDir);
   },
   filename: (_req, file, cb) => {
-    if (file.fieldname === 'audio') {
-      cb(null, 'audio.mp3');
-    } else {
-      // Trust client filename for frames (e.g., frame000001.jpg)
-      // but ensure it's a simple filename to avoid traversal
-      cb(null, path.basename(file.originalname));
-    }
+    cb(null, path.basename(file.originalname));
   }
 });
 
@@ -116,234 +78,7 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES }
 });
 
-
-
-// --- Routes ---
-
-/**
- * 1. Initialize Export Session
- * Receives the audio file and creates the session directory.
- * Returns the sessionId to the client.
- */
-app.post('/api/export/init', upload.single('audio'), (req: Request, res: Response) => {
-  try {
-    const request = req as ExportRequest;
-    if (!request.sessionId) {
-      throw new Error('Failed to generate session ID');
-    }
-    console.log(`[Session] Initialized: ${request.sessionId}`);
-    res.json({ success: true, sessionId: request.sessionId });
-  } catch (error: any) {
-    console.error('[Session Init Error]', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 2. Upload Chunk of Frames
- * Receives a batch of images. Multer handles saving them to the session directory.
- */
-app.post('/api/export/chunk', upload.array('frames'), (req: Request, res: Response) => {
-  const request = req as ExportRequest;
-  if (!request.sessionId) {
-    res.status(400).json({ success: false, error: 'Session ID required' });
-    return;
-  }
-
-  const count = request.files?.length || 0;
-  res.json({ success: true, count });
-});
-
-/**
- * 2.5. Import from YouTube
- * Downloads audio from a YouTube URL using yt-dlp and streams it back.
- */
-app.post('/api/import/youtube', express.json(), async (req: Request, res: Response) => {
-  const { url } = req.body;
-
-  if (!url) {
-    res.status(400).json({ error: 'Missing YouTube URL' });
-    return;
-  }
-
-  // Basic URL validation
-  try {
-    new URL(url);
-  } catch (e) {
-    res.status(400).json({ error: 'Invalid URL' });
-    return;
-  }
-
-  const sessionId = Date.now().toString();
-  const sessionDir = getSessionDir(sessionId);
-
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
-  }
-
-  const outputTemplate = path.join(sessionDir, 'audio.%(ext)s');
-  const finalAudioPath = path.join(sessionDir, 'audio.mp3');
-
-  console.log(`[YouTube] Downloading: ${url}`);
-
-  // Arguments for yt-dlp
-  const args = [
-    '-x',                      // Extract audio
-    '--audio-format', 'mp3',   // Convert to mp3
-    '--audio-quality', '0',    // Best quality
-    '-o', outputTemplate,      // Output path template
-    url
-  ];
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const ytdlp = spawn('yt-dlp', args);
-
-      ytdlp.stderr.on('data', (data) => console.log(`[yt-dlp] ${data}`));
-
-      ytdlp.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`yt-dlp exited with code ${code}`));
-      });
-
-      ytdlp.on('error', (err) => reject(err));
-    });
-
-    if (!fs.existsSync(finalAudioPath)) {
-      throw new Error('Download failed, file not found');
-    }
-
-    console.log(`[YouTube] Download complete for ${sessionId}`);
-
-    const stat = fs.statSync(finalAudioPath);
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', 'attachment; filename="youtube_audio.mp3"');
-
-    const readStream = fs.createReadStream(finalAudioPath);
-    readStream.pipe(res);
-
-    readStream.on('close', () => {
-      cleanupSession(sessionId);
-    });
-
-    readStream.on('error', (err) => {
-      console.error('[Stream Error]', err);
-      cleanupSession(sessionId);
-      if (!res.headersSent) res.status(500).end();
-    });
-
-  } catch (error: any) {
-    console.error('[YouTube Import Error]', error);
-    cleanupSession(sessionId);
-    res.status(500).json({ success: false, error: error.message || 'Failed to download from YouTube' });
-  }
-});
-
-/**
- * 3. Finalize and Render
- * Triggers FFmpeg to stitch images and audio into a video.
- * Streams the result back to the client and cleans up.
- */
-app.post('/api/export/finalize', express.json(), async (req: Request, res: Response) => {
-  const { sessionId: rawSessionId, fps = 30 } = req.body;
-
-  if (!rawSessionId) {
-    res.status(400).json({ error: 'Missing sessionId' });
-    return;
-  }
-
-  const sessionId = sanitizeId(rawSessionId);
-  const sessionDir = getSessionDir(sessionId);
-
-  if (!fs.existsSync(sessionDir)) {
-    res.status(404).json({ error: 'Session not found' });
-    return;
-  }
-
-  const audioPath = path.join(sessionDir, 'audio.mp3');
-  const outputPath = path.join(sessionDir, 'output.mp4');
-
-  console.log(`[Export] Finalizing session ${sessionId} at ${fps} FPS`);
-  const startTime = Date.now();
-
-  try {
-    // Basic validation
-    if (!fs.existsSync(audioPath)) {
-      throw new Error('Audio file missing in session');
-    }
-
-    // FFmpeg Arguments
-    // Note: Input frames may be 720p for faster rendering, we upscale to 1080p
-    const ffmpegArgs = [
-      '-framerate', String(fps),
-      '-i', path.join(sessionDir, 'frame%06d.jpg'), // Expects frame000001.jpg, etc.
-      '-i', audioPath,
-      '-c:v', 'libx264',
-      // Note: Video will be at render resolution (720p) - fast rendering tradeoff
-      '-preset', 'veryfast', // Balance between speed and compression
-      '-crf', '23',          // Standard quality
-      '-pix_fmt', 'yuv420p', // Ensure compatibility
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-shortest',           // Stop when shortest input ends (usually audio matches frames)
-      '-movflags', '+faststart', // Optimize for web streaming
-      '-y',                  // Overwrite output
-      outputPath
-    ];
-
-    await new Promise<void>((resolve, reject) => {
-      const ffmpeg = spawn('ffmpeg', ffmpegArgs);
-
-      let stderrOutput = '';
-
-      // Capture FFmpeg output for debugging
-      ffmpeg.stderr.on('data', (data) => {
-        const msg = data.toString();
-        stderrOutput += msg;
-        // Only log progress lines, not the full verbose output
-        if (msg.includes('frame=') || msg.includes('error') || msg.includes('Error')) {
-          console.log(`[FFmpeg] ${msg.trim()}`);
-        }
-      });
-
-      ffmpeg.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`FFmpeg exited with code ${code}`));
-      });
-
-      ffmpeg.on('error', (err) => reject(err));
-    });
-
-    console.log(`[Export] FFmpeg completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
-
-    // Stream the file back
-    const stat = fs.statSync(outputPath);
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Content-Length', stat.size);
-
-    const readStream = fs.createReadStream(outputPath);
-    readStream.pipe(res);
-
-    // Cleanup hooks
-    readStream.on('close', () => {
-      cleanupSession(sessionId);
-    });
-
-    readStream.on('error', (err) => {
-      console.error('[Stream Error]', err);
-      cleanupSession(sessionId);
-      if (!res.headersSent) res.status(500).end();
-    });
-
-  } catch (error: any) {
-    console.error('[Export Error]', error);
-    cleanupSession(sessionId); // Cleanup on failure too
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  }
-});
+// --- Remaining Routes (Suno, Gemini, DeAPI, Video, Cloud) ---
 
 /**
  * Generic Suno API Proxy
@@ -367,7 +102,7 @@ app.use('/api/suno/proxy', async (req: Request, res: Response) => {
     const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
     const finalUrl = sunoUrl + queryString;
 
-    console.log(`[Suno Proxy] ${req.method} Forwarding to: ${finalUrl}`);
+    sunoLog.info(`${req.method} Forwarding to: ${finalUrl}`);
 
     const fetchOptions: any = {
       method: req.method,
@@ -387,11 +122,11 @@ app.use('/api/suno/proxy', async (req: Request, res: Response) => {
 
     // Log response for debugging (only for record-info to avoid spam)
     if (endpoint.includes('record-info')) {
-      console.log(`[Suno Proxy] Full response:`, JSON.stringify(data, null, 2));
+      sunoLog.debug('Full response:', data);
     }
 
     if (!response.ok) {
-      console.error(`[Suno Proxy] API Error (${endpoint}):`, data);
+      sunoLog.error(`API Error (${endpoint}):`, data);
       res.status(response.status).json(data);
       return;
     }
@@ -399,7 +134,7 @@ app.use('/api/suno/proxy', async (req: Request, res: Response) => {
     res.json(data);
 
   } catch (error: any) {
-    console.error(`[Suno Proxy] Network Error (${endpoint}):`, error);
+    sunoLog.error(`Network Error (${endpoint}):`, error);
     res.status(500).json({ error: error.message || 'Suno proxy failed' });
   }
 });
@@ -423,7 +158,7 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
   }
 
   const filePath = req.file.path;
-  console.log(`[Suno Upload] Received file: ${req.file.originalname} (${req.file.size} bytes)`);
+  sunoLog.info(`Received file: ${req.file.originalname} (${req.file.size} bytes)`);
 
   try {
     // Read the uploaded file
@@ -449,7 +184,7 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
     const contentType = sunoResponse.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       const text = await sunoResponse.text();
-      console.error('[Suno Upload] Non-JSON response:', text.substring(0, 200));
+      sunoLog.error('Non-JSON response:', text.substring(0, 200));
 
       // Cleanup temp file
       fs.unlinkSync(filePath);
@@ -467,7 +202,7 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
     fs.unlinkSync(filePath);
 
     if (!sunoResponse.ok || (sunoData.code && sunoData.code !== 200)) {
-      console.error('[Suno Upload] API Error:', sunoData);
+      sunoLog.error('API Error:', sunoData);
       res.status(sunoResponse.status).json({
         error: sunoData.msg || sunoData.message || 'Suno upload failed',
         details: sunoData
@@ -475,7 +210,7 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
       return;
     }
 
-    console.log('[Suno Upload] Success:', sunoData.data?.downloadUrl || sunoData.data?.fileUrl);
+    sunoLog.info('Success:', sunoData.data?.downloadUrl || sunoData.data?.fileUrl);
 
     // Return the file URL to the client
     res.json({
@@ -487,7 +222,7 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
     });
 
   } catch (error: any) {
-    console.error('[Suno Upload] Error:', error);
+    sunoLog.error('Error:', error);
 
     // Cleanup temp file on error
     if (fs.existsSync(filePath)) {
@@ -496,13 +231,6 @@ app.post('/api/suno/upload', upload.single('file'), async (req: Request, res: Re
 
     res.status(500).json({ error: error.message || 'Upload failed' });
   }
-});
-
-/**
- * Health Check
- */
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
 });
 
 /**
@@ -515,8 +243,8 @@ app.post('/api/gemini/proxy/generateContent', async (req: ApiProxyRequest, res: 
   try {
     const body = req.body as { model?: string; contents?: any; config?: any };
     const { model, contents, config } = body;
-    console.log(`[Gemini Proxy] Generating content with model: ${model}`);
-    console.log(`[Gemini Proxy] Config:`, JSON.stringify(config, null, 2));
+    geminiLog.info(`Generating content with model: ${model}`);
+    geminiLog.debug('Config:', config);
 
     if (!GEMINI_API_KEY) {
       throw new Error('VITE_GEMINI_API_KEY not configured on server');
@@ -537,16 +265,26 @@ app.post('/api/gemini/proxy/generateContent', async (req: ApiProxyRequest, res: 
       requestParams.config = config;
     }
 
-    console.log(`[Gemini Proxy] Calling SDK with:`, JSON.stringify(requestParams, null, 2));
+    geminiLog.debug('Calling SDK with:', requestParams);
 
     // Call the actual SDK method (correct signature)
     const result = await client.models.generateContent(requestParams);
 
-    console.log(`[Gemini Proxy] Success - response type:`, typeof result);
-    res.json(result);
+    geminiLog.info(`Success - response type: ${typeof result}`);
+
+    // The SDK's response.text is a getter that doesn't survive JSON serialization.
+    // We explicitly include it in the response so the client can access it.
+    const responseData = {
+      ...result,
+      text: result.text, // Explicitly extract the text getter value
+      candidates: result.candidates,
+    };
+
+    geminiLog.debug(`Response text length: ${responseData.text?.length || 0} chars`);
+    res.json(responseData);
   } catch (error: any) {
-    console.error('[Gemini Proxy] generateContent Error:', error);
-    console.error('[Gemini Proxy] Error stack:', error.stack);
+    geminiLog.error('generateContent Error:', error);
+    geminiLog.error('Error stack:', error.stack);
 
     // Parse error message if it's a JSON string
     let errorMessage = error.message;
@@ -570,8 +308,8 @@ app.post('/api/gemini/proxy/generateImages', async (req: ApiProxyRequest, res: R
   try {
     const body = req.body as { model?: string; prompt?: string; config?: any };
     const { model, prompt, config } = body;
-    console.log(`[Gemini Proxy] Generating images with model: ${model}`);
-    console.log(`[Gemini Proxy] Prompt:`, prompt?.substring(0, 100));
+    geminiLog.info(`Generating images with model: ${model}`);
+    geminiLog.debug('Prompt:', prompt?.substring(0, 100));
 
     if (!GEMINI_API_KEY) {
       throw new Error('VITE_GEMINI_API_KEY not configured on server');
@@ -588,11 +326,11 @@ app.post('/api/gemini/proxy/generateImages', async (req: ApiProxyRequest, res: R
       ...config
     });
 
-    console.log(`[Gemini Proxy] Image generation success`);
+    geminiLog.info('Image generation success');
     res.json(result);
   } catch (error: any) {
-    console.error('[Gemini Proxy] generateImages Error:', error);
-    console.error('[Gemini Proxy] Error stack:', error.stack);
+    geminiLog.error('generateImages Error:', error);
+    geminiLog.error('Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message || 'Gemini proxy failed', details: error.stack });
   }
 });
@@ -602,7 +340,7 @@ app.post('/api/director/generate', async (req: Request, res: Response) => {
   try {
     const { srtContent, style, contentType, videoPurpose, globalSubject, config } = req.body;
 
-    console.log(`[Director Proxy] Generating prompts for ${contentType} (${style})`);
+    geminiLog.info(`Generating prompts for ${contentType} (${style})`);
 
     // Dynamically import the service to avoid loading it on startup if not needed
     const { generatePromptsWithLangChain } = await import('../services/directorService.js');
@@ -619,7 +357,7 @@ app.post('/api/director/generate', async (req: Request, res: Response) => {
     res.json({ success: true, prompts });
     return;
   } catch (error: any) {
-    console.error('[Director Proxy] Error:', error);
+    geminiLog.error('Director Error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Director service failed',
@@ -639,7 +377,7 @@ app.post('/api/gemini/generate', async (req: ApiProxyRequest, res: Response) => 
     const contents = { parts: [{ text: prompt }] };
     const config = options; // rough mapping
 
-    console.log(`[Gemini Proxy] Redirecting legacy call to generateContent`);
+    geminiLog.info('Redirecting legacy call to generateContent');
 
     // Dynamically import ai client to ensure env vars are loaded
     const { ai } = await import('../services/shared/apiClient.js');
@@ -684,7 +422,7 @@ app.post('/api/gemini/image', async (req: ApiProxyRequest, res: Response) => {
     );
     return res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[Gemini Image Proxy] Error:', error);
+    geminiLog.error('Image proxy error:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -719,7 +457,7 @@ app.post('/api/deapi/image', async (req: ApiProxyRequest, res: Response) => {
     const result = await generateImageWithDeApi(params);
     return res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[DEAPI Image Proxy] Error:', error);
+    deapiLog.error('Image proxy error:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -753,7 +491,7 @@ app.post('/api/deapi/animate', async (req: ApiProxyRequest, res: Response) => {
     const result = await animateImageWithDeApi(base64Image, options.prompt, aspectRatio);
     return res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[DEAPI Animate Proxy] Error:', error);
+    deapiLog.error('Animate proxy error:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -778,7 +516,7 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
   const endpoint = req.path.startsWith('/') ? req.path.slice(1) : req.path;
   const deapiUrl = `https://api.deapi.ai/api/v1/client/${endpoint}`;
 
-  console.log(`[DeAPI Proxy] ${req.method} ${endpoint}`);
+  deapiLog.info(`${req.method} ${endpoint}`);
 
   try {
     const fetchOptions: RequestInit = {
@@ -800,7 +538,7 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
 
         // For multipart, we'll stream the raw request
         // This requires raw body access - let's handle it differently
-        console.log(`[DeAPI Proxy] Multipart request detected - forwarding raw body`);
+        deapiLog.debug('Multipart request detected - forwarding raw body');
 
         // Get raw body from request
         const chunks: Buffer[] = [];
@@ -834,7 +572,7 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
 
     // Handle rate limiting
     if (response.status === 429) {
-      console.warn(`[DeAPI Proxy] Rate limited (429) for ${endpoint}`);
+      deapiLog.warn(`Rate limited (429) for ${endpoint}`);
       const retryAfter = response.headers.get('retry-after') || '30';
       res.status(429).json({
         error: 'Rate limit exceeded',
@@ -847,7 +585,7 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(`[DeAPI Proxy] API Error (${endpoint}):`, data);
+      deapiLog.error(`API Error (${endpoint}):`, data);
       res.status(response.status).json(data);
       return;
     }
@@ -855,7 +593,7 @@ app.use('/api/deapi/proxy', async (req: Request, res: Response) => {
     res.json(data);
 
   } catch (error: any) {
-    console.error(`[DeAPI Proxy] Error (${endpoint}):`, error);
+    deapiLog.error(`Error (${endpoint}):`, error);
     res.status(500).json({ error: error.message || 'DeAPI proxy failed' });
   }
 });
@@ -877,7 +615,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
     return;
   }
 
-  console.log(`[DeAPI img2video] Received image: ${req.file.originalname} (${req.file.size} bytes)`);
+  deapiLog.info(`img2video: Received image: ${req.file.originalname} (${req.file.size} bytes)`);
 
   try {
     // Read the uploaded file
@@ -901,7 +639,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
       formData.append('guidance', '3');
     }
 
-    console.log(`[DeAPI img2video] Forwarding to DeAPI with prompt: ${(req.body.prompt || '').substring(0, 50)}...`);
+    deapiLog.info(`img2video: Forwarding with prompt: ${(req.body.prompt || '').substring(0, 50)}...`);
 
     const response = await fetch('https://api.deapi.ai/api/v1/client/img2video', {
       method: 'POST',
@@ -917,7 +655,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
 
     // Handle rate limiting
     if (response.status === 429) {
-      console.warn(`[DeAPI img2video] Rate limited (429)`);
+      deapiLog.warn('img2video: Rate limited (429)');
       const retryAfter = response.headers.get('retry-after') || '30';
       res.status(429).json({
         error: 'Rate limit exceeded',
@@ -935,7 +673,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
 
       // Check for Cloudflare challenge
       if (text.includes('Just a moment') || text.includes('challenge-platform') || text.includes('_cf_chl')) {
-        console.error(`[DeAPI img2video] Cloudflare bot protection detected`);
+        deapiLog.error('img2video: Cloudflare bot protection detected');
         res.status(503).json({
           error: 'DeAPI blocked by Cloudflare bot protection',
           message: 'The img2video endpoint requires browser-based access. Use the app UI instead.',
@@ -947,7 +685,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
         return;
       }
 
-      console.error(`[DeAPI img2video] Non-JSON response:`, text.substring(0, 200));
+      deapiLog.error('img2video: Non-JSON response:', text.substring(0, 200));
       res.status(502).json({ error: 'DeAPI returned non-JSON response', details: text.substring(0, 200) });
       return;
     }
@@ -955,16 +693,16 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(`[DeAPI img2video] API Error:`, data);
+      deapiLog.error('img2video: API Error:', data);
       res.status(response.status).json(data);
       return;
     }
 
-    console.log(`[DeAPI img2video] Success:`, data.request_id || data.data?.request_id || 'immediate result');
+    deapiLog.info('img2video: Success:', data.request_id || data.data?.request_id || 'immediate result');
     res.json(data);
 
   } catch (error: any) {
-    console.error(`[DeAPI img2video] Error:`, error);
+    deapiLog.error('img2video: Error:', error);
 
     // Cleanup temp file on error
     if (req.file && fs.existsSync(req.file.path)) {
@@ -994,8 +732,8 @@ app.post('/api/generate-video-prompt', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'sceneDescription is required' });
     }
 
-    console.log(`[Video Prompt] Generating professional prompt for: "${sceneDescription.substring(0, 50)}..."`);
-    console.log(`[Video Prompt] Style: ${style}, Mood: ${mood}, Duration: ${duration}s`);
+    videoLog.info(`Generating professional prompt for: "${sceneDescription.substring(0, 50)}..."`);
+    videoLog.debug(`Style: ${style}, Mood: ${mood}, Duration: ${duration}s`);
 
     // Import the professional prompt generator
     const { generateProfessionalVideoPrompt } = await import('../services/promptService.js');
@@ -1009,10 +747,10 @@ app.post('/api/generate-video-prompt', async (req: Request, res: Response) => {
       duration
     );
 
-    console.log(`[Video Prompt] Generated prompt (${prompt.length} chars)`);
+    videoLog.info(`Generated prompt (${prompt.length} chars)`);
     res.json({ success: true, prompt });
   } catch (error: any) {
-    console.error('[Video Prompt] Error:', error);
+    videoLog.error('Prompt error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate video prompt' });
   }
 });
@@ -1036,10 +774,10 @@ app.post('/api/generate-video', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'prompt is required' });
     }
 
-    console.log(`[Video Gen] Generating Veo 3.1 video (${useFastModel ? 'Fast' : 'Standard'} model)`);
-    console.log(`[Video Gen] Prompt preview: "${prompt.substring(0, 100)}..."`);
-    console.log(`[Video Gen] Settings: ${aspectRatio}, ${duration}s`);
-    console.log(`[Video Gen] API Key available:`, !!process.env.VITE_GEMINI_API_KEY);
+    videoLog.info(`Generating Veo 3.1 video (${useFastModel ? 'Fast' : 'Standard'} model)`);
+    videoLog.debug(`Prompt preview: "${prompt.substring(0, 100)}..."`);
+    videoLog.debug(`Settings: ${aspectRatio}, ${duration}s`);
+    videoLog.debug('API Key available:', !!process.env.VITE_GEMINI_API_KEY);
 
     // Import the video service
     const { generateVideoFromPrompt } = await import('../services/videoService.js');
@@ -1053,10 +791,10 @@ app.post('/api/generate-video', async (req: Request, res: Response) => {
       useFastModel
     );
 
-    console.log(`[Video Gen] Video generated successfully`);
+    videoLog.info('Video generated successfully');
     res.json({ success: true, videoUrl });
   } catch (error: any) {
-    console.error('[Video Gen] Error:', error);
+    videoLog.error('Error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate video' });
   }
 });
@@ -1082,7 +820,7 @@ app.post('/api/generate-professional-video', async (req: Request, res: Response)
       return res.status(400).json({ error: 'sceneDescription is required' });
     }
 
-    console.log(`[Pro Video] Starting professional video generation pipeline`);
+    videoLog.info('Starting professional video generation pipeline');
 
     // Import services
     const { generateProfessionalVideo } = await import('../services/videoService.js');
@@ -1098,10 +836,10 @@ app.post('/api/generate-professional-video', async (req: Request, res: Response)
       useFastModel
     );
 
-    console.log(`[Pro Video] Video generated successfully`);
+    videoLog.info('Professional video generated successfully');
     res.json({ success: true, videoUrl });
   } catch (error: any) {
-    console.error('[Pro Video] Error:', error);
+    videoLog.error('Professional video error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate professional video' });
   }
 });
@@ -1119,7 +857,7 @@ app.get('/api/download-video', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'url parameter is required' });
     }
 
-    console.log(`[Video Download] Proxying download from: ${url.substring(0, 100)}...`);
+    videoLog.info(`Proxying download from: ${url.substring(0, 100)}...`);
 
     // Fetch the video from Google's API
     const response = await fetch(url);
@@ -1143,9 +881,9 @@ app.get('/api/download-video', async (req: Request, res: Response) => {
     const buffer = await response.arrayBuffer();
     res.send(Buffer.from(buffer));
 
-    console.log(`[Video Download] Download complete`);
+    videoLog.info('Download complete');
   } catch (error: any) {
-    console.error('[Video Download] Error:', error);
+    videoLog.error('Download error:', error);
     res.status(500).json({ error: error.message || 'Failed to download video' });
   }
 });
@@ -1168,7 +906,7 @@ async function getGcsStorageClient(): Promise<any> {
     gcsStorage = projectId ? new GcsStorageClass({ projectId }) : new GcsStorageClass();
     return gcsStorage;
   } catch (error) {
-    console.error('[Cloud] Failed to initialize GCS:', error);
+    cloudLog.error('Failed to initialize GCS:', error);
     throw new Error(`Failed to load @google-cloud/storage: ${error}`);
   }
 }
@@ -1192,7 +930,7 @@ app.post('/api/cloud/init', async (req: Request, res: Response) => {
 
     const [exists] = await bucket.exists();
     if (!exists) {
-      console.warn(`[Cloud] Bucket ${GCS_BUCKET_NAME} not found. Auto-save disabled.`);
+      cloudLog.warn(`Bucket ${GCS_BUCKET_NAME} not found. Auto-save disabled.`);
       return res.status(404).json({ error: 'Bucket not found', bucketName: GCS_BUCKET_NAME });
     }
 
@@ -1201,10 +939,10 @@ app.post('/api/cloud/init', async (req: Request, res: Response) => {
       `Session Started: ${new Date().toISOString()}\nSessionId: ${sessionId}`
     );
 
-    console.log(`[Cloud] ✓ Session folder initialized: ${folderPath}`);
+    cloudLog.info(`Session folder initialized: ${folderPath}`);
     res.json({ success: true, folderPath, bucketName: GCS_BUCKET_NAME });
   } catch (error: any) {
-    console.error('[Cloud] Init failed:', error.message);
+    cloudLog.error('Init failed:', error.message);
     // Return success:false but don't fail - autosave is optional
     res.json({ success: false, error: error.message, warning: 'Cloud autosave unavailable' });
   }
@@ -1250,14 +988,14 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
     });
 
     blobStream.on('error', (err: Error) => {
-      console.error('[Cloud] Upload stream error:', err.message);
+      cloudLog.error('Upload stream error:', err.message);
       if (!res.headersSent) {
         res.status(500).json({ error: err.message });
       }
     });
 
     blobStream.on('finish', () => {
-      console.log(`[Cloud] ✓ Saved: ${destination} (${Math.round(req.file!.size / 1024)}KB)`);
+      cloudLog.info(`Saved: ${destination} (${Math.round(req.file!.size / 1024)}KB)`);
       res.json({
         success: true,
         path: destination,
@@ -1269,7 +1007,7 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
     blobStream.end(req.file.buffer);
 
   } catch (error: any) {
-    console.error('[Cloud] Upload failed:', error.message);
+    cloudLog.error('Upload failed:', error.message);
     // Return success:false but don't fail hard - autosave is optional
     res.json({ success: false, error: error.message, warning: 'Asset not saved to cloud' });
   }
@@ -1299,8 +1037,8 @@ app.get('/api/cloud/status', async (req: Request, res: Response) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[Server] FFmpeg export server running on http://localhost:${PORT}`);
-  console.log(`[Server] Temp directory: ${TEMP_DIR}`);
-  console.log(`[Server] Test UI available at: file://${path.resolve(__dirname, '../test-video-ui.html')}`);
+  serverLog.info(`FFmpeg export server running on http://localhost:${PORT}`);
+  serverLog.info(`Temp directory: ${TEMP_DIR}`);
+  serverLog.debug(`Test UI available at: file://${path.resolve(__dirname, '../test-video-ui.html')}`);
 });
 

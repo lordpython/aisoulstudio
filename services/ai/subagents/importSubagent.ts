@@ -17,6 +17,9 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { MODELS } from "../../shared/apiClient";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('Import');
 import {
   Subagent,
   SubagentName,
@@ -83,7 +86,7 @@ export function createImportSubagent(apiKey: string): Subagent {
     async invoke(context: SubagentContext): Promise<SubagentResult> {
       const startTime = Date.now();
 
-      console.log(`[ImportSubagent] Starting import: ${context.instruction}`);
+      log.info(` Starting import: ${context.instruction}`);
       context.onProgress?.({
         stage: "import_starting",
         message: "Starting import subagent...",

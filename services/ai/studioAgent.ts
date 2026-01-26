@@ -17,6 +17,9 @@ import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
 import { knowledgeBase } from "./rag/knowledgeBase";
 import { exampleLibrary } from "./rag/exampleLibrary";
 import { AI_CONFIG } from "./config";
+import { agentLogger } from "../logger";
+
+const log = agentLogger.child('Studio');
 
 // Agent action types
 export type AgentAction =
@@ -195,7 +198,7 @@ class StudioAgent {
 
     // Log Phase 2 configuration on initialization
     if (AI_CONFIG.rag.enabled) {
-      console.log('[StudioAgent] Phase 2 RAG enabled - knowledge base will be used');
+      log.info(' Phase 2 RAG enabled - knowledge base will be used');
     }
   }
 
@@ -215,13 +218,13 @@ class StudioAgent {
         exampleContext = await exampleLibrary.getExampleContext(userMessage);
 
         if (knowledge) {
-          console.log('[StudioAgent] ✅ Retrieved knowledge from knowledge base');
+          log.info(' ✅ Retrieved knowledge from knowledge base');
         }
         if (exampleContext) {
-          console.log('[StudioAgent] ✅ Found similar successful examples');
+          log.info(' ✅ Found similar successful examples');
         }
       } catch (error) {
-        console.error('[StudioAgent] Failed to retrieve knowledge:', error);
+        log.error(' Failed to retrieve knowledge:', error);
         // Continue without knowledge - graceful degradation
       }
     }
@@ -283,11 +286,11 @@ class StudioAgent {
 
       // Log performance
       const duration = Date.now() - startTime;
-      console.log(`[StudioAgent] ✅ Response generated in ${duration}ms`);
+      log.info(` ✅ Response generated in ${duration}ms`);
 
       return parsed;
     } catch (error) {
-      console.error("Agent error:", error);
+      log.error("Agent error:", error);
       return this.createFallbackResponse(userMessage);
     }
   }

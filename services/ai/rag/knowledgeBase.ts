@@ -10,6 +10,9 @@ import { STYLE_GUIDES } from "./documents/styleGuides";
 import { BEST_PRACTICES } from "./documents/bestPractices";
 import { AI_CONFIG } from "../config";
 import { GoogleGenAI } from "@google/genai";
+import { agentLogger } from "../../logger";
+
+const log = agentLogger.child('KnowledgeBase');
 
 // Initialize Gemini for translations
 const GEMINI_API_KEY = typeof process !== 'undefined'
@@ -46,7 +49,7 @@ function isArabicText(text: string): boolean {
  */
 async function translateQueryToEnglish(query: string): Promise<string> {
   if (!GEMINI_API_KEY) {
-    console.warn('[KnowledgeBase] No Gemini API key for translation, using original query');
+    log.warn(' No Gemini API key for translation, using original query');
     return query;
   }
 
@@ -64,10 +67,10 @@ async function translateQueryToEnglish(query: string): Promise<string> {
 
     const translation = response.text?.trim() || query;
 
-    console.log(`[KnowledgeBase] Translated Arabic query: "${query.substring(0, 30)}..." → "${translation.substring(0, 50)}..."`);
+    log.info(` Translated Arabic query: "${query.substring(0, 30)}..." → "${translation.substring(0, 50)}..."`);
     return translation;
   } catch (error) {
-    console.warn('[KnowledgeBase] Translation failed, using original query:', error);
+    log.warn(' Translation failed, using original query:', error);
     return query;
   }
 }
@@ -93,7 +96,7 @@ export class VideoProductionKnowledgeBase {
 
   private _initializeDocuments(): void {
     try {
-      console.log('[KnowledgeBase] Initializing...');
+      log.info(' Initializing...');
       const startTime = Date.now();
 
       // Add style guides
@@ -124,11 +127,11 @@ export class VideoProductionKnowledgeBase {
 
       this.initialized = true;
       const duration = Date.now() - startTime;
-      console.log(
-        `[KnowledgeBase] ✅ Initialized with ${this.documents.length} documents in ${duration}ms`
+      log.info(
+        `Initialized with ${this.documents.length} documents in ${duration}ms`
       );
     } catch (error) {
-      console.error('[KnowledgeBase] ❌ Initialization failed:', error);
+      log.error(' ❌ Initialization failed:', error);
       throw error;
     }
   }
@@ -145,14 +148,14 @@ export class VideoProductionKnowledgeBase {
 
     try {
       if (!this.initialized) {
-        console.warn('[KnowledgeBase] Not initialized');
+        log.warn(' Not initialized');
         return '';
       }
 
       // Translate Arabic queries to English for keyword matching
       let searchQuery = query;
       if (isArabicText(query)) {
-        console.log('[KnowledgeBase] Arabic query detected, translating...');
+        log.info(' Arabic query detected, translating...');
         searchQuery = await translateQueryToEnglish(query);
       }
 
@@ -182,21 +185,21 @@ export class VideoProductionKnowledgeBase {
         .map(item => item.doc);
 
       if (results.length === 0) {
-        console.log('[KnowledgeBase] No relevant knowledge found for query:', query);
+        log.info(' No relevant knowledge found for query:', query);
         return '';
       }
 
       // Format results for prompt injection
       const formattedKnowledge = this._formatResults(results);
 
-      console.log(
-        `[KnowledgeBase] ✅ Retrieved ${results.length} documents for query:`,
+      log.info(
+        `Retrieved ${results.length} documents for query:`,
         query.substring(0, 50) + '...'
       );
 
       return formattedKnowledge;
     } catch (error) {
-      console.error('[KnowledgeBase] Failed to retrieve knowledge:', error);
+      log.error(' Failed to retrieve knowledge:', error);
       return ''; // Graceful degradation - return empty string
     }
   }

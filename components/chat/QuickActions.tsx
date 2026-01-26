@@ -63,9 +63,9 @@ export function QuickActions({
           isRTL && 'flex-row-reverse'
         )}
       >
-        {actions.map((action, idx) => (
+        {actions.map((action) => (
           <button
-            key={idx}
+            key={action.label}
             onClick={() => handleClick(action)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition-all"
           >

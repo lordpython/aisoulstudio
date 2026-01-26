@@ -86,8 +86,8 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                                 <AlertCircle className="w-2.5 h-2.5" /> {t('story.issuesFound')}
                                             </div>
                                             <ul className="text-xs text-zinc-400 list-disc list-inside">
-                                                {report.issues.map((issue, idx) => (
-                                                    <li key={idx}>{issue}</li>
+                                                {report.issues.map((issue) => (
+                                                    <li key={issue}>{issue}</li>
                                                 ))}
                                             </ul>
                                         </div>
@@ -99,8 +99,8 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                                 <Lightbulb className="w-2.5 h-2.5" /> {t('story.suggestions')}
                                             </div>
                                             <ul className="text-xs text-zinc-400 list-disc list-inside italic">
-                                                {report.suggestions.map((s, idx) => (
-                                                    <li key={idx}>{s}</li>
+                                                {report.suggestions.map((s) => (
+                                                    <li key={s}>{s}</li>
                                                 ))}
                                             </ul>
                                         </div>

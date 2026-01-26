@@ -52,34 +52,35 @@ function getScoreBg(score: number): string {
 }
 
 // Quality badge component
-function QualityBadge({ quality }: { quality: "poor" | "fair" | "good" | "excellent" }) {
+const QualityBadge = React.memo(({ quality }: { quality: "poor" | "fair" | "good" | "excellent" }) => {
   const config = {
     poor: { color: "bg-red-500/20 text-red-400", label: "Poor" },
     fair: { color: "bg-yellow-500/20 text-yellow-400", label: "Fair" },
     good: { color: "bg-blue-500/20 text-blue-400", label: "Good" },
     excellent: { color: "bg-green-500/20 text-green-400", label: "Excellent" },
   };
-  
+
   return (
     <span className={cn("px-2 py-0.5 rounded text-xs font-medium", config[quality].color)}>
       {config[quality].label}
     </span>
   );
-}
+});
+QualityBadge.displayName = "QualityBadge";
 
 // Score ring component
-function ScoreRing({ score, label, size = "md" }: { score: number; label: string; size?: "sm" | "md" | "lg" }) {
+const ScoreRing = React.memo(({ score, label, size = "md" }: { score: number; label: string; size?: "sm" | "md" | "lg" }) => {
   const sizeConfig = {
     sm: { ring: 40, stroke: 4, text: "text-sm", label: "text-xs" },
     md: { ring: 60, stroke: 5, text: "text-xl", label: "text-xs" },
     lg: { ring: 80, stroke: 6, text: "text-2xl", label: "text-sm" },
   };
-  
+
   const config = sizeConfig[size];
   const radius = (config.ring - config.stroke) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (score / 100) * circumference;
-  
+
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: config.ring, height: config.ring }}>
@@ -113,7 +114,8 @@ function ScoreRing({ score, label, size = "md" }: { score: number; label: string
       <span className={cn("text-slate-400", config.label)}>{label}</span>
     </div>
   );
-}
+});
+ScoreRing.displayName = "ScoreRing";
 
 export function QualityDashboard({ report, isOpen, onClose }: QualityDashboardProps) {
   const [expandedScene, setExpandedScene] = React.useState<string | null>(null);
@@ -197,8 +199,8 @@ export function QualityDashboard({ report, isOpen, onClose }: QualityDashboardPr
                 </div>
                 {report.strengths.length > 0 ? (
                   <ul className="space-y-1">
-                    {report.strengths.map((s, i) => (
-                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                    {report.strengths.map((s) => (
+                      <li key={s} className="text-sm text-slate-300 flex items-start gap-2">
                         <span className="text-green-400 mt-1">•</span>
                         {s}
                       </li>
@@ -217,8 +219,8 @@ export function QualityDashboard({ report, isOpen, onClose }: QualityDashboardPr
                 </div>
                 {report.weaknesses.length > 0 ? (
                   <ul className="space-y-1">
-                    {report.weaknesses.map((w, i) => (
-                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                    {report.weaknesses.map((w) => (
+                      <li key={w} className="text-sm text-slate-300 flex items-start gap-2">
                         <span className="text-red-400 mt-1">•</span>
                         {w}
                       </li>
@@ -239,7 +241,7 @@ export function QualityDashboard({ report, isOpen, onClose }: QualityDashboardPr
                 </div>
                 <ul className="space-y-2">
                   {report.actionableImprovements.map((imp, i) => (
-                    <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                    <li key={imp} className="text-sm text-slate-300 flex items-start gap-2">
                       <span className="text-cyan-400 font-bold">{i + 1}.</span>
                       {imp}
                     </li>
@@ -355,8 +357,8 @@ export function QualityDashboard({ report, isOpen, onClose }: QualityDashboardPr
                               <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
                                 <div className="text-xs text-yellow-400 font-medium mb-1">Issues:</div>
                                 <ul className="text-xs text-slate-300 space-y-1">
-                                  {scene.issues.map((issue, i) => (
-                                    <li key={i}>• {issue}</li>
+                                  {scene.issues.map((issue) => (
+                                    <li key={issue}>• {issue}</li>
                                   ))}
                                 </ul>
                               </div>

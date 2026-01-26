@@ -44,6 +44,8 @@ export interface GeneratedImage {
   baseImageUrl?: string;
   /** Whether this is a placeholder image due to generation failure */
   isPlaceholder?: boolean;
+  /** Cached blob URL for offline/re-export use (prevents expired URL issues) */
+  cachedBlobUrl?: string;
 }
 
 export enum AppState {
