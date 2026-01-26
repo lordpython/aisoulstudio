@@ -1,6 +1,6 @@
 /**
  * Media Tools for Production Agent
- * 
+ *
  * Tools for generating videos, animating images, and creating music.
  */
 
@@ -11,11 +11,12 @@ import { productionStore } from "../store";
 import { validateContentPlanId } from "../utils";
 import { generateMotionPrompt } from "../../../promptService";
 import { animateImageWithDeApi, isDeApiConfigured } from "../../../deapiService";
-import { 
-    generateMusic as sunoGenerateMusic, 
-    waitForCompletion as sunoWaitForCompletion, 
-    isSunoConfigured 
+import {
+    generateMusic as sunoGenerateMusic,
+    waitForCompletion as sunoWaitForCompletion,
+    isSunoConfigured
 } from "../../../sunoService";
+import { fetchAndCacheAsBlob } from "../../../videoService";
 
 const log = agentLogger.child('Production');
 
@@ -72,11 +73,21 @@ export const generateVideoTool = tool(
                 };
             }
 
-            currentState.visuals[sceneIndex].imageUrl = videoUrl;
-            currentState.visuals[sceneIndex].videoUrl = videoUrl;
+            // Cache video as blob URL immediately to prevent expired URL issues on re-export
+            let cachedBlobUrl: string | undefined;
+            try {
+                cachedBlobUrl = await fetchAndCacheAsBlob(videoUrl);
+                log.info(` Cached video as blob URL for scene ${sceneIndex}`);
+            } catch (cacheError) {
+                log.info(` Warning: Failed to cache video blob (will use URL): ${cacheError}`);
+            }
+
+            currentState.visuals[sceneIndex].imageUrl = cachedBlobUrl || videoUrl;
+            currentState.visuals[sceneIndex].videoUrl = cachedBlobUrl || videoUrl;
             currentState.visuals[sceneIndex].type = "video";
             currentState.visuals[sceneIndex].isAnimated = true;
             currentState.visuals[sceneIndex].generatedWithVeo = true;
+            currentState.visuals[sceneIndex].cachedBlobUrl = cachedBlobUrl;
             productionStore.set(contentPlanId, currentState);
 
             return JSON.stringify({
@@ -153,11 +164,22 @@ export const animateImageTool = tool(
             try {
                 const videoUrl = await tryVeoFallback();
 
+                // Cache video as blob URL immediately
+                let cachedBlobUrl: string | undefined;
+                try {
+                    cachedBlobUrl = await fetchAndCacheAsBlob(videoUrl);
+                    log.info(` Cached video as blob URL for scene ${sceneIndex}`);
+                } catch (cacheError) {
+                    log.info(` Warning: Failed to cache video blob: ${cacheError}`);
+                }
+
                 const currentState = productionStore.get(contentPlanId) || state;
                 if (currentState.visuals && currentState.visuals[sceneIndex]) {
-                    (currentState.visuals[sceneIndex] as any).videoUrl = videoUrl;
+                    (currentState.visuals[sceneIndex] as any).imageUrl = cachedBlobUrl || videoUrl;
+                    (currentState.visuals[sceneIndex] as any).videoUrl = cachedBlobUrl || videoUrl;
                     (currentState.visuals[sceneIndex] as any).isAnimated = true;
                     (currentState.visuals[sceneIndex] as any).generatedWithVeo = true;
+                    (currentState.visuals[sceneIndex] as any).cachedBlobUrl = cachedBlobUrl;
                     productionStore.set(contentPlanId, currentState);
                 }
 
@@ -216,11 +238,22 @@ export const animateImageTool = tool(
                 try {
                     const videoUrl = await tryVeoFallback();
 
+                    // Cache video as blob URL immediately
+                    let cachedBlobUrl: string | undefined;
+                    try {
+                        cachedBlobUrl = await fetchAndCacheAsBlob(videoUrl);
+                        log.info(` Cached video as blob URL for scene ${sceneIndex}`);
+                    } catch (cacheError) {
+                        log.info(` Warning: Failed to cache video blob: ${cacheError}`);
+                    }
+
                     const currentState = productionStore.get(contentPlanId) || state;
                     if (currentState.visuals && currentState.visuals[sceneIndex]) {
-                        (currentState.visuals[sceneIndex] as any).videoUrl = videoUrl;
+                        (currentState.visuals[sceneIndex] as any).imageUrl = cachedBlobUrl || videoUrl;
+                        (currentState.visuals[sceneIndex] as any).videoUrl = cachedBlobUrl || videoUrl;
                         (currentState.visuals[sceneIndex] as any).isAnimated = true;
                         (currentState.visuals[sceneIndex] as any).generatedWithVeo = true;
+                        (currentState.visuals[sceneIndex] as any).cachedBlobUrl = cachedBlobUrl;
                         productionStore.set(contentPlanId, currentState);
                     }
 

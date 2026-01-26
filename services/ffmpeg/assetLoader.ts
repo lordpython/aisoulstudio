@@ -400,26 +400,29 @@ export async function preloadAssets(
 
         if (generated) {
             const isVideo = generated.type === "video";
+            // Prefer cached blob URL over original URL (prevents expired URL issues)
+            const assetUrl = generated.cachedBlobUrl || generated.imageUrl;
 
             onProgress?.({
                 loaded,
                 total,
-                currentAsset: generated.imageUrl,
+                currentAsset: assetUrl,
                 type: isVideo ? "video" : "image",
                 success: true,
             });
 
             try {
+
                 if (isVideo) {
-                    const element = await loadVideoAsset(generated.imageUrl);
+                    const element = await loadVideoAsset(assetUrl);
                     assets.push({
                         time: prompt.timestampSeconds || 0,
                         type: "video",
                         element,
                     });
-                    console.log(`[AssetLoader] ✓ Video asset loaded for scene ${prompt.id}`);
+                    console.log(`[AssetLoader] ✓ Video asset loaded for scene ${prompt.id}${generated.cachedBlobUrl ? ' (from cache)' : ''}`);
                 } else {
-                    const element = await loadImageAsset(generated.imageUrl);
+                    const element = await loadImageAsset(assetUrl);
                     assets.push({
                         time: prompt.timestampSeconds || 0,
                         type: "image",
@@ -440,7 +443,7 @@ export async function preloadAssets(
                 onProgress?.({
                     loaded,
                     total,
-                    currentAsset: generated.imageUrl,
+                    currentAsset: assetUrl,
                     type: isVideo ? "video" : "image",
                     success: false,
                 });

@@ -405,6 +405,12 @@ ${coreHook.veoVideoCount > 0 ? `IMPORTANT: Use generate_visuals with veoVideoCou
         getVisualsMap: visualsHook.getVisualsMap,
         visualsMap: visualsHook.visualsMap,
 
+        // Test/Debug setters (for loading saved sessions)
+        setVisuals: visualsHook.setVisuals,
+        setContentPlan: coreHook.setContentPlan,
+        setNarrationSegments: narrationHook.setNarrationSegments,
+        setAppState: coreHook.setAppState,
+
         // SFX & Freesound
         browseSfx: sfxHook.browseSfx,
         getSfxCategories: sfxHook.getSfxCategories,

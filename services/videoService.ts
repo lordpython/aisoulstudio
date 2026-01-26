@@ -461,6 +461,41 @@ export const generateProfessionalVideo = async (
 };
 
 /**
+ * Fetch a video URL and convert to a blob URL for local caching.
+ * This prevents expired URL issues during re-export by caching the video data locally.
+ * @param videoUrl - The video URL to fetch (can be temporary signed URL)
+ * @returns A blob URL that persists in memory until the page is closed
+ */
+export const fetchAndCacheAsBlob = async (videoUrl: string): Promise<string> => {
+  // Skip if already a blob URL or data URL
+  if (videoUrl.startsWith('blob:') || videoUrl.startsWith('data:')) {
+    console.log('[Video Service] Already cached as blob/data URL');
+    return videoUrl;
+  }
+
+  try {
+    console.log('[Video Service] Caching video as blob URL...');
+    const response = await fetch(videoUrl);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+    console.log(`[Video Service] ✓ Video cached as blob URL (${sizeMB} MB)`);
+
+    return blobUrl;
+  } catch (error) {
+    console.warn('[Video Service] Failed to cache video as blob:', error);
+    // Return original URL as fallback (may work if not expired yet)
+    return videoUrl;
+  }
+};
+
+/**
  * Generate video with automatic prompt enhancement.
  */
 export const generateVideoWithEnhancement = async (

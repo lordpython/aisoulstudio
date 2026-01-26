@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(dir \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\lyriclens-clean\\\\public\\\\production_prod_1769364025193_ch60ee8c1\\\\audio\" /b)"
     ]
   }
 }

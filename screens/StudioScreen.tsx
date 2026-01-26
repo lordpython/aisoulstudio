@@ -117,6 +117,7 @@ export default function StudioScreen() {
     setVisualStyle,
     startProduction,
     reset,
+    visuals,
     getVisualsMap,
     getAudioUrlMap,
     updateScenes,
@@ -140,6 +141,11 @@ export default function StudioScreen() {
     veoVideoCount,
     setVeoVideoCount,
     topic,
+    // Test/Debug setters
+    setVisuals,
+    setContentPlan,
+    setNarrationSegments,
+    setAppState,
   } = useVideoProductionRefactored();
 
   // App Store - Chat & UI State (persistent)
@@ -602,13 +608,12 @@ export default function StudioScreen() {
       timestampSeconds: parsedSubtitles[idx]?.startTime || 0,
     }));
 
-    const generatedImages = Object.entries(visualsMap as Record<string, string>)
-      .filter(([, url]) => url)
-      .map(([sceneId, url]) => ({
-        promptId: sceneId,
-        imageUrl: url!,
-        type: url!.includes('.mp4') || url!.includes('video') ? 'video' as const : 'image' as const,
-      }));
+    // Use full visuals array to preserve type, cachedBlobUrl, etc.
+    const generatedImages = visuals.filter(v => v.imageUrl).map(v => ({
+      ...v,
+      // Prefer cached blob URL over original URL (prevents expired URL issues)
+      imageUrl: v.cachedBlobUrl || v.imageUrl,
+    }));
 
     const songData = {
       fileName: contentPlan.title || 'ai-video',
@@ -653,7 +658,66 @@ export default function StudioScreen() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [contentPlan, narrationSegments, mergedAudioUrl, visualsMap, sfxPlan]);
+  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan]);
+
+  // ============================================================
+  // TEST: Load saved media from local folder
+  // ============================================================
+  const loadTestMedia = useCallback(async () => {
+    const basePath = '/production_prod_1769364025193_ch60ee8c1';
+
+    // Create mock content plan
+    const mockContentPlan = {
+      title: 'زئير الفينيق: الثواني الأخيرة',
+      totalDuration: 78,
+      targetAudience: 'General audience',
+      overallTone: 'Cinematic',
+      scenes: [
+        { id: 'scene-1', name: 'الصمت قبل العاصفة', duration: 15, visualDescription: 'Scene 1', narrationScript: '', emotionalTone: 'dramatic' as const },
+        { id: 'scene-2', name: 'الاستيقاظ الداخلي', duration: 14, visualDescription: 'Scene 2', narrationScript: '', emotionalTone: 'dramatic' as const },
+        { id: 'scene-3', name: 'زئير الفينيق', duration: 16, visualDescription: 'Scene 3', narrationScript: '', emotionalTone: 'dramatic' as const },
+        { id: 'scene-4', name: 'الرمية المقدسة', duration: 17, visualDescription: 'Scene 4', narrationScript: '', emotionalTone: 'dramatic' as const },
+        { id: 'scene-5', name: 'الاحتراق والنصر', duration: 16, visualDescription: 'Scene 5', narrationScript: '', emotionalTone: 'dramatic' as const },
+      ],
+    };
+
+    // Create visuals from local video files
+    const mockVisuals = [
+      { promptId: 'scene-1', imageUrl: `${basePath}/video_clips/scene_0_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
+      { promptId: 'scene-2', imageUrl: `${basePath}/video_clips/scene_1_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
+      { promptId: 'scene-3', imageUrl: `${basePath}/video_clips/scene_2_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
+      { promptId: 'scene-4', imageUrl: `${basePath}/video_clips/scene_3_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
+      { promptId: 'scene-5', imageUrl: `${basePath}/video_clips/scene_4_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
+    ];
+
+    // Create narration segments from local audio files
+    const mockNarrationSegments = await Promise.all([
+      { sceneId: 'scene-1', audioUrl: `${basePath}/audio/narration_scene-1.wav`, audioDuration: 13.9, transcript: 'Scene 1 narration' },
+      { sceneId: 'scene-2', audioUrl: `${basePath}/audio/narration_scene-2.wav`, audioDuration: 12.3, transcript: 'Scene 2 narration' },
+      { sceneId: 'scene-3', audioUrl: `${basePath}/audio/narration_scene-3.wav`, audioDuration: 14.3, transcript: 'Scene 3 narration' },
+      { sceneId: 'scene-4', audioUrl: `${basePath}/audio/narration_scene-4.wav`, audioDuration: 15.1, transcript: 'Scene 4 narration' },
+      { sceneId: 'scene-5', audioUrl: `${basePath}/audio/narration_scene-5.wav`, audioDuration: 14.8, transcript: 'Scene 5 narration' },
+    ].map(async (seg) => {
+      // Fetch audio and create blob
+      const response = await fetch(seg.audioUrl);
+      const blob = await response.blob();
+      return {
+        sceneId: seg.sceneId,
+        audioBlob: blob,
+        audioDuration: seg.audioDuration,
+        transcript: seg.transcript,
+      };
+    }));
+
+    // Set the data
+    setContentPlan(mockContentPlan as any);
+    setVisuals(mockVisuals);
+    setNarrationSegments(mockNarrationSegments);
+    setAppState(AppState.READY);
+
+    console.log('[TEST] Loaded test media from local folder');
+    alert('Test media loaded! You can now export.');
+  }, [setContentPlan, setVisuals, setNarrationSegments, setAppState]);
 
   // Quick actions for welcome state
   const quickActionItems = useMemo(() => [
@@ -668,6 +732,16 @@ export default function StudioScreen() {
 
   const headerActions = (
     <div className="flex items-center gap-2" role="toolbar" aria-label="Studio actions">
+      {/* TEST BUTTON - Remove after testing */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={loadTestMedia}
+        className="h-7 px-3 text-[10px] uppercase font-bold bg-yellow-600 hover:bg-yellow-500 text-black border-yellow-500"
+      >
+        Load Test Media
+      </Button>
+
       {/* Mode Toggle Selection */}
       <div className="flex items-center bg-zinc-900 border border-zinc-700/50 rounded-lg p-0.5 me-4">
         <Button
