@@ -451,13 +451,39 @@ export interface ShotlistEntry {
   description: string;
   cameraAngle: string; // "Wide", "Close-up"
   movement: string; // "Pan", "Static"
+  lighting?: string; // "Cinematic", "Natural", etc.
+  dialogue?: string; // Associated dialogue for the shot
   imageUrl?: string; // The final generated image
 }
 
 /**
  * Story Mode workflow step
  */
-export type StoryStep = 'idea' | 'breakdown' | 'script' | 'characters' | 'storyboard';
+export type StoryStep = 'idea' | 'breakdown' | 'script' | 'characters' | 'shots' | 'style' | 'storyboard' | 'narration' | 'animation' | 'export';
+
+/**
+ * Shot type for shot-level breakdown (Storyboarder.ai style)
+ */
+export type StoryShotType = 'Wide' | 'Medium' | 'Close-up' | 'Extreme Close-up' | 'POV' | 'Over-the-shoulder';
+export type StoryCameraAngle = 'Eye-level' | 'High' | 'Low' | 'Dutch' | "Bird's-eye" | "Worm's-eye";
+export type StoryCameraMovement = 'Static' | 'Pan' | 'Tilt' | 'Zoom' | 'Dolly' | 'Tracking' | 'Handheld';
+
+/**
+ * Individual shot within a scene for storyboard workflow
+ */
+export interface StoryShot {
+  id: string;
+  sceneId: string;
+  shotNumber: number;
+  shotType: StoryShotType;
+  cameraAngle: StoryCameraAngle;
+  movement: StoryCameraMovement;
+  duration: number;
+  description: string;
+  emotion: string;
+  lighting: string;
+  imageUrl?: string; // Generated image for this shot
+}
 
 /**
  * Result of a character consistency check
@@ -480,4 +506,42 @@ export interface StoryState {
   characters: CharacterProfile[];
   shotlist: ShotlistEntry[];
   consistencyReports?: Record<string, ConsistencyReport>; // characterId -> report
+
+  // Storyboarder.ai-style workflow fields
+  isLocked?: boolean;
+  lockedAt?: string;
+  version?: 'draft' | 'locked_v1';
+  shots?: StoryShot[];
+  visualStyle?: string;
+  aspectRatio?: string;
+  genre?: string;
+
+  // Per-scene generation progress tracking
+  scenesWithShots?: string[]; // scene IDs that have shots generated
+  scenesWithVisuals?: string[]; // scene IDs that have storyboard visuals generated
+
+  // Narration (TTS) state
+  narrationSegments?: Array<{
+    sceneId: string;
+    audioUrl: string;
+    duration: number;
+    text: string;
+  }>;
+  scenesWithNarration?: string[]; // scene IDs that have narration generated
+
+  // Animation (Veo/DeAPI) state
+  animatedShots?: Array<{
+    shotId: string;
+    videoUrl: string;
+    thumbnailUrl?: string;
+    duration: number;
+  }>;
+  shotsWithAnimation?: string[]; // shot IDs that have animation generated
+
+  // Final export state
+  finalVideoUrl?: string;
+  exportProgress?: number;
+
+  // Error tracking for specific stages
+  stageErrors?: Record<StoryStep, string | null>;
 }

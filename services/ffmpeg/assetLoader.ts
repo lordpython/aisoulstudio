@@ -16,8 +16,8 @@ import { RenderAsset } from "./exportConfig";
 
 // --- Constants ---
 
-/** Timeout for loading assets (15 seconds) */
-const ASSET_LOAD_TIMEOUT_MS = 15000;
+/** Timeout for loading assets (60 seconds - increased for large Veo video blobs) */
+const ASSET_LOAD_TIMEOUT_MS = 60000;
 
 /** Timeout for video seeking (2 seconds) */
 const VIDEO_SEEK_TIMEOUT_MS = 2000;

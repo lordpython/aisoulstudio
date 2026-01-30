@@ -6,34 +6,34 @@
 
 import { tool } from "@langchain/core/tools";
 import { agentLogger } from "../../../logger";
-import { 
-    PlanVideoSchema, 
-    NarrateScenesSchema, 
+import {
+    PlanVideoSchema,
+    NarrateScenesSchema,
     GenerateVisualsSchema,
     PlanSFXSchema,
     ValidatePlanSchema,
     AdjustTimingSchema,
 } from "../types";
 import { productionStore } from "../store";
-import { 
-    detectLanguageFromText, 
-    generateSessionId, 
-    validateContentPlanId 
+import {
+    detectLanguageFromText,
+    generateSessionId,
+    validateContentPlanId
 } from "../utils";
 import { generateContentPlan, ContentPlannerConfig } from "../../../contentPlannerService";
 import { narrateAllScenes, NarratorConfig } from "../../../narratorService";
 import { generateImageFromPrompt } from "../../../imageService";
 import { generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "../../../sfxService";
 import { validateContentPlan, syncDurationsToNarration } from "../../../editorService";
-import { 
-    extractVisualStyle, 
-    injectStyleIntoPrompt, 
-    type VisualStyle 
+import {
+    extractVisualStyle,
+    injectStyleIntoPrompt,
+    type VisualStyle
 } from "../../../visualConsistencyService";
 import { type VideoPurpose } from "../../../../constants";
 import { type GeneratedImage } from "../../../../types";
 import { cloudAutosave } from "../../../cloudStorageService";
-import { createInitialState } from "../types";
+import { type ProductionProgress, createInitialState } from "../types";
 
 const log = agentLogger.child('Production');
 
@@ -41,19 +41,19 @@ const log = agentLogger.child('Production');
  * Global progress callback for scene-level progress reporting.
  * Set by the main agent before execution.
  */
-let globalProgressCallback: ((progress: any) => void) | null = null;
+let globalProgressCallback: ((progress: ProductionProgress) => void) | null = null;
 
-export function setGlobalProgressCallback(callback: ((progress: any) => void) | null): void {
+export function setGlobalProgressCallback(callback: ((progress: ProductionProgress) => void) | null): void {
     globalProgressCallback = callback;
 }
 
-export function getGlobalProgressCallback(): ((progress: any) => void) | null {
+export function getGlobalProgressCallback(): ((progress: ProductionProgress) => void) | null {
     return globalProgressCallback;
 }
 
 function emitSceneProgress(toolName: string, currentScene: number, totalScenes: number, message: string): void {
     if (globalProgressCallback) {
-        const percentage = Math.round((currentScene / totalScenes) * 100);
+        const progress = Math.round((currentScene / totalScenes) * 100);
         globalProgressCallback({
             stage: "scene_progress",
             tool: toolName,
@@ -61,7 +61,8 @@ function emitSceneProgress(toolName: string, currentScene: number, totalScenes: 
             isComplete: false,
             currentScene,
             totalScenes,
-            percentage,
+            progress,
+            percentage: progress, // Keep for backward compatibility
         });
     }
 }
@@ -88,7 +89,7 @@ export const planVideoTool = tool(
             const sessionId = generateSessionId();
             const initialState = createInitialState();
             initialState.contentPlan = contentPlan;
-            
+
             productionStore.set(sessionId, initialState);
 
             // Initialize cloud autosave session (fire-and-forget, non-blocking)
@@ -132,9 +133,9 @@ export const narrateScenesTool = tool(
 
         const state = productionStore.get(contentPlanId);
         if (!state?.contentPlan) {
-            return JSON.stringify({ 
-                success: false, 
-                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+            return JSON.stringify({
+                success: false,
+                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.`
             });
         }
 
@@ -213,9 +214,9 @@ export const generateVisualsTool = tool(
         const task = (async () => {
             const state = productionStore.get(contentPlanId);
             if (!state?.contentPlan) {
-                return JSON.stringify({ 
-                    success: false, 
-                    error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+                return JSON.stringify({
+                    success: false,
+                    error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.`
                 });
             }
 
@@ -401,9 +402,9 @@ export const planSFXTool = tool(
 
         const state = productionStore.get(contentPlanId);
         if (!state?.contentPlan) {
-            return JSON.stringify({ 
-                success: false, 
-                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+            return JSON.stringify({
+                success: false,
+                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.`
             });
         }
 
@@ -450,9 +451,9 @@ export const validatePlanTool = tool(
 
         const state = productionStore.get(contentPlanId);
         if (!state?.contentPlan) {
-            return JSON.stringify({ 
-                success: false, 
-                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+            return JSON.stringify({
+                success: false,
+                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.`
             });
         }
 
@@ -509,9 +510,9 @@ export const adjustTimingTool = tool(
 
         const state = productionStore.get(contentPlanId);
         if (!state?.contentPlan) {
-            return JSON.stringify({ 
-                success: false, 
-                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+            return JSON.stringify({
+                success: false,
+                error: `Content plan not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.`
             });
         }
 

@@ -170,13 +170,13 @@ Rules:
       const parsed: TranscriptionResponse = JSON.parse(jsonStr);
 
       return parsed.lines.map(
-        (line: any): SubtitleItem => ({
+        (line: TranscriptionLine): SubtitleItem => ({
           id: line.id || 0,
           startTime: line.startTime || 0,
           endTime: line.endTime || 0,
           text: line.text || "",
           words: (line.words || []).map(
-            (w: any): WordTiming => ({
+            (w: { word: string; start: number; end: number }): WordTiming => ({
               word: w.word || "",
               startTime: w.start || 0,
               endTime: w.end || 0,

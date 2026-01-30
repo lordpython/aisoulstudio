@@ -20,22 +20,28 @@ export const PlanVideoSchema = z.object({
     style: z.string().optional().describe("Visual style (e.g., 'Cinematic', 'Documentary')"),
     mood: z.string().optional().describe("Mood/tone (e.g., 'dramatic', 'upbeat')"),
     videoPurpose: z.string().optional().describe("Purpose (e.g., 'educational', 'entertainment')"),
+    audience: z.string().optional().describe("Target audience (e.g., 'children', 'professionals')"),
+    language: z.string().optional().describe("Target language (e.g., 'en', 'ar')"),
 });
 
 export const NarrateScenesSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan to narrate"),
     voice: z.string().optional().describe("Voice ID to use for narration"),
     language: z.string().optional().describe("Language code for narration (e.g., 'en', 'ar', 'es')"),
+    voiceStyle: z.string().optional().describe("Voice style (e.g., 'calm', 'energetic')"),
 });
 
 export const GenerateVisualsSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     veoVideoCount: z.number().min(0).max(10).default(0).describe("Number of scenes to generate with Veo 3.1 video instead of images (0-10, optional)"),
+    style: z.string().optional().describe("Visual style (e.g., 'Cinematic', 'Anime')"),
+    aspectRatio: z.string().optional().describe("Aspect ratio (16:9, 9:16, 1:1)"),
 });
 
 export const PlanSFXSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     skipAudioDownload: z.boolean().optional().describe("If true, skip downloading SFX audio"),
+    mood: z.string().optional().describe("Overall mood for SFX selection"),
 });
 
 export const ValidatePlanSchema = z.object({
@@ -69,6 +75,7 @@ export const GenerateMusicSchema = z.object({
 
 export const StoryModeSchema = z.object({
     topic: z.string().describe("The main topic or idea for the video story"),
+    sessionId: z.string().optional().describe("Optional session ID to continue an existing story"),
     targetDuration: z.number().min(30).max(900).optional().describe("Target duration in seconds"),
 });
 
@@ -142,26 +149,39 @@ export interface StoryModeState {
  * Progress update for production agent
  */
 export interface ProductionProgress {
-    /** Overall percentage complete (0-100) */
-    percentage: number;
-    /** Current phase label */
-    phase: string;
+    /** Current stage label */
+    stage: string;
     /** Human-readable status message */
     message: string;
+    /** Whether the production is complete */
+    isComplete: boolean;
+    /** Overall percentage complete (0-100) */
+    progress?: number;
     /** Current tool being executed */
-    currentTool?: string;
+    tool?: string;
+    /** Whether the current tool/stage was successful */
+    success?: boolean;
     /** Error details if any */
     error?: string;
     /** Current iteration number */
     iteration?: number;
     /** Maximum iterations allowed */
     maxIterations?: number;
-    /** Scene-level progress for multi-scene operations */
-    sceneProgress?: {
-        currentScene: number;
-        totalScenes: number;
-        scenePercentage: number;
+    /** Current scene index (1-based) */
+    currentScene?: number;
+    /** Total number of scenes */
+    totalScenes?: number;
+    /** Summary of assets generated (only on completion) */
+    assetSummary?: {
+        scenes: number;
+        narrations: number;
+        visuals: number;
+        music: number;
+        sfx: number;
+        subtitles: number;
     };
+    /** @deprecated Use progress */
+    percentage?: number;
 }
 
 /**

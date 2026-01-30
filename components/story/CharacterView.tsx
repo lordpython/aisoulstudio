@@ -45,8 +45,8 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                 />
                                 <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent flex items-end p-4">
                                     <div>
-                                        <h3 className="text-white font-bold text-lg">{char.name}</h3>
-                                        <p className="text-blue-400 text-xs uppercase tracking-widest">{char.role}</p>
+                                        <h3 className="text-white font-bold text-lg" dir="auto">{char.name}</h3>
+                                        <p className="text-blue-400 text-xs uppercase tracking-widest" dir="auto">{char.role}</p>
                                     </div>
                                 </div>
 
@@ -65,8 +65,8 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                         ) : (
                             <div className="aspect-square w-full bg-zinc-800 flex items-center justify-center p-4 text-center">
                                 <div>
-                                    <h3 className="text-white font-bold text-lg">{char.name}</h3>
-                                    <p className="text-blue-400 text-xs uppercase tracking-widest mb-2">{char.role}</p>
+                                    <h3 className="text-white font-bold text-lg" dir="auto">{char.name}</h3>
+                                    <p className="text-blue-400 text-xs uppercase tracking-widest mb-2" dir="auto">{char.role}</p>
                                     <div className="h-2 w-full bg-zinc-700 rounded animate-pulse" />
                                 </div>
                             </div>
@@ -74,7 +74,7 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
 
                         <div className="p-4 flex-1">
                             <h4 className="text-xs uppercase font-bold text-zinc-500 mb-2">{t('story.visualDescription')}</h4>
-                            <p className="text-sm text-zinc-300 leading-relaxed mb-4">
+                            <p className="text-sm text-zinc-300 leading-relaxed mb-4" dir="auto">
                                 {char.visualDescription}
                             </p>
 

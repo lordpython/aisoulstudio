@@ -901,6 +901,7 @@ export default function StudioScreen() {
           storyState={storyHook.state}
           initialTopic={topic || ''}
           onGenerateIdea={(storyTopic, genre) => {
+            storyHook.updateGenre(genre);
             storyHook.generateBreakdown(storyTopic, genre);
           }}
           onExportScript={storyHook.exportScreenplay}
@@ -912,18 +913,49 @@ export default function StudioScreen() {
           canRedo={storyHook.canRedo}
           onNextStep={() => {
             const step = storyHook.state.currentStep;
+            const isLocked = storyHook.state.isLocked;
+
             if (step === 'idea') {
+              // Idea → Breakdown: Generate story outline
               storyHook.generateBreakdown(topic || "A generic story", "Drama");
             } else if (step === 'breakdown') {
+              // Breakdown → Script: Generate full screenplay
               storyHook.generateScreenplay();
             } else if (step === 'script') {
+              // Script → Characters: Generate character profiles
+              // Note: Lock is handled separately via onLockStory
               storyHook.generateCharacters();
             } else if (step === 'characters') {
-              storyHook.generateShotlist();
+              // Characters → Shots: Generate shot breakdown
+              // Story must be locked at this point
+              if (isLocked) {
+                storyHook.generateShots();
+              } else {
+                // Shouldn't happen, but fallback to showing lock dialog
+                console.warn('Story should be locked before generating shots');
+                storyHook.setStep('script');
+              }
+            } else if (step === 'shots') {
+              // Shots → Style: Move to visual style selection
+              storyHook.setStep('style');
+            } else if (step === 'style') {
+              // Style → Storyboard: Generate storyboard visuals
+              storyHook.generateVisuals();
             }
           }}
+          onGenerateShots={storyHook.generateShots}
+          onGenerateVisuals={storyHook.generateVisuals}
+          stageProgress={storyHook.getStageProgress()}
           isProcessing={storyHook.isProcessing}
           progress={storyHook.progress}
+          // Storyboarder.ai-style workflow props
+          onLockStory={storyHook.lockStory}
+          onUpdateVisualStyle={storyHook.updateVisualStyle}
+          onUpdateAspectRatio={storyHook.updateAspectRatio}
+          // Error handling
+          error={storyHook.error}
+          onClearError={storyHook.clearError}
+          onRetry={storyHook.retryLastOperation}
         />
       ) : (
         <>

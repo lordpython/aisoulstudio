@@ -94,19 +94,23 @@ export function getModelWithFallback(modelType: keyof typeof MODELS): string {
  * Mimics the GoogleGenAI interface but routes requests through the backend proxy.
  */
 class ProxyAIClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public models: any;
 
   constructor() {
     this.models = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       generateContent: async (params: any) => {
         return this.callProxy('/api/gemini/proxy/generateContent', params);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       generateImages: async (params: any) => {
         return this.callProxy('/api/gemini/proxy/generateImages', params);
       }
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async callProxy(endpoint: string, params: any) {
     try {
       const response = await fetch(endpoint, {
@@ -121,7 +125,7 @@ class ProxyAIClient {
       }
 
       return await response.json();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[ProxyAIClient] Error calling ${endpoint}:`, error);
       throw error;
     }
@@ -173,6 +177,7 @@ export const ai = new Proxy({} as GoogleGenAI, {
     if (!_aiClient) {
       _aiClient = createAIClient() as GoogleGenAI;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (_aiClient as any)[prop];
   }
 });
@@ -230,6 +235,7 @@ export async function withRetry<T>(
       `Circuit breaker is open. API calls blocked for ${Math.ceil(circuitRemaining / 1000)} more seconds. ` +
       `This prevents overwhelming the API after ${CIRCUIT_BREAKER_THRESHOLD} consecutive failures.`
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (error as any).code = "CIRCUIT_BREAKER_OPEN";
     throw error;
   }
@@ -239,6 +245,7 @@ export async function withRetry<T>(
     // Success: reset failure counter
     consecutiveFailures = 0;
     return result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     // Check if this is a retryable error
     // Include 500 (Internal Server Error) as these are often transient on Google's side

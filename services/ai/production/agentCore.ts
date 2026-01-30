@@ -299,7 +299,7 @@ export async function runProductionAgent(
             }
 
             // Get response from model
-            const response = await modelWithTools.invoke(messages as unknown[]);
+            const response = await modelWithTools.invoke(messages as Parameters<typeof modelWithTools.invoke>[0]);
             messages.push(response as unknown as AIMessage);
 
             // Check if there are tool calls

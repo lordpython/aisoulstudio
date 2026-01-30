@@ -27,8 +27,6 @@ import { agentLogger } from "../../logger";
 
 const log = agentLogger.child('Supervisor');
 import {
-  SubagentName,
-  UserPreferences,
   CompletedStage,
   ProgressCallback,
   executeSubagent,
@@ -38,7 +36,6 @@ import { createImportSubagent } from "./importSubagent";
 import { createContentSubagent } from "./contentSubagent";
 import { createMediaSubagent } from "./mediaSubagent";
 import { createEnhancementExportSubagent } from "./enhancementExportSubagent";
-import { productionStore, ProductionProgress } from "../productionAgent";
 import { analyzeIntent, generateIntentHint } from "../../agent/intentDetection";
 
 /**

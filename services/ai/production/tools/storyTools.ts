@@ -23,10 +23,20 @@ export const generateBreakdownTool = tool(
         const id = sessionId || `story_${Date.now()}`;
         log.info(` Generating story breakdown for: ${topic}`);
 
+        // Validate API key
+        if (!GEMINI_API_KEY) {
+            log.error(' GEMINI_API_KEY is not configured');
+            return JSON.stringify({
+                success: false,
+                error: 'GEMINI_API_KEY is not configured. Please set VITE_GEMINI_API_KEY in your .env.local file.',
+            });
+        }
+
         const model = new ChatGoogleGenerativeAI({
             model: MODELS.TEXT_EXP,
             apiKey: GEMINI_API_KEY,
             temperature: 0.7,
+            maxRetries: 2,
         });
 
         const prompt = `Create a narrative breakdown for a video story about: "${topic}".
@@ -37,8 +47,20 @@ Divide it into 3-5 distinct acts or chapters. For each act, provide:
 
 Format as a structured list.`;
 
-        const response = await model.invoke(prompt);
-        const breakdown = response.content as string;
+        let breakdown: string;
+        try {
+            log.info(' Invoking Gemini API for story breakdown...');
+            const response = await model.invoke(prompt);
+            breakdown = response.content as string;
+            log.info(' Story breakdown generated successfully');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            log.error(` Failed to generate story breakdown: ${errorMessage}`);
+            return JSON.stringify({
+                success: false,
+                error: `Failed to generate story breakdown: ${errorMessage}`,
+            });
+        }
 
         const state: StoryModeState = storyModeStore.get(id) || {
             id,
@@ -56,7 +78,13 @@ Format as a structured list.`;
         state.updatedAt = Date.now();
         storyModeStore.set(id, state);
 
-        return JSON.stringify({ success: true, sessionId: id, breakdown });
+        // Return minimal info - full breakdown is stored in state
+        return JSON.stringify({
+            success: true,
+            sessionId: id,
+            actCount: breakdown.split(/Act \d+|Chapter \d+/i).length - 1 || 3,
+            message: `Story breakdown created with narrative structure. Use sessionId="${id}" for next steps.`,
+        });
     },
     {
         name: "generate_breakdown",
@@ -79,6 +107,7 @@ export const createScreenplayTool = tool(
             model: MODELS.TEXT_EXP,
             apiKey: GEMINI_API_KEY,
             temperature: 0.7,
+            maxRetries: 2,
         });
 
         const prompt = `Write a short cinematic screenplay based on this breakdown:
@@ -91,8 +120,20 @@ Format each scene with:
 
 Limit to 3-5 scenes.`;
 
-        const response = await model.invoke(prompt);
-        const scriptText = response.content as string;
+        let scriptText: string;
+        try {
+            log.info(' Invoking Gemini API for screenplay...');
+            const response = await model.invoke(prompt);
+            scriptText = response.content as string;
+            log.info(' Screenplay generated successfully');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            log.error(` Failed to create screenplay: ${errorMessage}`);
+            return JSON.stringify({
+                success: false,
+                error: `Failed to create screenplay: ${errorMessage}`,
+            });
+        }
 
         // Simple parser for the draft screenplay
         const scenes: ScreenplayScene[] = [];
@@ -122,7 +163,13 @@ Limit to 3-5 scenes.`;
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        return JSON.stringify({ success: true, count: scenes.length, scriptText });
+        // Return minimal info - full screenplay is stored in state
+        return JSON.stringify({
+            success: true,
+            sceneCount: scenes.length,
+            sceneHeadings: scenes.map(s => s.heading),
+            message: `Screenplay created with ${scenes.length} scenes.`,
+        });
     },
     {
         name: "create_screenplay",
@@ -154,7 +201,14 @@ export const generateCharactersTool = tool(
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        return JSON.stringify({ success: true, count: characters.length, characters: charactersWithRefs });
+        // Return minimal info - full characters are stored in state
+        return JSON.stringify({
+            success: true,
+            characterCount: charactersWithRefs.length,
+            characterNames: charactersWithRefs.map(c => c.name),
+            hasReferences: charactersWithRefs.filter(c => c.referenceImageUrl).length,
+            message: `Extracted ${charactersWithRefs.length} characters with visual references.`,
+        });
     },
     {
         name: "generate_characters",
@@ -177,6 +231,7 @@ export const generateShotlistTool = tool(
             model: MODELS.TEXT_EXP,
             apiKey: GEMINI_API_KEY,
             temperature: 0.5,
+            maxRetries: 2,
         });
 
         const prompt = `Based on this screenplay and character list, create a professional shotlist for a storyboard.
@@ -193,8 +248,20 @@ For each shot, provide:
 2. Visual description including character movements and lighting.
 3. Audio/Dialogue for that shot.`;
 
-        const response = await model.invoke(prompt);
-        const shotlistText = response.content as string;
+        let shotlistText: string;
+        try {
+            log.info(' Invoking Gemini API for shotlist...');
+            const response = await model.invoke(prompt);
+            shotlistText = response.content as string;
+            log.info(' Shotlist generated successfully');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            log.error(` Failed to generate shotlist: ${errorMessage}`);
+            return JSON.stringify({
+                success: false,
+                error: `Failed to generate shotlist: ${errorMessage}`,
+            });
+        }
 
         // Basic mock shotlist for now, ideally parsed from AI response
         const shots: ShotlistEntry[] = state.screenplay.map((s, i) => ({
@@ -213,7 +280,12 @@ For each shot, provide:
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        return JSON.stringify({ success: true, count: shots.length, shotlistText });
+        // Return minimal info - full shotlist is stored in state
+        return JSON.stringify({
+            success: true,
+            shotCount: shots.length,
+            message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.`,
+        });
     },
     {
         name: "generate_shotlist",
@@ -294,3 +366,20 @@ export const verifyCharacterConsistencyTool = tool(
         schema: VerifyCharacterConsistencySchema,
     }
 );
+
+// --- Story Pipeline Tool (DEPRECATED) ---
+//
+// IMPORTANT: This tool has been deprecated in favor of the step-by-step workflow.
+// The new workflow requires user confirmation between each stage:
+// 1. generate_breakdown → User reviews → Proceed
+// 2. create_screenplay → User reviews → Lock
+// 3. generate_characters → User reviews → Proceed
+// 4. generate_shotlist → User reviews → Proceed
+// 5. Visual generation (per-scene control)
+//
+// Do NOT re-enable this tool - it bypasses all user interaction checkpoints.
+//
+// const StoryPipelineSchema = z.object({...});
+// export const runStoryPipelineTool = tool(...);
+//
+// If you need the old autopilot behavior for testing, use storyPipeline.ts directly.

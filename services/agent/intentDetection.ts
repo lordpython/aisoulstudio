@@ -29,8 +29,10 @@ export interface IntentDetectionResult {
   wantsBackgroundRemoval: boolean;
   /** Whether user wants subtitles */
   wantsSubtitles: boolean;
+  /** Whether input suggests story-driven content (uses pipeline) */
+  isStoryMode: boolean;
   /** First tool that should be called based on input */
-  firstTool: 'import_youtube_content' | 'transcribe_audio_file' | 'plan_video';
+  firstTool: 'import_youtube_content' | 'transcribe_audio_file' | 'plan_video' | 'generate_breakdown';
   /** List of optional tools to include based on keywords */
   optionalTools: string[];
 }
@@ -177,6 +179,38 @@ const SUBTITLE_PATTERN = new RegExp(
   'i'
 );
 
+/**
+ * Keywords that indicate story-driven content (uses pipeline).
+ * These suggest complex narratives that benefit from the discrete pipeline.
+ */
+const STORY_KEYWORDS = [
+  'story',
+  'narrative',
+  'screenplay',
+  'script',
+  'characters',
+  'plot',
+  'protagonist',
+  'antagonist',
+  'dialogue',
+  'scene',
+  'chapter',
+  'tale',
+  'fiction',
+  'drama',
+  'قصة',  // Arabic: story
+  'سيناريو',  // Arabic: scenario
+  'شخصيات',  // Arabic: characters
+];
+
+/**
+ * Pattern to detect story keywords.
+ */
+const STORY_PATTERN = new RegExp(
+  `\\b(${STORY_KEYWORDS.join('|')})\\b`,
+  'i'
+);
+
 // --- Detection Functions ---
 
 /**
@@ -208,7 +242,7 @@ export function detectYouTubeUrl(input: string): { hasUrl: boolean; url: string 
  */
 export function detectAudioFile(input: string): { hasFile: boolean; path: string | null } {
   const match = input.match(AUDIO_FILE_PATTERN);
-  if (match) {
+  if (match && match[1]) {
     return {
       hasFile: true,
       path: match[1],
@@ -275,12 +309,33 @@ export function shouldRemoveBackground(input: string): boolean {
 
 /**
  * Detect if user wants subtitles.
- * 
+ *
  * @param input User input string
  * @returns true if subtitle keywords are detected
  */
 export function shouldGenerateSubtitles(input: string): boolean {
   return SUBTITLE_PATTERN.test(input);
+}
+
+/**
+ * Detect if input suggests story-driven content.
+ * Story mode uses the discrete pipeline to avoid context explosion.
+ *
+ * @param input User input string
+ * @returns true if story keywords are detected
+ */
+export function isStoryDrivenContent(input: string): boolean {
+  // Check for story keywords
+  if (STORY_PATTERN.test(input)) {
+    return true;
+  }
+
+  // Also detect long narrative inputs (>500 chars often indicates a story)
+  if (input.length > 500) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -296,22 +351,28 @@ export function analyzeIntent(input: string): IntentDetectionResult {
   // Detect URLs and file paths
   const youtubeResult = detectYouTubeUrl(input);
   const audioResult = detectAudioFile(input);
-  
+
   // Detect optional features
   const wantsAnimation = shouldAnimate(input);
   const wantsMusic = shouldGenerateMusic(input);
   const detectedStyle = extractStyle(input);
   const wantsBackgroundRemoval = shouldRemoveBackground(input);
   const wantsSubtitles = shouldGenerateSubtitles(input);
-  
+  const isStoryMode = isStoryDrivenContent(input);
+
   // Determine first tool based on input type
+  // Priority: YouTube > Audio File > Story Pipeline > Plan Video
   let firstTool: IntentDetectionResult['firstTool'] = 'plan_video';
   if (youtubeResult.hasUrl) {
     firstTool = 'import_youtube_content';
   } else if (audioResult.hasFile) {
     firstTool = 'transcribe_audio_file';
+  } else if (isStoryMode) {
+    // Use step-by-step story workflow - starts with breakdown generation
+    // User must review and confirm each step before proceeding
+    firstTool = 'generate_breakdown';
   }
-  
+
   // Build list of optional tools
   const optionalTools: string[] = [];
   if (wantsAnimation) {
@@ -326,7 +387,7 @@ export function analyzeIntent(input: string): IntentDetectionResult {
   if (wantsSubtitles) {
     optionalTools.push('generate_subtitles');
   }
-  
+
   return {
     hasYouTubeUrl: youtubeResult.hasUrl,
     youtubeUrl: youtubeResult.url,
@@ -337,6 +398,7 @@ export function analyzeIntent(input: string): IntentDetectionResult {
     detectedStyle,
     wantsBackgroundRemoval,
     wantsSubtitles,
+    isStoryMode,
     firstTool,
     optionalTools,
   };
@@ -361,32 +423,34 @@ export function getAvailableStyles(): string[] {
  */
 export function generateIntentHint(result: IntentDetectionResult): string {
   const hints: string[] = [];
-  
+
   if (result.hasYouTubeUrl) {
     hints.push(`[DETECTED: YouTube URL - Start with import_youtube_content using URL: ${result.youtubeUrl}]`);
   } else if (result.hasAudioFile) {
     hints.push(`[DETECTED: Audio file - Start with transcribe_audio_file using path: ${result.audioFilePath}]`);
+  } else if (result.isStoryMode) {
+    hints.push('[DETECTED: Story-driven content - Start with generate_breakdown, then wait for user review before proceeding to next step]');
   }
-  
+
   if (result.wantsAnimation) {
     hints.push('[DETECTED: Animation requested - Include animate_image for each scene]');
   }
-  
+
   if (result.wantsMusic) {
     hints.push('[DETECTED: Music requested - Include generate_music]');
   }
-  
+
   if (result.detectedStyle) {
     hints.push(`[DETECTED: Style "${result.detectedStyle}" - Use this for generate_visuals]`);
   }
-  
+
   if (result.wantsBackgroundRemoval) {
     hints.push('[DETECTED: Background removal requested - Include remove_background]');
   }
-  
+
   if (result.wantsSubtitles) {
     hints.push('[DETECTED: Subtitles requested - Include generate_subtitles]');
   }
-  
+
   return hints.join('\n');
 }

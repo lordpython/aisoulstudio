@@ -52,6 +52,7 @@ import {
     generateCharactersTool,
     generateShotlistTool,
     verifyCharacterConsistencyTool,
+    // runStoryPipelineTool - DEPRECATED: Bypasses user interaction checkpoints
 } from "./tools/storyTools";
 
 // --- Combined Tool Array ---
@@ -85,11 +86,12 @@ export const productionTools: StructuredTool[] = [
     // Utility tools
     getProductionStatusTool,
     markCompleteTool,
-    // Story Mode tools
+    // Story Mode tools (step-by-step, user-driven workflow)
     generateBreakdownTool,
     createScreenplayTool,
     generateCharactersTool,
     generateShotlistTool,
+    // NOTE: runStoryPipelineTool removed - bypasses user interaction checkpoints
 ];
 
 /**
@@ -261,6 +263,10 @@ export function registerProductionTools(): void {
         generateShotlistTool,
         ["create_screenplay", "generate_characters"]
     ));
+
+    // NOTE: runStoryPipelineTool registration removed - bypasses user interaction checkpoints
+    // The step-by-step workflow using atomic tools (generate_breakdown, create_screenplay, etc.)
+    // is now the only supported path for story generation.
 
     // Note: Utility tools (get_production_status, mark_complete) are not registered
     // as they don't belong to a specific group and can be called at any time

@@ -47,12 +47,13 @@ NOTE: Music generation is NOT available in video production mode. Use the "Gener
 - restyle_image: Apply style transfer to images (Anime, Watercolor, Oil Painting, etc.). Requires generate_visuals first.
 - mix_audio_tracks: Combine narration, music, SFX, and Veo video native audio. **IMPORTANT: Only provide contentPlanId - all audio assets are auto-fetched.** Veo video audio is automatically extracted and mixed when includeVideoAudio=true (default).
 
-### STORY (Creative Workflow)
+### STORY (Step-by-Step Creative Workflow)
 **Dependencies: None - this is an alternative starting point for complex stories**
-- generate_breakdown: Step 1: Create a narrative breakdown (3-5 acts) from a topic. Returns sessionId.
-- create_screenplay: Step 2: Create a detailed screenplay from the breakdown. Includes dialogue and actions.
-- generate_characters: Step 3: Extract characters from the screenplay and create visual profiles for consistency.
-- generate_shotlist: Step 4: Create a detailed shotlist/storyboard from the screenplay and characters.
+**IMPORTANT: Story generation is a user-driven, step-by-step process. Each step requires user review and confirmation before proceeding to the next.**
+- generate_breakdown: Step 1: Create a narrative breakdown (3-5 acts) from a topic. Returns sessionId. **Wait for user to review before proceeding.**
+- create_screenplay: Step 2: Create a detailed screenplay from the breakdown. **Wait for user to review and lock before proceeding.**
+- generate_characters: Step 3: Extract characters from the screenplay and create visual profiles. **Wait for user to review before proceeding.**
+- generate_shotlist: Step 4: Create a detailed shotlist/storyboard from the screenplay and characters. **User controls per-scene generation.**
 
 ### EXPORT (Final Output)
 **Dependencies: ENHANCEMENT group must complete first (or MEDIA if no enhancements)**
