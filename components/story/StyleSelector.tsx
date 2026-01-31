@@ -1,18 +1,18 @@
 /**
  * StyleSelector.tsx
- *
- * Grid of visual style cards for user selection.
- * Includes aspect ratio selector and style preview.
+ * Editorial-style visual style gallery with cinematic presentation.
  */
 
 import React from 'react';
-import { Check, Palette, Monitor } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Check, Film, RectangleHorizontal } from 'lucide-react';
 import {
     VISUAL_STYLES,
     ASPECT_RATIOS,
     type VisualStyleKey,
     type AspectRatioId,
 } from '@/constants/visualStyles';
+import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
 
 interface StyleSelectorProps {
     selectedStyle: VisualStyleKey;
@@ -29,7 +29,6 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
 }) => {
     const styles = Object.values(VISUAL_STYLES);
 
-    // Group styles by category
     const stylesByCategory = {
         cinematic: styles.filter(s => s.category === 'cinematic'),
         artistic: styles.filter(s => s.category === 'artistic'),
@@ -45,153 +44,215 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     };
 
     return (
-        <div className="p-6 flex flex-col gap-8">
-            {/* Header */}
-            <div className="text-center">
-                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-purple-600/20 to-pink-600/20 border border-white/10 flex items-center justify-center">
-                    <Palette className="w-7 h-7 text-purple-400" />
+        <div className="p-8 max-w-6xl mx-auto">
+            {/* Cinematic Header */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center mb-12"
+            >
+                <div className="flex items-center justify-center gap-4 mb-6">
+                    <div className="w-12 h-px bg-[var(--cinema-spotlight)]/30" />
+                    <Film className="w-6 h-6 text-[var(--cinema-spotlight)]" />
+                    <div className="w-12 h-px bg-[var(--cinema-spotlight)]/30" />
                 </div>
-                <h2 className="text-xl font-bold text-white mb-2">Choose Your Visual Style</h2>
-                <p className="text-zinc-400 text-sm">
-                    Select a style that matches your story's mood and genre
+                <h2 className="font-display text-4xl text-[var(--cinema-silver)] tracking-tight mb-3">
+                    VISUAL DIRECTION
+                </h2>
+                <p className="font-script italic text-[var(--cinema-silver)]/60 text-lg">
+                    Choose a style that matches your story's mood
                 </p>
-            </div>
+            </motion.div>
 
-            {/* Aspect Ratio Selector */}
-            <div className="space-y-3">
-                <div className="flex items-center gap-2 text-zinc-400">
-                    <Monitor className="w-4 h-4" />
-                    <span className="text-xs uppercase tracking-wider font-medium">Aspect Ratio</span>
+            {/* Aspect Ratio Selector - Film Frame Style */}
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="mb-12"
+            >
+                <div className="flex items-center gap-3 mb-4">
+                    <RectangleHorizontal className="w-4 h-4 text-[var(--cinema-silver)]/40" />
+                    <span className="font-mono text-xs text-[var(--cinema-silver)]/40 uppercase tracking-widest">
+                        Frame Ratio
+                    </span>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                     {ASPECT_RATIOS.slice(0, 4).map((ratio) => {
                         const isSelected = aspectRatio === ratio.id;
                         return (
-                            <button
+                            <motion.button
                                 key={ratio.id}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
                                 onClick={() => onSelectAspectRatio(ratio.id)}
                                 className={`
-                                    px-4 py-2 rounded-lg text-sm font-medium transition-all
+                                    group relative px-5 py-3 rounded-lg transition-all duration-300
                                     ${isSelected
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800'
+                                        ? 'bg-[var(--cinema-spotlight)]/20 border-2 border-[var(--cinema-spotlight)] shadow-[0_0_20px_var(--glow-spotlight)]'
+                                        : 'bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10 hover:border-[var(--cinema-silver)]/30'
                                     }
                                 `}
                             >
-                                <span className="font-bold">{ratio.label}</span>
-                                <span className="text-xs opacity-70 ml-1">({ratio.description})</span>
-                            </button>
+                                <span className={`
+                                    font-display text-lg transition-colors
+                                    ${isSelected ? 'text-[var(--cinema-spotlight)]' : 'text-[var(--cinema-silver)]'}
+                                `}>
+                                    {ratio.label}
+                                </span>
+                                <span className={`
+                                    ml-2 font-script italic text-sm
+                                    ${isSelected ? 'text-[var(--cinema-spotlight)]/70' : 'text-[var(--cinema-silver)]/40'}
+                                `}>
+                                    {ratio.description}
+                                </span>
+                            </motion.button>
                         );
                     })}
                 </div>
-            </div>
+            </motion.div>
 
             {/* Style Grid by Category */}
-            <div className="space-y-8">
-                {Object.entries(stylesByCategory).map(([category, categoryStyles]) => (
-                    <div key={category} className="space-y-3">
-                        {/* Category Label */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs uppercase tracking-wider font-bold text-zinc-500">
+            <div className="space-y-12">
+                {Object.entries(stylesByCategory).map(([category, categoryStyles], catIdx) => (
+                    <motion.div
+                        key={category}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 + catIdx * 0.1 }}
+                    >
+                        {/* Category Label - Editorial Divider */}
+                        <div className="flex items-center gap-4 mb-6">
+                            <span className="font-mono text-xs text-[var(--cinema-silver)]/40 uppercase tracking-[0.2em]">
                                 {categoryLabels[category]}
                             </span>
-                            <div className="flex-1 h-px bg-zinc-800" />
+                            <div className="flex-1 h-px bg-[var(--cinema-silver)]/10" />
                         </div>
 
                         {/* Style Cards Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <motion.div
+                            variants={staggerContainer}
+                            initial="initial"
+                            animate="animate"
+                            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+                        >
                             {categoryStyles.map((style) => {
                                 const isSelected = selectedStyle === style.id;
                                 return (
-                                    <button
+                                    <motion.button
                                         key={style.id}
+                                        variants={staggerItem}
+                                        whileHover={{ y: -6, scale: 1.02 }}
                                         onClick={() => onSelectStyle(style.id as VisualStyleKey)}
                                         className={`
-                                            relative flex flex-col overflow-hidden rounded-xl transition-all duration-200
+                                            group relative flex flex-col overflow-hidden rounded-lg transition-all duration-300
                                             ${isSelected
-                                                ? 'border-2 border-blue-500 ring-2 ring-blue-500/20 bg-zinc-900'
-                                                : 'border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900'
+                                                ? 'border-2 border-[var(--cinema-spotlight)] ring-2 ring-[var(--cinema-spotlight)]/20 shadow-[0_0_30px_var(--glow-spotlight)]'
+                                                : 'border border-[var(--cinema-silver)]/10 hover:border-[var(--cinema-silver)]/30'
                                             }
                                         `}
                                     >
-                                        {/* Preview Area */}
-                                        <div className="aspect-video relative bg-zinc-800 overflow-hidden">
-                                            {/* Placeholder gradient based on style */}
-                                            <div className={`
-                                                absolute inset-0
-                                                ${getStyleGradient(style.id)}
-                                            `} />
+                                        {/* Preview Area with Letterbox */}
+                                        <div className="aspect-video relative overflow-hidden bg-[var(--cinema-void)]">
+                                            {/* Gradient Background */}
+                                            <div className={`absolute inset-0 ${getStyleGradient(style.id)}`} />
 
-                                            {/* Sample image if available */}
+                                            {/* Film Grain Overlay */}
+                                            <div className="absolute inset-0 opacity-20 mix-blend-overlay bg-[url('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20200%20200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter%20id%3D%22noise%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.85%22%20numOctaves%3D%224%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url(%23noise)%22%2F%3E%3C%2Fsvg%3E')]" />
+
+                                            {/* Letterbox Bars */}
+                                            <div className="absolute top-0 inset-x-0 h-[8%] bg-[var(--cinema-void)]" />
+                                            <div className="absolute bottom-0 inset-x-0 h-[8%] bg-[var(--cinema-void)]" />
+
+                                            {/* Sample Image */}
                                             {style.sampleImage && (
                                                 <img
                                                     src={style.sampleImage}
                                                     alt={style.name}
-                                                    className="absolute inset-0 w-full h-full object-cover"
+                                                    className="absolute inset-0 w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-500"
                                                     onError={(e) => {
                                                         (e.target as HTMLImageElement).style.display = 'none';
                                                     }}
                                                 />
                                             )}
 
-                                            {/* Style name overlay */}
-                                            <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
-                                            <div className="absolute bottom-2 left-2 text-xs font-bold text-white/80">
-                                                {style.name}
+                                            {/* Vignette */}
+                                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,var(--cinema-void)_100%)] opacity-60" />
+
+                                            {/* Style Name Overlay */}
+                                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-[var(--cinema-void)] to-transparent">
+                                                <span className="font-display text-sm text-[var(--cinema-silver)] drop-shadow-lg">
+                                                    {style.name}
+                                                </span>
                                             </div>
 
-                                            {/* Selected checkmark */}
+                                            {/* Selection Checkmark */}
                                             {isSelected && (
-                                                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center">
-                                                    <Check className="w-4 h-4 text-white" />
-                                                </div>
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[var(--cinema-spotlight)] flex items-center justify-center shadow-lg"
+                                                >
+                                                    <Check className="w-4 h-4 text-[var(--cinema-void)]" />
+                                                </motion.div>
                                             )}
                                         </div>
 
-                                        {/* Info Section */}
-                                        <div className="p-3">
-                                            <p className="text-xs text-zinc-400 line-clamp-2">
+                                        {/* Description */}
+                                        <div className="p-3 bg-[var(--cinema-celluloid)]">
+                                            <p className="font-script italic text-xs text-[var(--cinema-silver)]/60 line-clamp-2">
                                                 {style.description}
                                             </p>
                                         </div>
-                                    </button>
+                                    </motion.button>
                                 );
                             })}
-                        </div>
-                    </div>
+                        </motion.div>
+                    </motion.div>
                 ))}
             </div>
 
             {/* Selected Style Preview */}
             {selectedStyle && VISUAL_STYLES[selectedStyle] && (
-                <div className="mt-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-                    <div className="flex items-start gap-4">
-                        <div className="shrink-0 w-20 h-12 rounded-lg overflow-hidden">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-12 p-6 bg-[var(--cinema-celluloid)] border border-[var(--cinema-spotlight)]/20 rounded-lg shadow-editorial"
+                >
+                    <div className="flex items-center gap-6">
+                        {/* Mini Preview */}
+                        <div className="shrink-0 w-24 h-14 rounded overflow-hidden relative">
                             <div className={`w-full h-full ${getStyleGradient(selectedStyle)}`} />
+                            <div className="absolute top-0 inset-x-0 h-[10%] bg-[var(--cinema-void)]" />
+                            <div className="absolute bottom-0 inset-x-0 h-[10%] bg-[var(--cinema-void)]" />
                         </div>
+
+                        {/* Info */}
                         <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-white mb-1">
+                            <h3 className="font-display text-xl text-[var(--cinema-silver)] mb-1">
                                 {VISUAL_STYLES[selectedStyle].name}
                             </h3>
-                            <p className="text-xs text-zinc-400">
+                            <p className="font-script italic text-sm text-[var(--cinema-silver)]/60">
                                 {VISUAL_STYLES[selectedStyle].description}
                             </p>
                         </div>
+
+                        {/* Badge */}
                         <div className="shrink-0">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold bg-blue-500/20 text-blue-400">
-                                Selected
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-[var(--cinema-spotlight)]/10 border border-[var(--cinema-spotlight)]/30">
+                                <Check className="w-4 h-4 text-[var(--cinema-spotlight)]" />
+                                <span className="font-mono text-xs text-[var(--cinema-spotlight)] uppercase tracking-wider">
+                                    Selected
+                                </span>
                             </span>
                         </div>
                     </div>
-                </div>
+                </motion.div>
             )}
         </div>
     );
 };
 
-/**
- * Get a gradient placeholder for each style
- */
 function getStyleGradient(styleId: string): string {
     const gradients: Record<string, string> = {
         CINEMATIC: 'bg-gradient-to-br from-amber-900/40 to-slate-900/60',

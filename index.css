@@ -40,7 +40,14 @@
 
     --font-sans: "Inter", "Geist Sans", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", monospace;
-    
+    --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+    --font-script: "Crimson Pro", Georgia, "Times New Roman", serif;
+
+    /* Cinematic Easing Curves */
+    --ease-cinematic: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-curtain: cubic-bezier(0.65, 0, 0.35, 1);
+
     --animate-float: float 8s ease-in-out infinite;
     --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     --animate-glow: glow 2s ease-in-out infinite alternate;
@@ -95,6 +102,37 @@
     /* Glow Variables */
     --glow-primary: oklch(0.70 0.15 190 / 0.5);
     --glow-accent: oklch(0.65 0.25 30 / 0.5);
+
+    /* ==========================================
+       CINEMATIC/EDITORIAL PALETTE
+       Film noir vibes, dramatic lighting
+       ========================================== */
+
+    /* The Void - Deepest black with subtle warmth */
+    --cinema-void: oklch(0.03 0.005 30);
+
+    /* Celluloid - Rich dark brown/black (film base) */
+    --cinema-celluloid: oklch(0.08 0.02 45);
+
+    /* Silver Screen - Warm off-white for text */
+    --cinema-silver: oklch(0.92 0.01 60);
+
+    /* Spotlight - Golden accent (key light) */
+    --cinema-spotlight: oklch(0.75 0.15 80);
+
+    /* Velvet - Deep theatrical red */
+    --cinema-velvet: oklch(0.35 0.15 25);
+
+    /* Editorial Accent - Deep burgundy */
+    --cinema-editorial: oklch(0.55 0.12 15);
+
+    /* Cinematic Shadows */
+    --cinema-shadow: oklch(0 0 0 / 0.6);
+    --cinema-shadow-soft: oklch(0 0 0 / 0.3);
+
+    /* Cinematic Glows */
+    --glow-spotlight: oklch(0.75 0.15 80 / 0.4);
+    --glow-velvet: oklch(0.35 0.15 25 / 0.3);
 }
 
 /* ==========================================
@@ -123,6 +161,185 @@
     ::selection {
         @apply bg-primary/30 text-primary-foreground;
     }
+}
+
+/* ==========================================
+   CINEMATIC TYPOGRAPHY
+   ========================================== */
+
+.font-display {
+    font-family: var(--font-display);
+}
+
+.font-script {
+    font-family: var(--font-script);
+}
+
+/* ==========================================
+   CINEMATIC EFFECTS
+   ========================================== */
+
+/* Film grain overlay - apply to containers */
+.cinema-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 1;
+    mix-blend-mode: overlay;
+}
+
+/* Vignette effect */
+.cinema-vignette::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, var(--cinema-void) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Spotlight glow effect */
+.cinema-spotlight-glow {
+    box-shadow:
+        0 0 60px 20px var(--glow-spotlight),
+        0 10px 30px -5px var(--cinema-shadow);
+}
+
+/* Cinematic shadow (dramatic) */
+.shadow-cinematic {
+    box-shadow:
+        0 4px 6px -1px var(--cinema-shadow-soft),
+        0 20px 40px -10px var(--cinema-shadow),
+        inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+}
+
+/* Editorial shadow (refined) */
+.shadow-editorial {
+    box-shadow:
+        0 2px 4px var(--cinema-shadow-soft),
+        0 8px 16px oklch(0 0 0 / 0.15);
+}
+
+/* Letterbox bars */
+.cinema-letterbox::before,
+.cinema-letterbox::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 10%;
+    background: var(--cinema-void);
+    z-index: 2;
+}
+
+.cinema-letterbox::before {
+    top: 0;
+}
+
+.cinema-letterbox::after {
+    bottom: 0;
+}
+
+/* Film strip sprocket holes */
+.cinema-sprockets {
+    background-image:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 8px,
+            var(--cinema-void) 8px,
+            var(--cinema-void) 12px,
+            transparent 12px,
+            transparent 20px
+        );
+    background-size: 100% 28px;
+}
+
+/* Golden spotlight border on focus */
+.cinema-focus:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px var(--cinema-spotlight),
+        0 0 20px var(--glow-spotlight);
+}
+
+/* Cinematic button */
+.btn-cinematic {
+    background: linear-gradient(135deg, var(--cinema-spotlight) 0%, oklch(0.65 0.12 70) 100%);
+    color: var(--cinema-void);
+    font-weight: 600;
+    transition: all 0.3s var(--ease-cinematic);
+}
+
+.btn-cinematic:hover {
+    box-shadow: 0 0 30px var(--glow-spotlight);
+    transform: translateY(-1px);
+}
+
+/* Film reel spin animation */
+@keyframes filmReelSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-film-reel {
+    animation: filmReelSpin 2s linear infinite;
+}
+
+/* Curtain rise animation */
+@keyframes curtainRise {
+    from {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-curtain-rise {
+    animation: curtainRise 0.6s var(--ease-curtain) forwards;
+}
+
+/* Spotlight reveal animation */
+@keyframes spotlightReveal {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+        filter: blur(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+    }
+}
+
+.animate-spotlight-reveal {
+    animation: spotlightReveal 0.5s var(--ease-dramatic) forwards;
+}
+
+/* Shimmer effect for loading states */
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.cinema-shimmer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        oklch(1 0 0 / 0.05) 50%,
+        transparent 100%
+    );
+    animation: shimmer 2s infinite linear;
 }
 
 /* ==========================================

@@ -1,12 +1,12 @@
 /**
  * BreakdownProgress.tsx
- *
- * Loading screen that shows 4 stages of AI processing with checkmarks.
- * Used during the initial story breakdown generation.
+ * Cinematic loading screen with film reel animation and director's notes style stages.
  */
 
 import React from 'react';
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { CheckCircle2, Circle, Film } from 'lucide-react';
+import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
 
 export type BreakdownStage =
     | 'reading'
@@ -23,7 +23,6 @@ interface BreakdownProgressProps {
 interface StageConfig {
     id: BreakdownStage;
     label: string;
-    description?: string;
 }
 
 const STAGES: StageConfig[] = [
@@ -51,40 +50,6 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
         return 'pending';
     };
 
-    const renderStageIcon = (status: 'complete' | 'processing' | 'pending') => {
-        switch (status) {
-            case 'complete':
-                return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
-            case 'processing':
-                return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
-            case 'pending':
-                return <Circle className="w-5 h-5 text-zinc-600" />;
-        }
-    };
-
-    const getStageClasses = (status: 'complete' | 'processing' | 'pending') => {
-        switch (status) {
-            case 'complete':
-                return 'bg-emerald-500/10 border-emerald-500/30';
-            case 'processing':
-                return 'bg-blue-500/10 border-blue-500/30';
-            case 'pending':
-                return 'bg-zinc-900/50 border-zinc-800';
-        }
-    };
-
-    const getTextClasses = (status: 'complete' | 'processing' | 'pending') => {
-        switch (status) {
-            case 'complete':
-                return 'text-emerald-300';
-            case 'processing':
-                return 'text-blue-300';
-            case 'pending':
-                return 'text-zinc-500';
-        }
-    };
-
-    // Dynamic label based on genre
     const getStageLabel = (stage: StageConfig) => {
         if (stage.id === 'aligning') {
             return `Aligning with ${genre}`;
@@ -93,60 +58,131 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
-            <div className="w-full max-w-md">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+        <div className="flex flex-col items-center justify-center min-h-[70vh] p-8">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="w-full max-w-lg"
+            >
+                {/* Cinematic Header with Film Reel */}
+                <div className="text-center mb-12">
+                    {/* Dual Film Reel Spinner */}
+                    <div className="relative w-20 h-20 mx-auto mb-6">
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                            className="absolute inset-0 border-4 border-[var(--cinema-spotlight)]/30 border-t-[var(--cinema-spotlight)] rounded-full"
+                        />
+                        <motion.div
+                            animate={{ rotate: -360 }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            className="absolute inset-2 border-4 border-[var(--cinema-silver)]/20 border-b-[var(--cinema-silver)]/60 rounded-full"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Film className="w-6 h-6 text-[var(--cinema-spotlight)]" />
+                        </div>
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-2">
-                        Crafting Your Story
+
+                    <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight mb-3">
+                        DEVELOPING...
                     </h2>
-                    <p className="text-zinc-400 text-sm">
-                        Please wait while our AI analyzes your idea
+                    <p className="font-script italic text-lg text-[var(--cinema-silver)]/60">
+                        Your story is being crafted frame by frame
                     </p>
                 </div>
 
-                {/* Stage List */}
-                <div className="space-y-4">
+                {/* Director's Notes Style Stage List */}
+                <motion.div
+                    variants={staggerContainer}
+                    initial="initial"
+                    animate="animate"
+                    className="space-y-4"
+                >
                     {STAGES.map((stage, index) => {
                         const status = getStageStatus(index);
                         return (
-                            <div
+                            <motion.div
                                 key={stage.id}
+                                variants={staggerItem}
                                 className={`
-                                    flex items-center gap-4 p-4 rounded-xl border transition-all duration-300
-                                    ${getStageClasses(status)}
+                                    relative pl-8 py-4 border-l-2 transition-all duration-500
+                                    ${status === 'complete'
+                                        ? 'border-[var(--cinema-spotlight)]'
+                                        : status === 'processing'
+                                            ? 'border-[var(--cinema-silver)]'
+                                            : 'border-[var(--cinema-silver)]/20'
+                                    }
                                 `}
                             >
-                                <div className="shrink-0">
-                                    {renderStageIcon(status)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={`text-sm font-medium ${getTextClasses(status)}`}>
-                                        {getStageLabel(stage)}
-                                    </p>
-                                </div>
-                                {status === 'processing' && (
-                                    <div className="shrink-0">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold bg-blue-500/20 text-blue-400">
-                                            In Progress
+                                {/* Frame Number */}
+                                <span className="absolute left-3 top-4 font-mono text-[10px] text-[var(--cinema-silver)]/30">
+                                    {String(index + 1).padStart(2, '0')}
+                                </span>
+
+                                {/* Stage Content */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        {status === 'complete' && (
+                                            <CheckCircle2 className="w-5 h-5 text-[var(--cinema-spotlight)]" />
+                                        )}
+                                        {status === 'processing' && (
+                                            <motion.div
+                                                animate={{ scale: [1, 1.2, 1] }}
+                                                transition={{ duration: 1.5, repeat: Infinity }}
+                                                className="w-5 h-5 rounded-full bg-[var(--cinema-silver)] flex items-center justify-center"
+                                            >
+                                                <div className="w-2 h-2 rounded-full bg-[var(--cinema-void)]" />
+                                            </motion.div>
+                                        )}
+                                        {status === 'pending' && (
+                                            <Circle className="w-5 h-5 text-[var(--cinema-silver)]/20" />
+                                        )}
+
+                                        <span className={`
+                                            font-display text-lg transition-colors duration-300
+                                            ${status === 'complete'
+                                                ? 'text-[var(--cinema-spotlight)]'
+                                                : status === 'processing'
+                                                    ? 'text-[var(--cinema-silver)]'
+                                                    : 'text-[var(--cinema-silver)]/30'
+                                            }
+                                        `}>
+                                            {getStageLabel(stage)}
                                         </span>
                                     </div>
-                                )}
-                            </div>
+
+                                    {status === 'processing' && (
+                                        <motion.span
+                                            animate={{ opacity: [0.3, 1, 0.3] }}
+                                            transition={{ duration: 1.5, repeat: Infinity }}
+                                            className="font-mono text-[10px] text-[var(--cinema-silver)]/60 uppercase tracking-widest"
+                                        >
+                                            Processing
+                                        </motion.span>
+                                    )}
+                                </div>
+                            </motion.div>
                         );
                     })}
-                </div>
+                </motion.div>
 
-                {/* Bottom Note */}
-                <div className="mt-8 text-center">
-                    <p className="text-xs text-zinc-600">
-                        This usually takes 15-30 seconds
-                    </p>
-                </div>
-            </div>
+                {/* Footer Note */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                    className="mt-12 text-center"
+                >
+                    <div className="flex items-center justify-center gap-4">
+                        <div className="w-8 h-px bg-[var(--cinema-silver)]/10" />
+                        <span className="font-mono text-[10px] text-[var(--cinema-silver)]/20 tracking-widest">
+                            LYRICLENS STUDIOS
+                        </span>
+                        <div className="w-8 h-px bg-[var(--cinema-silver)]/10" />
+                    </div>
+                </motion.div>
+            </motion.div>
         </div>
     );
 };
