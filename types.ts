@@ -454,6 +454,7 @@ export interface ShotlistEntry {
   lighting?: string; // "Cinematic", "Natural", etc.
   dialogue?: string; // Associated dialogue for the shot
   imageUrl?: string; // The final generated image
+  durationEst?: number; // Estimated duration in seconds
 }
 
 /**

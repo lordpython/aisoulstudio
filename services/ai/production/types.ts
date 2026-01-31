@@ -55,14 +55,16 @@ export const AdjustTimingSchema = z.object({
 export const GenerateVideoSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     sceneIndex: z.number().min(0).describe("Zero-based scene index to generate video for"),
+    style: z.string().optional().describe("Visual style (e.g., 'Cinematic', 'Documentary')"),
     aspectRatio: z.string().optional().default("16:9").describe("Video aspect ratio (e.g., '16:9', '9:16')"),
-    duration: z.number().min(4).max(8).optional().default(6).describe("Duration in seconds (4-8)"),
+    durationSeconds: z.number().min(4).max(8).optional().default(6).describe("Duration in seconds (4-8)"),
     useFastModel: z.boolean().optional().default(true).describe("Use fast generation model"),
 });
 
 export const AnimateImageSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     sceneIndex: z.number().min(0).describe("Zero-based scene index to animate"),
+    aspectRatio: z.string().optional().default("16:9").describe("Image aspect ratio (e.g., '16:9', '9:16')"),
     customPrompt: z.string().optional().describe("Custom animation prompt (optional, uses scene visual prompt if not provided)"),
 });
 
@@ -70,6 +72,7 @@ export const GenerateMusicSchema = z.object({
     contentPlanId: z.string().describe("Reference ID of the content plan"),
     style: z.string().optional().describe("Music style (e.g., 'ambient', 'epic')"),
     mood: z.string().optional().describe("Music mood (e.g., 'dramatic', 'peaceful')"),
+    duration: z.number().optional().describe("Target duration in seconds"),
     instrumental: z.boolean().optional().default(true).describe("Whether to generate instrumental only"),
 });
 

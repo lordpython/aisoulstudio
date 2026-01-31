@@ -235,7 +235,7 @@ export function useSunoMusic() {
                 status: "SUCCESS",
                 progress: 100,
                 generatedTracks: tracks,
-                selectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+                selectedTrackId: tracks[0]?.id || null,
             }));
 
             abortControllerRef.current = null;
@@ -445,7 +445,7 @@ export function useSunoMusic() {
                 status: "SUCCESS",
                 progress: 100,
                 generatedTracks: [...prev.generatedTracks, ...tracks],
-                selectedTrackId: tracks.length > 0 ? tracks[0].id : prev.selectedTrackId,
+                selectedTrackId: tracks[0]?.id || prev.selectedTrackId,
             }));
 
             return tracks;
@@ -458,6 +458,7 @@ export function useSunoMusic() {
                 progress: 0,
                 error: err instanceof Error ? err.message : String(err),
             }));
+            return null;
         }
     }, []);
 
@@ -471,7 +472,7 @@ export function useSunoMusic() {
                 ...prev,
                 error: "Suno API key not configured. Add VITE_SUNO_API_KEY to .env.local",
             }));
-            return;
+            return null;
         }
 
         setMusicState(prev => ({
@@ -504,7 +505,7 @@ export function useSunoMusic() {
                 status: "SUCCESS",
                 progress: 100,
                 generatedTracks: [...prev.generatedTracks, ...tracks],
-                selectedTrackId: tracks.length > 0 ? tracks[0].id : prev.selectedTrackId,
+                selectedTrackId: tracks[0]?.id || prev.selectedTrackId,
             }));
 
             return tracks;
@@ -517,6 +518,7 @@ export function useSunoMusic() {
                 progress: 0,
                 error: err instanceof Error ? err.message : String(err),
             }));
+            return null;
         }
     }, []);
 
@@ -530,7 +532,7 @@ export function useSunoMusic() {
                 ...prev,
                 error: "Suno API key not configured. Add VITE_SUNO_API_KEY to .env.local",
             }));
-            return;
+            return null;
         }
 
         setMusicState(prev => ({
@@ -548,7 +550,7 @@ export function useSunoMusic() {
             const tracks = await waitForCompletion(conversionTaskId);
 
             // The converted WAV URL should be in the first track's audio_url
-            const wavUrl = tracks.length > 0 ? tracks[0].audio_url : null;
+            const wavUrl = tracks.length > 0 ? tracks[0]?.audio_url || null : null;
 
             console.log(`[useSunoMusic] WAV conversion complete: ${wavUrl}`);
 
@@ -566,6 +568,7 @@ export function useSunoMusic() {
                 isConverting: false,
                 error: err instanceof Error ? err.message : String(err),
             }));
+            return null;
         }
     }, []);
 
@@ -579,7 +582,7 @@ export function useSunoMusic() {
                 ...prev,
                 error: "Suno API key not configured. Add VITE_SUNO_API_KEY to .env.local",
             }));
-            return;
+            return null;
         }
 
         setMusicState(prev => ({
@@ -612,6 +615,7 @@ export function useSunoMusic() {
                 isSeparating: false,
                 error: err instanceof Error ? err.message : String(err),
             }));
+            return null;
         }
     }, []);
 
@@ -625,7 +629,7 @@ export function useSunoMusic() {
                 ...prev,
                 error: "Suno API key not configured. Add VITE_SUNO_API_KEY to .env.local",
             }));
-            return;
+            return null;
         }
 
         setMusicState(prev => ({
@@ -662,6 +666,7 @@ export function useSunoMusic() {
                 isGeneratingPersona: false,
                 error: err instanceof Error ? err.message : String(err),
             }));
+            return null;
         }
     }, []);
 
@@ -726,7 +731,7 @@ export function useSunoMusic() {
                     status: "SUCCESS",
                     progress: 100,
                     generatedTracks: tracks,
-                    selectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+                    selectedTrackId: tracks[0]?.id || null,
                 }));
 
                 return taskId;
@@ -774,7 +779,7 @@ export function useSunoMusic() {
                     status: "SUCCESS",
                     progress: 100,
                     generatedTracks: tracks,
-                    selectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+                    selectedTrackId: tracks[0]?.id || null,
                 }));
 
                 return taskId;
@@ -822,7 +827,7 @@ export function useSunoMusic() {
                     status: "SUCCESS",
                     progress: 100,
                     generatedTracks: tracks,
-                    selectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+                    selectedTrackId: tracks[0]?.id || null,
                 }));
 
                 return taskId;

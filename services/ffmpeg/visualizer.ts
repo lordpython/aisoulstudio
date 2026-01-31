@@ -75,10 +75,16 @@ export function renderVisualizerLayer(
     const centerX = width / 2;
 
     for (let i = 0; i < bufferLength; i++) {
-        let value = frequencyData[i];
+        const freqVal = frequencyData[i];
+        if (freqVal === undefined) continue;
+
+        let value = freqVal;
 
         if (previousFrequencyData) {
-            value = (value + previousFrequencyData[i]) / 2;
+            const prevVal = previousFrequencyData[i];
+            if (prevVal !== undefined) {
+                value = (value + prevVal) / 2;
+            }
         }
 
         const barHeight = (value / 255) * maxHeight;

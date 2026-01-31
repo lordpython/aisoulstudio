@@ -43,11 +43,13 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     }
 
     const currentShot = shots[selectedShotIndex];
-    const currentScene = scenes.find(s => s.id === currentShot.sceneId);
+    const currentScene = currentShot ? scenes.find(s => s.id === currentShot.sceneId) : undefined;
 
     useEffect(() => {
-        setLocalDuration(currentShot.durationEst || 5);
-    }, [currentShot.id, currentShot.durationEst]);
+        if (currentShot) {
+            setLocalDuration(currentShot.durationEst || 5);
+        }
+    }, [currentShot?.id, currentShot?.durationEst]);
 
     const handleNext = () => {
         if (selectedShotIndex < shots.length - 1) {
@@ -69,7 +71,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     };
 
     const handleSaveDuration = () => {
-        if (onUpdateDuration) {
+        if (onUpdateDuration && currentShot) {
             onUpdateDuration(currentShot.id, localDuration);
         }
     };
@@ -89,14 +91,14 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                 <div className="absolute inset-0 ml-8 flex items-center justify-center">
                     <AnimatePresence mode="wait">
                         <motion.div
-                            key={currentShot.id}
+                            key={currentShot?.id || selectedShotIndex}
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 1.02 }}
                             transition={{ duration: 0.3 }}
                             className="w-full h-full relative"
                         >
-                            {currentShot.imageUrl ? (
+                            {currentShot?.imageUrl ? (
                                 <>
                                     <img
                                         src={currentShot.imageUrl}
@@ -136,9 +138,9 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                             {/* Badges */}
                             <div className="flex items-center gap-3">
                                 <span className="px-3 py-1.5 bg-[var(--cinema-celluloid)] backdrop-blur-md rounded text-xs font-mono text-[var(--cinema-spotlight)] border border-[var(--cinema-spotlight)]/30">
-                                    Scene {currentScene?.sceneNumber || '?'} | Shot {currentShot.shotNumber}
+                                    Scene {currentScene?.sceneNumber || '?'} | Shot {currentShot?.shotNumber || '?'}
                                 </span>
-                                {currentShot.cameraAngle && (
+                                {currentShot?.cameraAngle && (
                                     <span className="px-3 py-1.5 bg-[var(--cinema-editorial)]/20 text-[var(--cinema-editorial)] rounded text-xs font-mono uppercase border border-[var(--cinema-editorial)]/30">
                                         {currentShot.cameraAngle}
                                     </span>
@@ -147,7 +149,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
 
                             {/* Description */}
                             <h3 className="font-display text-2xl text-[var(--cinema-silver)] leading-snug">
-                                {currentShot.description}
+                                {currentShot?.description || 'No description'}
                             </h3>
 
                             {/* Duration Control */}
@@ -176,8 +178,8 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                         <motion.button
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => onGenerateVideo?.(currentShot.id)}
-                            disabled={isProcessing || !currentShot.imageUrl}
+                            onClick={() => currentShot && onGenerateVideo?.(currentShot.id)}
+                            disabled={isProcessing || !currentShot?.imageUrl}
                             className="
                                 h-14 px-8 rounded-lg
                                 btn-cinematic

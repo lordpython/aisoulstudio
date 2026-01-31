@@ -11,13 +11,13 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { mixAudioWithSFX, MixConfig, SceneAudioInfo } from "../audioMixerService";
 import { VideoSFXPlan } from "../sfxService";
-import { productionStore } from "../ai/productionAgent";
+import { productionStore } from "../ai/production/store";
 import { concatenateNarrationSegments } from "./audioUtils";
 import {
   extractAudioFromVideos,
   mixVideoAudioWithNarration,
   type ExtractedVideoAudio,
-} from "../ffmpeg/videoAudioExtractor";
+} from "../../services/ffmpeg/videoAudioExtractor";
 
 // --- Types ---
 
@@ -118,7 +118,7 @@ function hasSFXContent(sfxPlan: VideoSFXPlan | null | undefined): boolean {
   if (sfxPlan.backgroundMusic?.audioUrl) return true;
   
   // Check for scene ambient tracks
-  if (sfxPlan.scenes?.some(s => s.ambientTrack?.audioUrl)) return true;
+  if (sfxPlan.scenes?.some((s: { ambientTrack?: { audioUrl?: string } }) => s.ambientTrack?.audioUrl)) return true;
   
   return false;
 }

@@ -128,10 +128,10 @@ export function lintPrompt(params: {
   if (!leadingSubjectPattern.test(trimmedPrompt) && words > 5) {
     // If it doesn't match the pattern but starts with a capital letter + word, it might be a noun
     // We only flag if it looks like a preposition or weak start
-    const firstWord = trimmedPrompt.split(/\s+/)[0].toLowerCase();
+    const firstWord = trimmedPrompt.split(/\s+/)[0]?.toLowerCase();
     const weakStarts = ["in", "through", "on", "at", "by", "with", "from", "when", "while", "during", "beneath", "under", "above"];
 
-    if (weakStarts.includes(firstWord)) {
+    if (firstWord && weakStarts.includes(firstWord)) {
       issues.push({
         code: "no_leading_subject",
         message:

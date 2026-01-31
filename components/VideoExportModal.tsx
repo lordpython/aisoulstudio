@@ -66,7 +66,8 @@ function detectLyricsRTL(songData: SongData): boolean {
   const samplesToCheck = Math.min(5, songData.parsedSubtitles.length);
   let rtlCount = 0;
   for (let i = 0; i < samplesToCheck; i++) {
-    if (isRTL(songData.parsedSubtitles[i].text)) {
+    const subtitle = songData.parsedSubtitles[i];
+    if (subtitle && isRTL(subtitle.text)) {
       rtlCount++;
     }
   }
@@ -94,8 +95,8 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
   const isLyricsRTL = detectLyricsRTL(songData);
 
   // Check if SFX mixing is available
-  const hasSFX = sfxPlan && sceneTimings && sceneTimings.length > 0 &&
-    sfxPlan.scenes.some(s => s.ambientTrack?.audioUrl);
+  const hasSFX = !!(sfxPlan && sceneTimings && sceneTimings.length > 0 &&
+    sfxPlan.scenes.some(s => s.ambientTrack?.audioUrl));
 
   // Configuration State
   const [config, setConfig] = useState<ExportConfig>({
@@ -573,10 +574,10 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                       onCheckedChange={(checked) =>
                         setConfig({
                           ...config,
-                          visualizerConfig: {
-                            ...config.visualizerConfig!,
+                          visualizerConfig: config.visualizerConfig ? {
+                            ...config.visualizerConfig,
                             enabled: checked,
-                          },
+                          } : undefined,
                         })
                       }
                     />
@@ -587,17 +588,17 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-[10px] text-muted-foreground uppercase">Opacity</span>
-                          <span className="text-[10px] font-mono">{Math.round(config.visualizerConfig.opacity * 100)}%</span>
+                          <span className="text-[10px] font-mono">{Math.round((config.visualizerConfig?.opacity ?? 0.15) * 100)}%</span>
                         </div>
                         <Slider
                           min={0.05}
                           max={0.5}
                           step={0.01}
-                          value={[config.visualizerConfig.opacity]}
+                          value={[config.visualizerConfig?.opacity ?? 0.15]}
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              visualizerConfig: { ...config.visualizerConfig!, opacity: val ?? 0.15 },
+                              visualizerConfig: config.visualizerConfig ? { ...config.visualizerConfig, opacity: val ?? 0.15 } : undefined,
                             })
                           }
                         />
@@ -606,17 +607,17 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-[10px] text-muted-foreground uppercase">Max Height</span>
-                          <span className="text-[10px] font-mono">{Math.round(config.visualizerConfig.maxHeightRatio * 100)}%</span>
+                          <span className="text-[10px] font-mono">{Math.round((config.visualizerConfig?.maxHeightRatio ?? 0.25) * 100)}%</span>
                         </div>
                         <Slider
                           min={0.1}
                           max={0.5}
                           step={0.05}
-                          value={[config.visualizerConfig.maxHeightRatio]}
+                          value={[config.visualizerConfig?.maxHeightRatio ?? 0.25]}
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              visualizerConfig: { ...config.visualizerConfig!, maxHeightRatio: val ?? 0.25 },
+                              visualizerConfig: config.visualizerConfig ? { ...config.visualizerConfig, maxHeightRatio: val ?? 0.25 } : undefined,
                             })
                           }
                         />
@@ -637,7 +638,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                               onClick={() =>
                                 setConfig({
                                   ...config,
-                                  visualizerConfig: { ...config.visualizerConfig!, colorScheme: scheme },
+                                  visualizerConfig: config.visualizerConfig ? { ...config.visualizerConfig, colorScheme: scheme } : undefined,
                                 })
                               }
                             >
@@ -661,10 +662,10 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                       <span className="text-[10px] text-muted-foreground uppercase">Direction</span>
                       <Select
                         value={config.textAnimationConfig?.revealDirection}
-                        onValueChange={(val: any) =>
+                        onValueChange={(val: "ltr" | "rtl" | "center-out" | "center-in") =>
                           setConfig({
                             ...config,
-                            textAnimationConfig: { ...config.textAnimationConfig!, revealDirection: val },
+                            textAnimationConfig: config.textAnimationConfig ? { ...config.textAnimationConfig, revealDirection: val } : undefined,
                           })
                         }
                       >
@@ -691,7 +692,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                           onValueChange={([val]) =>
                             setConfig({
                               ...config,
-                              textAnimationConfig: { ...config.textAnimationConfig!, revealDuration: val ?? 0.3 },
+                              textAnimationConfig: config.textAnimationConfig ? { ...config.textAnimationConfig, revealDuration: val ?? 0.3 } : undefined,
                             })
                           }
                           className="flex-1"

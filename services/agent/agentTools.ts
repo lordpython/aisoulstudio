@@ -9,7 +9,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { lintPrompt, getSystemPersona, refineImagePrompt } from "../promptService";
 import { type AnalysisOutput, type StoryboardOutput, runAnalyzer, runStoryboarder } from "../directorService";
-import { JSONExtractor, FallbackProcessor, ExtractionMethod, type StoryboardData } from "../jsonExtractor";
+import { JSONExtractor, FallbackProcessor, ExtractionMethod, type StoryboardData, type FallbackNotification } from "../jsonExtractor";
 import { VideoPurpose } from "../../constants";
 import { agentLogger } from "./agentLogger";
 import { agentMetrics } from "./agentMetrics";
@@ -20,7 +20,7 @@ const jsonExtractor = new JSONExtractor();
 const fallbackProcessor = new FallbackProcessor();
 
 // Register fallback notification callback
-fallbackProcessor.registerNotificationCallback((notification) => {
+fallbackProcessor.registerNotificationCallback((notification: FallbackNotification) => {
     agentLogger.logFallbackUsage(notification);
     agentMetrics.recordFallbackUsage();
 });
@@ -124,10 +124,10 @@ export function getVisualReferences(query: string, style: string): {
     const composition = styleComposition[styleLower] || styleComposition.cinematic;
 
     return {
-        cameraAngles: moodData.camera,
-        lighting: moodData.lighting,
-        composition,
-        colorPalette: moodData.colors,
+        cameraAngles: moodData?.camera ?? [],
+        lighting: moodData?.lighting ?? [],
+        composition: composition ?? [],
+        colorPalette: moodData?.colors ?? [],
     };
 }
 
@@ -159,14 +159,14 @@ export function critiqueStoryboard(
     const previousPrompts: string[] = [];
     const moods = new Set<string>();
 
-    prompts.forEach((prompt, index) => {
+    prompts.forEach((prompt: { text: string; mood?: string }, index: number) => {
         const lintIssues = lintPrompt({
             promptText: prompt.text,
             globalSubject,
             previousPrompts,
         });
 
-        lintIssues.forEach(issue => {
+        lintIssues.forEach((issue: { code: string; message: string; severity: string }) => {
             issues.push({ promptIndex: index, code: issue.code, message: issue.message });
             totalScore -= issue.severity === "error" ? 5 : 2;
         });
@@ -421,7 +421,7 @@ export const refinePromptTool = tool(
             });
             return JSON.stringify({
                 refinedPrompt: result.refinedPrompt,
-                issues: result.issues.map(i => ({ code: i.code, message: i.message })),
+                issues: result.issues.map((i: { code: string; message: string }) => ({ code: i.code, message: i.message })),
                 wasRefined: result.refinedPrompt !== promptText,
             }, null, 2);
         } catch (error) {

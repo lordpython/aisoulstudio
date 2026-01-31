@@ -179,7 +179,7 @@ export function useLyricLens() {
 
   const handleGenerateAll = async (
     selectedStyle: string,
-    selectedAspectRatio: string,
+    selectedAspectRatio: "16:9" | "9:16",
   ) => {
     if (!songData || isBulkGenerating) return;
     setIsBulkGenerating(true);

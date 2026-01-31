@@ -56,7 +56,7 @@ export const generateVideoTool = tool(
                 "",
                 "documentary",
                 (aspectRatio === "9:16" ? "9:16" : "16:9"),
-                durationSeconds || 8,
+                (durationSeconds as 4 | 6 | 8) || 8,
                 useFastModel !== false
             );
 

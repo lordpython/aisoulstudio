@@ -648,7 +648,7 @@ export async function deleteProductionFolder(folderName: string): Promise<number
 
     console.log(`[CloudStorage] Deleting ${files.length} files from ${folderName}`);
 
-    await Promise.all(files.map(file => file.delete()));
+    await Promise.all(files.map((file: any) => file.delete()));
 
     console.log(`[CloudStorage] ✓ Deleted folder ${folderName}`);
 

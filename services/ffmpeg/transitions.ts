@@ -23,7 +23,7 @@ function getKenBurnsMovement(assetTime: number): KenBurnsMovement {
     const movements: KenBurnsMovement[] = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down'];
     // Use asset start time to pick movement - deterministic but varied
     const index = Math.floor(assetTime) % movements.length;
-    return movements[index];
+    return movements[index] || 'zoom_in';
 }
 
 /**

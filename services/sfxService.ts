@@ -444,8 +444,9 @@ export function findAmbientForScene(
   })).sort((a, b) => b.score - a.score);
 
   // Return best match if score is above threshold
-  if (scored[0].score >= 20) {
-    return scored[0].sfx;
+  const bestMatch = scored[0];
+  if (bestMatch && bestMatch.score >= 20) {
+    return bestMatch.sfx;
   }
 
   return null;

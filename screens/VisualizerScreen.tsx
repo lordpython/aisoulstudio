@@ -160,6 +160,7 @@ export default function VisualizerScreen() {
 
       const updatedImage: GeneratedImage = {
         ...image,
+        promptId: image.promptId, // Explicitly pass to avoid optional spread issues
         imageUrl: videoBase64,
         type: 'video',
         baseImageUrl: image.imageUrl,
@@ -198,6 +199,7 @@ export default function VisualizerScreen() {
 
     for (let i = 0; i < imagesToAnimate.length; i++) {
       const image = imagesToAnimate[i];
+      if (!image) continue;
       const prompt = songData.prompts.find(p => p.id === image.promptId);
 
       if (!prompt) continue;
@@ -214,6 +216,7 @@ export default function VisualizerScreen() {
 
         const updatedImage: GeneratedImage = {
           ...image,
+          promptId: image.promptId,
           imageUrl: videoBase64,
           type: 'video',
           baseImageUrl: image.imageUrl,
@@ -395,7 +398,7 @@ export default function VisualizerScreen() {
               imageProvider={imageProvider}
               onProviderChange={setImageProvider}
               appState={appState}
-              errorMsg={errorMsg}
+              errorMsg={errorMsg || undefined}
               onStartProcessing={handleStartProcessing}
             />
           </motion.div>

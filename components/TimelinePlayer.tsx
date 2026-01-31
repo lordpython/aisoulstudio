@@ -152,13 +152,16 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
         if (!sourceRef.current) {
           try {
-            sourceRef.current = ctx.createMediaElementSource(audioRef.current);
-            analyserRef.current = ctx.createAnalyser();
-            analyserRef.current.fftSize = visualizerMode === "wave" ? 2048 : 256;
-            analyserRef.current.smoothingTimeConstant = 0.8;
+            const source = ctx.createMediaElementSource(audioRef.current);
+            sourceRef.current = source;
+            const analyser = ctx.createAnalyser();
+            analyserRef.current = analyser;
+            
+            analyser.fftSize = visualizerMode === "wave" ? 2048 : 256;
+            analyser.smoothingTimeConstant = 0.8;
 
-            sourceRef.current.connect(analyserRef.current);
-            analyserRef.current.connect(ctx.destination);
+            source.connect(analyser);
+            analyser.connect(ctx.destination);
           } catch (e) {
             console.warn("AudioContext already connected");
           }
@@ -255,7 +258,8 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     ctx.fillStyle = gradient;
 
     for (let i = 0; i < len / 2; i++) {
-      const barHeight = (data[i] / 255) * h;
+      const val = data[i] ?? 0;
+      const barHeight = (val / 255) * h;
       const centerX = w / 2;
       const offset = i * (barWidth + 1);
 
@@ -293,7 +297,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     ctx.strokeStyle = "rgba(34, 211, 238, 0.8)";
     ctx.beginPath();
     for (let i = 0; i < len; i += 2) {
-      const value = data[i];
+      const value = data[i] ?? 0;
       const barHeight = (value / 255) * radius * 0.8;
       const angle = i * angleStep - Math.PI / 2;
 
@@ -311,7 +315,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     ctx.shadowColor = "#a78bfa";
     ctx.beginPath();
     for (let i = 0; i < len; i += 4) {
-      const value = data[len - i - 1];
+      const value = data[len - i - 1] ?? 0;
       const barHeight = (value / 255) * radius * 0.5;
 
       const angle = i * angleStep - Math.PI / 2;
@@ -358,7 +362,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
     const step = 2;
     for (let i = 0; i < len / 3; i += step) {
-      const value = data[i];
+      const value = data[i] ?? 0;
       const percent = value / 255;
       const y = h - percent * h * 0.6 - 20;
 
@@ -475,7 +479,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   ) => {
     if (progressBarRef.current && duration > 0) {
       const rect = progressBarRef.current.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientX = "touches" in e ? (e.touches[0]?.clientX ?? 0) : e.clientX;
       const x = clientX - rect.left;
       const percentage = Math.min(Math.max(x / rect.width, 0), 1);
       const newTime = percentage * duration;

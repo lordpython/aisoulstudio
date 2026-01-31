@@ -1,5 +1,5 @@
 // MUST be first import to load environment variables before other modules
-import './env.js';
+import './env';
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createLogger } from '../services/logger.js';
+import { createLogger } from '../services/logger';
 
 // Create contextual loggers
 const serverLog = createLogger('Server');
@@ -19,10 +19,10 @@ const cloudLog = createLogger('Cloud');
 const videoLog = createLogger('Video');
 
 // Import modular routes
-import exportRoutes from './routes/export.js';
-import importRoutes from './routes/import.js';
-import healthRoutes from './routes/health.js';
-import { ensureTempDir, TEMP_DIR, GEMINI_API_KEY, DEAPI_API_KEY, MAX_FILE_SIZE, MAX_FILES, sanitizeId, getSessionDir, cleanupSession } from './utils/index.js';
+import exportRoutes from './routes/export';
+import importRoutes from './routes/import';
+import healthRoutes from './routes/health';
+import { ensureTempDir, TEMP_DIR, GEMINI_API_KEY, DEAPI_API_KEY, MAX_FILE_SIZE, MAX_FILES, sanitizeId, getSessionDir, cleanupSession } from './utils/index';
 
 // Environment variables are loaded by ./env.js import at the top
 
@@ -343,7 +343,7 @@ app.post('/api/director/generate', async (req: Request, res: Response) => {
     geminiLog.info(`Generating prompts for ${contentType} (${style})`);
 
     // Dynamically import the service to avoid loading it on startup if not needed
-    const { generatePromptsWithLangChain } = await import('../services/directorService.js');
+    const { generatePromptsWithLangChain } = await import('../services/directorService');
 
     const prompts = await generatePromptsWithLangChain(
       srtContent,
@@ -380,7 +380,7 @@ app.post('/api/gemini/generate', async (req: ApiProxyRequest, res: Response) => 
     geminiLog.info('Redirecting legacy call to generateContent');
 
     // Dynamically import ai client to ensure env vars are loaded
-    const { ai } = await import('../services/shared/apiClient.js');
+    const { ai } = await import('../services/shared/apiClient');
     const result = await ai.models.generateContent({ model, contents, config });
 
     // Wrap to match old expected format
@@ -717,7 +717,7 @@ app.post('/api/deapi/img2video', upload.single('first_frame_image'), async (req:
  * Professional Video Prompt Generator (Test UI Endpoint)
  * Generates AI-powered cinematographer-level prompts for Veo 3.1
  */
-app.post('/api/generate-video-prompt', async (req: Request, res: Response) => {
+app.post('/api/generate-video-prompt', async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       sceneDescription,
@@ -729,7 +729,8 @@ app.post('/api/generate-video-prompt', async (req: Request, res: Response) => {
     } = req.body;
 
     if (!sceneDescription) {
-      return res.status(400).json({ error: 'sceneDescription is required' });
+      res.status(400).json({ error: 'sceneDescription is required' });
+      return;
     }
 
     videoLog.info(`Generating professional prompt for: "${sceneDescription.substring(0, 50)}..."`);
@@ -752,14 +753,16 @@ app.post('/api/generate-video-prompt', async (req: Request, res: Response) => {
   } catch (error: any) {
     videoLog.error('Prompt error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate video prompt' });
+    return;
   }
+  return;
 });
 
 /**
  * Veo 3.1 Video Generation (Test UI Endpoint)
  * Generates video using Veo 3.1 with the provided prompt
  */
-app.post('/api/generate-video', async (req: Request, res: Response) => {
+app.post('/api/generate-video', async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       prompt,
@@ -771,7 +774,8 @@ app.post('/api/generate-video', async (req: Request, res: Response) => {
     } = req.body;
 
     if (!prompt) {
-      return res.status(400).json({ error: 'prompt is required' });
+      res.status(400).json({ error: 'prompt is required' });
+      return;
     }
 
     videoLog.info(`Generating Veo 3.1 video (${useFastModel ? 'Fast' : 'Standard'} model)`);
@@ -793,9 +797,11 @@ app.post('/api/generate-video', async (req: Request, res: Response) => {
 
     videoLog.info('Video generated successfully');
     res.json({ success: true, videoUrl });
+    return;
   } catch (error: any) {
     videoLog.error('Error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate video' });
+    return;
   }
 });
 
@@ -803,7 +809,7 @@ app.post('/api/generate-video', async (req: Request, res: Response) => {
  * Professional Video Generation (Combined endpoint)
  * First generates a professional prompt, then generates the video
  */
-app.post('/api/generate-professional-video', async (req: Request, res: Response) => {
+app.post('/api/generate-professional-video', async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       sceneDescription,
@@ -817,7 +823,8 @@ app.post('/api/generate-professional-video', async (req: Request, res: Response)
     } = req.body;
 
     if (!sceneDescription) {
-      return res.status(400).json({ error: 'sceneDescription is required' });
+      res.status(400).json({ error: 'sceneDescription is required' });
+      return;
     }
 
     videoLog.info('Starting professional video generation pipeline');
@@ -841,6 +848,7 @@ app.post('/api/generate-professional-video', async (req: Request, res: Response)
   } catch (error: any) {
     videoLog.error('Professional video error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate professional video' });
+    return;
   }
 });
 
@@ -849,12 +857,13 @@ app.post('/api/generate-professional-video', async (req: Request, res: Response)
  * Video Download Proxy
  * Proxies video downloads from Google APIs to avoid CORS issues
  */
-app.get('/api/download-video', async (req: Request, res: Response) => {
+app.get('/api/download-video', async (req: Request, res: Response): Promise<void> => {
   try {
     const { url } = req.query;
 
     if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'url parameter is required' });
+      res.status(400).json({ error: 'url parameter is required' });
+      return;
     }
 
     videoLog.info(`Proxying download from: ${url.substring(0, 100)}...`);
@@ -876,17 +885,19 @@ app.get('/api/download-video', async (req: Request, res: Response) => {
       res.setHeader('Content-Length', contentLength);
     }
     res.setHeader('Content-Disposition', 'attachment; filename="generated-video.mp4"');
+// Stream the video to the client
+const buffer = await response.arrayBuffer();
+res.send(Buffer.from(buffer));
 
-    // Stream the video to the client
-    const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
-
-    videoLog.info('Download complete');
-  } catch (error: any) {
-    videoLog.error('Download error:', error);
-    res.status(500).json({ error: error.message || 'Failed to download video' });
-  }
+videoLog.info('Download complete');
+return;
+} catch (error: any) {
+videoLog.error('Download error:', error);
+res.status(500).json({ error: error.message || 'Failed to download video' });
+return;
+}
 });
+
 // --- Real-Time Cloud Autosave Endpoints ---
 
 // Lazy-load Google Cloud Storage
@@ -915,11 +926,12 @@ async function getGcsStorageClient(): Promise<any> {
  * Initialize Cloud Session Folder
  * Called immediately when "Plan Video" is started.
  */
-app.post('/api/cloud/init', async (req: Request, res: Response) => {
+app.post('/api/cloud/init', async (req: Request, res: Response): Promise<void> => {
   const { sessionId } = req.body;
 
   if (!sessionId) {
-    return res.status(400).json({ error: 'sessionId is required' });
+    res.status(400).json({ error: 'sessionId is required' });
+    return;
   }
 
   const folderPath = `production_${sessionId}/`;
@@ -931,7 +943,8 @@ app.post('/api/cloud/init', async (req: Request, res: Response) => {
     const [exists] = await bucket.exists();
     if (!exists) {
       cloudLog.warn(`Bucket ${GCS_BUCKET_NAME} not found. Auto-save disabled.`);
-      return res.status(404).json({ error: 'Bucket not found', bucketName: GCS_BUCKET_NAME });
+      res.status(404).json({ error: 'Bucket not found', bucketName: GCS_BUCKET_NAME });
+      return;
     }
 
     // Create a "marker" file to officially "start" the folder
@@ -955,11 +968,12 @@ app.post('/api/cloud/init', async (req: Request, res: Response) => {
  */
 const memoryUpload = multer({ storage: multer.memoryStorage() });
 
-app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response) => {
+app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response): Promise<void> => {
   const { sessionId, assetType, filename } = req.body;
 
   if (!req.file || !sessionId) {
-    return res.status(400).json({ error: 'Missing file or sessionId' });
+    res.status(400).json({ error: 'Missing file or sessionId' });
+    return;
   }
 
   // Validate assetType to prevent path traversal

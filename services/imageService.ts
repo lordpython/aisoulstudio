@@ -133,9 +133,8 @@ async function generateWithImagenAPI(
   });
 
   // Check if we got generated images
-  if (response.generatedImages && response.generatedImages.length > 0) {
-    const img = response.generatedImages[0];
-
+  const img = response.generatedImages?.[0];
+  if (img) {
     // Check if image was filtered
     if (img.raiFilteredReason) {
       console.warn(`[ImageService] Image was filtered: ${img.raiFilteredReason}`);

@@ -192,7 +192,9 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
     // Write PCM samples
     const offset = 44;
     for (let i = 0; i < interleaved.length; i++) {
-        const sample = Math.max(-1, Math.min(1, interleaved[i]));
+        const val = interleaved[i];
+        if (val === undefined) continue;
+        const sample = Math.max(-1, Math.min(1, val));
         const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
         view.setInt16(offset + i * 2, intSample, true);
     }
@@ -210,7 +212,11 @@ function interleaveChannels(buffer: AudioBuffer): Float32Array {
 
     for (let i = 0; i < length; i++) {
         for (let channel = 0; channel < numChannels; channel++) {
-            result[i * numChannels + channel] = buffer.getChannelData(channel)[i];
+            const channelData = buffer.getChannelData(channel);
+            const val = channelData[i];
+            if (val !== undefined) {
+                result[i * numChannels + channel] = val;
+            }
         }
     }
 
@@ -279,7 +285,10 @@ export async function mixVideoAudioWithNarration(
                 channel < narrationBuffer.numberOfChannels ? channel : 0
             );
             for (let i = 0; i < narrationData.length && i < outputData.length; i++) {
-                outputData[i] = narrationData[i];
+                const val = narrationData[i];
+                if (val !== undefined) {
+                    outputData[i] = val;
+                }
             }
         }
 
@@ -302,11 +311,16 @@ export async function mixVideoAudioWithNarration(
 
                     for (let i = 0; i < trackData.length; i++) {
                         const outputIndex = startSample + i;
-                        if (outputIndex < outputData.length) {
-                            // Mix video audio at specified volume
-                            outputData[outputIndex] += trackData[i] * videoAudioVolume;
-                            // Soft clip to prevent distortion
-                            outputData[outputIndex] = Math.max(-1, Math.min(1, outputData[outputIndex]));
+                        const trackVal = trackData[i];
+                        if (outputIndex < outputData.length && trackVal !== undefined) {
+                            const outputVal = outputData[outputIndex];
+                            if (outputVal !== undefined) {
+                                // Mix video audio at specified volume
+                                let mixed = outputVal + (trackVal * videoAudioVolume);
+                                // Soft clip to prevent distortion
+                                mixed = Math.max(-1, Math.min(1, mixed));
+                                outputData[outputIndex] = mixed;
+                            }
                         }
                     }
                 }

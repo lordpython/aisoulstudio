@@ -73,6 +73,7 @@ export function UnsavedChangesGuard({
         e.returnValue = '';
         return '';
       }
+      return undefined;
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);

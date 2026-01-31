@@ -11,8 +11,7 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { splitTextIntoSegments } from "../subtitleService";
 import { SubtitleItem } from "../../types";
-import { _subtitlesToSRT } from "../../utils/srtParser";
-import { productionStore } from "../ai/productionAgent";
+import { productionStore } from "../ai/production/store";
 
 // --- Types ---
 

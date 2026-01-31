@@ -199,7 +199,7 @@ export const uploadProductionTool = tool(
     const bundle: ProductionBundle = {
       metadata: {
         topic: state.contentPlan?.topic || "Unknown",
-        duration: state.narrationSegments?.reduce((sum, seg) => sum + seg.audioDuration, 0) || 0,
+        duration: state.narrationSegments?.reduce((sum: number, seg: { audioDuration: number }) => sum + seg.audioDuration, 0) || 0,
         language: state.contentPlan?.language || "en",
         sceneCount: state.contentPlan?.scenes.length || 0,
         productionId: contentPlanId,
@@ -294,8 +294,8 @@ export const uploadProductionTool = tool(
       logs.push(`Uploading to Google Cloud Storage...`);
       const uploadResult = await uploadProductionBundle(bundle, makePublic);
 
-      const successCount = uploadResult.results.filter(r => r.success).length;
-      const totalSize = uploadResult.results.reduce((sum, r) => sum + r.size, 0);
+      const successCount = uploadResult.results.filter((r: { success: boolean }) => r.success).length;
+      const totalSize = uploadResult.results.reduce((sum: number, r: { size: number }) => sum + r.size, 0);
 
       const result: CloudUploadResult = {
         folderName: uploadResult.folderName,

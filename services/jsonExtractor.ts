@@ -306,7 +306,7 @@ export class JSONExtractor {
 
     // Strategy 2: Markdown Code Blocks (```json ... ```)
     const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/i);
-    if (jsonBlockMatch) {
+    if (jsonBlockMatch && jsonBlockMatch[1]) {
       try {
         const jsonStr = jsonBlockMatch[1].trim();
         const parsed = JSON.parse(this.sanitizeJsonString(jsonStr));
@@ -319,7 +319,7 @@ export class JSONExtractor {
 
     // Strategy 3: Generic Code Blocks (``` ... ```)
     const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
+    if (codeBlockMatch && codeBlockMatch[1]) {
       try {
         const jsonStr = codeBlockMatch[1].trim();
         const parsed = JSON.parse(this.sanitizeJsonString(jsonStr));
@@ -332,7 +332,7 @@ export class JSONExtractor {
 
     // Strategy 4: First complete JSON object {...}
     const objMatch = content.match(/(\{[\s\S]*\})/);
-    if (objMatch) {
+    if (objMatch && objMatch[1]) {
       try {
         const parsed = JSON.parse(this.sanitizeJsonString(objMatch[1]));
         this.recordSuccess(ExtractionMethod.REGEX_PATTERN, 0.8);
@@ -344,7 +344,7 @@ export class JSONExtractor {
 
     // Strategy 5: First complete JSON array [...]
     const arrMatch = content.match(/(\[[\s\S]*\])/);
-    if (arrMatch) {
+    if (arrMatch && arrMatch[1]) {
       try {
         const parsed = JSON.parse(this.sanitizeJsonString(arrMatch[1]));
         this.recordSuccess(ExtractionMethod.REGEX_PATTERN, 0.75);
@@ -375,7 +375,7 @@ export class JSONExtractor {
     try {
       const cleaned = content
         .replace(/^[\s\S]*?(?=[\[{])/, '') // Remove everything before first [ or {
-        .replace(/[\]}][^}\]]*$/, (match) => match[0]) // Keep only up to last ] or }
+        .replace(/[\]}][^}\]]*$/, (match) => match[0] ?? "") // Keep only up to last ] or }
         .trim();
 
       if (cleaned.length > 0) {

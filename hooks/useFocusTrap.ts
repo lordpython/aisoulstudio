@@ -100,6 +100,9 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>({
 
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (!firstElement || !lastElement) return;
+
         const activeElement = document.activeElement as HTMLElement;
 
         // Shift + Tab: Move focus backwards
@@ -134,8 +137,9 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>({
         initialFocusRef.current.focus();
       } else if (containerRef.current) {
         const focusableElements = getFocusableElements(containerRef.current);
-        if (focusableElements.length > 0) {
-          focusableElements[0].focus();
+        const firstFocusable = focusableElements[0];
+        if (firstFocusable) {
+          firstFocusable.focus();
         } else {
           // If no focusable elements, focus the container itself
           containerRef.current.setAttribute('tabindex', '-1');

@@ -96,6 +96,7 @@ export interface ProductionConfig {
     skipVisuals?: boolean; // Skip image generation
     skipValidation?: boolean; // Skip editor validation
     animateVisuals?: boolean; // Animate images to video with DeAPI
+    veoVideoCount?: number; // Number of scenes to generate as professional videos
     maxRetries?: number; // Max feedback loop iterations
 }
 

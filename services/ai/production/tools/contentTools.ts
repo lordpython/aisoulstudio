@@ -102,7 +102,7 @@ export const planVideoTool = tool(
                 sessionId,
                 sceneCount: contentPlan.scenes.length,
                 totalDuration: contentPlan.totalDuration,
-                scenes: contentPlan.scenes.map(s => ({
+                scenes: contentPlan.scenes.map((s: { name: string; duration: number }) => ({
                     name: s.name,
                     duration: s.duration,
                 })),
@@ -156,7 +156,7 @@ export const narrateScenesTool = tool(
             const segments = await narrateAllScenes(
                 state.contentPlan.scenes,
                 narratorConfig,
-                (sceneIndex, totalScenes) => {
+                (sceneIndex: number, totalScenes: number) => {
                     emitSceneProgress(
                         "narrate_scenes",
                         sceneIndex + 1,

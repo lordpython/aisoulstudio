@@ -750,6 +750,7 @@ async function validateAndLintPrompts(
 
   for (let i = 0; i < prompts.length; i++) {
     const prompt = prompts[i];
+    if (!prompt) continue;
 
     // Run lint validation
     const issues = lintPrompt({

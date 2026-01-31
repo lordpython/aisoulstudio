@@ -13,21 +13,30 @@ import { transcribeAudioWithWordTiming } from "../transcriptionService";
 import { ImportYouTubeSchema, TranscribeAudioSchema } from "./schemas/importSchemas";
 import { ServiceError, ValidationError, ResourceNotFoundError } from "./errors";
 import {
-  ImportedContent,
-  TranscriptResult,
-  TranscriptSegment,
-  WordTimingInfo,
+  type ImportedContent,
+  type TranscriptResult,
+  type TranscriptSegment,
+  type WordTimingInfo,
   SUPPORTED_AUDIO_FORMATS,
   getImportedContent,
   setImportedContent,
+  clearImportedContent,
   isValidYouTubeUrl,
   extractYouTubeVideoId,
   subtitleItemsToTranscriptResult,
   getServerBaseUrl,
 } from "./importUtils";
 
-// Re-export types for consumers
-export type { ImportedContent } from "./importUtils";
+// Re-export types and functions for consumers
+export { 
+  type ImportedContent,
+  type TranscriptResult,
+  type TranscriptSegment,
+  type WordTimingInfo,
+  getImportedContent,
+  setImportedContent,
+  clearImportedContent
+};
 
 // --- Tool Implementations ---
 

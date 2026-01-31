@@ -281,8 +281,12 @@ function parseTimestamp(timestamp: string): number {
         return 0;
     }
 
-    const minutes = parseInt(parts[0], 10);
-    const seconds = parseInt(parts[1], 10);
+    const minStr = parts[0];
+    const secStr = parts[1];
+    if (minStr === undefined || secStr === undefined) return 0;
+
+    const minutes = parseInt(minStr, 10);
+    const seconds = parseInt(secStr, 10);
 
     return minutes * 60 + seconds;
 }

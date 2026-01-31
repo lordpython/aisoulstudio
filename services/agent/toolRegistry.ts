@@ -203,6 +203,7 @@ class ToolRegistry {
     // Check all preceding groups are complete
     for (let i = 0; i < toolGroupIndex; i++) {
       const precedingGroup = TOOL_GROUP_ORDER[i];
+      if (!precedingGroup) continue;
       // Skip IMPORT group if no import tools were used (optional group)
       if (precedingGroup === ToolGroup.IMPORT && this.getToolsByGroup(ToolGroup.IMPORT).length === 0) {
         continue;
@@ -250,6 +251,7 @@ class ToolRegistry {
 
     for (let i = 0; i < toolSequence.length; i++) {
       const toolName = toolSequence[i];
+      if (!toolName) continue;
       const entry = this.tools.get(toolName);
       
       if (!entry) continue;
@@ -264,6 +266,7 @@ class ToolRegistry {
       // Check if any later group was seen before this tool's group
       for (let j = currentGroupIndex + 1; j < TOOL_GROUP_ORDER.length; j++) {
         const laterGroup = TOOL_GROUP_ORDER[j];
+        if (!laterGroup) continue;
         if (seenGroups.has(laterGroup)) {
           violations.push({
             tool: toolName,
@@ -386,7 +389,7 @@ export function getNextGroup(currentGroup: ToolGroup): ToolGroup | null {
   if (currentIndex < 0 || currentIndex >= TOOL_GROUP_ORDER.length - 1) {
     return null;
   }
-  return TOOL_GROUP_ORDER[currentIndex + 1];
+  return TOOL_GROUP_ORDER[currentIndex + 1] || null;
 }
 
 /**

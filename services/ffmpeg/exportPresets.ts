@@ -305,7 +305,7 @@ export function getRecommendedPreset(
   if (matchingPresets.length > 0) {
     // Prefer high quality presets
     const highQuality = matchingPresets.find((p) => p.quality === "high");
-    return highQuality || matchingPresets[0];
+    return (highQuality || matchingPresets[0])!;
   }
 
   return orientation === "portrait"

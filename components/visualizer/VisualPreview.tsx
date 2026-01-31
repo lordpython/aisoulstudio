@@ -57,8 +57,8 @@ export function VisualPreview({
   );
 
   const isVideo = currentVisual?.type === 'video';
-  const canAnimate = currentVisual && !isVideo;
-  const isAnimating = currentVisual && animatingPromptId === currentVisual.promptId;
+  const canAnimate = !!(currentVisual && !isVideo);
+  const isAnimating = !!(currentVisual && animatingPromptId === currentVisual.promptId);
 
   return (
     <div className={cn('relative aspect-video bg-black/40 rounded-2xl overflow-hidden border border-white/10', className)}>

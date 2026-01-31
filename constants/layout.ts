@@ -91,7 +91,9 @@ export const LAYOUT_PRESETS: Record<string, LayoutConfig> = {
  * Get layout preset for a given orientation
  */
 export function getLayoutPreset(orientation: "landscape" | "portrait"): LayoutConfig {
-    return LAYOUT_PRESETS[orientation];
+    const preset = LAYOUT_PRESETS[orientation];
+    if (!preset) return LAYOUT_PRESETS["landscape"]!; // Fallback
+    return preset;
 }
 
 /**

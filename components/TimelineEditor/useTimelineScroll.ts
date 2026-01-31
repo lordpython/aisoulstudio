@@ -33,9 +33,9 @@ export interface UseTimelineScrollResult {
   /** Current horizontal scroll offset in pixels */
   scrollLeft: number;
   /** Ref to attach to the scrollable track lanes container */
-  trackLanesRef: React.RefObject<HTMLDivElement>;
+  trackLanesRef: React.RefObject<HTMLDivElement | null>;
   /** Ref to attach to the ruler container (for sync) */
-  rulerRef: React.RefObject<HTMLDivElement>;
+  rulerRef: React.RefObject<HTMLDivElement | null>;
   /** Handler for scroll events on track lanes */
   handleScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   /** Programmatically set scroll position */

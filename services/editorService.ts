@@ -659,7 +659,9 @@ async function mergeAudioBlobs(
 
     let offset = 0;
     for (let i = 0; i < blobs.length; i++) {
-        const blobData = new Uint8Array(await blobs[i].arrayBuffer());
+        const blob = blobs[i];
+        if (!blob) continue;
+        const blobData = new Uint8Array(await blob.arrayBuffer());
         mergedView.set(blobData, offset);
         offset += blobData.length;
     }
@@ -763,11 +765,13 @@ async function renderVideoWithCanvas(
         let sceneIndex = 0;
         let sceneStartTime = 0;
         for (let i = 0; i < timeline.length; i++) {
-            if (currentTime >= sceneStartTime && currentTime < sceneStartTime + timeline[i].duration) {
+            const item = timeline[i];
+            if (!item) continue;
+            if (currentTime >= sceneStartTime && currentTime < sceneStartTime + item.duration) {
                 sceneIndex = i;
                 break;
             }
-            sceneStartTime += timeline[i].duration;
+            sceneStartTime += item.duration;
         }
 
         // Clear canvas
@@ -838,7 +842,10 @@ async function combineFramesAndAudio(
     source.connect(mediaStreamDest);
 
     // Combine tracks
-    stream.addTrack(mediaStreamDest.stream.getAudioTracks()[0]);
+    const audioTrack = mediaStreamDest.stream.getAudioTracks()[0];
+    if (audioTrack) {
+        stream.addTrack(audioTrack);
+    }
 
     const recorder = new MediaRecorder(stream, {
         mimeType: "video/webm;codecs=vp8,opus",
@@ -867,8 +874,15 @@ async function combineFramesAndAudio(
                 return;
             }
 
+            const frameBlob = frames[frameIndex];
+            if (!frameBlob) {
+                frameIndex++;
+                drawFrame();
+                return;
+            }
+
             const img = new Image();
-            img.src = URL.createObjectURL(frames[frameIndex]);
+            img.src = URL.createObjectURL(frameBlob);
             await new Promise<void>((r) => { img.onload = () => r(); });
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             URL.revokeObjectURL(img.src);

@@ -506,14 +506,14 @@ export function extractJSONFromResponse<T = unknown>(response: string): T | null
     // Strategy 2: Extract from ```json ... ``` block
     () => {
       const match = response.match(/```json\s*([\s\S]*?)\s*```/i);
-      if (!match) throw new Error('No json block found');
+      if (!match || !match[1]) throw new Error('No json block found');
       return JSON.parse(match[1].trim());
     },
 
     // Strategy 3: Extract from ``` ... ``` block (without json tag)
     () => {
       const match = response.match(/```\s*([\s\S]*?)\s*```/);
-      if (!match) throw new Error('No code block found');
+      if (!match || !match[1]) throw new Error('No code block found');
       return JSON.parse(match[1].trim());
     },
 
@@ -535,7 +535,7 @@ export function extractJSONFromResponse<T = unknown>(response: string): T | null
     () => {
       const cleaned = response
         .replace(/^[\s\S]*?(?=[\[{])/, '') // Remove everything before first [ or {
-        .replace(/[\]}][\s\S]*$/, (match) => match[0]) // Keep only up to last ] or }
+        .replace(/[\]}][\s\S]*$/, (match) => match[0] ?? "") // Keep only up to last ] or }
         .trim();
       return JSON.parse(cleaned);
     },
@@ -559,8 +559,10 @@ export function extractJSONFromResponse<T = unknown>(response: string): T | null
   ];
 
   for (let i = 0; i < strategies.length; i++) {
+    const strategy = strategies[i];
+    if (!strategy) continue;
     try {
-      const result = strategies[i]();
+      const result = strategy();
       if (result !== null && result !== undefined) {
         console.log(`[JSONExtract] Succeeded with strategy ${i + 1}`);
         return result as T;
@@ -642,6 +644,7 @@ export async function runWithConcurrency<T, R>(
     while (currentIndex < items.length) {
       const index = currentIndex++;
       const item = items[index];
+      if (item === undefined) continue;
 
       try {
         results[index] = await fn(item, index);
