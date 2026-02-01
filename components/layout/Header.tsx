@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/useLanguage";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { BackArrow, ForwardChevron } from "./DirectionalIcon";
+import { UserMenu } from "@/components/auth";
 
 // Legacy Header Props for backward compatibility
 export interface LegacyHeaderProps {
@@ -109,8 +110,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </nav>
 
-      {/* Right side - Actions and Language Switcher */}
-      <div 
+      {/* Right side - Actions, User Menu, and Language Switcher */}
+      <div
         className={cn(
           "flex items-center gap-2",
           isRTL && "flex-row-reverse"
@@ -119,9 +120,11 @@ export const Header: React.FC<HeaderProps> = ({
         aria-label="Header actions"
       >
         {actions}
-        
+
         <div className="h-4 w-[1px] bg-white/[0.1] mx-1" aria-hidden="true" />
-        
+
+        <UserMenu />
+
         <LanguageSwitcher variant="dropdown" />
       </div>
     </header>

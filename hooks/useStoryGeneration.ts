@@ -24,6 +24,12 @@ import { generateVideoFromPrompt } from '@/services/videoService';
 import { animateImageWithDeApi, isDeApiConfigured } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { cloudAutosave } from '@/services/cloudStorageService';
+import {
+    debouncedSaveToCloud,
+    loadStoryFromCloud,
+    isSyncAvailable,
+    flushPendingSave,
+} from '@/services/firebase';
 
 const STORAGE_KEY = 'lyriclens_story_state';
 const SESSION_KEY = 'lyriclens_story_session';
@@ -153,6 +159,7 @@ export function useStoryGeneration() {
     });
 
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [topic, setTopic] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<{ message: string; percent: number }>({
@@ -230,12 +237,17 @@ export function useStoryGeneration() {
         }
     }, []);
 
-    // Save state to localStorage on change (strip base64 images to avoid quota errors)
+    // Save state to localStorage and Firestore on change
     useEffect(() => {
         if (state.currentStep !== 'idea') {
             try {
                 const stateForStorage = stripImageDataForStorage(state);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateForStorage));
+
+                // Also sync to Firestore if user is authenticated
+                if (sessionId && isSyncAvailable()) {
+                    debouncedSaveToCloud(sessionId, state, topic || undefined);
+                }
             } catch (err) {
                 // QuotaExceededError - log but don't crash
                 console.warn('[useStoryGeneration] Failed to save state to localStorage:', err);
@@ -244,18 +256,19 @@ export function useStoryGeneration() {
         if (sessionId) {
             localStorage.setItem(SESSION_KEY, sessionId);
         }
-    }, [state, sessionId]);
+    }, [state, sessionId, topic]);
 
     /**
      * Step 1: Generate Breakdown
      */
-    const generateBreakdown = useCallback(async (topic: string, genre: string) => {
+    const generateBreakdown = useCallback(async (inputTopic: string, genre: string) => {
         setIsProcessing(true);
         setError(null);
+        setTopic(inputTopic);
         setProgress({ message: 'Generating story breakdown...', percent: 20 });
 
         try {
-            const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${topic}. Return exactly 6 scenes.`;
+            const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${inputTopic}. Return exactly 6 scenes.`;
             await runProductionAgent(prompt, (progress) => {
                 setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 50 });
             });
@@ -266,7 +279,7 @@ export function useStoryGeneration() {
 
             // Get the most recently created story session
             for (const [sid, storyState] of storyModeStore.entries()) {
-                if (storyState.topic === topic || sid.startsWith('story_')) {
+                if (storyState.topic === inputTopic || sid.startsWith('story_')) {
                     foundSessionId = sid;
                     foundState = storyState;
                 }
@@ -286,7 +299,7 @@ export function useStoryGeneration() {
 
                 // Parse the breakdown text into scenes
                 const breakdownText = foundState.breakdown;
-                const scenes: ScreenplayScene[] = parseBreakdownToScenes(breakdownText, topic);
+                const scenes: ScreenplayScene[] = parseBreakdownToScenes(breakdownText, inputTopic);
 
                 console.log('[useStoryGeneration] Breakdown parsed into scenes:', scenes.length);
 
@@ -1199,6 +1212,49 @@ export function useStoryGeneration() {
         return state.shotlist.every(s => state.shotsWithAnimation?.includes(s.id));
     }, [state.shotlist, state.shotsWithAnimation]);
 
+    /**
+     * Load a story from Firestore by session ID
+     */
+    const loadFromCloud = useCallback(async (cloudSessionId: string): Promise<boolean> => {
+        setIsProcessing(true);
+        setProgress({ message: 'Loading story from cloud...', percent: 50 });
+
+        try {
+            const cloudState = await loadStoryFromCloud(cloudSessionId);
+            if (!cloudState) {
+                setError('Story not found in cloud');
+                return false;
+            }
+
+            // Initialize cloud storage for media
+            setSessionId(cloudSessionId);
+            await cloudAutosave.initSession(cloudSessionId);
+
+            // Apply the loaded state
+            pushState(cloudState);
+            setProgress({ message: 'Story loaded', percent: 100 });
+            console.log(`[useStoryGeneration] Loaded story ${cloudSessionId} from cloud`);
+            return true;
+        } catch (err) {
+            console.error('[useStoryGeneration] Failed to load from cloud:', err);
+            setError('Failed to load story from cloud');
+            return false;
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [pushState]);
+
+    /**
+     * Save current state to cloud immediately (flush pending debounced saves)
+     */
+    const saveToCloud = useCallback(async (): Promise<boolean> => {
+        if (!sessionId || !isSyncAvailable()) {
+            return false;
+        }
+        await flushPendingSave(sessionId, state, topic || undefined);
+        return true;
+    }, [sessionId, state, topic]);
+
     return {
         state,
         sessionId,
@@ -1243,5 +1299,9 @@ export function useStoryGeneration() {
         clearError,
         retryLastOperation,
         hasRecoveredSession,
+        // Cloud sync
+        loadFromCloud,
+        saveToCloud,
+        isSyncAvailable: isSyncAvailable(),
     };
 }
