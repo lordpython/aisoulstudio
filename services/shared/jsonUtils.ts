@@ -43,13 +43,13 @@ export function extractJsonFromText(text: string): string | null {
 
     // Try to find JSON in markdown code blocks first
     const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
+    if (codeBlockMatch && codeBlockMatch[1]) {
         return codeBlockMatch[1].trim();
     }
 
     // Try to find JSON object or array
     const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    if (jsonMatch) {
+    if (jsonMatch && jsonMatch[1]) {
         return jsonMatch[1].trim();
     }
 

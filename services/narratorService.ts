@@ -253,7 +253,7 @@ export function detectDialogue(script: string): DialogueSegment[] {
 
         segments.push({
             speaker,
-            text: dialogueText,
+            text: dialogueText || "",
             isDialogue: true,
         });
 

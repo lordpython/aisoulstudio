@@ -21,7 +21,11 @@ export async function concatenateWavBlobs(audioBlobs: Blob[]): Promise<Blob> {
   }
 
   if (audioBlobs.length === 1) {
-    return audioBlobs[0];
+    const firstBlob = audioBlobs[0];
+    if (!firstBlob) {
+      throw new Error("Audio blob is missing");
+    }
+    return firstBlob;
   }
 
   // WAV file structure:

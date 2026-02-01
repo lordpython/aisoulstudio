@@ -592,7 +592,9 @@ export class MusicProducerAgentV2 {
         const parsed = JSON.parse(toolResult);
         if (parsed.success && parsed.taskId) {
           this.currentTaskId = parsed.taskId;
-          this.callbacks.onTaskStarted?.(this.currentTaskId);
+          if (this.currentTaskId) {
+            this.callbacks.onTaskStarted?.(this.currentTaskId);
+          }
 
           // Get title before clearing pending state
           const title = this.pendingToolCall?.args.title || "Untitled";
@@ -604,7 +606,7 @@ export class MusicProducerAgentV2 {
           return {
             type: "generating",
             message: `🎶 Music generation started! Your song "${title}" is being created...`,
-            taskId: this.currentTaskId,
+            taskId: this.currentTaskId ?? undefined,
           };
         } else if (parsed.error) {
           throw new Error(parsed.error);

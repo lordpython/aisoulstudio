@@ -17,12 +17,13 @@ import type {
     Scene
 } from '@/types';
 import { runProductionAgent } from '@/services/ai/productionAgent';
-import { breakAllScenesIntoShots, type Shot } from '@/services/ai/shotBreakdownAgent';
+import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import { narrateScene, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
 import { animateImageWithDeApi, isDeApiConfigured } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
+import { cloudAutosave } from '@/services/cloudStorageService';
 
 const STORAGE_KEY = 'lyriclens_story_state';
 const SESSION_KEY = 'lyriclens_story_session';
@@ -77,8 +78,8 @@ function parseBreakdownToScenes(breakdownText: string, topic: string): Screenpla
 
     // Try to split by common patterns: Act, Chapter, Scene, or numbered sections
     const patterns = [
-        /(?:Act|Chapter|Scene|Part)\s*\d+[:\.]?\s*/gi,
-        /(?:^\d+[\.\)]\s*)/gm,
+        /(?:Act|Chapter|Scene|Part)\s*\d+[:.]?\s*/gi,
+        /(?:^\d+[.)]\s*)/gm,
         /(?:\n\n+)/g, // Double newlines as fallback
     ];
 
@@ -100,9 +101,9 @@ function parseBreakdownToScenes(breakdownText: string, topic: string): Screenpla
         if (lines.length === 0) return;
 
         // Extract title from first line or generate one
-        let title = lines[0]?.replace(/^[\*\-\#\d\.\)]+\s*/, '').trim() || `Scene ${index + 1}`;
+        let title = lines[0]?.replace(/^[*\-#\d.)]+\s*/, '').trim() || `Scene ${index + 1}`;
         // Clean up title - remove markdown, limit length
-        title = title.replace(/[\*\_\#]/g, '').substring(0, 100);
+        title = title.replace(/[*_#]/g, '').substring(0, 100);
 
         // Rest of lines become the action/description
         const actionLines = lines.slice(1).join(' ').trim();
@@ -220,6 +221,12 @@ export function useStoryGeneration() {
 
         if (savedSession) {
             setSessionId(savedSession);
+            // Re-initialize cloud storage for the restored session
+            cloudAutosave.initSession(savedSession).then(success => {
+                if (success) {
+                    console.log('[useStoryGeneration] Cloud storage re-initialized for restored session');
+                }
+            });
         }
     }, []);
 
@@ -267,6 +274,15 @@ export function useStoryGeneration() {
 
             if (foundSessionId && foundState && foundState.breakdown) {
                 setSessionId(foundSessionId);
+
+                // Initialize cloud storage session for media persistence
+                cloudAutosave.initSession(foundSessionId).then(success => {
+                    if (success) {
+                        console.log('[useStoryGeneration] Cloud storage initialized for session');
+                    } else {
+                        console.warn('[useStoryGeneration] Cloud storage unavailable, using local storage only');
+                    }
+                });
 
                 // Parse the breakdown text into scenes
                 const breakdownText = foundState.breakdown;
@@ -712,7 +728,7 @@ export function useStoryGeneration() {
                     // Build prompt with shot details
                     const prompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
 
-                    const imageUrl = await generateImageFromPrompt(
+                    let imageUrl = await generateImageFromPrompt(
                         prompt,
                         style,
                         '',
@@ -722,6 +738,15 @@ export function useStoryGeneration() {
                         sessionId || undefined,
                         i
                     );
+
+                    // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
+                    if (sessionId && imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
+                        const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, imageUrl, shot.id);
+                        if (cloudUrl) {
+                            console.log(`[useStoryGeneration] Image uploaded to cloud: ${shot.id}`);
+                            imageUrl = cloudUrl; // Use cloud URL for persistence
+                        }
+                    }
 
                     // Find or create shotlist entry
                     const existingIdx = updatedShotlist.findIndex(s => s.id === shot.id);
@@ -888,7 +913,21 @@ export function useStoryGeneration() {
                     const segment = await narrateScene(scene, narratorConfig, sessionId || undefined);
 
                     if (segment && segment.audioBlob) {
-                        const audioUrl = createAudioUrl(segment);
+                        let audioUrl = createAudioUrl(segment);
+
+                        // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
+                        if (sessionId) {
+                            const cloudUrl = await cloudAutosave.saveNarrationWithUrl(
+                                sessionId,
+                                segment.audioBlob,
+                                scene.id
+                            );
+                            if (cloudUrl) {
+                                console.log(`[useStoryGeneration] Narration uploaded to cloud: ${scene.id}`);
+                                audioUrl = cloudUrl; // Use cloud URL for persistence
+                            }
+                        }
+
                         narrationSegments.push({
                             sceneId: scene.id,
                             audioUrl,
@@ -994,6 +1033,15 @@ export function useStoryGeneration() {
                             sessionId || undefined,
                             i
                         );
+                    }
+
+                    // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
+                    if (sessionId && videoUrl && (videoUrl.startsWith('data:') || videoUrl.startsWith('blob:'))) {
+                        const cloudUrl = await cloudAutosave.saveAnimatedVideoWithUrl(sessionId, videoUrl, shot.id);
+                        if (cloudUrl) {
+                            console.log(`[useStoryGeneration] Animated video uploaded to cloud: ${shot.id}`);
+                            videoUrl = cloudUrl; // Use cloud URL for persistence
+                        }
                     }
 
                     // Find existing or add new

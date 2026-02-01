@@ -169,7 +169,7 @@ const RestyleImageSchema = z.object({
  */
 function extractBase64Data(input: string): { data: string; mimeType: string } {
   const dataUriMatch = input.match(/^data:([^;]+);base64,(.+)$/);
-  if (dataUriMatch) {
+  if (dataUriMatch && dataUriMatch[1] && dataUriMatch[2]) {
     return {
       mimeType: dataUriMatch[1],
       data: dataUriMatch[2],

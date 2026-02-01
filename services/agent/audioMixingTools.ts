@@ -118,7 +118,7 @@ function hasSFXContent(sfxPlan: VideoSFXPlan | null | undefined): boolean {
   if (sfxPlan.backgroundMusic?.audioUrl) return true;
   
   // Check for scene ambient tracks
-  if (sfxPlan.scenes?.some((s: { ambientTrack?: { audioUrl?: string } }) => s.ambientTrack?.audioUrl)) return true;
+  if (sfxPlan.scenes?.some((s: any) => s.ambientTrack?.audioUrl)) return true;
   
   return false;
 }
@@ -212,7 +212,10 @@ export const mixAudioTracksTool = tool(
           let startTime = 0;
           if (sceneIndex >= 0) {
             for (let i = 0; i < sceneIndex; i++) {
-              startTime += sceneList[i].duration || 0;
+              const scene = sceneList[i];
+              if (scene) {
+                startTime += scene.duration || 0;
+              }
             }
           }
           return {

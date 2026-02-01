@@ -361,7 +361,7 @@ function generateGreetingResponse(context?: ConversationContext): string {
     "Hey! Let's create something together. What would you like to make?",
   ];
 
-  const base = greetings[Math.floor(Math.random() * greetings.length)];
+  const base = greetings[Math.floor(Math.random() * greetings.length)] || "Hello! How can I help you today?";
 
   // Add contextual suggestion if we have previous context
   if (context && context.userGoals.length > 0) {

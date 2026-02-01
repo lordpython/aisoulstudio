@@ -701,6 +701,8 @@ export function generateExampleText(type: 'storyboard' | 'analysis'): string {
   }
 
   const example = examples[0];
+  if (!example) return '';
+
   return `
 EXAMPLE OF CORRECT OUTPUT:
 ${example.example}

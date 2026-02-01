@@ -956,6 +956,13 @@ export default function StudioScreen() {
           error={storyHook.error}
           onClearError={storyHook.clearError}
           onRetry={storyHook.retryLastOperation}
+          // Narration, Animation, and Export
+          onGenerateNarration={storyHook.generateNarration}
+          onAnimateShots={storyHook.animateShots}
+          onExportFinalVideo={storyHook.exportFinalVideo}
+          onDownloadVideo={storyHook.downloadVideo}
+          allScenesHaveNarration={storyHook.allScenesHaveNarration}
+          allShotsHaveAnimation={storyHook.allShotsHaveAnimation}
         />
       ) : (
         <>

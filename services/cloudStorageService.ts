@@ -111,14 +111,16 @@ export const cloudAutosave = {
    * @param filename - Filename for the asset (e.g., "scene_0.png")
    * @param type - Asset type category
    * @param waitForUpload - If true, wait for upload to complete (default: false)
+   * @param makePublic - If true, make file public and return public URL (default: false)
    */
   async saveAsset(
     sessionId: string,
     blob: Blob,
     filename: string,
     type: CloudAssetType,
-    waitForUpload: boolean = false
-  ): Promise<{ success: boolean; path?: string; error?: string }> {
+    waitForUpload: boolean = false,
+    makePublic: boolean = false
+  ): Promise<{ success: boolean; path?: string; publicUrl?: string; error?: string }> {
     if (!sessionId) {
       return { success: false, error: 'No sessionId' };
     }
@@ -128,6 +130,7 @@ export const cloudAutosave = {
     formData.append('assetType', type);
     formData.append('filename', filename);
     formData.append('file', blob, filename);
+    formData.append('makePublic', String(makePublic));
 
     const uploadPromise = (async () => {
       try {
@@ -139,8 +142,8 @@ export const cloudAutosave = {
         const result = await response.json();
 
         if (result.success) {
-          console.log(`[Autosave] ✓ ${type}/${filename} saved to cloud`);
-          return { success: true, path: result.path };
+          console.log(`[Autosave] ✓ ${type}/${filename} saved to cloud${result.publicUrl ? ' (public)' : ''}`);
+          return { success: true, path: result.path, publicUrl: result.publicUrl };
         } else {
           console.warn(`[Autosave] ${filename} not saved:`, result.warning || result.error);
           autosaveState.failedUploads.push({ filename, error: result.error || 'Unknown error' });
@@ -182,6 +185,28 @@ export const cloudAutosave = {
   },
 
   /**
+   * Save image and return public URL for persistence.
+   * This waits for upload completion and returns the cloud URL.
+   */
+  async saveImageWithUrl(
+    sessionId: string,
+    imageUrl: string,
+    shotId: string
+  ): Promise<string | null> {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const ext = blob.type.includes('png') ? 'png' : 'jpg';
+      const filename = `shot_${shotId}.${ext}`;
+      const result = await this.saveAsset(sessionId, blob, filename, 'visuals', true, true);
+      return result.publicUrl || null;
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save image for shot ${shotId}:`, e);
+      return null;
+    }
+  },
+
+  /**
    * Save audio/narration asset
    */
   async saveNarration(
@@ -191,6 +216,25 @@ export const cloudAutosave = {
   ): Promise<void> {
     const filename = `narration_${sceneId}.wav`;
     await this.saveAsset(sessionId, audioBlob, filename, 'audio');
+  },
+
+  /**
+   * Save narration audio and return public URL for persistence.
+   */
+  async saveNarrationWithUrl(
+    sessionId: string,
+    audioBlob: Blob,
+    sceneId: string
+  ): Promise<string | null> {
+    try {
+      const ext = audioBlob.type.includes('wav') ? 'wav' : 'mp3';
+      const filename = `narration_${sceneId}.${ext}`;
+      const result = await this.saveAsset(sessionId, audioBlob, filename, 'audio', true, true);
+      return result.publicUrl || null;
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save narration for scene ${sceneId}:`, e);
+      return null;
+    }
   },
 
   /**
@@ -208,6 +252,26 @@ export const cloudAutosave = {
       await this.saveAsset(sessionId, blob, filename, 'video_clips');
     } catch (e) {
       console.warn(`[Autosave] Failed to save video for scene ${sceneIndex}:`, e);
+    }
+  },
+
+  /**
+   * Save animated video and return public URL for persistence.
+   */
+  async saveAnimatedVideoWithUrl(
+    sessionId: string,
+    videoUrl: string,
+    shotId: string
+  ): Promise<string | null> {
+    try {
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      const filename = `animated_${shotId}.mp4`;
+      const result = await this.saveAsset(sessionId, blob, filename, 'video_clips', true, true);
+      return result.publicUrl || null;
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save animated video for shot ${shotId}:`, e);
+      return null;
     }
   },
 

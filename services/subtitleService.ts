@@ -34,8 +34,8 @@ export function splitTextIntoSegments(
     const sentenceChunks: string[] = [];
     for (let i = 0; i < sentences.length; i += 2) {
         const sentence = sentences[i];
-        const delimiter = sentences[i + 1] || '';
-        if (sentence.trim()) {
+        if (sentence && sentence.trim()) {
+            const delimiter = sentences[i + 1] || '';
             sentenceChunks.push((sentence + delimiter).trim());
         }
     }

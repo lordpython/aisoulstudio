@@ -969,7 +969,7 @@ app.post('/api/cloud/init', async (req: Request, res: Response): Promise<void> =
 const memoryUpload = multer({ storage: multer.memoryStorage() });
 
 app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response): Promise<void> => {
-  const { sessionId, assetType, filename } = req.body;
+  const { sessionId, assetType, filename, makePublic } = req.body;
 
   if (!req.file || !sessionId) {
     res.status(400).json({ error: 'Missing file or sessionId' });
@@ -983,6 +983,7 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
   // Sanitize filename
   const safeFilename = path.basename(filename || `asset_${Date.now()}`);
   const destination = `production_${sessionId}/${safeAssetType}/${safeFilename}`;
+  const shouldMakePublic = makePublic === 'true' || makePublic === true;
 
   try {
     const storage = await getGcsStorageClient();
@@ -1008,12 +1009,37 @@ app.post('/api/cloud/upload-asset', memoryUpload.single('file'), async (req: Req
       }
     });
 
-    blobStream.on('finish', () => {
+    blobStream.on('finish', async () => {
+      let publicUrl: string | undefined;
+
+      // Make file public if requested
+      if (shouldMakePublic) {
+        try {
+          await blob.makePublic();
+          publicUrl = `https://storage.googleapis.com/${GCS_BUCKET_NAME}/${destination}`;
+          cloudLog.info(`Made public: ${destination}`);
+        } catch (publicError: any) {
+          cloudLog.warn(`Failed to make public (may require uniform bucket-level access): ${publicError.message}`);
+          // Generate a signed URL as fallback (valid for 7 days)
+          try {
+            const [signedUrl] = await blob.getSignedUrl({
+              action: 'read',
+              expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+            });
+            publicUrl = signedUrl;
+            cloudLog.info(`Generated signed URL for: ${destination}`);
+          } catch (signedError: any) {
+            cloudLog.warn(`Failed to generate signed URL: ${signedError.message}`);
+          }
+        }
+      }
+
       cloudLog.info(`Saved: ${destination} (${Math.round(req.file!.size / 1024)}KB)`);
       res.json({
         success: true,
         path: destination,
         gsUri: `gs://${GCS_BUCKET_NAME}/${destination}`,
+        publicUrl,
         size: req.file!.size
       });
     });
