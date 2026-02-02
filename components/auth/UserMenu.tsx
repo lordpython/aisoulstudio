@@ -5,6 +5,7 @@
  * Shows sign-in button when not authenticated.
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,26 +23,33 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ className }: UserMenuProps) {
+  const navigate = useNavigate();
   const { user, isAuthenticated, isAuthAvailable, signOut, isLoading } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  // Navigate to dedicated sign-in page
+  const handleSignInClick = () => {
+    navigate('/signin');
+  };
 
   // If Firebase is not configured, don't show anything
   if (!isAuthAvailable) {
     return null;
   }
 
-  // Not authenticated - show sign in button
+  // Not authenticated - show sign in button (navigates to dedicated page)
   if (!isAuthenticated) {
     return (
       <>
         <button
-          onClick={() => setAuthModalOpen(true)}
+          onClick={handleSignInClick}
           disabled={isLoading}
           className={`flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--cinema-silver)]/70 hover:text-[var(--cinema-silver)] border border-[var(--cinema-silver)]/20 hover:border-[var(--cinema-silver)]/40 rounded-lg transition-colors ${className}`}
         >
           <CloudOff className="w-4 h-4" />
           <span className="hidden sm:inline">Sign In</span>
         </button>
+        {/* AuthModal kept for fallback use in other contexts */}
         <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
       </>
     );

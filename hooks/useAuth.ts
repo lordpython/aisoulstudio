@@ -13,6 +13,7 @@ import {
   signOut,
   getCurrentUser,
   isAuthAvailable,
+  handleRedirectResult,
   type AuthUser,
 } from '@/services/firebase';
 
@@ -34,20 +35,56 @@ export function useAuth(): UseAuthReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to auth state changes
+  // Subscribe to auth state changes and check for redirect result
   useEffect(() => {
-    const unsubscribe = onAuthChange((authUser) => {
-      setUser(authUser);
-      setIsLoading(false);
-    });
+    let mounted = true;
 
-    // If Firebase not configured, stop loading
-    if (!unsubscribe) {
-      setIsLoading(false);
-    }
+    // Check for redirect result first (from Google sign-in redirect)
+    console.log('[useAuth] Starting auth initialization...');
+
+    handleRedirectResult()
+      .then((redirectUser) => {
+        if (!mounted) return;
+
+        if (redirectUser) {
+          console.log('[useAuth] Got redirect user:', redirectUser.email);
+          setUser(redirectUser);
+        }
+
+        // Now subscribe to auth state changes
+        const unsubscribe = onAuthChange((authUser) => {
+          if (!mounted) return;
+          console.log('[useAuth] Auth state changed:', authUser?.email || 'signed out');
+          setUser(authUser);
+          setIsLoading(false);
+        });
+
+        // If Firebase not configured, stop loading
+        if (!unsubscribe) {
+          setIsLoading(false);
+        }
+
+        return unsubscribe;
+      })
+      .catch((error) => {
+        console.error('[useAuth] Redirect result error:', error);
+
+        // Still subscribe to auth changes even if redirect check failed
+        const unsubscribe = onAuthChange((authUser) => {
+          if (!mounted) return;
+          setUser(authUser);
+          setIsLoading(false);
+        });
+
+        if (!unsubscribe) {
+          setIsLoading(false);
+        }
+
+        return unsubscribe;
+      });
 
     return () => {
-      unsubscribe?.();
+      mounted = false;
     };
   }, []);
 

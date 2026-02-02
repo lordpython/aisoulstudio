@@ -24,12 +24,12 @@ import { renderFrameToCanvas } from "./frameRenderer";
 import { cloudAutosave } from "../cloudStorageService";
 
 // Rendering constants
-const RENDER_WIDTH_LANDSCAPE = 1280;
-const RENDER_WIDTH_PORTRAIT = 720;
-const RENDER_HEIGHT_LANDSCAPE = 720;
-const RENDER_HEIGHT_PORTRAIT = 1280;
+const RENDER_WIDTH_LANDSCAPE = 1920; // Was 1280
+const RENDER_HEIGHT_LANDSCAPE = 1080; // Was 720
+const RENDER_WIDTH_PORTRAIT = 1080;  // Was 720
+const RENDER_HEIGHT_PORTRAIT = 1920; // Was 1280
 const FPS = 24;
-const JPEG_QUALITY = 0.75;
+const JPEG_QUALITY = 0.95; // Increased quality
 const BATCH_SIZE = 48;
 
 /**
@@ -480,12 +480,16 @@ export async function exportVideoClientSide(
         "-c:a",
         "aac",
         "-b:a",
-        "192k",
+        "320k", // Higher audio bitrate
         "-pix_fmt",
         "yuv420p",
+        // NEW SCALING FILTER:
+        // This takes the 768x432 AI video and scales it up to 1920x1080 
+        // using 'Lanczos' (high quality) scaling.
+        "-vf", "scale=1920:1080:flags=lanczos,setsar=1",
         "-shortest",
-        "-preset",
-        "ultrafast",
+        "-preset", "medium", // Better compression than 'ultrafast'
+        "-crf", "20", // High visual quality
         "output.mp4",
     ]);
 

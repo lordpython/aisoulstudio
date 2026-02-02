@@ -9,6 +9,23 @@ import { parseSRTTimestamp } from "../utils/srtParser";
 import { ai, MODELS, withRetry } from "./shared/apiClient";
 import { CAMERA_ANGLES, LIGHTING_MOODS, VideoPurpose } from "../constants";
 
+// --- NEW STYLE INJECTOR ---
+
+/**
+ * Forces a consistent visual style across all assets to prevent "Style Soup".
+ */
+export function injectMasterStyle(basePrompt: string, stylePreset: string = "cinematic"): string {
+    // 1. Clean the prompt of conflicting instructions
+    let cleanPrompt = basePrompt.replace(/photorealistic|cartoon|3d render|sketch/gi, "").trim();
+
+    // 2. Define the Master Style (The "Glue")
+    // This ensures consistent colors, lighting, and texture across all generated clips.
+    const MASTER_STYLE = `Cinematic film shot, ${stylePreset} aesthetic, consistent color grading, soft volumetric lighting, 35mm film grain, high coherence, highly detailed, 8k resolution. Negative prompt: text, watermark, bad quality, distorted, cgi artifacts, cartoon.`;
+
+    // 3. Combine
+    return `${cleanPrompt}. ${MASTER_STYLE}`;
+}
+
 // Re-export from extracted modules for backward compatibility
 export { getSystemPersona, type Persona, type PersonaType } from './prompt/personaData';
 export { getStyleEnhancement, type StyleEnhancement } from './prompt/styleEnhancements';

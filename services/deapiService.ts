@@ -312,13 +312,13 @@ export const animateImageWithDeApi = async (
     );
   }
 
-  // Wait for rate limit slot (1 request per 60 seconds)
-  const waitTime = img2videoRateLimiter.getEstimatedWaitTime();
-  if (waitTime > 0) {
-    console.log(`[DeAPI] Queuing animation request. Estimated wait: ${waitTime}s`);
-  }
-  await img2videoRateLimiter.waitForSlot();
-  console.log(`[DeAPI] Rate limit slot acquired, proceeding with animation...`);
+  // Rate limiting disabled - removed to allow parallel requests
+  // const waitTime = img2videoRateLimiter.getEstimatedWaitTime();
+  // if (waitTime > 0) {
+  //   console.log(`[DeAPI] Queuing animation request. Estimated wait: ${waitTime}s`);
+  // }
+  // await img2videoRateLimiter.waitForSlot();
+  console.log(`[DeAPI] Proceeding with animation (rate limiting disabled)...`);
 
   // Get dimensions that comply with DeAPI's max 768px limit
   const { width, height } = getDeApiDimensions(aspectRatio);

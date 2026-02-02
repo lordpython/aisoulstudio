@@ -11,7 +11,7 @@ import { RunnableSequence } from "@langchain/core/runnables";
 import { z } from "zod";
 import { ImagePrompt } from "../types";
 import { VideoPurpose, CAMERA_ANGLES, LIGHTING_MOODS } from "../constants";
-import { lintPrompt, getPurposeGuidance, getSystemPersona, getStyleEnhancement, generatePromptsFromLyrics, generatePromptsFromStory, refineImagePrompt } from "./promptService";
+import { lintPrompt, getPurposeGuidance, getSystemPersona, getStyleEnhancement, generatePromptsFromLyrics, generatePromptsFromStory, refineImagePrompt, injectMasterStyle } from "./promptService";
 import { parseSRTTimestamp } from "../utils/srtParser";
 import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "./shared/apiClient";
 
@@ -416,6 +416,14 @@ Overall: ${styleData.mediumDescription}`;
     targetAssetCount,
   });
 
+  // Apply master style to each generated prompt for consistency
+  if (result.prompts) {
+    result.prompts = result.prompts.map(prompt => ({
+      ...prompt,
+      text: injectMasterStyle(prompt.text, style)
+    }));
+  }
+
   return result;
 }
 
@@ -561,6 +569,14 @@ Overall: ${styleData.mediumDescription}`;
     const parsed = JSON.parse(jsonStr);
     const result = StoryboardSchema.parse(parsed);
 
+    // Apply master style to each generated prompt for consistency
+    if (result.prompts) {
+      result.prompts = result.prompts.map(prompt => ({
+        ...prompt,
+        text: injectMasterStyle(prompt.text, style)
+      }));
+    }
+
     onProgress?.({ stage: "complete", finalResult: result });
 
     return result;
@@ -657,6 +673,14 @@ Overall: ${styleData.mediumDescription}`;
         analysis: JSON.stringify(input.analysis, null, 2),
         targetAssetCount,
       });
+
+      // Apply master style to each generated prompt for consistency
+      if (result.prompts) {
+        result.prompts = result.prompts.map(prompt => ({
+          ...prompt,
+          text: injectMasterStyle(prompt.text, input.style)
+        }));
+      }
 
       console.log("[Director] Storyboard complete:", result.prompts?.length, "prompts generated");
       return result;

@@ -18,6 +18,7 @@ const HomeScreen = lazy(() => import('../screens/HomeScreen'));
 const StudioScreen = lazy(() => import('../screens/StudioScreen'));
 const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
 const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
+const SignInScreen = lazy(() => import('../screens/SignInScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
 
 // Loading fallback component
@@ -49,6 +50,9 @@ export function AppRouter() {
 
             {/* Settings route - API key management */}
             <Route path="/settings" element={<SettingsScreen />} />
+
+            {/* Sign-in route - authentication page */}
+            <Route path="/signin" element={<SignInScreen />} />
 
             {/* Catch-all: show 404 page for invalid routes (Requirement 5.1) */}
             <Route path="*" element={<NotFoundScreen />} />

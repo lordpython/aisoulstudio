@@ -35,11 +35,23 @@ let db: Firestore | null = null;
 export function getFirebaseApp(): FirebaseApp | null {
   if (!isFirebaseConfigured()) {
     console.warn('[Firebase] Not configured. Set VITE_FIREBASE_* environment variables.');
+    console.warn('[Firebase] Current config:', {
+      hasApiKey: !!firebaseConfig.apiKey,
+      hasAuthDomain: !!firebaseConfig.authDomain,
+      hasProjectId: !!firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId
+    });
     return null;
   }
 
   if (!app) {
+    console.log('[Firebase] Initializing app with config:', {
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId
+    });
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    console.log('[Firebase] App initialized successfully');
   }
   return app;
 }

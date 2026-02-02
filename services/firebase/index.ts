@@ -13,6 +13,7 @@ export {
   getCurrentUser,
   onAuthChange,
   isAuthAvailable,
+  handleRedirectResult,
   type AuthUser,
 } from './authService';
 

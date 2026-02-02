@@ -31,71 +31,40 @@ export interface AssetCalculationResult {
     reasoning: string;
 }
 
-/**
- * Calculate optimal number of assets based on multiple factors
- */
 export async function calculateOptimalAssets(
     input: AssetCalculationInput
 ): Promise<AssetCalculationResult> {
     const {
         audioDuration,
-        analysisOutput,
         videoPurpose,
-        minAssets = 6,
-        maxAssets = 15,
     } = input;
 
-    console.log("[AssetCalculator] Calculating optimal assets...");
-    console.log(`[AssetCalculator] Duration: ${audioDuration}s, Purpose: ${videoPurpose}`);
+    console.log("[AssetCalculator] Calculating optimal assets (Synchronized to Video Gen limit)...");
 
-    // Factor 1: Duration-based baseline
-    const durationBaseline = calculateDurationBaseline(audioDuration);
-    console.log(`[AssetCalculator] Duration baseline: ${durationBaseline} assets`);
+    // --- CRITICAL FIX FOR 4-SECOND LOOPING ---
+    // DeAPI/Kling/Luma generate exactly 4.0s or 5.0s clips.
+    // If we make scenes longer than this, they loop awkwardly.
+    const GENERATOR_MAX_DURATION = 4.0; // We want a 1:1 match: 1 video asset per 4 seconds of audio.
+    // No looping allowed.
 
-    // Factor 2: Motif density analysis (Replaces section analysis)
-    const motifBasedCount = calculateMotifBasedCount(analysisOutput);
-    console.log(`[AssetCalculator] Motif-based count: ${motifBasedCount} assets`);
+    let optimalAssetCount = Math.ceil(audioDuration / GENERATOR_MAX_DURATION);
 
-    // Factor 3: Video purpose adjustment
-    const purposeAdjustedCount = adjustForPurpose(
-        Math.max(durationBaseline, motifBasedCount),
-        videoPurpose
-    );
-    console.log(`[AssetCalculator] Purpose-adjusted count: ${purposeAdjustedCount} assets`);
+    // Safety Clamp: Don't generate less than 4 clips, but allow up to 100 for long songs.
+    optimalAssetCount = Math.max(optimalAssetCount, 4);
 
-    // Factor 4: Content density (motif frequency)
-    const densityAdjustedCount = adjustForContentDensity(
-        purposeAdjustedCount,
-        analysisOutput,
-        audioDuration
-    );
-    console.log(`[AssetCalculator] Density-adjusted count: ${densityAdjustedCount} assets`);
+    // Generate timestamps
+    const assetTimestamps: number[] = [];
+    const step = audioDuration / optimalAssetCount;
+    for (let i = 0; i < optimalAssetCount; i++) {
+        assetTimestamps.push(i * step);
+    }
 
-    // Apply min/max constraints
-    const optimalAssetCount = Math.max(
-        minAssets,
-        Math.min(maxAssets, densityAdjustedCount)
-    );
+    const reasoning = `Audio Duration: ${audioDuration.toFixed(1)}s
+Generator Limit: ${GENERATOR_MAX_DURATION}s per clip
+Looping Policy: STRICTLY DISABLED
+Calculated Assets: ${optimalAssetCount} (to ensure continuous flow)`;
 
-    console.log(`[AssetCalculator] Final optimal count: ${optimalAssetCount} assets`);
-
-    // Calculate timestamps for each asset
-    const assetTimestamps = calculateAssetTimestamps(
-        optimalAssetCount,
-        audioDuration,
-        analysisOutput
-    );
-
-    // Generate reasoning
-    const reasoning = generateReasoning({
-        audioDuration,
-        durationBaseline,
-        motifBasedCount,
-        purposeAdjustedCount,
-        densityAdjustedCount,
-        optimalAssetCount,
-        videoPurpose,
-    });
+    console.log(reasoning);
 
     return {
         optimalAssetCount,
