@@ -417,10 +417,12 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     }
   }, [isPlaying]);
 
+  // Sync audio element to currentTime prop when it changes externally (e.g., scene selection)
+  // Using a smaller threshold (0.1s) to ensure accurate seeking when clicking thumbnails
   useEffect(() => {
     if (
       audioRef.current &&
-      Math.abs(audioRef.current.currentTime - currentTime) > 0.5
+      Math.abs(audioRef.current.currentTime - currentTime) > 0.1
     ) {
       audioRef.current.currentTime = currentTime;
     }

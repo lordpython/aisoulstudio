@@ -126,11 +126,12 @@ router.post('/finalize', async (req: Request, res: Response) => {
       '-i', path.join(sessionDir, 'frame%06d.jpg'),
       '-i', audioPath,
       '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-crf', '23',
+      '-preset', 'fast',        // Better compression than 'veryfast', still fast
+      '-crf', '21',             // Higher quality (lower = better, 18-23 is good range)
+      '-tune', 'film',          // Optimize for cinematic content
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
-      '-b:a', '192k',
+      '-b:a', '256k',           // Higher audio quality
       '-shortest',
       '-movflags', '+faststart',
       '-y',

@@ -129,7 +129,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
     musicMasterVolume: 0.5,
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [useCloudRender, setUseCloudRender] = useState(false);
+  const [useCloudRender, setUseCloudRender] = useState(true); // Default to server-side for faster encoding
   const [enableSFX, setEnableSFX] = useState(hasSFX);
 
   // Cleanup blob URL on unmount

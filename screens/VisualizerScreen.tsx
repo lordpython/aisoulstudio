@@ -35,7 +35,7 @@ import { QuickExport } from '@/components/QuickExport';
 import { ErrorState } from '@/components/ui/ErrorState';
 
 // Services
-import { animateImageWithDeApi } from '@/services/deapiService';
+import { animateImageWithDeApi, animateImageBatch } from '@/services/deapiService';
 
 export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();
@@ -107,24 +107,50 @@ export default function VisualizerScreen() {
   // Effects
   // ============================================================
 
-  // Update current scene based on playback time
+  // Update current scene based on playback time using binary search for accurate sync
+  // This uses absolute video currentTime to prevent cumulative drift over long durations
   useEffect(() => {
-    if (!songData || !songData.prompts.length) return;
+    if (!songData || !songData.prompts.length || duration <= 0) return;
 
-    const currentPrompt = songData.prompts.find((prompt, idx) => {
-      const nextPrompt = songData.prompts[idx + 1];
+    // Binary search to find the correct scene index for the current time
+    // This is more efficient and accurate than linear search, especially for long videos
+    const prompts = songData.prompts;
+    let left = 0;
+    let right = prompts.length - 1;
+    let targetIndex = 0;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const prompt = prompts[mid];
+      if (!prompt) break;
+
       const startTime = prompt.timestampSeconds || 0;
+      const nextPrompt = prompts[mid + 1];
       const endTime = nextPrompt?.timestampSeconds || duration;
-      return currentTime >= startTime && currentTime < endTime;
-    });
 
-    if (currentPrompt) {
-      const idx = songData.prompts.findIndex(p => p.id === currentPrompt.id);
-      if (idx !== -1 && idx !== currentSceneIndex) {
-        setCurrentSceneIndex(idx);
+      if (currentTime >= startTime && currentTime < endTime) {
+        // Found the exact scene
+        targetIndex = mid;
+        break;
+      } else if (currentTime < startTime) {
+        // Current time is before this scene, search left
+        right = mid - 1;
+        targetIndex = Math.max(0, mid - 1);
+      } else {
+        // Current time is after this scene, search right
+        left = mid + 1;
+        targetIndex = mid;
       }
     }
-  }, [currentTime, songData, duration, currentSceneIndex]);
+
+    // Clamp to valid range
+    targetIndex = Math.max(0, Math.min(targetIndex, prompts.length - 1));
+
+    // Only update if the index actually changed (prevents unnecessary re-renders)
+    if (targetIndex !== currentSceneIndex) {
+      setCurrentSceneIndex(targetIndex);
+    }
+  }, [currentTime, songData, duration]); // Removed currentSceneIndex from deps to prevent circular updates
 
   // ============================================================
   // Handlers
@@ -197,43 +223,61 @@ export default function VisualizerScreen() {
     setBatchAnimationProgress({ current: 0, total: imagesToAnimate.length });
     setAnimationError(null);
 
-    for (let i = 0; i < imagesToAnimate.length; i++) {
-      const image = imagesToAnimate[i];
-      if (!image) continue;
-      const prompt = songData.prompts.find(p => p.id === image.promptId);
-
-      if (!prompt) continue;
-
-      try {
-        setBatchAnimationProgress({ current: i + 1, total: imagesToAnimate.length });
-        setAnimatingPromptId(image.promptId);
-
-        const videoBase64 = await animateImageWithDeApi(
-          image.imageUrl,
-          prompt.text,
-          '16:9'
-        );
-
-        const updatedImage: GeneratedImage = {
-          ...image,
-          promptId: image.promptId,
-          imageUrl: videoBase64,
-          type: 'video',
-          baseImageUrl: image.imageUrl,
+    // Prepare batch items with prompts
+    const batchItems = imagesToAnimate
+      .map(image => {
+        const prompt = songData.prompts.find(p => p.id === image.promptId);
+        if (!prompt) return null;
+        return {
+          id: image.promptId,
+          imageUrl: image.imageUrl,
+          prompt: prompt.text,
+          aspectRatio: '16:9' as const,
         };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
-        setSongData(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            generatedImages: prev.generatedImages.map(img =>
-              img.promptId === image.promptId ? updatedImage : img
-            ),
-          };
+    try {
+      // Use parallel batch animation (concurrency: 2 for video generation)
+      const results = await animateImageBatch(
+        batchItems,
+        2, // Lower concurrency for video generation (more resource intensive)
+        (progress) => {
+          setBatchAnimationProgress({ current: progress.completed, total: progress.total });
+          // Show which one is currently being processed
+          const currentItem = batchItems[progress.completed - 1];
+          if (currentItem) {
+            setAnimatingPromptId(currentItem.id);
+          }
+        }
+      );
+
+      // Update all successful results
+      setSongData(prev => {
+        if (!prev) return null;
+        const updatedImages = prev.generatedImages.map(img => {
+          const result = results.find(r => r.id === img.promptId);
+          if (result?.success && result.imageUrl) {
+            return {
+              ...img,
+              imageUrl: result.imageUrl,
+              type: 'video' as const,
+              baseImageUrl: img.imageUrl,
+            };
+          }
+          return img;
         });
-      } catch (error: any) {
-        console.error(`Animation failed for ${image.promptId}:`, error);
+        return { ...prev, generatedImages: updatedImages };
+      });
+
+      // Report any failures
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        console.error(`${failures.length} animations failed:`, failures.map(f => f.error));
       }
+    } catch (error: any) {
+      console.error('Batch animation failed:', error);
+      setAnimationError(error.message || 'Batch animation failed');
     }
 
     setIsBatchAnimating(false);
@@ -273,9 +317,9 @@ export default function VisualizerScreen() {
       throw new Error('Video not ready for export');
     }
 
-    const { exportVideoClientSide } = await import('@/services/ffmpeg/exporters');
+    const { exportVideoWithFFmpeg } = await import('@/services/ffmpeg/exporters');
 
-    const blob = await exportVideoClientSide(
+    const blob = await exportVideoWithFFmpeg(
       songData,
       (p) => onProgress?.(p.progress),
       {

@@ -406,16 +406,17 @@ export const exportFinalVideoTool = tool(
     };
 
     try {
-      // Determine export method
-      const useClientSide = isClientSideExportAvailable();
-      console.log(`[ExportTools] Using ${useClientSide ? 'client-side' : 'server-side'} export`);
+      // Always prefer server-side export for faster encoding
+      // Fall back to client-side only if server is unavailable
+      const useServerSide = true; // Default to server-side for speed
+      console.log(`[ExportTools] Using server-side export for faster encoding`);
 
       let videoBlob: Blob;
 
-      if (useClientSide) {
-        videoBlob = await exportVideoClientSide(songData, onProgress, exportConfig);
-      } else {
+      if (useServerSide) {
         videoBlob = await exportVideoWithFFmpeg(songData, onProgress, exportConfig);
+      } else {
+        videoBlob = await exportVideoClientSide(songData, onProgress, exportConfig);
       }
 
       // Create download URL

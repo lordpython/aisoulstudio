@@ -82,22 +82,13 @@ const SKIP_INTERVAL = 5; // seconds
 function formatTimeForScreenReader(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (mins === 0) {
     return `${secs} second${secs !== 1 ? 's' : ''}`;
   }
   return `${mins} minute${mins !== 1 ? 's' : ''} ${secs} second${secs !== 1 ? 's' : ''}`;
 }
 
-/**
- * Formats timecode for display
- */
-function formatTimecode(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  const frames = Math.floor((seconds % 1) * 30); // Assuming 30fps
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
-}
 
 // --- Noise Texture SVG ---
 
@@ -136,7 +127,7 @@ export function GraphiteTimeline({
   // --- State ---
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [isFocused, setIsFocused] = useState(false);
-  
+
   // --- Refs ---
   const timelineRef = useRef<HTMLDivElement>(null);
   const liveRegionRef = useRef<HTMLDivElement>(null);
@@ -144,9 +135,14 @@ export function GraphiteTimeline({
   // --- Build Tracks ---
   // Memoize visuals to prevent unnecessary rebuilds when object reference changes but content is same
   const visualsJson = useMemo(() => JSON.stringify(visuals), [visuals]);
-  
+
   const tracks = useMemo(() => {
-    const parsedVisuals = JSON.parse(visualsJson) as Record<string, string>;
+    let parsedVisuals: Record<string, string> = {};
+    try {
+      parsedVisuals = JSON.parse(visualsJson);
+    } catch (e) {
+      console.error("[GraphiteTimeline] Failed to parse visualsJson:", e);
+    }
     const t = buildTracks(scenes, parsedVisuals, narrationSegments, sfxPlan);
     // Only log in development and limit frequency
     if (process.env.NODE_ENV === 'development') {
@@ -274,7 +270,7 @@ export function GraphiteTimeline({
   }, [onSeek, duration]);
 
   // --- Integrate Keyboard Navigation ---
-  const { shortcuts } = useTimelineKeyboard({
+  useTimelineKeyboard({
     isActive: isFocused,
     duration,
     currentTime,
@@ -302,7 +298,7 @@ export function GraphiteTimeline({
 
   // --- Live Region Updates for Screen Readers ---
   const lastAnnouncedTimeRef = useRef<number>(currentTime);
-  
+
   useEffect(() => {
     // Only announce significant time changes (more than 0.5 seconds)
     // to avoid flooding screen readers during playback
@@ -358,13 +354,13 @@ export function GraphiteTimeline({
         Press Home to jump to start, End to jump to end. Tab to navigate clips, Delete to remove selected clip, Escape to deselect.
         Number keys 0-9 jump to that percentage of the timeline.
       </div>
-      
+
       {/* Live region for time announcements (screen readers) */}
-      <div 
+      <div
         ref={liveRegionRef}
-        role="status" 
-        aria-live="polite" 
-        aria-atomic="true" 
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
         className="sr-only"
       >
         {!isPlaying && `Current time: ${formatTimeForScreenReader(currentTime)} of ${formatTimeForScreenReader(duration)}`}
@@ -373,10 +369,10 @@ export function GraphiteTimeline({
 
       {/* Selected clip announcement for screen readers */}
       {selectedClipId && (
-        <div 
-          role="status" 
-          aria-live="assertive" 
-          aria-atomic="true" 
+        <div
+          role="status"
+          aria-live="assertive"
+          aria-atomic="true"
           className="sr-only"
         >
           {(() => {
@@ -404,7 +400,7 @@ export function GraphiteTimeline({
         />
 
         {/* Timeline Area */}
-        <div 
+        <div
           className="graphite-timeline-area"
           role="region"
           aria-label="Timeline tracks"

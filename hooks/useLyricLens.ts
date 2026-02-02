@@ -12,7 +12,12 @@ import {
 } from "../services/geminiService";
 import { generatePromptsWithLangChain, runAnalyzer } from "../services/directorService";
 import { generatePromptsWithAgent } from "../services/agentDirectorService";
-import { animateImageWithDeApi, generateImageWithAspectRatio } from "../services/deapiService";
+import {
+  animateImageWithDeApi,
+  generateImageWithAspectRatio,
+  generateImageBatch,
+  BatchGenerationItem,
+} from "../services/deapiService";
 import { subtitlesToSRT } from "../utils/srtParser";
 import { calculateOptimalAssets } from "../services/assetCalculatorService";
 
@@ -200,101 +205,170 @@ export function useLyricLens() {
 
     refinedPromptTexts.push(...existingPromptTexts);
 
-    for (const prompt of pendingPrompts) {
-      try {
-        // First, refine the prompt with cross-scene awareness
-        const { refinedPrompt } = await refineImagePrompt({
-          promptText: prompt.text,
-          style: selectedStyle,
-          globalSubject,
-          aspectRatio: selectedAspectRatio,
-          intent: "auto",
-          previousPrompts: refinedPromptTexts,
-        });
+    // Determine if we can use parallel batch generation (DeAPI image-only mode)
+    const canUseBatchGeneration = imageProvider === "deapi" && generationMode === "image";
 
-        // Track the refined prompt for subsequent scenes
-        refinedPromptTexts.push(refinedPrompt);
+    if (canUseBatchGeneration) {
+      // ============================================================
+      // PARALLEL BATCH GENERATION (DeAPI)
+      // Dramatically faster - runs multiple requests concurrently
+      // ============================================================
+      console.log(`[useLyricLens] Using parallel batch generation for ${pendingPrompts.length} assets`);
 
-        // Determine asset type: use per-card setting if available, otherwise fall back to global
-        const getAssetTypeForPrompt = (): AssetType => {
-          if (prompt.assetType) return prompt.assetType;
-          if (generationMode === "video") {
-            return videoProvider === "deapi" ? "video_with_image" : "video";
-          }
-          return "image";
-        };
-
-        const assetType = getAssetTypeForPrompt();
-        let base64: string;
-        let baseImageUrl: string | undefined;
-        let resultType: "image" | "video" = "image";
-
-        if (assetType === "video") {
-          // Direct video generation (Veo)
-          base64 = await generateVideoFromPrompt(
-            refinedPrompt,
-            selectedStyle,
+      // First, refine all prompts (this is fast and can be done serially)
+      const refinedPrompts: Array<{ prompt: ImagePrompt; refinedText: string }> = [];
+      for (const prompt of pendingPrompts) {
+        try {
+          const { refinedPrompt } = await refineImagePrompt({
+            promptText: prompt.text,
+            style: selectedStyle,
             globalSubject,
-            selectedAspectRatio,
-          );
-          resultType = "video";
-        } else if (assetType === "video_with_image") {
-          // Two-step: Image first, then animate (DeAPI)
-          // 1. Generate Image (Gemini)
-          const imgBase64 = await generateImageFromPrompt(
-            refinedPrompt,
-            selectedStyle,
-            globalSubject,
-            selectedAspectRatio,
-            true,
-          );
-          baseImageUrl = imgBase64;
+            aspectRatio: selectedAspectRatio,
+            intent: "auto",
+            previousPrompts: refinedPromptTexts,
+          });
+          refinedPromptTexts.push(refinedPrompt);
+          refinedPrompts.push({ prompt, refinedText: refinedPrompt });
+        } catch (e) {
+          console.error(`Failed to refine prompt ${prompt.id}`, e);
+          // Use original prompt if refinement fails
+          refinedPrompts.push({ prompt, refinedText: prompt.text });
+        }
+      }
 
-          // 2. Generate motion-optimized prompt for animation
-          const motionPrompt = await generateMotionPrompt(
-            refinedPrompt,
-            prompt.mood || "cinematic",
-            globalSubject,
-          );
+      // Prepare batch items for parallel generation
+      const batchItems: BatchGenerationItem[] = refinedPrompts.map(({ prompt, refinedText }) => ({
+        id: prompt.id,
+        prompt: refinedText,
+        aspectRatio: selectedAspectRatio as "16:9" | "9:16" | "1:1",
+        model: "Flux1schnell" as const,
+        negativePrompt: "blur, darkness, noise, low quality, text, watermark, logo",
+      }));
 
-          // 3. Animate with motion-focused prompt (DeAPI)
-          base64 = await animateImageWithDeApi(
-            imgBase64,
-            motionPrompt,
-            selectedAspectRatio as "16:9" | "9:16" | "1:1",
-          );
-          resultType = "video";
+      // Run parallel batch generation with concurrency limit of 5
+      const batchResults = await generateImageBatch(
+        batchItems,
+        5, // Concurrency limit - adjust based on API rate limits
+        (progress) => {
+          console.log(`[useLyricLens] Batch progress: ${progress.completed}/${progress.total}`);
+        }
+      );
+
+      // Process results and update state
+      for (const result of batchResults) {
+        if (result.success && result.imageUrl) {
+          handleImageGenerated({
+            promptId: result.id,
+            imageUrl: result.imageUrl,
+            type: "image",
+          });
         } else {
-          // Standard Image Generation
-          // Choose provider: Gemini (default) or DeAPI
-          if (imageProvider === "deapi") {
-            // Use DeAPI for image generation (FLUX.1-schnell or Z-Image-Turbo)
-            base64 = await generateImageWithAspectRatio(
-              refinedPrompt,
-              selectedAspectRatio as "16:9" | "9:16" | "1:1",
-              "Flux1schnell", // Fast, high-quality model
-            );
-          } else {
-            // Use Gemini Imagen (default)
-            base64 = await generateImageFromPrompt(
+          console.error(`Failed to generate image for prompt ${result.id}:`, result.error);
+        }
+      }
+    } else {
+      // ============================================================
+      // SEQUENTIAL GENERATION (Gemini, Video, or mixed modes)
+      // Used when parallel generation isn't suitable
+      // ============================================================
+      console.log(`[useLyricLens] Using sequential generation for ${pendingPrompts.length} assets`);
+
+      for (const prompt of pendingPrompts) {
+        try {
+          // First, refine the prompt with cross-scene awareness
+          const { refinedPrompt } = await refineImagePrompt({
+            promptText: prompt.text,
+            style: selectedStyle,
+            globalSubject,
+            aspectRatio: selectedAspectRatio,
+            intent: "auto",
+            previousPrompts: refinedPromptTexts,
+          });
+
+          // Track the refined prompt for subsequent scenes
+          refinedPromptTexts.push(refinedPrompt);
+
+          // Determine asset type: use per-card setting if available, otherwise fall back to global
+          const getAssetTypeForPrompt = (): AssetType => {
+            if (prompt.assetType) return prompt.assetType;
+            if (generationMode === "video") {
+              return videoProvider === "deapi" ? "video_with_image" : "video";
+            }
+            return "image";
+          };
+
+          const assetType = getAssetTypeForPrompt();
+          let base64: string;
+          let baseImageUrl: string | undefined;
+          let resultType: "image" | "video" = "image";
+
+          if (assetType === "video") {
+            // Direct video generation (Veo)
+            base64 = await generateVideoFromPrompt(
               refinedPrompt,
               selectedStyle,
               globalSubject,
               selectedAspectRatio,
-              true, // skipRefine - already refined above with previousPrompts
             );
-          }
-          resultType = "image";
-        }
+            resultType = "video";
+          } else if (assetType === "video_with_image") {
+            // Two-step: Image first, then animate (DeAPI)
+            // 1. Generate Image (Gemini)
+            const imgBase64 = await generateImageFromPrompt(
+              refinedPrompt,
+              selectedStyle,
+              globalSubject,
+              selectedAspectRatio,
+              true,
+            );
+            baseImageUrl = imgBase64;
 
-        handleImageGenerated({
-          promptId: prompt.id,
-          imageUrl: base64,
-          type: resultType,
-          baseImageUrl,
-        });
-      } catch (e) {
-        console.error(`Failed to generate asset for prompt ${prompt.id}`, e);
+            // 2. Generate motion-optimized prompt for animation
+            const motionPrompt = await generateMotionPrompt(
+              refinedPrompt,
+              prompt.mood || "cinematic",
+              globalSubject,
+            );
+
+            // 3. Animate with motion-focused prompt (DeAPI)
+            base64 = await animateImageWithDeApi(
+              imgBase64,
+              motionPrompt,
+              selectedAspectRatio as "16:9" | "9:16" | "1:1",
+            );
+            resultType = "video";
+          } else {
+            // Standard Image Generation
+            // Choose provider: Gemini (default) or DeAPI
+            if (imageProvider === "deapi") {
+              // Use DeAPI for image generation (FLUX.1-schnell or Z-Image-Turbo)
+              base64 = await generateImageWithAspectRatio(
+                refinedPrompt,
+                selectedAspectRatio as "16:9" | "9:16" | "1:1",
+                "Flux1schnell", // Fast, high-quality model
+              );
+            } else {
+              // Use Gemini Imagen (default)
+              base64 = await generateImageFromPrompt(
+                refinedPrompt,
+                selectedStyle,
+                globalSubject,
+                selectedAspectRatio,
+                true, // skipRefine - already refined above with previousPrompts
+              );
+            }
+            resultType = "image";
+          }
+
+          handleImageGenerated({
+            promptId: prompt.id,
+            imageUrl: base64,
+            type: resultType,
+            baseImageUrl,
+          });
+        } catch (e) {
+          console.error(`Failed to generate asset for prompt ${prompt.id}`, e);
+        }
       }
     }
 

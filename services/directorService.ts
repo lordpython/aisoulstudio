@@ -274,6 +274,12 @@ export async function runAnalyzer(
 /**
  * Creates the Storyboarder prompt template.
  * Generates detailed visual prompts based on the Analyzer's output and persona rules.
+ *
+ * CRITICAL DESIGN DECISION: This prompt uses POSITIVE-ONLY framing.
+ * We do NOT mention "text", "watermark", "logo", "subtitle", etc. because:
+ * 1. The LLM often includes these words in its output even when told to avoid them
+ * 2. The lint system flags any mention of these forbidden terms
+ * 3. Positive framing ("focus on lighting, texture") works better than negative ("no text")
  */
 function createStoryboarderTemplate(): ChatPromptTemplate {
   return ChatPromptTemplate.fromMessages([
@@ -294,12 +300,12 @@ CONCRETE MOTIFS (MUST INCLUDE LITERALLY):
 
 CRITICAL RULE - METAPHOR LITERALISM:
 For each concrete motif listed above, you MUST show the actual physical object.
-- If lyrics say "candle" → show a real candle
-- If lyrics say "door closing" → show a door physically closing
-- If lyrics say "rain" → show actual rain falling
+- If lyrics say "candle" → show a real candle with melting wax, flickering flame, pooling light
+- If lyrics say "door closing" → show a heavy wooden door with grain texture, brass handle, hinges
+- If lyrics say "rain" → show actual raindrops on glass, puddles reflecting light, wet surfaces
+- If lyrics say "road" → show cracked asphalt, dust clouds, tire marks, distant horizon
 Do NOT replace concrete objects with abstract interpretations.
-Do NOT show "sad person" when lyrics mention "candle".
-The object IS the metaphor. Show the object itself.
+The object IS the metaphor. Show the object itself with rich physical detail.
 
 AVAILABLE CAMERA ANGLES: {cameraAngles}
 AVAILABLE LIGHTING MOODS: {lightingMoods}
@@ -307,42 +313,63 @@ AVAILABLE LIGHTING MOODS: {lightingMoods}
 CONTENT ANALYSIS:
 {analysis}
 
-PROMPT WRITING RULES:
-1. EVERY prompt MUST begin with a concrete subject noun (e.g., "A lone figure...", "A vintage car...", "A glowing orb...", "Weathered hands...")
-2. Each prompt must be 60-120 words with SPECIFIC visual details
-3. MANDATORY CHECKLIST for each prompt (include ALL of these):
-   - Subject: WHO or WHAT is in the scene (concrete noun, not abstract)
-   - Action/Pose: What the subject is doing
-   - Setting: WHERE the scene takes place
-   - Lighting: Type and quality (e.g., "golden hour backlighting", "harsh overhead fluorescent", "soft diffused window light")
-   - Texture: At least one tactile detail (e.g., "weathered wood grain", "rain-slicked asphalt", "velvet fabric")
-    - Camera: Shot type and angle (e.g., "extreme close-up at eye level", "wide establishing shot from low angle")
-    - Atmosphere: Mood and ambient details
- 4. NEVER include text, titles, lyrics, subtitles, captions, labels, typography, written words, or UI elements inside the image - this is a CRITICAL requirement
- 5. NO generic phrases like "beautiful", "stunning", "amazing" - be SPECIFIC with descriptors
- 6. Reference the main subject by their specific features, not just "the subject"
- 7. Vary compositions: rule-of-thirds, centered, symmetrical, asymmetrical
- 8. NEVER repeat the same camera angle in consecutive scenes
- 9. INCLUDE at least one concrete motif from the list in each relevant scene
-11. SUBJECT CONSISTENCY: The GLOBAL SUBJECT takes priority. If a subject is specified, it MUST be the focus of at least 80% of the scenes.
+=== VISUAL DESCRIPTION REQUIREMENTS ===
 
-- Instead, use visual metaphors: glass breaking, door closing, wilting flower, fading photograph
+Your prompts must be PURE VISUAL DESCRIPTIONS suitable for photorealistic image generation.
+Focus EXCLUSIVELY on these elements:
 
-EMOTIONAL ARC GUIDANCE:
-- Opening scenes: Establish mood and setting (wide shots, context)
-- Building scenes: Increase intensity (medium shots, character focus)
-- Peak scenes: Maximum emotion (dynamic angles, close-ups, action)
-- Resolution scenes: Wind down (pull back, contemplative)
+1. SUBJECT (MANDATORY FIRST ELEMENT):
+   Start every prompt with a concrete, tangible subject:
+   "A bearded man with weathered skin...", "A thick white candle...", "Weathered hands with calloused fingers..."
 
-CRITICAL REQUIREMENT: You MUST generate EXACTLY {targetAssetCount} prompts. Not 7, not 6, but exactly {targetAssetCount} prompts that follow the emotional arc from the analysis.
+2. PHYSICAL DETAILS:
+   - Materials: leather, wood grain, polished metal, rough stone, flowing silk
+   - Textures: cracked, smooth, glistening, dusty, rain-slicked, velvet
+   - Colors: specific hues (amber, slate grey, crimson, muted teal)
 
-OUTPUT FORMAT:
-Return a valid JSON object (no markdown code blocks) with a "prompts" array containing exactly {targetAssetCount} objects.
+3. LIGHTING (REQUIRED):
+   Every prompt must specify lighting:
+   - Direction: backlighting, side lighting, overhead, rim light
+   - Quality: soft diffused, harsh direct, dappled through leaves, golden hour warmth
+   - Source: single shaft of light, multiple practicals, ambient glow, fire flicker
+
+4. CAMERA & COMPOSITION:
+   - Shot type: extreme close-up, medium shot, wide establishing, over-the-shoulder
+   - Angle: low angle looking up, eye level, bird's eye, Dutch angle
+   - Depth: shallow focus with bokeh, deep focus, rack focus point
+
+5. ATMOSPHERE & ENVIRONMENT:
+   - Particles: dust motes, smoke wisps, rain droplets, floating embers
+   - Weather: overcast, golden hour, blue hour, stormy
+   - Setting details: crumbling walls, polished floors, overgrown paths
+
+6. MOTION HINTS (for video generation):
+   - Camera: "slow dolly forward", "gentle crane up", "steady tracking left"
+   - Environmental: "smoke drifting", "curtains billowing", "leaves falling"
+
+=== QUALITY GUIDELINES ===
+
+- Be SPECIFIC: "warm amber light filtering through dusty air" NOT "beautiful lighting"
+- Be CINEMATIC: Think like a cinematographer describing a single film frame
+- Be TACTILE: Include at least one texture that viewers could imagine touching
+- Be CONSISTENT: Maintain subject appearance across scenes
+- VARY COMPOSITIONS: Never repeat the same camera angle in consecutive scenes
+
+=== EMOTIONAL ARC GUIDANCE ===
+
+- Opening scenes (1-2): Establish mood with wide shots, environmental context
+- Building scenes (3-5): Medium shots, character/subject focus, increasing detail
+- Peak scenes (6-8): Dynamic angles, intimate close-ups, maximum visual intensity
+- Resolution scenes (9+): Pull back, contemplative wide shots, fading light
+
+=== OUTPUT REQUIREMENTS ===
+
+Generate EXACTLY {targetAssetCount} prompts as a JSON object with a "prompts" array.
 Each prompt object must have:
-- "text": detailed visual prompt (60-120 words) starting with a concrete subject
-- "mood": emotional tone of the scene
-- "timestamp": timestamp in MM:SS format when this specific scene should occur. Distribute prompts logically across the content duration.`],
-    ["human", `Create the visual storyboard based on the analysis provided. Remember to generate exactly {targetAssetCount} prompts that follow the persona rules and include the concrete motifs literally.`],
+- "text": 60-120 word visual description starting with concrete subject
+- "mood": single word or short phrase for emotional tone
+- "timestamp": MM:SS format, distributed across the content duration`],
+    ["human", `Create the visual storyboard based on the analysis provided. Generate exactly {targetAssetCount} prompts with rich cinematic detail. Focus on lighting, texture, camera work, and atmosphere. Include the concrete motifs as literal physical objects with tactile detail.`],
   ]);
 }
 

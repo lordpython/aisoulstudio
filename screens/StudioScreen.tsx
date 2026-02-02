@@ -634,9 +634,9 @@ export default function StudioScreen() {
       };
     });
 
-    const { exportVideoClientSide } = await import('@/services/ffmpeg/exporters');
+    const { exportVideoWithFFmpeg } = await import('@/services/ffmpeg/exporters');
 
-    const blob = await exportVideoClientSide(
+    const blob = await exportVideoWithFFmpeg(
       songData,
       (p) => onProgress?.(p.progress),
       {

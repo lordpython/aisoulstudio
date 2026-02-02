@@ -472,7 +472,7 @@ PROMPT WRITING RULES:
    - Texture: At least one tactile detail (e.g., "weathered wood grain", "rain-slicked asphalt", "velvet fabric")
    - Camera: Shot type and angle (e.g., "extreme close-up at eye level", "wide establishing shot from low angle")
    - Atmosphere: Mood and ambient details
-6. NEVER include text, titles, lyrics, subtitles, captions, labels, typography, written words, or UI elements inside the image - this is a CRITICAL requirement
+6. Focus ONLY on visual elements: subjects, lighting, textures, colors, camera angles, atmosphere
 7. NO generic phrases like "beautiful", "stunning", "amazing" - be SPECIFIC with descriptors
 8. Reference the main subject by their specific features, not just "the subject"
 9. Vary compositions: rule-of-thirds, centered, symmetrical, asymmetrical
@@ -543,12 +543,12 @@ Requirements:
 - Keep it a single prompt suitable for an image model.
 - Make it vivid and specific (setting, lighting, camera/composition, color palette, mood).
 - Keep style consistent with the chosen preset.
-- Do NOT include any text/typography/subtitles/logos/watermarks instructions.
+- Focus EXCLUSIVELY on visual elements: subjects, lighting, textures, colors, camera angles, atmosphere.
 - If Global Subject is provided, it MUST be the primary focus. Restate its key identifiers explicitly (face, hair, outfit, materials) so the subject stays 100% consistent across scenes.
 - If the subject is a person, use consistent descriptors.
 - Ensure the prompt STARTS with the subject name or a concrete description of it.
 - Keep length 70–130 words for maximum detail.
-- Avoid repeating generic phrases like "highly detailed" or "stunning" too much.
+- Use specific visual descriptors (e.g., "amber light", "weathered oak", "muted teal") rather than generic phrases.
 
 User Prompt:
 ${promptText}`,
