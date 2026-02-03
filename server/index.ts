@@ -3,6 +3,7 @@ import './env.js';
 
 import express from 'express';
 import cors from 'cors';
+import os from 'os';
 import { createLogger } from '../services/logger.js';
 import { ensureTempDir, TEMP_DIR } from './utils/index.js';
 
@@ -41,7 +42,27 @@ app.use('/api/cloud', cloudRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/director', directorRoutes);
 
-app.listen(PORT, () => {
-  serverLog.info(`FFmpeg export server running on http://localhost:${PORT}`);
+// Get network IP for display
+function getNetworkIP(): string {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    const interfaces = nets[name];
+    if (!interfaces) continue;
+    for (const net of interfaces) {
+      // Skip internal and non-IPv4 addresses
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+// Listen on all interfaces (0.0.0.0) for network access
+app.listen(PORT, '0.0.0.0', () => {
+  const networkIP = getNetworkIP();
+  serverLog.info(`API server running on:`);
+  serverLog.info(`  ➜  Local:   http://localhost:${PORT}`);
+  serverLog.info(`  ➜  Network: http://${networkIP}:${PORT}`);
   serverLog.info(`Temp directory: ${TEMP_DIR}`);
 });

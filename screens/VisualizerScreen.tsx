@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
 import { useLyricLens } from '@/hooks/useLyricLens';
 import { useModalState } from '@/hooks/useModalState';
+import { useProjectSession } from '@/hooks/useProjectSession';
+import { useAuth } from '@/hooks/useAuth';
 import { AppState, GeneratedImage } from '@/types';
 
 // Layout Components
@@ -40,6 +42,14 @@ import { animateImageWithDeApi, animateImageBatch } from '@/services/deapiServic
 export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Get projectId from URL (e.g., /visualizer?projectId=abc123)
+  const projectId = searchParams.get('projectId') || undefined;
+
+  // Project and auth hooks
+  const { project, sessionId } = useProjectSession(projectId);
+  const { user } = useAuth();
 
   // Modal state
   const { showExport, setShowExport } = useModalState();
@@ -319,7 +329,7 @@ export default function VisualizerScreen() {
 
     const { exportVideoWithFFmpeg } = await import('@/services/ffmpeg/exporters');
 
-    const blob = await exportVideoWithFFmpeg(
+    const result = await exportVideoWithFFmpeg(
       songData,
       (p) => onProgress?.(p.progress),
       {
@@ -328,10 +338,15 @@ export default function VisualizerScreen() {
         transitionType: 'dissolve',
         transitionDuration: 1.5,
         contentMode: 'music',
+      },
+      {
+        cloudSessionId: sessionId || undefined,
+        userId: user?.uid,
+        projectId: projectId,
       }
     );
 
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(result.blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${songData.fileName?.replace(/\.[^/.]+$/, '') || 'lyric-video'}-${config.presetId}.mp4`;
@@ -339,7 +354,7 @@ export default function VisualizerScreen() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [songData, hasVisuals]);
+  }, [songData, hasVisuals, sessionId, user?.uid, projectId]);
 
   // ============================================================
   // Render Helpers

@@ -18,6 +18,11 @@ export const routes: RouteConfig[] = [
     title: 'nav.home',
   },
   {
+    path: '/projects',
+    title: 'nav.projects',
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/studio',
     title: 'nav.studio',
     meta: { preserveState: true },

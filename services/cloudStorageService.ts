@@ -29,6 +29,7 @@ export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sf
  */
 interface AutosaveState {
   sessionId: string | null;
+  userId: string | null;
   initialized: boolean;
   uploadQueue: Promise<void>[];
   failedUploads: Array<{ filename: string; error: string }>;
@@ -36,6 +37,7 @@ interface AutosaveState {
 
 const autosaveState: AutosaveState = {
   sessionId: null,
+  userId: null,
   initialized: false,
   uploadQueue: [],
   failedUploads: [],
@@ -67,21 +69,23 @@ export const cloudAutosave = {
    * Call this when the user clicks "Start Production" or "Plan Video".
    *
    * @param sessionId - The production session ID (e.g., prod_TIMESTAMP_HASH)
+   * @param userId - Optional user ID for user-specific storage paths
    */
-  async initSession(sessionId: string): Promise<boolean> {
+  async initSession(sessionId: string, userId?: string): Promise<boolean> {
     if (!sessionId) {
       console.warn('[Autosave] No sessionId provided, skipping cloud init');
       return false;
     }
 
     autosaveState.sessionId = sessionId;
+    autosaveState.userId = userId || null;
     autosaveState.failedUploads = [];
 
     try {
       const response = await fetch(`${CLOUD_API_BASE}/api/cloud/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
+        body: JSON.stringify({ sessionId, userId })
       });
 
       const result = await response.json();
@@ -131,6 +135,10 @@ export const cloudAutosave = {
     formData.append('filename', filename);
     formData.append('file', blob, filename);
     formData.append('makePublic', String(makePublic));
+    // Include userId for user-specific storage paths
+    if (autosaveState.userId) {
+      formData.append('userId', autosaveState.userId);
+    }
 
     const uploadPromise = (async () => {
       try {

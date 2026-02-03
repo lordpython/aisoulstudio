@@ -100,5 +100,29 @@
     "suggestions": "الاقتراحات",
     "verifyContinuity": "تحقق من الاستمرارية",
     "verifying": "جاري التحقق من الاستمرارية..."
+  },
+  "projects": {
+    "title": "مشاريعي",
+    "loading": "جارٍ تحميل المشاريع...",
+    "loadError": "فشل تحميل المشاريع",
+    "createError": "فشل إنشاء المشروع",
+    "create": "إنشاء جديد",
+    "createVideo": "مشروع فيديو",
+    "createStory": "مشروع قصة",
+    "createVisualizer": "مشروع مُصوِّر",
+    "favorites": "المفضلة",
+    "recent": "الأخيرة",
+    "allProjects": "جميع المشاريع",
+    "search": "البحث في المشاريع...",
+    "empty": "لا توجد مشاريع بعد",
+    "emptyHint": "أنشئ مشروعك الأول للبدء",
+    "noResults": "لم يتم العثور على مشاريع",
+    "tryDifferentSearch": "جرب بحثاً أو فلتراً مختلفاً",
+    "open": "فتح",
+    "export": "تصدير",
+    "delete": "حذف",
+    "favorite": "إضافة للمفضلة",
+    "unfavorite": "إزالة من المفضلة",
+    "confirmDelete": "هل أنت متأكد من حذف هذا المشروع؟ لا يمكن التراجع عن هذا الإجراء."
   }
 }

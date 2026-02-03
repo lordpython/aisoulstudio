@@ -235,8 +235,11 @@ function NeuralBackground() {
 
 export default function SignInScreen() {
   const navigate = useNavigate();
-  const { user, isLoading, error, signInWithGoogle, clearError, isAuthenticated } = useAuth();
+  const { user, isLoading, error, signInWithGoogle, signInWithEmail, createAccount, clearError, isAuthenticated } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -257,6 +260,28 @@ export default function SignInScreen() {
 
   const handleContinueWithoutSignIn = () => {
     navigate('/');
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSigningIn(true);
+    clearError();
+    try {
+      if (mode === 'signin') {
+        await signInWithEmail(email, password);
+      } else {
+        await createAccount(email, password);
+      }
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const switchMode = () => {
+    setMode(mode === 'signin' ? 'signup' : 'signin');
+    clearError();
+    setEmail('');
+    setPassword('');
   };
 
   return (
@@ -327,13 +352,15 @@ export default function SignInScreen() {
             {/* Brand Name */}
             <div>
               <h1 className="font-display text-4xl md:text-5xl tracking-tight text-[var(--cinema-silver)]">
-                AIsoul{' '}
+                {mode === 'signin' ? 'Welcome Back' : 'Join'}{' '}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[oklch(0.70_0.15_190)] to-[oklch(0.65_0.25_30)]">
-                  Studio
+                  {mode === 'signin' ? '' : 'AIsoul Studio'}
                 </span>
               </h1>
               <p className="mt-3 text-[var(--cinema-silver)]/50 text-base font-light tracking-wide">
-                Create. Imagine. Transform.
+                {mode === 'signin'
+                  ? 'Sign in to sync your projects across devices'
+                  : 'Create an account to save your work to the cloud'}
               </p>
             </div>
           </motion.div>
@@ -403,6 +430,110 @@ export default function SignInScreen() {
             </motion.button>
 
             {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[var(--cinema-silver)]/10" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="px-4 text-xs text-[var(--cinema-silver)]/30 bg-[var(--cinema-void)] uppercase tracking-widest">
+                  or continue with email
+                </span>
+              </div>
+            </div>
+
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              <div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email address"
+                  required
+                  disabled={isSigningIn}
+                  className={cn(
+                    "w-full px-4 py-3.5 rounded-xl",
+                    "bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10",
+                    "text-[var(--cinema-silver)] placeholder:text-[var(--cinema-silver)]/30",
+                    "focus:outline-none focus:border-[oklch(0.70_0.15_190)] focus:ring-1 focus:ring-[oklch(0.70_0.15_190_/_0.3)]",
+                    "transition-all duration-200",
+                    "disabled:opacity-50"
+                  )}
+                />
+              </div>
+              <div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  minLength={6}
+                  disabled={isSigningIn}
+                  className={cn(
+                    "w-full px-4 py-3.5 rounded-xl",
+                    "bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10",
+                    "text-[var(--cinema-silver)] placeholder:text-[var(--cinema-silver)]/30",
+                    "focus:outline-none focus:border-[oklch(0.70_0.15_190)] focus:ring-1 focus:ring-[oklch(0.70_0.15_190_/_0.3)]",
+                    "transition-all duration-200",
+                    "disabled:opacity-50"
+                  )}
+                />
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={isSigningIn || isLoading}
+                className={cn(
+                  "w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl",
+                  "bg-gradient-to-r from-[oklch(0.70_0.15_190)] to-[oklch(0.55_0.20_280)]",
+                  "hover:from-[oklch(0.75_0.15_190)] hover:to-[oklch(0.60_0.20_280)]",
+                  "text-white font-medium",
+                  "transition-all duration-300 ease-out",
+                  "focus:outline-none focus:ring-2 focus:ring-[oklch(0.70_0.15_190)] focus:ring-offset-2 focus:ring-offset-[var(--cinema-void)]",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "shadow-lg hover:shadow-xl hover:shadow-[oklch(0.70_0.15_190_/_0.3)]"
+                )}
+                whileHover={{ scale: isSigningIn ? 1 : 1.02, y: isSigningIn ? 0 : -2 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isSigningIn ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : null}
+                <span className="text-base">
+                  {isSigningIn
+                    ? (mode === 'signin' ? 'Signing in...' : 'Creating account...')
+                    : (mode === 'signin' ? 'Sign in' : 'Create account')}
+                </span>
+              </motion.button>
+            </form>
+
+            {/* Mode switcher */}
+            <div className="text-center text-sm text-[var(--cinema-silver)]/50">
+              {mode === 'signin' ? (
+                <>
+                  Don't have an account?{' '}
+                  <button
+                    onClick={switchMode}
+                    className="text-[oklch(0.70_0.15_190)] hover:text-[oklch(0.75_0.15_190)] transition-colors font-medium"
+                  >
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    onClick={switchMode}
+                    className="text-[oklch(0.70_0.15_190)] hover:text-[oklch(0.75_0.15_190)] transition-colors font-medium"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Second Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-[var(--cinema-silver)]/10" />

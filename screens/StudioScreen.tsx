@@ -20,6 +20,7 @@ import {
   Layers,
   Upload,
   Settings,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,8 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { GraphiteTimeline } from '@/components/TimelineEditor';
 import { useAppStore } from '@/stores';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
+import { useProjectSession } from '@/hooks/useProjectSession';
+import { getCurrentUser } from '@/services/firebase/authService';
 import { StoryWorkspace } from '@/components/story';
 
 // ============================================================
@@ -57,6 +60,7 @@ export interface StudioParams {
   style?: string;
   duration?: number;
   topic?: string;
+  projectId?: string;
 }
 
 export function parseStudioParams(searchParams: URLSearchParams): StudioParams {
@@ -64,12 +68,14 @@ export function parseStudioParams(searchParams: URLSearchParams): StudioParams {
   const style = searchParams.get('style');
   const duration = searchParams.get('duration');
   const topic = searchParams.get('topic');
+  const projectId = searchParams.get('projectId');
 
   return {
     mode: mode === 'video' || mode === 'music' ? mode : undefined,
     style: style || undefined,
     duration: duration ? parseInt(duration, 10) : undefined,
     topic: topic || undefined,
+    projectId: projectId || undefined,
   };
 }
 
@@ -82,6 +88,15 @@ export default function StudioScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = parseStudioParams(searchParams);
+
+  // Project session management
+  const {
+    project,
+    isLoading: isProjectLoading,
+    error: projectError,
+    restoredState,
+    syncProjectMetadata,
+  } = useProjectSession(params.projectId);
 
   // View mode toggle (Requirement 6.6)
   const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
@@ -180,35 +195,105 @@ export default function StudioScreen() {
   // Effects
   // ============================================================
 
-  // Apply URL parameters on mount (Requirement 2.5)
+  // Apply URL parameters OR restore project state on mount (Requirement 2.5)
   useEffect(() => {
     if (paramsAppliedRef.current) return;
+
+    // Wait for project loading to complete if we have a projectId
+    if (params.projectId && isProjectLoading) return;
+
     paramsAppliedRef.current = true;
 
+    // If we have restored state from a project session, apply it
+    if (restoredState?.contentPlan) {
+      console.log('[StudioScreen] Restoring from project session');
+      setContentPlan(restoredState.contentPlan);
+      if (restoredState.visuals?.length) {
+        setVisuals(restoredState.visuals);
+      }
+      if (restoredState.narrationSegments?.length) {
+        setNarrationSegments(restoredState.narrationSegments);
+      }
+      // Set topic from restored content plan
+      if (restoredState.contentPlan.title) {
+        setTopic(restoredState.contentPlan.title);
+      }
+      setAppState(AppState.READY);
+      return;
+    }
+
+    // Apply project metadata as initial config (if project exists but no restored state)
+    if (project) {
+      if (project.topic) setTopic(project.topic);
+      if (project.style) setVisualStyle(project.style);
+    }
+
+    // Fall back to URL params for mode/style/topic
     if (params.mode === 'video') {
       if (params.style) setVisualStyle(params.style);
       if (params.duration) setTargetDuration(params.duration);
       setVideoPurpose('documentary');
 
-      if (params.topic) {
-        setTopic(params.topic);
+      // Use project topic or URL param topic
+      const effectiveTopic = project?.topic || params.topic;
+      if (effectiveTopic && !restoredState?.contentPlan) {
+        setTopic(effectiveTopic);
         addMessage('assistant', t('studio.generating'));
         setTimeout(() => {
           startProduction({
             skipNarration: false,
             targetDuration: params.duration || 60,
-            visualStyle: params.style || 'Cinematic',
+            visualStyle: params.style || project?.style || 'Cinematic',
             contentPlannerConfig: {
               videoPurpose: 'documentary',
-              visualStyle: params.style || 'Cinematic',
+              visualStyle: params.style || project?.style || 'Cinematic',
             }
-          }, params.topic);
+          }, effectiveTopic);
         }, 500);
       }
     } else if (params.mode === 'music') {
       setShowMusic(true);
     }
-  }, [params, setVisualStyle, setTargetDuration, setVideoPurpose, setTopic, startProduction, addMessage, t, setShowMusic]);
+  }, [params, isProjectLoading, project, restoredState, setVisualStyle, setTargetDuration, setVideoPurpose, setTopic, startProduction, addMessage, t, setShowMusic, setContentPlan, setVisuals, setNarrationSegments, setAppState]);
+
+  // Sync project metadata when production state changes
+  useEffect(() => {
+    if (!params.projectId || !project) return;
+
+    const updates: Record<string, unknown> = {};
+
+    if (contentPlan) {
+      updates.sceneCount = contentPlan.scenes.length;
+      updates.status = 'in_progress';
+    }
+
+    if (visuals.length > 0) {
+      updates.hasVisuals = true;
+      // Use first scene visual as thumbnail
+      const firstVisual = visuals.find(v => v.imageUrl);
+      if (firstVisual?.imageUrl) {
+        updates.thumbnailUrl = firstVisual.imageUrl;
+      }
+    }
+
+    if (narrationSegments.length > 0) {
+      updates.hasNarration = true;
+      updates.duration = narrationSegments.reduce((sum, n) => sum + n.audioDuration, 0);
+    }
+
+    if (sfxPlan?.generatedMusic?.audioUrl) {
+      updates.hasMusic = true;
+    }
+
+    if (appState === AppState.READY && contentPlan) {
+      updates.status = 'completed';
+    }
+
+    // Only sync if we have updates
+    if (Object.keys(updates).length > 0) {
+      syncProjectMetadata(updates);
+    }
+  }, [params.projectId, project, contentPlan, visuals, narrationSegments, sfxPlan, appState, syncProjectMetadata]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -636,7 +721,7 @@ export default function StudioScreen() {
 
     const { exportVideoWithFFmpeg } = await import('@/services/ffmpeg/exporters');
 
-    const blob = await exportVideoWithFFmpeg(
+    const result = await exportVideoWithFFmpeg(
       songData,
       (p) => onProgress?.(p.progress),
       {
@@ -647,8 +732,17 @@ export default function StudioScreen() {
         contentMode: 'story',
         sfxPlan,
         sceneTimings,
+      },
+      // Pass export options for history tracking
+      {
+        projectId: params.projectId,
+        cloudSessionId: project?.cloudSessionId,
+        userId: getCurrentUser()?.uid,
       }
     );
+
+    // Use blob from result (may include cloudUrl for cloud exports)
+    const blob = result.blob ?? result;
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -658,7 +752,7 @@ export default function StudioScreen() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan]);
+  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan, params.projectId, project]);
 
   // ============================================================
   // TEST: Load saved media from local folder
@@ -872,6 +966,44 @@ export default function StudioScreen() {
       )}
     </div>
   );
+
+  // Loading state for project
+  if (isProjectLoading) {
+    return (
+      <ScreenLayout
+        title={t('studio.title')}
+        showBackButton
+        onBack={() => navigate('/')}
+      >
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+            <p className="text-white/60">{t('studio.loadingProject') || 'Loading project...'}</p>
+          </div>
+        </div>
+      </ScreenLayout>
+    );
+  }
+
+  // Error state for project loading
+  if (projectError) {
+    return (
+      <ScreenLayout
+        title={t('studio.title')}
+        showBackButton
+        onBack={() => navigate('/')}
+      >
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
+          <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center max-w-md">
+            <p className="text-red-400 mb-4">{projectError}</p>
+            <Button onClick={() => navigate('/projects')}>
+              {t('common.backToProjects') || 'Back to Projects'}
+            </Button>
+          </div>
+        </div>
+      </ScreenLayout>
+    );
+  }
 
   return (
     <ScreenLayout

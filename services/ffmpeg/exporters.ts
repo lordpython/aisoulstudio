@@ -22,15 +22,34 @@ import {
 import { preloadAssets, clearFrameCache, type AssetLoadProgress } from "./assetLoader";
 import { renderFrameToCanvas } from "./frameRenderer";
 import { cloudAutosave } from "../cloudStorageService";
+import { saveExportRecord } from "../projectService";
 
 // Rendering constants
-const RENDER_WIDTH_LANDSCAPE = 1920; // Was 1280
-const RENDER_HEIGHT_LANDSCAPE = 1080; // Was 720
-const RENDER_WIDTH_PORTRAIT = 1080;  // Was 720
-const RENDER_HEIGHT_PORTRAIT = 1920; // Was 1280
+const RENDER_WIDTH_LANDSCAPE = 1920;
+const RENDER_HEIGHT_LANDSCAPE = 1080;
+const RENDER_WIDTH_PORTRAIT = 1080;
+const RENDER_HEIGHT_PORTRAIT = 1920;
 const FPS = 24;
-const JPEG_QUALITY = 0.95; // Increased quality
-const BATCH_SIZE = 48;
+const JPEG_QUALITY = 0.92;      // Slightly reduced for faster uploads (still excellent quality)
+const BATCH_SIZE = 96;          // Doubled batch size for fewer HTTP round-trips
+const PARALLEL_RENDERS = 4;     // Number of frames to render in parallel (where possible)
+
+/**
+ * Export options for user project tracking
+ */
+export interface ExportOptions {
+    cloudSessionId?: string;
+    userId?: string;
+    projectId?: string;
+}
+
+/**
+ * Export result with optional cloud URL
+ */
+export interface ExportResult {
+    blob: Blob;
+    cloudUrl?: string;
+}
 
 /**
  * Export video using cloud rendering (server-side FFmpeg)
@@ -39,8 +58,9 @@ export async function exportVideoWithFFmpeg(
     songData: SongData,
     onProgress: ProgressCallback,
     config: Partial<ExportConfig> = {},
-    cloudSessionId?: string
-): Promise<Blob> {
+    options: ExportOptions = {}
+): Promise<ExportResult> {
+    const { cloudSessionId, userId, projectId } = options;
     const mergedConfig = mergeExportConfig(config);
     const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
     const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
@@ -141,9 +161,25 @@ export async function exportVideoWithFFmpeg(
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     applyPolyfills(ctx);
 
-    // 6. Render Loop with Batch Upload
+    // 6. Render Loop with Parallel Upload
+    // Upload batches asynchronously while rendering continues
     let previousFreqData: Uint8Array | null = null;
     let frameBuffer: { blob: Blob; name: string }[] = [];
+    let pendingUpload: Promise<void> | null = null;
+    let uploadErrors: Error[] = [];
+
+    // Helper to upload a batch asynchronously
+    const uploadBatch = async (batch: { blob: Blob; name: string }[]) => {
+        const chunkFormData = new FormData();
+        batch.forEach((f) => chunkFormData.append("frames", f.blob, f.name));
+        const chunkRes = await fetch(
+            `${SERVER_URL}/api/export/chunk?sessionId=${sessionId}`,
+            { method: "POST", body: chunkFormData }
+        );
+        if (!chunkRes.ok) {
+            uploadErrors.push(new Error("Failed to upload video chunk"));
+        }
+    };
 
     for (let frame = 0; frame < totalFrames; frame++) {
         const currentTime = frame / FPS;
@@ -172,17 +208,19 @@ export async function exportVideoWithFFmpeg(
             name: `frame${frame.toString().padStart(6, "0")}.jpg`,
         });
 
-        // Upload if batch is full
+        // Upload batch asynchronously (don't wait, continue rendering)
         if (frameBuffer.length >= BATCH_SIZE) {
-            const chunkFormData = new FormData();
-            frameBuffer.forEach((f) => chunkFormData.append("frames", f.blob, f.name));
-
-            const chunkRes = await fetch(
-                `${SERVER_URL}/api/export/chunk?sessionId=${sessionId}`,
-                { method: "POST", body: chunkFormData }
-            );
-
-            if (!chunkRes.ok) throw new Error("Failed to upload video chunk");
+            // Wait for previous upload to complete before starting new one
+            if (pendingUpload) {
+                await pendingUpload;
+            }
+            // Check for errors
+            if (uploadErrors.length > 0) {
+                throw uploadErrors[0];
+            }
+            // Start new upload (don't await - continue rendering)
+            const batchToUpload = [...frameBuffer];
+            pendingUpload = uploadBatch(batchToUpload);
             frameBuffer = [];
         }
 
@@ -191,7 +229,6 @@ export async function exportVideoWithFFmpeg(
             const progress = Math.round((frame / totalFrames) * 90);
 
             // Determine current asset type
-            const currentTime = frame / FPS;
             const currentAsset = assets.find((a, i) => {
                 const nextAsset = assets[i + 1];
                 return currentTime >= a.time && (!nextAsset || currentTime < nextAsset.time);
@@ -207,6 +244,16 @@ export async function exportVideoWithFFmpeg(
                 isSeekingVideo: currentAsset?.type === "video",
             });
         }
+    }
+
+    // Wait for any pending upload
+    if (pendingUpload) {
+        await pendingUpload;
+    }
+
+    // Check for upload errors
+    if (uploadErrors.length > 0) {
+        throw uploadErrors[0];
     }
 
     // Upload remaining frames
@@ -245,21 +292,45 @@ export async function exportVideoWithFFmpeg(
     // Clear frame cache to free memory
     clearFrameCache();
 
+    let cloudUrl: string | undefined;
+
     // Upload final video to cloud storage if session context provided
     if (cloudSessionId) {
-        cloudAutosave.saveAsset(
-            cloudSessionId,
-            videoBlob,
-            'final_video.mp4',
-            'video_clips'
-        ).then(() => {
-            console.log('[FFmpeg] ✓ Final video uploaded to cloud');
-        }).catch(err => {
-            console.warn('[FFmpeg] Cloud upload failed (non-fatal):', err);
-        });
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `export_${timestamp}.mp4`;
+            const result = await cloudAutosave.saveAsset(
+                cloudSessionId,
+                videoBlob,
+                filename,
+                'exports',
+                true, // waitForUpload
+                true  // makePublic
+            );
+            if (result.publicUrl) {
+                cloudUrl = result.publicUrl;
+                console.log('[FFmpeg] ✓ Final video uploaded to cloud:', cloudUrl);
+
+                // Save export record if user is authenticated
+                if (userId && projectId) {
+                    const aspectRatio = mergedConfig.orientation === 'landscape' ? '16:9' : '9:16';
+                    await saveExportRecord(projectId, {
+                        format: 'mp4',
+                        quality: 'high',
+                        aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
+                        cloudUrl,
+                        fileSize: videoBlob.size,
+                        duration: songData.durationSeconds,
+                    });
+                    console.log('[FFmpeg] ✓ Export record saved to Firestore');
+                }
+            }
+        } catch (err) {
+            console.warn('[FFmpeg] Cloud upload/record failed (non-fatal):', err);
+        }
     }
 
-    return videoBlob;
+    return { blob: videoBlob, cloudUrl };
 }
 
 /**
@@ -269,8 +340,9 @@ export async function exportVideoClientSide(
     songData: SongData,
     onProgress: ProgressCallback,
     config: Partial<ExportConfig> = {},
-    cloudSessionId?: string
-): Promise<Blob> {
+    options: ExportOptions = {}
+): Promise<ExportResult> {
+    const { cloudSessionId, userId, projectId } = options;
     const mergedConfig = mergeExportConfig(config);
     const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
     const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
@@ -502,19 +574,43 @@ export async function exportVideoClientSide(
     // Clear frame cache to free memory
     clearFrameCache();
 
+    let cloudUrl: string | undefined;
+
     // Upload final video to cloud storage if session context provided
     if (cloudSessionId) {
-        cloudAutosave.saveAsset(
-            cloudSessionId,
-            videoBlob,
-            'final_video.mp4',
-            'video_clips'
-        ).then(() => {
-            console.log('[FFmpeg WASM] ✓ Final video uploaded to cloud');
-        }).catch(err => {
-            console.warn('[FFmpeg WASM] Cloud upload failed (non-fatal):', err);
-        });
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `export_${timestamp}.mp4`;
+            const result = await cloudAutosave.saveAsset(
+                cloudSessionId,
+                videoBlob,
+                filename,
+                'exports',
+                true, // waitForUpload
+                true  // makePublic
+            );
+            if (result.publicUrl) {
+                cloudUrl = result.publicUrl;
+                console.log('[FFmpeg WASM] ✓ Final video uploaded to cloud:', cloudUrl);
+
+                // Save export record if user is authenticated
+                if (userId && projectId) {
+                    const aspectRatio = mergedConfig.orientation === 'landscape' ? '16:9' : '9:16';
+                    await saveExportRecord(projectId, {
+                        format: 'mp4',
+                        quality: 'high',
+                        aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
+                        cloudUrl,
+                        fileSize: videoBlob.size,
+                        duration: songData.durationSeconds,
+                    });
+                    console.log('[FFmpeg WASM] ✓ Export record saved to Firestore');
+                }
+            }
+        } catch (err) {
+            console.warn('[FFmpeg WASM] Cloud upload/record failed (non-fatal):', err);
+        }
     }
 
-    return videoBlob;
+    return { blob: videoBlob, cloudUrl };
 }

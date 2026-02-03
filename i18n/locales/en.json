@@ -96,5 +96,29 @@
     "suggestions": "Suggestions",
     "verifyContinuity": "Verify Continuity",
     "verifying": "Verifying continuity..."
+  },
+  "projects": {
+    "title": "My Projects",
+    "loading": "Loading projects...",
+    "loadError": "Failed to load projects",
+    "createError": "Failed to create project",
+    "create": "Create New",
+    "createVideo": "Video Project",
+    "createStory": "Story Project",
+    "createVisualizer": "Visualizer Project",
+    "favorites": "Favorites",
+    "recent": "Recent",
+    "allProjects": "All Projects",
+    "search": "Search projects...",
+    "empty": "No projects yet",
+    "emptyHint": "Create your first project to get started",
+    "noResults": "No projects found",
+    "tryDifferentSearch": "Try a different search or filter",
+    "open": "Open",
+    "export": "Export",
+    "delete": "Delete",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites",
+    "confirmDelete": "Are you sure you want to delete this project? This cannot be undone."
   }
 }

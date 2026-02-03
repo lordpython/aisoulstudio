@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
     base: isMobileBuild ? './' : '/',
     server: {
       port: 3000,
-      host: "localhost",
+      host: true,  // Expose on local network
       // COOP/COEP headers for SharedArrayBuffer (FFmpeg WASM) - web only
       // These headers break mobile WebViews, so only apply in web dev mode
       headers: isMobileBuild ? {} : {

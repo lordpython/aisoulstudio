@@ -29,8 +29,27 @@ async function getGcsStorageClient(): Promise<Storage> {
 
 const memoryUpload = multer({ storage: multer.memoryStorage() });
 
+/**
+ * Build storage path based on whether userId is provided.
+ * User-aware path: users/{userId}/projects/{sessionId}/
+ * Legacy path: production_{sessionId}/
+ */
+function buildStoragePath(sessionId: string, userId?: string, assetType?: string, filename?: string): string {
+    const basePath = userId
+        ? `users/${userId}/projects/${sessionId}`
+        : `production_${sessionId}`;
+
+    if (assetType && filename) {
+        return `${basePath}/${assetType}/${filename}`;
+    }
+    if (assetType) {
+        return `${basePath}/${assetType}`;
+    }
+    return basePath;
+}
+
 router.post('/init', async (req: Request, res: Response): Promise<void> => {
-    const { sessionId } = req.body;
+    const { sessionId, userId } = req.body;
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
@@ -45,11 +64,19 @@ router.post('/init', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        await bucket.file(`production_${sessionId}/_session_started.txt`).save(
-            `Session Started: ${new Date().toISOString()}\nSessionId: ${sessionId}`
-        );
+        const folderPath = buildStoragePath(sessionId, userId);
+        const markerContent = userId
+            ? `Session Started: ${new Date().toISOString()}\nSessionId: ${sessionId}\nUserId: ${userId}`
+            : `Session Started: ${new Date().toISOString()}\nSessionId: ${sessionId}`;
 
-        res.json({ success: true, message: `Session ${sessionId} initialized` });
+        await bucket.file(`${folderPath}/_session_started.txt`).save(markerContent);
+
+        res.json({
+            success: true,
+            message: `Session ${sessionId} initialized`,
+            folderPath,
+            userAware: !!userId
+        });
     } catch (error: any) {
         cloudLog.error('Cloud init error:', error);
         res.status(500).json({ error: error.message || 'Cloud init failed' });
@@ -57,16 +84,16 @@ router.post('/init', async (req: Request, res: Response): Promise<void> => {
 });
 
 router.post('/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response): Promise<void> => {
-    const { sessionId, assetType, filename, makePublic } = req.body;
+    const { sessionId, assetType, filename, makePublic, userId } = req.body;
     if (!req.file || !sessionId) {
         res.status(400).json({ error: 'Missing file or sessionId' });
         return;
     }
 
-    const validAssetTypes = ['visuals', 'audio', 'music', 'video_clips', 'sfx', 'subtitles'];
+    const validAssetTypes = ['visuals', 'audio', 'music', 'video_clips', 'sfx', 'subtitles', 'exports'];
     const safeAssetType = validAssetTypes.includes(assetType) ? assetType : 'misc';
     const safeFilename = path.basename(filename || `asset_${Date.now()}`);
-    const destination = `production_${sessionId}/${safeAssetType}/${safeFilename}`;
+    const destination = buildStoragePath(sessionId, userId, safeAssetType, safeFilename);
     const shouldMakePublic = makePublic === 'true' || makePublic === true;
 
     try {

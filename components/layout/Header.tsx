@@ -1,10 +1,12 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Music,
   Download,
   Video,
   MoreVertical,
   Share2,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppState, SongData } from "../../types";
@@ -13,6 +15,7 @@ import { useLanguage } from "@/i18n/useLanguage";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { BackArrow, ForwardChevron } from "./DirectionalIcon";
 import { UserMenu } from "@/components/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 // Legacy Header Props for backward compatibility
 export interface LegacyHeaderProps {
@@ -67,6 +70,8 @@ export const Header: React.FC<HeaderProps> = ({
   className,
 }) => {
   const { t, isRTL } = useLanguage();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <header 
@@ -121,7 +126,20 @@ export const Header: React.FC<HeaderProps> = ({
       >
         {actions}
 
-        <div className="h-4 w-[1px] bg-white/[0.1] mx-1" aria-hidden="true" />
+        {user && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/projects')}
+              className="text-muted-foreground hover:text-foreground hover:bg-white/[0.05] h-9 gap-2 rounded-lg"
+            >
+              <FolderOpen size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">{t('nav.projects') || 'My Projects'}</span>
+            </Button>
+            <div className="h-4 w-[1px] bg-white/[0.1] mx-1" aria-hidden="true" />
+          </>
+        )}
 
         <UserMenu />
 

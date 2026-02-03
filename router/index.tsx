@@ -17,6 +17,7 @@ import { RouteLayout } from './RouteLayout';
 const HomeScreen = lazy(() => import('../screens/HomeScreen'));
 const StudioScreen = lazy(() => import('../screens/StudioScreen'));
 const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
+const ProjectsScreen = lazy(() => import('../screens/ProjectsScreen'));
 const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
 const SignInScreen = lazy(() => import('../screens/SignInScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
@@ -41,7 +42,10 @@ export function AppRouter() {
           <Route element={<RouteLayout />}>
             {/* Home route - default landing page */}
             <Route path="/" element={<HomeScreen />} />
-            
+
+            {/* Projects route - user's project dashboard */}
+            <Route path="/projects" element={<ProjectsScreen />} />
+
             {/* Studio route - unified creation workspace */}
             <Route path="/studio" element={<StudioScreen />} />
             

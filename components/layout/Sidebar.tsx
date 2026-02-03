@@ -127,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const navItems: NavItemConfig[] = [
     // Main navigation
     { icon: Home, labelKey: 'nav.home', route: '/', variant: 'default', isExact: true },
-    { icon: FolderOpen, labelKey: 'nav.projects', route: undefined }, // disabled
+    { icon: FolderOpen, labelKey: 'nav.projects', route: '/projects', variant: 'default', isExact: true },
 
     // Creation tools
     { icon: Bot, labelKey: 'nav.studio', route: '/studio', variant: 'primary', isExact: false },

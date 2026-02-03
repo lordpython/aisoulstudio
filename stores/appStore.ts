@@ -229,6 +229,21 @@ interface AppStore {
     trackVideoCreation: (params: { style: string; duration: number }) => void;
     trackMusicGeneration: () => void;
 
+    // --- Current User State ---
+    currentUser: {
+        uid: string;
+        email: string | null;
+        displayName: string | null;
+        photoURL: string | null;
+        isAuthenticated: boolean;
+    } | null;
+    currentProjectId: string | null;
+
+    // Current User Actions
+    setCurrentUser: (user: AppStore['currentUser']) => void;
+    setCurrentProjectId: (projectId: string | null) => void;
+    clearCurrentUser: () => void;
+
     // --- Feedback State ---
     feedbackHistory: FeedbackEntry[];
     recordFeedback: (feedback: FeedbackEntry) => void;
@@ -516,6 +531,16 @@ export const useAppStore = create<AppStore>()(
             })),
 
             // ========================================
+            // Current User State
+            // ========================================
+            currentUser: null,
+            currentProjectId: null,
+
+            setCurrentUser: (user) => set({ currentUser: user }),
+            setCurrentProjectId: (projectId) => set({ currentProjectId: projectId }),
+            clearCurrentUser: () => set({ currentUser: null, currentProjectId: null }),
+
+            // ========================================
             // Feedback State
             // ========================================
             feedbackHistory: [],
@@ -674,6 +699,9 @@ export const useAppStore = create<AppStore>()(
                 persistedProduction: state.persistedProduction,
                 // Persist user profile
                 userProfile: state.userProfile,
+                // Persist current user and project
+                currentUser: state.currentUser,
+                currentProjectId: state.currentProjectId,
             }),
         }
     )
