@@ -7,4 +7,5 @@ export { default as StudioScreen, parseStudioParams } from './StudioScreen';
 export type { StudioParams } from './StudioScreen';
 export { default as VisualizerScreen } from './VisualizerScreen';
 export { default as SettingsScreen } from './SettingsScreen';
+export { default as GradientGeneratorScreen } from './GradientGeneratorScreen';
 export { default as NotFoundScreen } from './NotFoundScreen';

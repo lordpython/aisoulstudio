@@ -1,5 +1,5 @@
 import React from "react";
-import { Music, Settings, Home, FolderOpen, HelpCircle, Bot, Zap } from "lucide-react";
+import { Music, Settings, Home, FolderOpen, HelpCircle, Bot, Zap, Palette } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     // Creation tools
     { icon: Bot, labelKey: 'nav.studio', route: '/studio', variant: 'primary', isExact: false },
     { icon: Zap, labelKey: 'nav.quickCreate', route: '/visualizer', variant: 'default', isExact: false },
+    { icon: Palette, labelKey: 'nav.gradientGenerator', route: '/gradient-generator', variant: 'default', isExact: true },
   ];
 
   // Bottom actions

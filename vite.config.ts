@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/postcss";
 import autoprefixer from "autoprefixer";
+import Sitemap from "vite-plugin-sitemap";
 
 // TEMPORARY: Filter out known Tailwind v4 PostCSS warning (upstream issue, cosmetic only)
 // TODO: Remove this when Tailwind v4 fixes the PostCSS warning
@@ -58,7 +59,34 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      // Automatic sitemap generation from build output
+      Sitemap({
+        hostname: process.env.VITE_APP_URL || 'https://yourdomain.com',
+        dynamicRoutes: [
+          '/',
+          '/projects',
+          '/studio',
+          '/visualizer',
+          '/settings',
+          '/signin',
+        ],
+        exclude: ['/404', '/api/*'],
+        changefreq: 'monthly',
+        priority: 0.7,
+        lastmod: new Date(),
+        robots: [
+          {
+            userAgent: '*',
+            allow: '/',
+            disallow: ['/api/'],
+          },
+        ],
+        // Custom configuration per route
+        readable: true, // Human-readable XML
+      }),
+    ],
     css: {
       postcss: {
         plugins: [tailwindcss(), autoprefixer()],

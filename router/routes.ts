@@ -33,6 +33,10 @@ export const routes: RouteConfig[] = [
     meta: { preserveState: true },
   },
   {
+    path: '/gradient-generator',
+    title: 'nav.gradientGenerator',
+  },
+  {
     path: '/settings',
     title: 'nav.settings',
   },
