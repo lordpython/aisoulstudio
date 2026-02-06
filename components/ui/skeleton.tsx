@@ -129,4 +129,203 @@ function SkeletonCard({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     )
 }
 
-export { Skeleton, SkeletonText, SkeletonCard }
+/**
+ * SkeletonImage - Image placeholder with aspect ratio support
+ */
+function SkeletonImage({
+    aspectRatio = "16/9",
+    className,
+    ...props
+}: { aspectRatio?: string } & React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <Skeleton
+            variant="rectangular"
+            className={cn("w-full", className)}
+            style={{ aspectRatio }}
+            {...props}
+        />
+    )
+}
+
+/**
+ * SkeletonStoryCard - Skeleton for story/shot cards in Story Mode
+ */
+function SkeletonStoryCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div
+            className={cn(
+                "rounded-xl border border-white/10 bg-black/20 p-4 space-y-3",
+                className
+            )}
+            {...props}
+        >
+            <SkeletonImage aspectRatio="16/9" className="rounded-lg" />
+            <div className="space-y-2">
+                <Skeleton variant="text" className="h-5 w-3/4" />
+                <Skeleton variant="text" className="h-4 w-full" />
+                <Skeleton variant="text" className="h-4 w-2/3" />
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+                <Skeleton variant="text" className="h-8 w-24 rounded-full" />
+                <Skeleton variant="text" className="h-8 w-24 rounded-full" />
+            </div>
+        </div>
+    )
+}
+
+/**
+ * SkeletonShotGrid - Grid of skeleton shot cards
+ */
+function SkeletonShotGrid({
+    count = 6,
+    className,
+    ...props
+}: { count?: number } & React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div
+            className={cn(
+                "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4",
+                className
+            )}
+            {...props}
+        >
+            {Array.from({ length: count }).map((_, i) => (
+                <SkeletonStoryCard key={i} />
+            ))}
+        </div>
+    )
+}
+
+/**
+ * SkeletonTimeline - Timeline/video editor skeleton
+ */
+function SkeletonTimeline({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div
+            className={cn(
+                "rounded-lg border border-white/10 bg-black/30 p-4 space-y-3",
+                className
+            )}
+            {...props}
+        >
+            {/* Playback controls */}
+            <div className="flex items-center gap-3">
+                <Skeleton variant="circular" className="w-10 h-10" />
+                <Skeleton variant="text" className="h-2 flex-1 rounded-full" />
+                <Skeleton variant="text" className="h-4 w-16" />
+            </div>
+            {/* Timeline tracks */}
+            <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-2">
+                        <Skeleton variant="text" className="h-4 w-16" />
+                        <div className="flex-1 flex gap-1">
+                            {Array.from({ length: 4 + i }).map((_, j) => (
+                                <Skeleton
+                                    key={j}
+                                    variant="rectangular"
+                                    className="h-12 rounded"
+                                    style={{ width: `${15 + Math.random() * 20}%` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * SkeletonCharacterCard - Character profile skeleton
+ */
+function SkeletonCharacterCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div
+            className={cn(
+                "rounded-xl border border-white/10 bg-black/20 p-4 flex gap-4",
+                className
+            )}
+            {...props}
+        >
+            <Skeleton variant="circular" className="w-20 h-20 flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+                <Skeleton variant="text" className="h-5 w-1/2" />
+                <Skeleton variant="text" className="h-4 w-3/4" />
+                <Skeleton variant="text" className="h-4 w-full" />
+                <div className="flex gap-2 pt-2">
+                    <Skeleton variant="text" className="h-6 w-16 rounded-full" />
+                    <Skeleton variant="text" className="h-6 w-16 rounded-full" />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * SkeletonSceneBreakdown - Scene breakdown list skeleton
+ */
+function SkeletonSceneBreakdown({
+    sceneCount = 3,
+    className,
+    ...props
+}: { sceneCount?: number } & React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div className={cn("space-y-4", className)} {...props}>
+            {Array.from({ length: sceneCount }).map((_, i) => (
+                <div
+                    key={i}
+                    className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3"
+                >
+                    <div className="flex items-center justify-between">
+                        <Skeleton variant="text" className="h-6 w-32" />
+                        <Skeleton variant="text" className="h-4 w-20" />
+                    </div>
+                    <SkeletonText lines={2} />
+                    <div className="flex gap-2">
+                        <Skeleton variant="text" className="h-6 w-20 rounded-full" />
+                        <Skeleton variant="text" className="h-6 w-24 rounded-full" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+/**
+ * SkeletonProjectCard - Project card skeleton for gallery
+ */
+function SkeletonProjectCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+    return (
+        <div
+            className={cn(
+                "rounded-xl border border-white/10 bg-black/20 overflow-hidden",
+                className
+            )}
+            {...props}
+        >
+            <SkeletonImage aspectRatio="16/9" />
+            <div className="p-4 space-y-2">
+                <Skeleton variant="text" className="h-5 w-2/3" />
+                <Skeleton variant="text" className="h-4 w-1/2" />
+                <div className="flex items-center justify-between pt-2">
+                    <Skeleton variant="text" className="h-4 w-20" />
+                    <Skeleton variant="circular" className="w-8 h-8" />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export {
+    Skeleton,
+    SkeletonText,
+    SkeletonCard,
+    SkeletonImage,
+    SkeletonStoryCard,
+    SkeletonShotGrid,
+    SkeletonTimeline,
+    SkeletonCharacterCard,
+    SkeletonSceneBreakdown,
+    SkeletonProjectCard
+}

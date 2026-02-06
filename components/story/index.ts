@@ -6,3 +6,6 @@ export * from './StoryWorkspace';
 export * from './LockWarningDialog';
 export * from './BreakdownProgress';
 export * from './StyleSelector';
+export * from './TemplatesGallery';
+export * from './VersionHistoryPanel';
+export * from './ExportOptionsPanel';

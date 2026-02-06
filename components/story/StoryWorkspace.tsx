@@ -17,7 +17,9 @@ import {
     staggerContainer,
     staggerItem,
 } from '@/lib/cinematicMotion';
-import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check } from 'lucide-react';
+import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check, History } from 'lucide-react';
+import { VersionHistoryPanel } from './VersionHistoryPanel';
+import { ExportOptionsPanel } from './ExportOptionsPanel';
 
 interface StageProgress {
     totalScenes: number;
@@ -35,6 +37,8 @@ interface StoryWorkspaceProps {
     onExportScript?: () => void;
     onRegenerateScene?: (sceneNumber: number, feedback: string) => void;
     onVerifyConsistency?: (characterName: string) => void;
+    onGenerateScreenplay?: () => void;
+    onGenerateCharacters?: () => void;
     onUndo?: () => void;
     onRedo?: () => void;
     canUndo?: boolean;
@@ -63,6 +67,10 @@ interface StoryWorkspaceProps {
     onDownloadVideo?: () => void;
     allScenesHaveNarration?: () => boolean;
     allShotsHaveAnimation?: () => boolean;
+    // Template and project management
+    onApplyTemplate?: (state: Partial<StoryState>) => void;
+    onImportProject?: (state: StoryState) => void;
+    projectId?: string;
 }
 
 type MainStep = 'idea' | 'breakdown' | 'storyboard';
@@ -75,6 +83,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onExportScript,
     onRegenerateScene,
     onVerifyConsistency,
+    onGenerateScreenplay,
+    onGenerateCharacters,
     onUndo,
     onRedo,
     canUndo,
@@ -103,6 +113,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onDownloadVideo,
     allScenesHaveNarration,
     allShotsHaveAnimation,
+    // Template and project management
+    onApplyTemplate,
+    onImportProject,
+    projectId,
 }) => {
     const getHighLevelStep = (step: StoryStep): MainStep => {
         if (step === 'idea') return 'idea';
@@ -113,6 +127,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     const [activeMainTab, setActiveMainTab] = useState<MainStep>(getHighLevelStep(storyState.currentStep));
     const [subTab, setSubTab] = useState<StoryStep>(storyState.currentStep);
     const [showLockDialog, setShowLockDialog] = useState(false);
+    const [showVersionHistory, setShowVersionHistory] = useState(false);
 
     useEffect(() => {
         const newMain = getHighLevelStep(storyState.currentStep);
@@ -159,6 +174,22 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
         } else {
             onNextStep();
         }
+    };
+
+    /**
+     * Handle tab navigation with auto-generation for steps that need data
+     */
+    const handleTabNavigation = (tabId: StoryStep) => {
+        // If navigating to script tab and script doesn't exist, generate it
+        if (tabId === 'script' && !storyState.script && !isProcessing) {
+            onGenerateScreenplay?.();
+        }
+        // If navigating to characters tab and characters don't exist, generate them
+        else if (tabId === 'characters' && storyState.characters.length === 0 && !isProcessing) {
+            onGenerateCharacters?.();
+        }
+        // Always update the tab
+        setSubTab(tabId);
     };
 
     const isBreakdownProcessing = isProcessing && activeMainTab === 'breakdown' && storyState.breakdown.length === 0;
@@ -241,7 +272,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 <div key={tab.id} className="relative flex flex-col items-center z-10">
                                     {/* Step Indicator */}
                                     <motion.button
-                                        onClick={() => isAccessible && setSubTab(tab.id)}
+                                        onClick={() => isAccessible && handleTabNavigation(tab.id)}
                                         disabled={!isAccessible}
                                         className={`
                                             relative w-10 h-10 rounded-full flex items-center justify-center
@@ -388,6 +419,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         onGenerate={(topic, genre) => {
                             onGenerateIdea?.(topic, genre);
                         }}
+                        onApplyTemplate={onApplyTemplate}
                         isProcessing={isProcessing}
                     />
                 </motion.div>
@@ -933,6 +965,15 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Additional Export Options */}
+                                    <div className="mt-6">
+                                        <ExportOptionsPanel
+                                            storyState={storyState}
+                                            onImportProject={onImportProject}
+                                            onExportVideo={onExportFinalVideo}
+                                        />
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -1026,6 +1067,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 onClick={onUndo}
                                 disabled={!canUndo}
                                 className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                                title="Undo (Ctrl+Z)"
                             >
                                 <Undo2 className="w-4 h-4" />
                             </button>
@@ -1033,10 +1075,32 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 onClick={onRedo}
                                 disabled={!canRedo}
                                 className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                                title="Redo (Ctrl+Y)"
                             >
                                 <Redo2 className="w-4 h-4" />
                             </button>
+                            {projectId && (
+                                <button
+                                    onClick={() => setShowVersionHistory(true)}
+                                    className="p-2 text-[var(--cinema-silver)]/40 hover:text-violet-400 transition-colors"
+                                    title="Version History"
+                                >
+                                    <History className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
+                    )}
+
+                    {activeMainTab === 'breakdown' && subTab === 'breakdown' && storyState.breakdown.length > 0 && (
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleTabNavigation('script')}
+                            disabled={isProcessing}
+                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                        >
+                            {isProcessing ? 'Generating...' : 'Create Script'}
+                        </motion.button>
                     )}
 
                     {activeMainTab === 'breakdown' && subTab === 'script' && (
@@ -1241,6 +1305,36 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                 sceneCount={storyState.breakdown.length}
                 estimatedShots={storyState.breakdown.length * 5}
             />
+
+            {/* Version History Panel */}
+            <AnimatePresence>
+                {showVersionHistory && projectId && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                        onClick={() => setShowVersionHistory(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-xl h-[70vh]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <VersionHistoryPanel
+                                projectId={projectId}
+                                currentState={storyState}
+                                onRestore={(state) => {
+                                    onImportProject?.(state);
+                                    setShowVersionHistory(false);
+                                }}
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

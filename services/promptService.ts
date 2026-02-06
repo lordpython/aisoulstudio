@@ -18,11 +18,39 @@ export function injectMasterStyle(basePrompt: string, stylePreset: string = "cin
     // 1. Clean the prompt of conflicting instructions
     let cleanPrompt = basePrompt.replace(/photorealistic|cartoon|3d render|sketch/gi, "").trim();
 
-    // 2. Define the Master Style (The "Glue")
-    // This ensures consistent colors, lighting, and texture across all generated clips.
-    const MASTER_STYLE = `Cinematic film shot, ${stylePreset} aesthetic, consistent color grading, soft volumetric lighting, 35mm film grain, high coherence, highly detailed, 8k resolution. Negative prompt: text, watermark, bad quality, distorted, cgi artifacts, cartoon.`;
+    // 2. Dynamic style prefix based on stylePreset
+    const stylePrefixes: Record<string, string> = {
+        "cinematic": "Cinematic film shot",
+        "anime": "Anime-style illustration",
+        "watercolor": "Watercolor painting",
+        "sketch": "Pencil sketch drawing",
+        "oil painting": "Oil painting on canvas",
+        "photorealistic": "Photorealistic photograph",
+        "documentary": "Documentary-style photograph",
+        "noir": "Film noir shot",
+        "vaporwave": "Vaporwave aesthetic",
+        "cyberpunk": "Cyberpunk-themed visual",
+        "fantasy": "Fantasy art illustration",
+        "manga": "Manga-style drawing",
+        "comic book": "Comic book illustration",
+        "3d render": "3D rendered image",
+        "pixel art": "Pixel art creation",
+        "chibi": "Chibi-style art",
+        "steampunk": "Steampunk illustration",
+        "gothic": "Gothic art style",
+        "minimalist": "Minimalist design",
+        "abstract": "Abstract art piece",
+        "vintage": "Vintage-style photograph"
+    };
 
-    // 3. Combine
+    // Get the appropriate prefix, default to the style name if not found
+    const prefix = stylePrefixes[stylePreset.toLowerCase()] || `${stylePreset} aesthetic`;
+
+    // 3. Define the Master Style (The "Glue")
+    // This ensures consistent colors, lighting, and texture across all generated clips.
+    const MASTER_STYLE = `${prefix}, ${stylePreset} aesthetic, consistent color grading, soft volumetric lighting, 35mm film grain, high coherence, highly detailed, 8k resolution. Negative prompt: text, watermark, bad quality, distorted, cgi artifacts, cartoon.`;
+
+    // 4. Combine
     return `${cleanPrompt}. ${MASTER_STYLE}`;
 }
 
@@ -176,13 +204,20 @@ export function lintPrompt(params: {
     });
   }
 
-  const hasVisualAnchors =
-    /\b(lighting|lit|glow|neon|sunset|dawn|fog|mist|smoke)\b/.test(norm) ||
-    /\b(close-up|wide shot|medium shot|portrait|overhead|low angle|high angle)\b/.test(
-      norm,
-    ) ||
-    /\b(color palette|palette|monochrome|pastel|vibrant|muted)\b/.test(norm) ||
-    /\b(depth of field|bokeh|lens|35mm|50mm|anamorphic)\b/.test(norm);
+  // Check for lighting quality (not just presence)
+  const hasLighting = /\b(lighting|lit|glow|neon|sunset|dawn|fog|mist|smoke|backlight|sidelight|rim light|golden hour|blue hour|ambient|diffused|harsh|soft light|volumetric)\b/.test(norm);
+  const hasQualityLighting = /\b(golden hour|blue hour|backlight|sidelight|rim light|volumetric|diffused|harsh direct|soft diffused|dappled|ambient glow|fire flicker|candlelight|moonlight)\b/.test(norm);
+
+  // Check for camera angle (required)
+  const hasCameraAngle = /\b(close-up|wide shot|medium shot|portrait|overhead|low angle|high angle|bird.?s?.?eye|dutch angle|eye level|over.?the.?shoulder|tracking|dolly|crane|steadicam|handheld|establishing shot|extreme close-up)\b/.test(norm);
+
+  // Check for color/palette
+  const hasColorPalette = /\b(color palette|palette|monochrome|pastel|vibrant|muted|teal|orange|amber|crimson|slate|desaturated|warm tones|cool tones)\b/.test(norm);
+
+  // Check for lens/depth
+  const hasLensDepth = /\b(depth of field|bokeh|lens|35mm|50mm|anamorphic|shallow focus|deep focus|rack focus)\b/.test(norm);
+
+  const hasVisualAnchors = hasLighting || hasCameraAngle || hasColorPalette || hasLensDepth;
 
   if (!hasVisualAnchors) {
     issues.push({
@@ -193,43 +228,41 @@ export function lintPrompt(params: {
     });
   }
 
-  if (globalSubject && globalSubject.trim().length > 0) {
-    const subjNorm = normalizeForSimilarity(globalSubject);
-    const promptNorm = normalizeForSimilarity(promptText);
-
-    // Extract meaningful tokens from global subject (length >= 3)
-    const subjectTokens = subjNorm.split(" ").filter(t => t.length >= 3);
-
-    // Common subject synonyms to avoid false positives for "person"
-    const personSynonyms = ["person", "figure", "character", "individual", "man", "woman", "human", "someone", "somebody"];
-
-    // Check if prompt contains any of the important subject tokens
-    const foundTokens = subjectTokens.filter(t => {
-      // Direct match
-      if (promptNorm.includes(t)) return true;
-
-      // If subject is a person, allow common synonyms
-      if (personSynonyms.includes(t)) {
-        return personSynonyms.some(s => promptNorm.includes(s));
-      }
-
-      // Basic root matching for verbs (e.g., walking -> walk)
-      if (t.endsWith("ing") && promptNorm.includes(t.slice(0, -3))) return true;
-      if (t.endsWith("s") && promptNorm.includes(t.slice(0, -1))) return true;
-
-      return false;
+  // NEW: Specific check for missing camera angle
+  if (!hasCameraAngle && words > 20) {
+    issues.push({
+      code: "weak_visual_specificity",
+      message:
+        "Prompt missing camera angle/shot type. Add one of: close-up, wide shot, medium shot, low angle, high angle, bird's eye, dutch angle, over-the-shoulder, tracking shot.",
+      severity: "warn",
     });
+  }
 
-    const missingRatio = 1 - (foundTokens.length / subjectTokens.length);
+  // NEW: Check for lighting quality (not just presence)
+  if (hasLighting && !hasQualityLighting && words > 30) {
+    issues.push({
+      code: "weak_visual_specificity",
+      message:
+        "Prompt has generic lighting. Specify quality: golden hour, backlight, rim light, soft diffused, harsh direct, volumetric, dappled through leaves, etc.",
+      severity: "warn",
+    });
+  }
 
-    // If more than 70% of the subject is missing, flag it
-    // But allow drift if the prompt is long and detailed (might be atmospheric)
-    if (missingRatio > 0.7 && words < 100) {
+  if (globalSubject && globalSubject.trim().length > 0) {
+    // ENFORCE EXACT MATCH: Check if globalSubject appears exactly in first 20 words
+    const promptWords = promptText.trim().split(/\s+/).slice(0, 20);
+    const firstTwentyWords = promptWords.join(" ").toLowerCase();
+    const exactSubject = globalSubject.trim().toLowerCase();
+    
+    // Check for exact match of the globalSubject phrase
+    const hasExactMatch = firstTwentyWords.includes(exactSubject);
+    
+    if (!hasExactMatch) {
       issues.push({
         code: "missing_subject",
         message:
-          `Prompt doesn't strongly reference the Global Subject ("${globalSubject}"). This can cause character/object drift.`,
-        severity: "warn",
+          `Prompt MUST start with the exact Global Subject "${globalSubject}" in the first 20 words. Current first 20 words: "${firstTwentyWords}"`,
+        severity: "error",
       });
     }
   }
@@ -364,6 +397,79 @@ PURPOSE: News Report/Journalistic
 - Professional, trustworthy aesthetic
 - B-roll that supports factual narration
 - Neutral color grading, minimal stylization`,
+
+    // Story Mode Genre-Specific Guidance
+    story_drama: `
+PURPOSE: Drama Story
+- Emotional depth and character-focused moments
+- Intimate close-ups for emotional beats
+- Warm, naturalistic lighting
+- Subtle environmental storytelling
+- Meaningful pauses and contemplative compositions`,
+
+    story_comedy: `
+PURPOSE: Comedy Story
+- Bright, vibrant, energetic visuals
+- Clear staging for comedic timing
+- Reaction shots and character expressions
+- Playful, dynamic camera angles
+- Exaggerated but grounded environments`,
+
+    story_thriller: `
+PURPOSE: Thriller Story
+- High tension, suspenseful atmosphere
+- Noir-inspired high contrast lighting
+- Claustrophobic, unsettling framing
+- Deep shadows and hidden threats
+- Dutch angles for psychological unease`,
+
+    story_scifi: `
+PURPOSE: Sci-Fi Story
+- Futuristic, technological environments
+- Neon accents and holographic elements
+- Scale contrast between human and technology
+- Clean, minimalist future aesthetics
+- Atmospheric volumetric lighting`,
+
+    story_action: `
+PURPOSE: Action Story
+- Dynamic, kinetic compositions
+- Motion blur and speed emphasis
+- High-energy color grading
+- Clear spatial geography for action
+- Impactful freeze-frame moments`,
+
+    story_fantasy: `
+PURPOSE: Fantasy Story
+- Magical, immersive world-building
+- Rich, saturated color palettes
+- Epic scale and grandeur
+- Mystical lighting effects (glows, particles)
+- Mythical creatures and enchanted environments`,
+
+    story_romance: `
+PURPOSE: Romance Story
+- Intimate, emotionally resonant visuals
+- Soft, flattering lighting
+- Warm, romantic color grading
+- Two-shot compositions emphasizing connection
+- Beautiful, aspirational settings`,
+
+    story_historical: `
+PURPOSE: Historical Story
+- Period-accurate production design
+- Natural, era-appropriate lighting
+- Authentic costumes and settings
+- Painterly, classical compositions
+- Cultural and historical authenticity`,
+
+    story_animation: `
+PURPOSE: Animated Story
+- Bold, expressive character designs
+- Vibrant, stylized color palettes
+- Dynamic, exaggerated compositions
+- Clear silhouettes and staging
+- Imaginative, fantastical environments`,
   };
 
   return guidance[purpose] || guidance.music_video;

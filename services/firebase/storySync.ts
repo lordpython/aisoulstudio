@@ -134,15 +134,22 @@ export async function saveStoryToCloud(
       id: sessionId,
       userId: user.uid,
       title: generateTitle(state),
-      topic,
+      ...(topic !== undefined && { topic }),
       updatedAt: serverTimestamp(),
       state: strippedState,
       cloudSessionId: sessionId,
     };
 
-    // Check if document exists to preserve createdAt
+    // Check if document exists to preserve createdAt and verify ownership
     const existing = await getDoc(docRef);
-    if (!existing.exists()) {
+    if (existing.exists()) {
+      const existingData = existing.data() as StorySyncDocument;
+      // Verify ownership before update to prevent cross-user writes
+      if (existingData.userId !== user.uid) {
+        console.warn('[StorySync] Cannot save - document belongs to different user');
+        return false;
+      }
+    } else {
       storyDoc.createdAt = serverTimestamp();
     }
 

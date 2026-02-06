@@ -162,7 +162,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
       const exportFn = useCloudRender
         ? exportVideoWithFFmpeg
         : exportVideoClientSide;
-      const blob = await exportFn(
+      const result = await exportFn(
         songData,
         (progress) => {
           setExportProgress(progress);
@@ -170,7 +170,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
         exportConfig,
       );
 
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(result.blob);
       setVideoBlobUrl(url);
     } catch (e: any) {
       console.error("Export failed:", e);

@@ -6,7 +6,6 @@
  */
 import {
   signInWithPopup,
-  signInWithRedirect,
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -44,7 +43,7 @@ googleProvider.setCustomParameters({
 });
 
 /**
- * Sign in with Google popup (fallback to redirect if popup fails)
+ * Sign in with Google redirect
  */
 export async function signInWithGoogle(): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
@@ -53,50 +52,38 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
     return null;
   }
 
-  console.log('[Auth] Starting Google sign-in...');
-  console.log('[Auth] Firebase auth instance:', auth);
-  console.log('[Auth] Google provider:', googleProvider);
+  console.log('[Auth] Starting Google sign-in with popup...');
 
   try {
-    console.log('[Auth] Trying popup method...');
     const result = await signInWithPopup(auth, googleProvider);
     console.log('[Auth] Google sign-in successful:', result.user.email);
     return toAuthUser(result.user);
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-
-    // Log full error details for debugging
-    console.error('[Auth] Full error object:', error);
-    console.error('[Auth] Error code:', firebaseError.code);
-    console.error('[Auth] Error message:', firebaseError.message);
-
-    // If popup is blocked or closes, try redirect instead
-    if (
-      firebaseError.code === 'auth/popup-closed-by-user' ||
-      firebaseError.code === 'auth/popup-blocked' ||
-      firebaseError.code === 'auth/cancelled-popup-request'
-    ) {
-      console.warn('[Auth] Popup failed, trying redirect method...');
-      try {
-        await signInWithRedirect(auth, googleProvider);
-        // Redirect will happen, so this won't return
-        return null;
-      } catch (redirectError) {
-        console.error('[Auth] Redirect also failed:', redirectError);
-        throw redirectError;
-      }
-    }
-
     console.error('[Auth] Google sign-in failed:', firebaseError.message);
     throw error;
   }
 }
 
+// Module-level guard: only check for redirect result once per page load
+let _redirectCheckPromise: Promise<AuthUser | null> | null = null;
+
 /**
  * Check for redirect result on app load
- * Call this when the app initializes to handle redirect-based sign-in
+ * Call this when the app initializes to handle redirect-based sign-in.
+ * Deduplicates across multiple hook mounts — only runs once per page load.
  */
 export async function handleRedirectResult(): Promise<AuthUser | null> {
+  // Return cached promise if already checking/checked
+  if (_redirectCheckPromise) {
+    return _redirectCheckPromise;
+  }
+
+  _redirectCheckPromise = _handleRedirectResultImpl();
+  return _redirectCheckPromise;
+}
+
+async function _handleRedirectResultImpl(): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
   if (!auth) {
     console.log('[Auth] No auth instance, skipping redirect check');
@@ -104,29 +91,19 @@ export async function handleRedirectResult(): Promise<AuthUser | null> {
   }
 
   try {
-    console.log('[Auth] ===== CHECKING FOR REDIRECT RESULT =====');
-    console.log('[Auth] Current URL:', window.location.href);
-    console.log('[Auth] Current auth state:', auth.currentUser?.email || 'not signed in');
-
+    console.log('[Auth] Checking for redirect result...');
     const result = await getRedirectResult(auth);
 
-    console.log('[Auth] Redirect result received:', result);
-
     if (result) {
-      console.log('[Auth] ✅ REDIRECT SIGN-IN SUCCESSFUL!');
-      console.log('[Auth] User email:', result.user.email);
-      console.log('[Auth] User UID:', result.user.uid);
-      const authUser = toAuthUser(result.user);
-      console.log('[Auth] Converted to AuthUser:', authUser);
-      return authUser;
+      console.log('[Auth] Redirect sign-in successful:', result.user.email);
+      return toAuthUser(result.user);
     }
 
-    console.log('[Auth] No redirect result found (user did not just sign in via redirect)');
+    console.log('[Auth] No redirect result found');
     return null;
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-    console.error('[Auth] ❌ REDIRECT RESULT ERROR:', firebaseError.message);
-    console.error('[Auth] Full error:', error);
+    console.error('[Auth] Redirect result error:', firebaseError.message);
     throw error;
   }
 }

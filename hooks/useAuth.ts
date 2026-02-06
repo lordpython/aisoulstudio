@@ -3,6 +3,7 @@
  *
  * React hook for Firebase authentication state.
  * Provides current user, loading state, and auth methods.
+ * Syncs auth state with the global app store.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -16,6 +17,7 @@ import {
   handleRedirectResult,
   type AuthUser,
 } from '@/services/firebase';
+import { useAppStore } from '@/stores/appStore';
 
 interface UseAuthReturn {
   user: AuthUser | null;
@@ -35,58 +37,64 @@ export function useAuth(): UseAuthReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get app store actions for syncing auth state
+  const setCurrentUser = useAppStore((state) => state.setCurrentUser);
+  const clearCurrentUser = useAppStore((state) => state.clearCurrentUser);
+
+  // Helper to sync auth user to app store
+  const syncUserToStore = useCallback((authUser: AuthUser | null) => {
+    if (authUser) {
+      setCurrentUser({
+        uid: authUser.uid,
+        email: authUser.email,
+        displayName: authUser.displayName,
+        photoURL: authUser.photoURL,
+        isAuthenticated: true,
+      });
+    } else {
+      clearCurrentUser();
+    }
+  }, [setCurrentUser, clearCurrentUser]);
+
   // Subscribe to auth state changes and check for redirect result
   useEffect(() => {
     let mounted = true;
 
-    // Check for redirect result first (from Google sign-in redirect)
     console.log('[useAuth] Starting auth initialization...');
 
+    // Subscribe to auth state changes immediately (don't gate behind redirect check)
+    const unsubscribe = onAuthChange((authUser) => {
+      if (!mounted) return;
+      console.log('[useAuth] Auth state changed:', authUser?.email || 'signed out');
+      setUser(authUser);
+      syncUserToStore(authUser);
+      setIsLoading(false);
+    });
+
+    // If Firebase not configured, stop loading immediately
+    if (!unsubscribe) {
+      setIsLoading(false);
+    }
+
+    // Check for redirect result separately (from Google sign-in redirect)
     handleRedirectResult()
       .then((redirectUser) => {
         if (!mounted) return;
-
         if (redirectUser) {
           console.log('[useAuth] Got redirect user:', redirectUser.email);
           setUser(redirectUser);
+          syncUserToStore(redirectUser);
         }
-
-        // Now subscribe to auth state changes
-        const unsubscribe = onAuthChange((authUser) => {
-          if (!mounted) return;
-          console.log('[useAuth] Auth state changed:', authUser?.email || 'signed out');
-          setUser(authUser);
-          setIsLoading(false);
-        });
-
-        // If Firebase not configured, stop loading
-        if (!unsubscribe) {
-          setIsLoading(false);
-        }
-
-        return unsubscribe;
       })
       .catch((error) => {
         console.error('[useAuth] Redirect result error:', error);
-
-        // Still subscribe to auth changes even if redirect check failed
-        const unsubscribe = onAuthChange((authUser) => {
-          if (!mounted) return;
-          setUser(authUser);
-          setIsLoading(false);
-        });
-
-        if (!unsubscribe) {
-          setIsLoading(false);
-        }
-
-        return unsubscribe;
       });
 
     return () => {
       mounted = false;
+      unsubscribe?.();
     };
-  }, []);
+  }, [syncUserToStore]);
 
   const handleSignInWithGoogle = useCallback(async () => {
     setError(null);

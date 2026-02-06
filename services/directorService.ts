@@ -36,12 +36,13 @@ export const AnalysisSchema = z.object({
   }).describe("Overall emotional arc of the content"),
   themes: z.array(z.string()).describe("Key visual themes extracted from content"),
   motifs: z.array(z.string()).describe("Recurring visual motifs to maintain consistency"),
-  // Concrete motifs for literal visualization (the "candle" fix)
-  concreteMotifs: z.array(z.object({
-    object: z.string().describe("Physical object mentioned (e.g., 'candle', 'door', 'rain', 'mirror')"),
-    timestamp: z.string().describe("When it first appears (MM:SS format)"),
-    emotionalContext: z.string().describe("What emotion/meaning it represents"),
-  })).describe("CRITICAL: Concrete physical objects from the text that MUST appear LITERALLY in visuals"),
+  // Art-directed visual scenes (replacing the old "concreteMotifs" approach)
+  visualScenes: z.array(z.object({
+    visualPrompt: z.string().describe("Full Midjourney-style image prompt (60-100 words) with subject, lighting, composition, atmosphere"),
+    subjectContext: z.string().describe("Who/what this scene depicts and its narrative significance"),
+    timestamp: z.string().describe("When this scene should appear (MM:SS format)"),
+    emotionalTone: z.string().describe("Single word emotional tone (e.g., 'reverent', 'anguished', 'triumphant')"),
+  })).describe("CRITICAL: Art-directed visual scenes with full cinematic prompts ready for image generation"),
 });
 
 export type AnalysisOutput = z.infer<typeof AnalysisSchema>;
@@ -52,10 +53,14 @@ export type AnalysisOutput = z.infer<typeof AnalysisSchema>;
  */
 export const StoryboardSchema = z.object({
   prompts: z.array(z.object({
-    text: z.string().describe("Detailed visual prompt 60-120 words"),
+    text: z.string()
+      .min(200, "Visual prompt must be at least 200 characters (approximately 40 words)")
+      .describe("REQUIRED: Complete visual scene description, MINIMUM 60 words. Must include: concrete subject, setting, lighting, camera angle, atmosphere. Example: 'A weathered merchant with sun-darkened skin stands behind ancient bronze scales in a dusty marketplace stall, golden afternoon light filtering through tattered canvas overhead, dust motes floating in amber rays, low angle shot emphasizing the dignity of commerce'"),
     mood: z.string().describe("Emotional tone of the scene"),
     timestamp: z.string().describe("Timestamp in MM:SS format"),
+    negativePrompt: z.string().optional().describe("Elements to avoid in this specific scene (e.g., 'blurry, low quality, text, watermark, distorted faces')"),
   })),
+  globalNegativePrompt: z.string().optional().describe("Negative prompt applied to ALL scenes (e.g., 'text, watermark, logo, blurry, low quality, distorted anatomy')"),
 });
 
 export type StoryboardOutput = z.infer<typeof StoryboardSchema>;
@@ -167,8 +172,8 @@ function createModel(config: DirectorConfig = {}): ChatGoogleGenerativeAI {
  */
 function createAnalyzerTemplate(contentType: "lyrics" | "story"): ChatPromptTemplate {
   return ChatPromptTemplate.fromMessages([
-    ["system", `You are a professional content analyst specializing in ${contentType} analysis.
-Your task is to analyze the provided content and identify its structure, emotional arc, themes, motifs, and CONCRETE VISUAL MOTIFS.
+    ["system", `You are a professional content analyst and ART DIRECTOR specializing in ${contentType} analysis.
+Your task is to analyze the provided content and create art-directed VISUAL SCENES with full cinematic prompts.
 
 CONTENT TYPE: ${contentType}
 
@@ -188,26 +193,42 @@ ANALYSIS REQUIREMENTS:
 
 4. MOTIFS: Identify 2-4 recurring visual motifs for consistency
 
-5. CONCRETE MOTIFS (CRITICAL - THE "CANDLE FIX"):
-   Hunt for EVERY physical object mentioned in the text. These MUST be visualized LITERALLY:
-   - Objects: candle, door, window, rain, fire, mirror, clock, rose, stars, moon, ocean, etc.
-   - Actions: falling, burning, breaking, opening, closing, fading, melting
-   - Settings: beach, city, bedroom, forest, rooftop, highway
+5. VISUAL SCENES (CRITICAL - ART DIRECTOR MODE):
+   You are an ART DIRECTOR, not an object spotter. For each key moment in the content:
+
+   A. IDENTIFY THE SUBJECT:
+      - WHO is this about? (Historical figure, prophet, spiritual being, human archetype)
+      - WHAT story is being told? (Journey, sacrifice, transformation, revelation)
+      - WHEN in history/mythology does this take place?
+
+   B. CRAFT A FULL VISUAL PROMPT (60-100 words) that includes:
+      - SUBJECT: Start with the main figure/element (e.g., "A bearded prophet in flowing robes...")
+      - SETTING: Where are they? (e.g., "...standing atop a windswept mountain...")
+      - LIGHTING: Dramatic light direction (e.g., "...bathed in golden rays breaking through storm clouds...")
+      - ATMOSPHERE: Environmental mood (e.g., "...mist swirling at his feet, ancient stone altar visible...")
+      - COMPOSITION: Camera angle and framing (e.g., "...shot from below, emphasizing divine connection...")
+
+   C. PROVIDE CONTEXT:
+      - What does this scene represent in the larger narrative?
+      - Why is this moment visually significant?
+
+   Generate 5-10 visualScenes distributed across the content duration.
 
 OUTPUT FORMAT:
 Return a valid JSON object (NO markdown code blocks, NO backtick wrapper) with ALL these fields:
 - "sections": array of section objects with name, startTimestamp, endTimestamp, type, emotionalIntensity
 - "emotionalArc": object with opening, peak, resolution strings
 - "themes": array of theme strings
-- "motifs": array of motif strings  
-- "concreteMotifs": array of objects with object, timestamp, emotionalContext
+- "motifs": array of motif strings (recurring visual elements for consistency)
+- "visualScenes": array of objects with visualPrompt, subjectContext, timestamp, emotionalTone
 
 CRITICAL RULES:
-- ALL fields are REQUIRED - sections, emotionalArc, themes, motifs, concreteMotifs
+- ALL fields are REQUIRED - sections, emotionalArc, themes, motifs, visualScenes
+- Each visualScene.visualPrompt MUST be 60-100 words with full artistic direction
 - Timestamps MUST be in MM:SS format (e.g., "01:30")
 - Return ONLY the JSON object, no markdown formatting
 - If content has no clear sections, create at least one section covering the full duration`],
-    ["human", `Analyze this content and return the complete JSON structure with sections, emotionalArc, themes, motifs, and concreteMotifs:
+    ["human", `Analyze this content and return the complete JSON structure with sections, emotionalArc, themes, motifs, and visualScenes:
 
 {content}`],
   ]);
@@ -240,6 +261,22 @@ export async function runAnalyzer(
     const result = await chain.invoke({
       content,
     });
+
+    // Diagnostic logging: Check visualScenes quality
+    if (result.visualScenes && result.visualScenes.length > 0) {
+      console.log(`[Analyzer] Generated ${result.visualScenes.length} visual scenes:`);
+      result.visualScenes.forEach((scene, i) => {
+        const wordCount = scene.visualPrompt?.split(/\s+/).filter(Boolean).length || 0;
+        const isFragment = wordCount < 30;
+        console.log(`  Scene ${i + 1}: ${wordCount} words ${isFragment ? "⚠️ FRAGMENT" : "✓"} | Tone: ${scene.emotionalTone}`);
+        if (isFragment && scene.visualPrompt) {
+          console.log(`    Preview: "${scene.visualPrompt.substring(0, 80)}..."`);
+        }
+      });
+    } else {
+      console.warn("[Analyzer] No visualScenes generated - Storyboarder will create from scratch");
+    }
+
     return result;
   } catch (error) {
     // If parsing fails, try to extract what we can and provide defaults
@@ -261,7 +298,7 @@ export async function runAnalyzer(
       },
       themes: ["Visual storytelling", "Emotional journey"],
       motifs: ["Light and shadow", "Movement"],
-      concreteMotifs: [],
+      visualScenes: [],
     };
 
     return defaultAnalysis;
@@ -295,17 +332,26 @@ GLOBAL SUBJECT: {globalSubject}
 
 CRITICAL: If a GLOBAL SUBJECT is provided, you MUST use it as the main subject in almost every scene. Don't wander away from the subject.
 
-CONCRETE MOTIFS (MUST INCLUDE LITERALLY):
-{concreteMotifs}
+VISUAL SCENES (ART-DIRECTED FOUNDATIONS):
+{visualScenes}
 
-CRITICAL RULE - METAPHOR LITERALISM:
-For each concrete motif listed above, you MUST show the actual physical object.
-- If lyrics say "candle" → show a real candle with melting wax, flickering flame, pooling light
-- If lyrics say "door closing" → show a heavy wooden door with grain texture, brass handle, hinges
-- If lyrics say "rain" → show actual raindrops on glass, puddles reflecting light, wet surfaces
-- If lyrics say "road" → show cracked asphalt, dust clouds, tire marks, distant horizon
-Do NOT replace concrete objects with abstract interpretations.
-The object IS the metaphor. Show the object itself with rich physical detail.
+YOUR ROLE AS STORYBOARDER:
+The Analyzer has provided art-directed visual scene foundations. Your job is to:
+1. USE these scenes as the backbone of your storyboard
+2. ENHANCE each visualPrompt with additional cinematic details (depth, motion hints, micro-textures)
+3. INTERPOLATE between scenes - create transitional frames that maintain visual continuity
+4. EXPAND the visual language - if a scene shows "golden light", carry that through nearby scenes
+5. MAINTAIN the subjectContext - keep the subject/figure consistent across scenes
+
+DO NOT:
+- Ignore the visualScenes and create entirely new concepts
+- Contradict the subjectContext (if it's about a prophet, don't show a robot)
+- Change the emotional tone without narrative reason
+
+INTERPOLATION GUIDELINES:
+- If you have fewer visualScenes than targetAssetCount, create transitional scenes between them
+- Transitional scenes should maintain subject consistency while varying camera angle/lighting
+- Use the emotionalTone field to guide the mood of interpolated scenes
 
 AVAILABLE CAMERA ANGLES: {cameraAngles}
 AVAILABLE LIGHTING MOODS: {lightingMoods}
@@ -362,14 +408,29 @@ Focus EXCLUSIVELY on these elements:
 - Peak scenes (6-8): Dynamic angles, intimate close-ups, maximum visual intensity
 - Resolution scenes (9+): Pull back, contemplative wide shots, fading light
 
-=== OUTPUT REQUIREMENTS ===
+=== OUTPUT REQUIREMENTS (CRITICAL - READ CAREFULLY) ===
 
 Generate EXACTLY {targetAssetCount} prompts as a JSON object with a "prompts" array.
-Each prompt object must have:
-- "text": 60-120 word visual description starting with concrete subject
+
+Each prompt object MUST have:
+- "text": A COMPLETE visual description that is EXACTLY 60-120 words long
+  ⚠️ MINIMUM 60 WORDS - shorter prompts will be rejected
+  ⚠️ Every "text" field MUST start with a concrete, visible subject (person, object, place)
+  ⚠️ Every "text" field MUST include: subject + setting + lighting + camera angle + atmosphere
+
+  EXAMPLE of correct length (78 words):
+  "A weathered merchant with sun-darkened skin and silver-streaked beard stands behind ancient bronze scales in a dusty marketplace stall, late afternoon golden light filtering through tattered canvas overhead, deep shadows pooling in the wooden stall corners, camera positioned at eye level capturing the intensity of his focused gaze, dust motes floating in amber light rays, worn leather pouch of coins on the counter, atmosphere of quiet dignity and timeless commerce"
+
 - "mood": single word or short phrase for emotional tone
-- "timestamp": MM:SS format, distributed across the content duration`],
-    ["human", `Create the visual storyboard based on the analysis provided. Generate exactly {targetAssetCount} prompts with rich cinematic detail. Focus on lighting, texture, camera work, and atmosphere. Include the concrete motifs as literal physical objects with tactile detail.`],
+- "timestamp": MM:SS format, distributed across the content duration
+
+DO NOT output short phrases like "a somber tone" or "by a steady hand" - these are INVALID.
+Each "text" must be a COMPLETE, DETAILED scene description.`],
+    ["human", `Create the visual storyboard based on the analysis provided. Generate exactly {targetAssetCount} prompts.
+
+CRITICAL: Each prompt "text" field MUST be 60-120 words. Count your words. Short fragments will be rejected.
+
+Use the visualScenes as foundations and enhance them with full cinematic detail including: subject, setting, lighting direction, camera angle, atmospheric elements, and textures.`],
   ]);
 }
 
@@ -424,10 +485,14 @@ Overall: ${styleData.mediumDescription}`;
     ? `Keep this subject's appearance consistent across scenes.`
     : `Create cohesive scenes with consistent environmental elements.`;
 
-  // Format concrete motifs from analysis
-  const concreteMotifs = analysis.concreteMotifs && analysis.concreteMotifs.length > 0
-    ? analysis.concreteMotifs.map(m => `- "${m.object}" (at ${m.timestamp}): ${m.emotionalContext}`).join('\n')
-    : "No specific objects mentioned - create appropriate visual elements based on themes.";
+  // Format visual scenes from analysis (art-directed approach)
+  const visualScenes = analysis.visualScenes && analysis.visualScenes.length > 0
+    ? analysis.visualScenes.map((scene, i) =>
+        `SCENE ${i + 1} [${scene.timestamp}] - ${scene.emotionalTone}:
+      Subject: ${scene.subjectContext}
+      Visual: ${scene.visualPrompt}`
+      ).join('\n\n')
+    : "No visual scenes provided - create cinematic scenes based on themes and emotional arc.";
 
   const result = await chain.invoke({
     style,
@@ -436,12 +501,25 @@ Overall: ${styleData.mediumDescription}`;
     purposeGuidance,
     globalSubject: globalSubject || "None specified",
     subjectGuidance,
-    concreteMotifs,
+    visualScenes,
     cameraAngles: CAMERA_ANGLES.join(", "),
     lightingMoods: LIGHTING_MOODS.join(", "),
     analysis: JSON.stringify(analysis, null, 2),
     targetAssetCount,
   });
+
+  // Diagnostic logging: Check for fragment prompts (< 30 words)
+  if (result.prompts) {
+    console.log("[Storyboarder] Raw output prompt lengths:");
+    result.prompts.forEach((p, i) => {
+      const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
+      const isFragment = wordCount < 30;
+      console.log(`  Prompt ${i + 1}: ${wordCount} words ${isFragment ? "⚠️ FRAGMENT" : "✓"}`);
+      if (isFragment && p.text) {
+        console.log(`    Preview: "${p.text.substring(0, 80)}..."`);
+      }
+    });
+  }
 
   // Apply master style to each generated prompt for consistency
   if (result.prompts) {
@@ -449,6 +527,53 @@ Overall: ${styleData.mediumDescription}`;
       ...prompt,
       text: injectMasterStyle(prompt.text, style)
     }));
+  }
+
+  // VALIDATION: Check for short prompts and retry if needed
+  const shortPrompts = result.prompts?.filter(p => {
+    const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
+    return wordCount < 40;
+  }) || [];
+
+  if (shortPrompts.length > 0 && config?.maxRetries && config.maxRetries > 0) {
+    console.log(`[Storyboarder] Found ${shortPrompts.length} short prompts (< 40 words). Retrying...`);
+    
+    // Retry with reduced targetAssetCount to focus on quality
+    const retryConfig = { ...config, targetAssetCount: Math.max(5, targetAssetCount - 2), maxRetries: config.maxRetries - 1 };
+    
+    try {
+      const retryResult = await runStoryboarder(
+        analysis,
+        style,
+        videoPurpose,
+        globalSubject,
+        retryConfig
+      );
+      
+      // Verify retry result meets length requirements
+      const retryShortCount = retryResult.prompts?.filter(p => {
+        const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
+        return wordCount < 40;
+      }).length || 0;
+      
+      if (retryShortCount === 0) {
+        console.log(`[Storyboarder] Retry successful - all prompts meet 40-word minimum`);
+        return retryResult;
+      } else {
+        console.warn(`[Storyboarder] Retry still has ${retryShortCount} short prompts, using original result`);
+      }
+    } catch (retryError) {
+      console.warn(`[Storyboarder] Retry failed:`, retryError);
+    }
+  }
+
+  // Final warning if short prompts remain
+  if (shortPrompts.length > 0) {
+    console.warn(`[Storyboarder] Final result contains ${shortPrompts.length} prompts under 40 words (quality may be reduced)`);
+    shortPrompts.forEach((p, i) => {
+      const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
+      console.warn(`  Short prompt ${i + 1}: ${wordCount} words`);
+    });
   }
 
   return result;
@@ -522,10 +647,14 @@ Overall: ${styleData.mediumDescription}`;
     ? `Keep this subject's appearance consistent across scenes.`
     : `Create cohesive scenes with consistent environmental elements.`;
 
-  // Format concrete motifs from analysis
-  const concreteMotifs = analysis.concreteMotifs && analysis.concreteMotifs.length > 0
-    ? analysis.concreteMotifs.map(m => `- "${m.object}" (at ${m.timestamp}): ${m.emotionalContext}`).join('\n')
-    : "No specific objects mentioned - create appropriate visual elements based on themes.";
+  // Format visual scenes from analysis (art-directed approach)
+  const visualScenes = analysis.visualScenes && analysis.visualScenes.length > 0
+    ? analysis.visualScenes.map((scene, i) =>
+        `SCENE ${i + 1} [${scene.timestamp}] - ${scene.emotionalTone}:
+      Subject: ${scene.subjectContext}
+      Visual: ${scene.visualPrompt}`
+      ).join('\n\n')
+    : "No visual scenes provided - create cinematic scenes based on themes and emotional arc.";
 
   const input = {
     style,
@@ -534,7 +663,7 @@ Overall: ${styleData.mediumDescription}`;
     purposeGuidance,
     globalSubject: globalSubject || "None specified",
     subjectGuidance,
-    concreteMotifs,
+    visualScenes,
     cameraAngles: CAMERA_ANGLES.join(", "),
     lightingMoods: LIGHTING_MOODS.join(", "),
     analysis: JSON.stringify(analysis, null, 2),
@@ -681,10 +810,14 @@ Overall: ${styleData.mediumDescription}`;
         ? `Keep this subject's appearance consistent across scenes.`
         : `Create cohesive scenes with consistent environmental elements.`;
 
-      // Format concrete motifs from analysis
-      const concreteMotifs = input.analysis.concreteMotifs && input.analysis.concreteMotifs.length > 0
-        ? input.analysis.concreteMotifs.map(m => `- "${m.object}" (at ${m.timestamp}): ${m.emotionalContext}`).join('\n')
-        : "No specific objects mentioned - create appropriate visual elements based on themes.";
+      // Format visual scenes from analysis (art-directed approach)
+      const visualScenes = input.analysis.visualScenes && input.analysis.visualScenes.length > 0
+        ? input.analysis.visualScenes.map((scene, i) =>
+            `SCENE ${i + 1} [${scene.timestamp}] - ${scene.emotionalTone}:
+      Subject: ${scene.subjectContext}
+      Visual: ${scene.visualPrompt}`
+          ).join('\n\n')
+        : "No visual scenes provided - create cinematic scenes based on themes and emotional arc.";
 
       const targetAssetCount = config?.targetAssetCount || 10;
       const result = await storyboarderChain.invoke({
@@ -694,7 +827,7 @@ Overall: ${styleData.mediumDescription}`;
         purposeGuidance,
         globalSubject: input.globalSubject || "None specified",
         subjectGuidance,
-        concreteMotifs,
+        visualScenes,
         cameraAngles: CAMERA_ANGLES.join(", "),
         lightingMoods: LIGHTING_MOODS.join(", "),
         analysis: JSON.stringify(input.analysis, null, 2),

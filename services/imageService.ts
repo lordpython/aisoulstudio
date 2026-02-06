@@ -31,13 +31,16 @@ const characterSeedRegistry: Map<string, CharacterSeed> = new Map();
  * Extracts key features like "young woman, brown hair, blue dress"
  */
 function normalizeCharacterKey(description: string): string {
+  // Extract key visual descriptors in order (no sorting to preserve intent)
+  // "tall young woman" and "young tall woman" should be different if intended
   return description
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
     .split(/\s+/)
     .filter(word => word.length > 2)
     .slice(0, 10) // Take first 10 meaningful words
-    .sort()
+    // NOTE: Removed .sort() - sorting destroys word order which may be intentional
+    // e.g., "young woman with brown hair" vs "brown-haired young woman" are now distinct
     .join('_');
 }
 
@@ -176,6 +179,131 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string): Promi
 }
 
 /**
+ * Transform a sketch into a detailed image (Storyboarder.ai-style sketch-to-image).
+ * Uses the sketch as a composition guide while generating a detailed final image.
+ * 
+ * @param sketchBase64 - Base64-encoded sketch image (PNG/JPEG)
+ * @param promptText - Description of what the final image should look like
+ * @param style - Art style preset
+ * @param aspectRatio - Output aspect ratio
+ */
+export const sketchToImage = async (
+  sketchBase64: string,
+  promptText: string,
+  style: string = "Cinematic",
+  aspectRatio: string = "16:9"
+): Promise<string> => {
+  console.log(`[ImageService] Sketch-to-image transformation with style: ${style}`);
+
+  // Build prompt that instructs the model to use the sketch as composition reference
+  const transformPrompt = `Transform this rough sketch into a detailed, polished ${style} image.
+Maintain the exact composition, subject positions, and framing from the sketch.
+Add professional lighting, textures, and details while preserving the sketch's layout.
+
+Scene description: ${promptText}
+
+Style: ${style}, professional quality, detailed textures, cinematic lighting.
+Important: Keep the same composition and subject placement as the sketch.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODELS.IMAGE,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: transformPrompt },
+            {
+              inlineData: {
+                mimeType: sketchBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                data: sketchBase64.replace(/^data:image\/\w+;base64,/, ''),
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        // @ts-ignore
+        imageConfig: { aspectRatio },
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+
+    throw new Error("No image data in sketch-to-image response");
+  } catch (error) {
+    console.error("[ImageService] Sketch-to-image failed:", error);
+    throw error;
+  }
+};
+
+/**
+ * Generate an image using a style reference image (Storyboarder.ai-style custom art style).
+ * The reference image defines the visual style, colors, and aesthetic.
+ * 
+ * @param styleReferenceBase64 - Base64-encoded style reference image
+ * @param promptText - Description of the scene to generate
+ * @param aspectRatio - Output aspect ratio
+ */
+export const generateWithStyleReference = async (
+  styleReferenceBase64: string,
+  promptText: string,
+  aspectRatio: string = "16:9"
+): Promise<string> => {
+  console.log(`[ImageService] Generating with custom style reference`);
+
+  const stylePrompt = `Generate a new image matching the artistic style, color palette, and visual aesthetic of the reference image.
+
+Scene to create: ${promptText}
+
+Important instructions:
+- Match the art style, brushwork, and texture of the reference
+- Use the same color palette and lighting mood
+- Apply the same level of detail and rendering style
+- Create a NEW scene (not a copy of the reference)
+- Professional quality output`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODELS.IMAGE,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: stylePrompt },
+            {
+              inlineData: {
+                mimeType: styleReferenceBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                data: styleReferenceBase64.replace(/^data:image\/\w+;base64,/, ''),
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        // @ts-ignore
+        imageConfig: { aspectRatio },
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+
+    throw new Error("No image data in style reference response");
+  } catch (error) {
+    console.error("[ImageService] Style reference generation failed:", error);
+    throw error;
+  }
+};
+
+/**
  * Generate an image from a prompt.
  * @param promptText - The prompt describing the image to generate
  * @param style - Art style preset (default: "Cinematic")
@@ -239,8 +367,8 @@ ${subjectBlock}
 
 ${refinedPrompt}
 
-Style: Raw photo style, 35mm film grain, high dynamic range, professional cinematography.
-Avoid: Text, subtitles, typography, logos, watermarks, distorted anatomy, extra limbs.
+Style: ${style.toLowerCase() === 'cinematic' ? 'Raw photo style' : style + ' style'}, 35mm film grain, high dynamic range, professional cinematography.
+Focus on clean visual composition without any text elements.
 
 ${negative}
       `.trim();

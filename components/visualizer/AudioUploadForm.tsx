@@ -27,6 +27,14 @@ export interface AudioUploadFormProps {
   imageProvider: 'gemini' | 'deapi';
   /** Callback when provider changes */
   onProviderChange: (provider: 'gemini' | 'deapi') => void;
+  /** Selected director mode (chain = faster, agent = smarter) */
+  directorMode?: 'chain' | 'agent';
+  /** Callback when director mode changes */
+  onDirectorModeChange?: (mode: 'chain' | 'agent') => void;
+  /** Global subject for visual consistency (e.g., "a bearded prophet in flowing robes") */
+  globalSubject?: string;
+  /** Callback when global subject changes */
+  onGlobalSubjectChange?: (subject: string) => void;
   /** Current app state for processing status */
   appState: AppState;
   /** Error message to display */
@@ -47,6 +55,10 @@ export function AudioUploadForm({
   onStyleChange,
   imageProvider,
   onProviderChange,
+  directorMode = 'chain',
+  onDirectorModeChange,
+  globalSubject = '',
+  onGlobalSubjectChange,
   appState,
   errorMsg,
   onStartProcessing,
@@ -240,6 +252,68 @@ export function AudioUploadForm({
             </button>
           </div>
         </div>
+
+        {/* Director Mode Selection */}
+        {onDirectorModeChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              AI Director Mode
+            </label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Director mode selection">
+              <button
+                role="radio"
+                aria-checked={directorMode === 'chain'}
+                onClick={() => onDirectorModeChange('chain')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  directorMode === 'chain'
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">Chain Mode</span>
+                  <span className="text-xs text-white/50">Faster, predictable</span>
+                </div>
+              </button>
+              <button
+                role="radio"
+                aria-checked={directorMode === 'agent'}
+                onClick={() => onDirectorModeChange('agent')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  directorMode === 'agent'
+                    ? 'bg-amber-500/20 border-2 border-amber-500 text-amber-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">Agent Mode</span>
+                  <span className="text-xs text-white/50">Smarter, self-correcting</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Global Subject Input */}
+        {onGlobalSubjectChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Global Subject (Optional)
+            </label>
+            <p className="text-xs text-white/50 mb-3">
+              Describe a consistent character/subject to appear in all scenes (e.g., &quot;a bearded prophet in flowing white robes&quot;)
+            </p>
+            <input
+              type="text"
+              value={globalSubject}
+              onChange={(e) => onGlobalSubjectChange(e.target.value)}
+              placeholder="e.g., a young woman with dark curly hair in a crimson dress"
+              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/25"
+            />
+          </div>
+        )}
 
         {/* Error Message */}
         {errorMsg && (

@@ -56,7 +56,7 @@ import { StoryWorkspace } from '@/components/story';
 // ============================================================
 
 export interface StudioParams {
-  mode?: 'video' | 'music';
+  mode?: 'video' | 'music' | 'story';
   style?: string;
   duration?: number;
   topic?: string;
@@ -71,7 +71,7 @@ export function parseStudioParams(searchParams: URLSearchParams): StudioParams {
   const projectId = searchParams.get('projectId');
 
   return {
-    mode: mode === 'video' || mode === 'music' ? mode : undefined,
+    mode: mode === 'video' || mode === 'music' || mode === 'story' ? mode : undefined,
     style: style || undefined,
     duration: duration ? parseInt(duration, 10) : undefined,
     topic: topic || undefined,
@@ -100,10 +100,12 @@ export default function StudioScreen() {
 
   // View mode toggle (Requirement 6.6)
   const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
-  const [studioMode, setStudioMode] = useState<'chat' | 'story'>('chat');
+  const [studioMode, setStudioMode] = useState<'chat' | 'story'>(
+    params.mode === 'story' ? 'story' : 'chat'
+  );
 
-  // Story Generation Hook
-  const storyHook = useStoryGeneration();
+  // Story Generation Hook - pass projectId so it resets state for new projects
+  const storyHook = useStoryGeneration(params.projectId);
 
   // Modal state (unified)
   const {
@@ -194,6 +196,13 @@ export default function StudioScreen() {
   // ============================================================
   // Effects
   // ============================================================
+
+  // Sync studioMode from URL params when navigating between projects
+  useEffect(() => {
+    if (params.mode === 'story' && studioMode !== 'story') {
+      setStudioMode('story');
+    }
+  }, [params.mode]);
 
   // Apply URL parameters OR restore project state on mount (Requirement 2.5)
   useEffect(() => {
@@ -1039,6 +1048,8 @@ export default function StudioScreen() {
           onExportScript={storyHook.exportScreenplay}
           onRegenerateScene={storyHook.regenerateScene}
           onVerifyConsistency={storyHook.verifyConsistency}
+          onGenerateScreenplay={storyHook.generateScreenplay}
+          onGenerateCharacters={storyHook.generateCharacters}
           onUndo={storyHook.undo}
           onRedo={storyHook.redo}
           canUndo={storyHook.canUndo}
@@ -1095,6 +1106,10 @@ export default function StudioScreen() {
           onDownloadVideo={storyHook.downloadVideo}
           allScenesHaveNarration={storyHook.allScenesHaveNarration}
           allShotsHaveAnimation={storyHook.allShotsHaveAnimation}
+          // Template and project management
+          projectId={storyHook.sessionId ?? undefined}
+          onApplyTemplate={storyHook.applyTemplate}
+          onImportProject={storyHook.importProject}
         />
       ) : (
         <>

@@ -7,7 +7,11 @@ const cleanupLog = createLogger('Cleanup');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const TEMP_DIR = path.join(__dirname, '../../temp');
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+export const JOBS_DIR = path.join(TEMP_DIR, 'jobs');
+
+// File size limits for different upload types
+export const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB - for frame chunks and video exports
+export const MAX_SINGLE_FILE = 100 * 1024 * 1024; // 100MB - for individual file uploads
 export const MAX_FILES = 10000;
 
 // API Keys (server-side only)
@@ -52,4 +56,47 @@ export const ensureTempDir = (): void => {
   if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
   }
+};
+
+/**
+ * Ensure jobs directory exists
+ */
+export const ensureJobsDir = (): void => {
+  if (!fs.existsSync(JOBS_DIR)) {
+    fs.mkdirSync(JOBS_DIR, { recursive: true });
+  }
+};
+
+/**
+ * Count frames in a session directory
+ */
+export const countSessionFrames = (sessionId: string): number => {
+  const dir = getSessionDir(sessionId);
+  if (!fs.existsSync(dir)) return 0;
+
+  const files = fs.readdirSync(dir);
+  return files.filter(f => /^frame\d{6}\.jpg$/.test(f)).length;
+};
+
+/**
+ * Get session output path
+ */
+export const getSessionOutputPath = (sessionId: string): string => {
+  return path.join(getSessionDir(sessionId), 'output.mp4');
+};
+
+/**
+ * Check if session has completed output
+ */
+export const hasSessionOutput = (sessionId: string): boolean => {
+  return fs.existsSync(getSessionOutputPath(sessionId));
+};
+
+/**
+ * Generate a unique job ID
+ */
+export const generateJobId = (): string => {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `job_${timestamp}_${random}`;
 };

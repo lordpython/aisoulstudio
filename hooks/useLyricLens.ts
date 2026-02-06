@@ -10,7 +10,7 @@ import {
   generateMotionPrompt,
   VideoPurpose,
 } from "../services/geminiService";
-import { generatePromptsWithLangChain, runAnalyzer } from "../services/directorService";
+import { generatePromptsWithLangChain } from "../services/directorService";
 import { generatePromptsWithAgent } from "../services/agentDirectorService";
 import {
   animateImageWithDeApi,
@@ -92,26 +92,28 @@ export function useLyricLens() {
       partialData.parsedSubtitles = parsedSubs;
       setSongData({ ...partialData });
 
-      // 4. Analyze content structure
+      // 4. Calculate optimal number of assets
+      // Note: Analysis is now done inside generatePromptsWithLangChain/Agent
+      // to avoid duplicate API calls. calculateOptimalAssets only uses duration.
       setAppState(AppState.ANALYZING_LYRICS);
 
-      // 5. Calculate optimal number of assets using dynamic asset calculator
       // Get audio duration from the audio buffer
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       const audioDuration = audioBuffer.duration;
 
-      // Run semantic analysis to understand content structure
-      const analysis = await runAnalyzer(
-        srt,
-        contentType === "story" ? "story" : "lyrics"
-      );
-
-      // Calculate optimal asset count based on duration and semantic analysis
+      // Calculate optimal asset count based on duration
+      // Note: analysisOutput is not used by the current implementation
       const assetCalc = await calculateOptimalAssets({
         audioDuration,
-        analysisOutput: analysis,
+        analysisOutput: {
+          sections: [],
+          emotionalArc: { opening: "", peak: "", resolution: "" },
+          themes: [],
+          motifs: [],
+          visualScenes: [],
+        },
         videoPurpose,
         contentType: contentType === "story" ? "story" : "lyrics",
       });
@@ -452,7 +454,9 @@ export function useLyricLens() {
     setVideoProvider,
     imageProvider,
     setImageProvider,
-    // directorMode and setDirectorMode kept internal - not exposed
+    // Expose director mode for UI toggle (chain vs agent)
+    directorMode,
+    setDirectorMode,
     setAspectRatio,
     setGlobalSubject,
     setContentType,

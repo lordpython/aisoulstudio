@@ -85,15 +85,39 @@ router.post('/proxy/generateImages', async (req: ApiProxyRequest, res: Response)
         const result = await (client as any).models.generateImages({
             model,
             prompt,
-            ...config
+            config
         });
 
         geminiLog.info('Image generation success');
         res.json(result);
     } catch (error: unknown) {
-        const err = error as Error;
-        geminiLog.error('generateImages Error:', err);
-        res.status(500).json({ success: false, error: err.message || 'Gemini proxy failed', details: err.stack });
+        const err = error as any;
+        // Extract the most useful error message from @google/genai SDK errors
+        let errorMessage = err.message || '';
+        const statusCode = err.status || err.statusCode || 500;
+
+        // SDK errors may embed JSON in the message or use nested properties
+        try {
+            const parsed = JSON.parse(errorMessage);
+            errorMessage = parsed.error?.message || parsed.message || errorMessage;
+        } catch (_e) {
+            // Not JSON - check for nested error properties
+            if (err.error?.message) {
+                errorMessage = err.error.message;
+            } else if (err.errorDetails) {
+                errorMessage = JSON.stringify(err.errorDetails);
+            }
+        }
+
+        geminiLog.error(`generateImages Error (${statusCode}):`, errorMessage);
+        geminiLog.error('Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+
+        res.status(500).json({
+            success: false,
+            error: errorMessage || 'Gemini image generation failed',
+            status: statusCode,
+            details: err.stack
+        });
     }
 });
 

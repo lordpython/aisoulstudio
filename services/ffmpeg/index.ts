@@ -72,3 +72,25 @@ export {
     type ExportPresetId,
     type ExportPreset,
 } from "./exportPresets";
+
+// SSE progress client for real-time updates
+export {
+    subscribeToJob,
+    pollJobStatus,
+    waitForJobCompletion,
+    isSSESupported,
+    type JobProgress,
+} from "./sseClient";
+
+// Checksum generator for frame validation
+export {
+    generateBlobChecksum,
+    generateBatchChecksums,
+    isChecksumSupported,
+    verifyChecksum,
+    createFrameManifest,
+    type FrameChecksum,
+} from "./checksumGenerator";
+
+// Export options type
+export type { ExportOptions, ExportResult } from "./exporters";

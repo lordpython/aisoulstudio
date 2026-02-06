@@ -66,6 +66,10 @@ export default function VisualizerScreen() {
     resetApp,
     imageProvider,
     setImageProvider,
+    directorMode,
+    setDirectorMode,
+    globalSubject,
+    setGlobalSubject,
   } = useLyricLens();
 
   // Local state
@@ -456,6 +460,10 @@ export default function VisualizerScreen() {
               onStyleChange={setSelectedStyle}
               imageProvider={imageProvider}
               onProviderChange={setImageProvider}
+              directorMode={directorMode}
+              onDirectorModeChange={setDirectorMode}
+              globalSubject={globalSubject}
+              onGlobalSubjectChange={setGlobalSubject}
               appState={appState}
               errorMsg={errorMsg || undefined}
               onStartProcessing={handleStartProcessing}

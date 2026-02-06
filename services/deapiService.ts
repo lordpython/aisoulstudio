@@ -425,6 +425,172 @@ const getDeApiDimensions = (
   }
 };
 
+/**
+ * Text-to-video generation parameters
+ */
+export interface Txt2VideoParams {
+  prompt: string;
+  model?: string;
+  width?: number;
+  height?: number;
+  guidance?: number;
+  steps?: number;
+  frames?: number;
+  fps?: number;
+  seed?: number;
+}
+
+/**
+ * Generate a video from text prompt using DeAPI (txt2video endpoint)
+ * This is useful for Story Mode when no source image is available.
+ * 
+ * @param params - Text-to-video generation parameters
+ * @param aspectRatio - Aspect ratio preset
+ * @param sessionId - Optional session ID for cloud storage
+ * @param sceneIndex - Optional scene index for naming
+ * @returns Base64-encoded video data URL
+ */
+export const generateVideoWithDeApi = async (
+  params: Txt2VideoParams,
+  aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
+  sessionId?: string,
+  sceneIndex?: number,
+): Promise<string> => {
+  if (!isDeApiConfigured()) {
+    throw new Error(
+      "DeAPI API key is not configured on the server.\n\n" +
+      "To use DeAPI text-to-video:\n" +
+      "1. Get an API key from https://deapi.ai\n" +
+      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "3. Restart the development server (npm run dev:all)"
+    );
+  }
+
+  const { width, height } = getDeApiDimensions(aspectRatio);
+
+  const {
+    prompt,
+    model = DEFAULT_VIDEO_MODEL,
+    guidance = 3,
+    steps = 1, // Distilled model requires max 1 step
+    frames = 120, // 4 seconds at 30fps
+    fps = 30,
+    seed = -1,
+  } = params;
+
+  console.log(`[DeAPI] Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+
+  // Build FormData for txt2video endpoint
+  const formData = new FormData();
+  formData.append("prompt", prompt);
+  formData.append("model", model);
+  formData.append("width", width.toString());
+  formData.append("height", height.toString());
+  formData.append("guidance", guidance.toString());
+  formData.append("steps", steps.toString());
+  formData.append("frames", frames.toString());
+  formData.append("fps", fps.toString());
+  formData.append("seed", seed.toString());
+
+  // Submit request
+  let response: Response;
+
+  if (isBrowser) {
+    // Use proxy endpoint for browser
+    response = await fetch('/api/deapi/txt2video', {
+      method: "POST",
+      body: formData,
+    });
+  } else {
+    // Direct API call from Node.js
+    response = await fetch(`${DEAPI_DIRECT_BASE}/txt2video`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0",
+      },
+      body: formData,
+    });
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    let errorMessage = `DeAPI txt2video request failed (${response.status})`;
+
+    // Check for Cloudflare challenge
+    if (errText.includes('Just a moment') || errText.includes('challenge-platform')) {
+      throw new Error(
+        `DeAPI txt2video blocked by Cloudflare bot protection.\n` +
+        `Use the app in browser (npm run dev:all) - browsers handle Cloudflare automatically.`
+      );
+    }
+
+    try {
+      const errJson = JSON.parse(errText);
+      if (errJson.message) errorMessage = `DeAPI: ${errJson.message}`;
+      else if (errJson.error) errorMessage = `DeAPI: ${errJson.error}`;
+    } catch {
+      if (errText) errorMessage = `DeAPI txt2video: ${errText.substring(0, 200)}`;
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  const rawData = await response.json();
+  console.log(`[DeAPI] txt2video raw response:`, JSON.stringify(rawData, null, 2));
+
+  const data: DeApiResponse = rawData.data || rawData;
+
+  // Get video URL (immediate or via polling)
+  let videoUrl: string;
+
+  if (data.result_url) {
+    console.log(`[DeAPI] Video ready immediately!`);
+    videoUrl = data.result_url;
+  } else if (data.status === "error") {
+    throw new Error(data.error || "Video generation failed at provider");
+  } else if (data.request_id) {
+    console.log(`[DeAPI] Polling for txt2video request: ${data.request_id}`);
+    videoUrl = await pollRequest(data.request_id);
+  } else {
+    throw new Error("No request_id or result_url received from DeAPI txt2video");
+  }
+
+  // Download and convert to Base64
+  console.log(`[DeAPI] Downloading video from: ${videoUrl.substring(0, 80)}...`);
+  const vidResp = await fetch(videoUrl);
+
+  if (!vidResp.ok) {
+    throw new Error(`Failed to download generated video: ${vidResp.status}`);
+  }
+
+  const vidBlob = await vidResp.blob();
+  console.log(`[DeAPI] Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
+
+  // Upload to cloud storage if session context is provided
+  if (sessionId && sceneIndex !== undefined) {
+    cloudAutosave.saveAsset(
+      sessionId,
+      vidBlob,
+      `scene_${sceneIndex}_txt2video.mp4`,
+      'video_clips'
+    ).catch(err => {
+      console.warn('[DeAPI] Cloud upload failed (non-fatal):', err);
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to convert video to base64"));
+    reader.readAsDataURL(vidBlob);
+  });
+};
+
+/**
+ * Animate an image using DeAPI img2video endpoint
+ */
 export const animateImageWithDeApi = async (
   base64Image: string,
   prompt: string,

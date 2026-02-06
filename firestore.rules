@@ -3,8 +3,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Stories collection - users can only access their own stories
     match /stories/{storyId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      // Read: user must be authenticated and own the document (or doc doesn't exist yet)
+      allow read: if request.auth != null 
+        && (resource == null || resource.data.userId == request.auth.uid);
+      
+      // Create: user must be authenticated and setting themselves as owner
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Update: user must be authenticated, own the existing doc, and not change ownership
+      allow update: if request.auth != null 
+        && resource.data.userId == request.auth.uid 
+        && request.resource.data.userId == request.auth.uid;
+      
+      // Delete: user must be authenticated and own the document
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
     // User profiles and subcollections

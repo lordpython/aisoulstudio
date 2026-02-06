@@ -2,10 +2,14 @@ import { Router, Response, Request } from 'express';
 import { createLogger } from '../../services/logger.js';
 import fs from 'fs';
 import multer from 'multer';
+import { MAX_SINGLE_FILE } from '../utils/index.js';
 
 const sunoLog = createLogger('Suno');
 const router = Router();
-const upload = multer({ dest: 'temp/' });
+const upload = multer({
+    dest: 'temp/',
+    limits: { fileSize: MAX_SINGLE_FILE }
+});
 
 router.post('/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
     if (!req.file) {

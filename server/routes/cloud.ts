@@ -3,6 +3,7 @@ import { createLogger } from '../../services/logger.js';
 import multer from 'multer';
 import path from 'path';
 import type { Storage } from '@google-cloud/storage';
+import { MAX_FILE_SIZE } from '../utils/index.js';
 
 const cloudLog = createLogger('Cloud');
 const router = Router();
@@ -27,7 +28,10 @@ async function getGcsStorageClient(): Promise<Storage> {
     }
 }
 
-const memoryUpload = multer({ storage: multer.memoryStorage() });
+const memoryUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_FILE_SIZE }
+});
 
 /**
  * Build storage path based on whether userId is provided.
@@ -113,9 +117,15 @@ router.post('/upload-asset', memoryUpload.single('file'), async (req: Request, r
                 try {
                     await blob.makePublic();
                     publicUrl = `https://storage.googleapis.com/${GCS_BUCKET_NAME}/${destination}`;
-                } catch (_e) {
-                    const [signedUrl] = await blob.getSignedUrl({ action: 'read', expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-                    publicUrl = signedUrl;
+                } catch (makePublicError) {
+                    // makePublic failed, try signed URL (requires service account)
+                    try {
+                        const [signedUrl] = await blob.getSignedUrl({ action: 'read', expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+                        publicUrl = signedUrl;
+                    } catch (signedUrlError) {
+                        // Neither worked - return without public URL (file is still uploaded to GCS)
+                        console.warn('[Cloud] Cannot create public/signed URL:', (signedUrlError as Error).message);
+                    }
                 }
             }
             res.json({ success: true, publicUrl, gsUri: `gs://${GCS_BUCKET_NAME}/${destination}` });

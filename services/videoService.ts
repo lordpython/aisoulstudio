@@ -243,7 +243,7 @@ export const generateVideoFromPrompt = async (
 
     const finalPrompt = `
 ${modifier}. ${promptText}${subjectBlock ? `. ${subjectBlock}` : ""}
-Smooth camera motion. No text or watermarks.
+Smooth camera motion. Focus on clean visuals without any text elements.
     `.trim();
 
     // Validate duration (Veo 3.1 supports 4, 6, or 8 seconds)

@@ -13,9 +13,84 @@
 const BUCKET_NAME = 'aisoul-studio-storage';
 
 // Server API base URL for cloud autosave
+// In browser: use relative URLs so requests go through Vite's dev proxy
+// On server: use direct URL
 const CLOUD_API_BASE = typeof window !== 'undefined'
-  ? (import.meta.env?.DEV ? 'http://localhost:3001' : '')
+  ? ''
   : 'http://localhost:3001';
+
+// --- Upload Retry Configuration ---
+const UPLOAD_TIMEOUT_MS = 60000; // 60 second timeout for uploads
+const UPLOAD_MAX_RETRIES = 3;
+
+/**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Upload with retry logic for transient network failures
+ */
+async function uploadWithRetry(
+  url: string,
+  formData: FormData,
+  maxRetries: number = UPLOAD_MAX_RETRIES
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`[Autosave] Upload attempt ${attempt + 1}/${maxRetries}`);
+
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        body: formData
+      }, UPLOAD_TIMEOUT_MS);
+
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Classify error type for logging
+      const isNetworkError =
+        lastError.name === 'AbortError' ||
+        lastError.message.includes('Failed to fetch') ||
+        lastError.message.includes('NetworkError');
+
+      console.warn(`[Autosave] Upload failed (attempt ${attempt + 1}):`, {
+        error: lastError.message,
+        isNetworkError,
+        willRetry: attempt < maxRetries - 1
+      });
+
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = 2000 * Math.pow(2, attempt);
+        console.log(`[Autosave] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError || new Error('Upload failed after retries');
+}
 
 // --- Real-Time Cloud Autosave (Browser-Compatible) ---
 
@@ -142,10 +217,11 @@ export const cloudAutosave = {
 
     const uploadPromise = (async () => {
       try {
-        const response = await fetch(`${CLOUD_API_BASE}/api/cloud/upload-asset`, {
-          method: 'POST',
-          body: formData
-        });
+        // Use retry logic for transient network failures
+        const response = await uploadWithRetry(
+          `${CLOUD_API_BASE}/api/cloud/upload-asset`,
+          formData
+        );
 
         const result = await response.json();
 

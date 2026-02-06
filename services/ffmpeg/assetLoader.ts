@@ -390,6 +390,17 @@ export async function preloadAssets(
         (a, b) => (a.timestampSeconds || 0) - (b.timestampSeconds || 0)
     );
 
+    // Debug: Log timestamp distribution
+    const timestamps = sortedPrompts.map(p => p.timestampSeconds || 0);
+    const uniqueTimestamps = new Set(timestamps);
+    console.log(`[AssetLoader] Prompt timestamps: ${sortedPrompts.length} prompts, ${uniqueTimestamps.size} unique times`);
+    if (sortedPrompts.length > 0) {
+        console.log(`[AssetLoader] Time range: ${timestamps[0]}s - ${timestamps[timestamps.length - 1]}s`);
+        if (uniqueTimestamps.size === 1) {
+            console.warn(`[AssetLoader] WARNING: All prompts have same timestamp (${timestamps[0]}s) - video will show only last image!`);
+        }
+    }
+
     const total = sortedPrompts.length;
     let loaded = 0;
 
@@ -453,6 +464,15 @@ export async function preloadAssets(
         loaded++;
     }
 
+    // Log final asset times for debugging
+    const assetTimes = assets.map(a => a.time);
+    const uniqueAssetTimes = new Set(assetTimes);
     console.log(`[AssetLoader] Preloaded ${assets.length} assets (${assets.filter(a => a.type === 'video').length} videos)`);
+    console.log(`[AssetLoader] Asset time distribution: ${uniqueAssetTimes.size} unique times, range: ${Math.min(...assetTimes)}s - ${Math.max(...assetTimes)}s`);
+    
+    if (uniqueAssetTimes.size === 1 && assets.length > 1) {
+        console.error(`[AssetLoader] BUG: All ${assets.length} assets have same time (${assetTimes[0]}s)! Check timestampSeconds calculation.`);
+    }
+    
     return assets;
 }

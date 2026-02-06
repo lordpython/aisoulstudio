@@ -416,11 +416,11 @@ export const useAppStore = create<AppStore>()(
             setGenerationProgress: (generationProgress, generationMessage) => set({ generationProgress, generationMessage: generationMessage ?? '' }),
             setGenerationError: (generationError) => set({ generationError, generationStage: generationError ? 'error' : 'idle' }),
             startImageGeneration: () => set({ isGeneratingImages: true, generationStage: 'generating-images' }),
-            completeImageGeneration: () => set({ isGeneratingImages: false }),
+            completeImageGeneration: () => set({ isGeneratingImages: false, generationStage: 'idle' }),
             startMusicGeneration: () => set({ isGeneratingMusic: true, generationStage: 'generating-music' }),
-            completeMusicGeneration: () => set({ isGeneratingMusic: false }),
+            completeMusicGeneration: () => set({ isGeneratingMusic: false, generationStage: 'idle' }),
             startTranscription: () => set({ isTranscribing: true, generationStage: 'transcribing' }),
-            completeTranscription: () => set({ isTranscribing: false }),
+            completeTranscription: () => set({ isTranscribing: false, generationStage: 'idle' }),
 
             // ========================================
             // Export State

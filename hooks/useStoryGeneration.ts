@@ -21,18 +21,23 @@ import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import { narrateScene, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
-import { animateImageWithDeApi, isDeApiConfigured } from '@/services/deapiService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { cloudAutosave } from '@/services/cloudStorageService';
+import { createCombinedNarrationAudio } from '@/services/audioConcatService';
 import {
     debouncedSaveToCloud,
     loadStoryFromCloud,
     isSyncAvailable,
     flushPendingSave,
+    getCurrentUser,
+    onAuthChange,
 } from '@/services/firebase';
 
-const STORAGE_KEY = 'lyriclens_story_state';
-const SESSION_KEY = 'lyriclens_story_session';
+const STORAGE_KEY = 'ai_soul_studio_story_state';
+const SESSION_KEY = 'ai_soul_studio_story_session';
+const USER_ID_KEY = 'ai_soul_studio_story_user_id';
+const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
 
 /**
  * Strip base64 image/audio/video data from state before saving to localStorage.
@@ -149,14 +154,16 @@ interface StoryAgentResult {
     [key: string]: unknown;
 }
 
-export function useStoryGeneration() {
-    const [state, setState] = useState<StoryState>({
+export function useStoryGeneration(projectId?: string | null) {
+    const initialState: StoryState = {
         currentStep: 'idea',
         breakdown: [],
         script: null,
         characters: [],
         shotlist: [],
-    });
+    };
+
+    const [state, setState] = useState<StoryState>(initialState);
 
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [topic, setTopic] = useState<string | null>(null);
@@ -211,10 +218,49 @@ export function useStoryGeneration() {
         setState(next);
     }, [future, state]);
 
-    // Load state from localStorage on mount
+    // Load state from localStorage on mount / project change (with ownership validation)
     useEffect(() => {
         const savedState = localStorage.getItem(STORAGE_KEY);
         const savedSession = localStorage.getItem(SESSION_KEY);
+        const savedUserId = localStorage.getItem(USER_ID_KEY);
+        const savedProjectId = localStorage.getItem(PROJECT_ID_KEY);
+
+        // Get current user to validate ownership
+        const currentUser = getCurrentUser();
+
+        // Clear stale session if user mismatch (prevents Firebase permission errors)
+        if (savedUserId && currentUser && savedUserId !== currentUser.uid) {
+            console.log('[useStoryGeneration] Session belongs to different user, clearing');
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(USER_ID_KEY);
+            localStorage.removeItem(PROJECT_ID_KEY);
+            return;
+        }
+
+        // If a projectId is provided and it differs from the saved one,
+        // this is a different/new project — start fresh instead of loading old state
+        if (projectId && savedProjectId && projectId !== savedProjectId) {
+            console.log('[useStoryGeneration] Different project detected, resetting state', {
+                current: projectId,
+                saved: savedProjectId,
+            });
+            setState(initialState);
+            setSessionId(null);
+            setTopic(null);
+            setPast([]);
+            setFuture([]);
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(SESSION_KEY);
+            // Update the stored projectId to the new one
+            localStorage.setItem(PROJECT_ID_KEY, projectId);
+            return;
+        }
+
+        // If projectId is provided but nothing was saved yet, store it
+        if (projectId && !savedProjectId) {
+            localStorage.setItem(PROJECT_ID_KEY, projectId);
+        }
 
         if (savedState) {
             try {
@@ -234,8 +280,32 @@ export function useStoryGeneration() {
                     console.log('[useStoryGeneration] Cloud storage re-initialized for restored session');
                 }
             });
+
+            // Re-populate storyModeStore with restored state so tools can find the session
+            if (savedState) {
+                try {
+                    const parsed = JSON.parse(savedState);
+                    // Convert React state format to StoryModeState format
+                    const storyModeState = {
+                        id: savedSession,
+                        topic: parsed.breakdown?.[0]?.heading || 'Restored Story',
+                        breakdown: parsed.breakdown?.map((s: ScreenplayScene) =>
+                            `${s.heading}: ${s.action}`
+                        ).join('\n') || '',
+                        screenplay: parsed.script?.scenes || [],
+                        characters: parsed.characters || [],
+                        shotlist: parsed.shotlist || [],
+                        currentStep: parsed.currentStep === 'script' ? 'screenplay' : parsed.currentStep,
+                        updatedAt: Date.now(),
+                    };
+                    storyModeStore.set(savedSession, storyModeState);
+                    console.log('[useStoryGeneration] Restored storyModeStore for session:', savedSession);
+                } catch (e) {
+                    console.error('[useStoryGeneration] Failed to restore storyModeStore:', e);
+                }
+            }
         }
-    }, []);
+    }, [projectId]);
 
     // Save state to localStorage and Firestore on change
     useEffect(() => {
@@ -256,7 +326,38 @@ export function useStoryGeneration() {
         if (sessionId) {
             localStorage.setItem(SESSION_KEY, sessionId);
         }
-    }, [state, sessionId, topic]);
+        // Keep projectId in sync
+        if (projectId) {
+            localStorage.setItem(PROJECT_ID_KEY, projectId);
+        }
+    }, [state, sessionId, topic, projectId]);
+
+    // Clear stale sessions on auth state change (sign-out or user switch)
+    useEffect(() => {
+        const unsubscribe = onAuthChange((user) => {
+            const savedUserId = localStorage.getItem(USER_ID_KEY);
+
+            if (!user) {
+                // User signed out - clear session data
+                console.log('[useStoryGeneration] User signed out, clearing session');
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(USER_ID_KEY);
+                localStorage.removeItem(PROJECT_ID_KEY);
+            } else if (savedUserId && savedUserId !== user.uid) {
+                // Different user signed in - clear stale session
+                console.log('[useStoryGeneration] Different user signed in, clearing stale session');
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(USER_ID_KEY);
+                localStorage.removeItem(PROJECT_ID_KEY);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, []);
 
     /**
      * Step 1: Generate Breakdown
@@ -287,6 +388,12 @@ export function useStoryGeneration() {
 
             if (foundSessionId && foundState && foundState.breakdown) {
                 setSessionId(foundSessionId);
+
+                // Save userId with session to prevent cross-user sync issues
+                const user = getCurrentUser();
+                if (user) {
+                    localStorage.setItem(USER_ID_KEY, user.uid);
+                }
 
                 // Initialize cloud storage session for media persistence
                 cloudAutosave.initSession(foundSessionId).then(success => {
@@ -474,21 +581,75 @@ export function useStoryGeneration() {
     };
 
     const resetStory = useCallback(() => {
-        setState({
-            currentStep: 'idea',
-            breakdown: [],
-            script: null,
-            characters: [],
-            shotlist: [],
-        });
+        setState(initialState);
         setSessionId(null);
+        setTopic(null);
+        setPast([]);
+        setFuture([]);
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(PROJECT_ID_KEY);
     }, []);
 
-    const exportScreenplay = useCallback(() => {
+    const exportScreenplay = useCallback((format: 'txt' | 'pdf' = 'txt') => {
         if (!state.script) return;
 
+        if (format === 'pdf') {
+            // PDF export using browser print API (industry-standard screenplay format)
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                setError('Please allow popups to export PDF');
+                return;
+            }
+
+            // Build HTML with proper screenplay formatting (Courier 12pt, specific margins)
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <title>${state.script.title} - Screenplay</title>
+    <style>
+        @page { size: letter; margin: 1in 1.5in 1in 1.5in; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 12pt; line-height: 1; }
+        .title { text-align: center; margin-bottom: 3in; margin-top: 2in; }
+        .title h1 { font-size: 12pt; text-transform: uppercase; }
+        .scene-heading { text-transform: uppercase; margin-top: 24pt; margin-bottom: 12pt; }
+        .action { margin-bottom: 12pt; }
+        .character { text-transform: uppercase; margin-left: 2.2in; margin-bottom: 0; }
+        .dialogue { margin-left: 1in; margin-right: 1.5in; margin-bottom: 12pt; }
+        .parenthetical { margin-left: 1.6in; margin-right: 2in; font-style: italic; }
+        .transition { text-align: right; text-transform: uppercase; margin-top: 12pt; }
+        .page-break { page-break-after: always; }
+    </style>
+</head>
+<body>
+    <div class="title">
+        <h1>${state.script.title}</h1>
+        <p>Written by AI Soul Studio</p>
+    </div>
+    <div class="page-break"></div>
+`;
+
+            state.script.scenes.forEach((scene: ScreenplayScene) => {
+                html += `<div class="scene-heading">${scene.heading}</div>\n`;
+                html += `<div class="action">${scene.action}</div>\n`;
+
+                scene.dialogue.forEach((line) => {
+                    html += `<div class="character">${line.speaker}</div>\n`;
+                    html += `<div class="dialogue">${line.text}</div>\n`;
+                });
+            });
+
+            html += `</body></html>`;
+
+            printWindow.document.write(html);
+            printWindow.document.close();
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+            return;
+        }
+
+        // Text export (original behavior)
         let content = `${state.script.title.toUpperCase()}\n\n`;
 
         state.script.scenes.forEach((scene: ScreenplayScene) => {
@@ -809,6 +970,99 @@ export function useStoryGeneration() {
     }, [state, sessionId, pushState]);
 
     /**
+     * Regenerate visual for a single shot (Storyboarder.ai-style per-shot refresh)
+     * Allows users to regenerate any individual shot without affecting others.
+     * 
+     * @param shotId - The ID of the shot to regenerate
+     * @param customPrompt - Optional custom prompt override (for user edits)
+     */
+    const regenerateShotVisual = useCallback(async (shotId: string, customPrompt?: string) => {
+        const shot = state.shots?.find(s => s.id === shotId);
+        const existingEntry = state.shotlist.find(s => s.id === shotId);
+        
+        if (!shot && !existingEntry) {
+            setError(`Shot ${shotId} not found`);
+            return;
+        }
+
+        setIsProcessing(true);
+        setError(null);
+        setProgress({ message: `Regenerating shot...`, percent: 20 });
+
+        try {
+            const { generateImageFromPrompt } = await import('@/services/imageService');
+            const style = state.visualStyle || 'Cinematic';
+
+            // Build prompt from shot details or use custom prompt
+            const baseDescription = customPrompt || shot?.description || existingEntry?.description || '';
+            const shotType = shot?.shotType || existingEntry?.cameraAngle || 'Medium';
+            const cameraAngle = shot?.cameraAngle || 'Eye-level';
+            const lighting = shot?.lighting || existingEntry?.lighting || 'Natural';
+            const emotion = shot?.emotion || 'neutral';
+
+            const prompt = customPrompt 
+                ? `${customPrompt}. ${style} style.`
+                : `${baseDescription}. ${shotType} shot, ${cameraAngle} angle, ${lighting} lighting. ${emotion} mood. ${style} style.`;
+
+            setProgress({ message: 'Generating new image...', percent: 50 });
+
+            let imageUrl = await generateImageFromPrompt(
+                prompt,
+                style,
+                '',
+                state.aspectRatio || '16:9',
+                false,
+                undefined, // New seed for variation
+                sessionId || undefined
+            );
+
+            // Upload to cloud storage for persistence
+            if (sessionId && imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
+                const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, imageUrl, shotId);
+                if (cloudUrl) {
+                    console.log(`[useStoryGeneration] Regenerated image uploaded to cloud: ${shotId}`);
+                    imageUrl = cloudUrl;
+                }
+            }
+
+            setProgress({ message: 'Updating storyboard...', percent: 90 });
+
+            // Update the shotlist with new image
+            const updatedShotlist = state.shotlist.map(entry => 
+                entry.id === shotId 
+                    ? { ...entry, imageUrl, description: customPrompt || entry.description }
+                    : entry
+            );
+
+            // If shot wasn't in shotlist yet, add it
+            if (!state.shotlist.find(s => s.id === shotId) && shot) {
+                updatedShotlist.push({
+                    id: shot.id,
+                    sceneId: shot.sceneId,
+                    shotNumber: shot.shotNumber,
+                    description: customPrompt || shot.description,
+                    cameraAngle: shot.cameraAngle,
+                    movement: shot.movement,
+                    lighting: shot.lighting,
+                    dialogue: '',
+                    imageUrl,
+                });
+            }
+
+            pushState({
+                ...state,
+                shotlist: updatedShotlist,
+            });
+
+            setProgress({ message: 'Shot regenerated!', percent: 100 });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [state, sessionId, pushState]);
+
+    /**
      * Check if all scenes have shots generated
      */
     const allScenesHaveShots = useCallback(() => {
@@ -916,6 +1170,15 @@ export function useStoryGeneration() {
             for (let i = 0; i < scenesForNarration.length; i++) {
                 const scene = scenesForNarration[i];
                 if (!scene) continue;
+
+                // Add delay between scenes to prevent rate limiting (except for first scene)
+                if (i > 0) {
+                    setProgress({
+                        message: `Waiting before scene ${i + 1}...`,
+                        percent: 10 + (i / scenesForNarration.length) * 60
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
 
                 setProgress({
                     message: `Generating narration ${i + 1}/${scenesForNarration.length}...`,
@@ -1026,15 +1289,26 @@ export function useStoryGeneration() {
                     const deapiAspectRatio = (state.aspectRatio === '9:16' ? '9:16' : state.aspectRatio === '1:1' ? '1:1' : '16:9') as '16:9' | '9:16' | '1:1';
 
                     if (useDeApi && shot.imageUrl.startsWith('data:')) {
-                        // Use DeAPI to animate the image
+                        // Use DeAPI img2video to animate the existing image
                         const base64 = shot.imageUrl.split(',')[1] || shot.imageUrl;
                         videoUrl = await animateImageWithDeApi(
                             base64,
                             shot.description,
-                            deapiAspectRatio
+                            deapiAspectRatio,
+                            sessionId || undefined,
+                            i
+                        );
+                    } else if (useDeApi && !shot.imageUrl.startsWith('data:')) {
+                        // Use DeAPI txt2video when no base64 image is available
+                        const videoPrompt = `${shot.description}. ${shot.cameraAngle} shot, ${shot.movement} camera movement, ${shot.lighting} lighting. ${state.visualStyle || 'Cinematic'} style.`;
+                        videoUrl = await generateVideoWithDeApi(
+                            { prompt: videoPrompt },
+                            deapiAspectRatio,
+                            sessionId || undefined,
+                            i
                         );
                     } else {
-                        // Use Veo to generate video from description
+                        // Fallback to Google Veo for video generation
                         videoUrl = await generateVideoFromPrompt(
                             `${shot.description}. ${shot.cameraAngle} shot, ${shot.movement} camera movement, ${shot.lighting} lighting.`,
                             state.visualStyle || 'Cinematic',
@@ -1115,30 +1389,100 @@ export function useStoryGeneration() {
             // Build SongData structure for FFmpeg exporter
             // Safely get narration segments (already validated above)
             const narrationSegs = state.narrationSegments || [];
+            
+            // Calculate total duration with fallback for undefined/NaN values
+            const totalDuration = narrationSegs.reduce((sum, s) => sum + (s.duration || 0), 0);
+            
+            console.log('[useStoryGeneration] Export stats:', {
+                narrationSegments: narrationSegs.length,
+                totalDuration,
+                shotlistLength: state.shotlist.length,
+                segmentDurations: narrationSegs.map(s => s.duration),
+            });
 
+            // Combine all narration audio segments into a single audio track
+            let combinedAudioUrl: string;
+            
+            try {
+                combinedAudioUrl = await createCombinedNarrationAudio(
+                    narrationSegs,
+                    (message, percent) => setProgress({ message, percent })
+                );
+                console.log('[useStoryGeneration] Combined', narrationSegs.length, 'narration segments');
+            } catch (audioErr) {
+                console.warn('[useStoryGeneration] Failed to combine audio, using first segment:', audioErr);
+                combinedAudioUrl = narrationSegs[0]?.audioUrl || '';
+            }
+
+            // Calculate timestamps for each shot based on narration duration
+            // Ensure we have a valid duration (fallback to 5 seconds per shot if no audio)
+            const effectiveDuration = totalDuration > 0 ? totalDuration : state.shotlist.length * 5;
+            const shotDuration = effectiveDuration / Math.max(state.shotlist.length, 1);
+            
+            console.log('[useStoryGeneration] Shot timing:', {
+                effectiveDuration,
+                shotDuration,
+                totalShots: state.shotlist.length,
+            });
+
+            // Build prompts array with timestamps
+            const prompts = state.shotlist.map((shot, idx) => ({
+                id: shot.id,
+                text: shot.description,
+                mood: 'cinematic',
+                timestamp: `${Math.floor((idx * shotDuration) / 60)}:${Math.floor((idx * shotDuration) % 60).toString().padStart(2, '0')}`,
+                timestampSeconds: idx * shotDuration,
+            }));
+            
+            console.log('[useStoryGeneration] First 3 prompt timestamps:', 
+                prompts.slice(0, 3).map(p => ({ id: p.id, ts: p.timestampSeconds })));
+
+            // Build generatedImages array
+            const generatedImages = state.shotlist.map((shot) => {
+                const animated = state.animatedShots?.find(a => a.shotId === shot.id);
+                return {
+                    promptId: shot.id,
+                    imageUrl: animated?.videoUrl || shot.imageUrl || '',
+                    type: (animated ? 'video' : 'image') as 'video' | 'image',
+                };
+            });
+            
+            // Validate generatedImages have URLs
+            const validImages = generatedImages.filter(g => g.imageUrl);
+            console.log('[useStoryGeneration] Generated images:', {
+                total: generatedImages.length,
+                withUrl: validImages.length,
+                sample: generatedImages.slice(0, 3).map(g => ({ id: g.promptId, hasUrl: !!g.imageUrl, type: g.type })),
+            });
+
+            // Build subtitle items from narration (with safe duration access)
+            const parsedSubtitles = narrationSegs.map((seg, idx) => ({
+                id: `sub_${idx}`,
+                text: seg.text,
+                startTime: narrationSegs.slice(0, idx).reduce((sum, s) => sum + (s.duration || 0), 0),
+                endTime: narrationSegs.slice(0, idx + 1).reduce((sum, s) => sum + (s.duration || 0), 0),
+            }));
+
+            setProgress({ message: 'Building video timeline...', percent: 20 });
+
+            // Build SongData structure matching the expected interface
             const songData = {
-                id: sessionId || `story_${Date.now()}`,
-                title: state.script?.title || 'Untitled Story',
-                // Combine all narration audio (first segment for now, should be merged)
-                audioUrl: narrationSegs[0]?.audioUrl || '',
-                duration: narrationSegs.reduce((sum, s) => sum + s.duration, 0),
-                // Map shots to images/videos
-                images: state.shotlist.map((shot) => {
-                    const animated = state.animatedShots?.find(a => a.shotId === shot.id);
-                    return {
-                        promptId: shot.id,
-                        imageUrl: animated?.videoUrl || shot.imageUrl || '',
-                        type: animated ? 'video' as const : 'image' as const,
-                    };
-                }),
-                // Create subtitle segments from narration
-                subtitles: narrationSegs.map((seg, idx) => ({
-                    id: `sub_${idx}`,
-                    text: seg.text,
-                    startTime: narrationSegs.slice(0, idx).reduce((sum, s) => sum + s.duration, 0),
-                    endTime: narrationSegs.slice(0, idx + 1).reduce((sum, s) => sum + s.duration, 0),
-                })),
+                fileName: `${state.script?.title || 'story'}.mp4`,
+                audioUrl: combinedAudioUrl,
+                srtContent: '', // Not used for story mode
+                parsedSubtitles,
+                prompts,
+                generatedImages,
+                durationSeconds: effectiveDuration,
             };
+            
+            console.log('[useStoryGeneration] SongData built:', {
+                promptCount: prompts.length,
+                generatedImagesCount: generatedImages.length,
+                durationSeconds: effectiveDuration,
+                firstPromptTs: prompts[0]?.timestampSeconds,
+                lastPromptTs: prompts[prompts.length - 1]?.timestampSeconds,
+            });
 
             const exportConfig = {
                 orientation: (state.aspectRatio === '9:16' ? 'portrait' : 'landscape') as 'portrait' | 'landscape',
@@ -1146,7 +1490,7 @@ export function useStoryGeneration() {
                 subtitleSize: 'medium' as const,
             };
 
-            const videoBlob = await exportVideoWithFFmpeg(
+            const exportResult = await exportVideoWithFFmpeg(
                 songData as any,
                 (progress) => {
                     setProgress({
@@ -1155,11 +1499,11 @@ export function useStoryGeneration() {
                     });
                 },
                 exportConfig,
-                sessionId || undefined
+                { cloudSessionId: sessionId || undefined }
             );
 
-            // Create URL for the final video
-            const finalVideoUrl = URL.createObjectURL(videoBlob);
+            // Create URL for the final video (use cloud URL if available, otherwise create blob URL)
+            const finalVideoUrl = exportResult.cloudUrl || URL.createObjectURL(exportResult.blob);
 
             pushState({
                 ...state,
@@ -1170,7 +1514,7 @@ export function useStoryGeneration() {
             setProgress({ message: 'Export complete!', percent: 100 });
 
             // Return the blob for download
-            return videoBlob;
+            return exportResult.blob;
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
             return null;
@@ -1255,6 +1599,25 @@ export function useStoryGeneration() {
         return true;
     }, [sessionId, state, topic]);
 
+    /**
+     * Apply a template to the current story state
+     */
+    const applyTemplate = useCallback((templateState: Partial<StoryState>) => {
+        console.log('[useStoryGeneration] Applying template:', templateState);
+        pushState({
+            ...state,
+            ...templateState,
+        });
+    }, [state, pushState]);
+
+    /**
+     * Import a complete project state (e.g., from JSON file or version history)
+     */
+    const importProject = useCallback((importedState: StoryState) => {
+        console.log('[useStoryGeneration] Importing project state');
+        pushState(importedState);
+    }, [pushState]);
+
     return {
         state,
         sessionId,
@@ -1284,6 +1647,7 @@ export function useStoryGeneration() {
         // New step-by-step generation methods
         generateShots,
         generateVisuals,
+        regenerateShotVisual, // Storyboarder.ai-style per-shot refresh
         // Narration, Animation, and Export methods
         generateNarration,
         animateShots,
@@ -1303,5 +1667,8 @@ export function useStoryGeneration() {
         loadFromCloud,
         saveToCloud,
         isSyncAvailable: isSyncAvailable(),
+        // Template and project management
+        applyTemplate,
+        importProject,
     };
 }

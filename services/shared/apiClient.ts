@@ -54,7 +54,7 @@ export const MODELS = {
   IMAGE_HD: "gemini-3-pro-image-preview", // Multimodal image understanding & generation
   VIDEO_STANDARD: "veo-3.1-generate-preview",
   VIDEO_FAST: "veo-3.1-fast-generate-preview",
-  VIDEO_LEGACY: "veo-2.0-generate-001",
+  VIDEO_LEGACY: "veo-3.1-fast-generate-preview",
 };
 
 /**

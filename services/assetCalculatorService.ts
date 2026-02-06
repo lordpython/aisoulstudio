@@ -93,18 +93,18 @@ function calculateDurationBaseline(duration: number): number {
 }
 
 /**
- * Calculate asset count based on concrete motif density
+ * Calculate asset count based on visual scene density
  */
-function calculateMotifBasedCount(analysis: AnalysisOutput): number {
-    const motifCount = analysis.concreteMotifs?.length || 0;
+function calculateSceneBasedCount(analysis: AnalysisOutput): number {
+    const sceneCount = analysis.visualScenes?.length || 0;
 
-    if (motifCount === 0) {
+    if (sceneCount === 0) {
         return 8; // Default
     }
 
-    // Goal: ensure every concrete motif gets a high chance of being shown
-    // We want at least as many assets as motifs, but capped for sanity
-    return Math.min(15, Math.max(8, motifCount + 2));
+    // Goal: ensure every visual scene gets a high chance of being shown
+    // We want at least as many assets as scenes, but capped for sanity
+    return Math.min(15, Math.max(8, sceneCount + 2));
 }
 
 /**
@@ -143,15 +143,15 @@ function adjustForContentDensity(
     analysis: AnalysisOutput,
     duration: number
 ): number {
-    const motifCount = analysis.concreteMotifs?.length || 0;
-    if (motifCount === 0) return count;
+    const sceneCount = analysis.visualScenes?.length || 0;
+    if (sceneCount === 0) return count;
 
-    const motifsPerMinute = motifCount / (duration / 60);
+    const scenesPerMinute = sceneCount / (duration / 60);
 
-    // Highly dense motifs → more assets
-    if (motifsPerMinute > 5) {
+    // Highly dense scenes → more assets
+    if (scenesPerMinute > 5) {
         return Math.round(count * 1.25);
-    } else if (motifsPerMinute < 1) {
+    } else if (scenesPerMinute < 1) {
         return Math.round(count * 0.85);
     }
 
@@ -160,7 +160,7 @@ function adjustForContentDensity(
 
 /**
  * Calculate timestamps for each asset
- * Distributes assets across content with bias towards concrete motifs
+ * Distributes assets across content with bias towards visual scenes
  */
 function calculateAssetTimestamps(
     count: number,
@@ -168,12 +168,12 @@ function calculateAssetTimestamps(
     analysis: AnalysisOutput
 ): number[] {
     const timestamps: number[] = [];
-    const motifTimes = (analysis.concreteMotifs || [])
-        .map(m => parseTimestamp(m.timestamp))
+    const sceneTimes = (analysis.visualScenes || [])
+        .map(scene => parseTimestamp(scene.timestamp))
         .sort((a, b) => a - b);
 
-    if (motifTimes.length === 0) {
-        // Even distribution if no motifs
+    if (sceneTimes.length === 0) {
+        // Even distribution if no scenes
         const interval = duration / (count + 1);
         for (let i = 1; i <= count; i++) {
             timestamps.push(i * interval);
@@ -181,13 +181,13 @@ function calculateAssetTimestamps(
         return timestamps;
     }
 
-    // Mix motif timestamps with even distribution
-    // This ensures identified objects are shown, but gaps are filled
+    // Mix scene timestamps with even distribution
+    // This ensures identified scenes are shown, but gaps are filled
     const evenInterval = duration / (count + 1);
     const usedTimes = new Set<string>();
 
-    // 1. Add motif times (up to count)
-    motifTimes.slice(0, count).forEach(t => {
+    // 1. Add scene times (up to count)
+    sceneTimes.slice(0, count).forEach(t => {
         timestamps.push(t);
         usedTimes.add(t.toFixed(1));
     });

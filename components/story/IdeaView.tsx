@@ -1,30 +1,73 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Film } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Film, Ghost, Crown, Baby, Plane, BookOpen, Lightbulb, Wand2, ChevronDown, Layout } from 'lucide-react';
 import { staggerContainer, staggerItem, cardHover, filmReelSpin } from '@/lib/cinematicMotion';
+import { TemplatesGallery } from './TemplatesGallery';
+import type { StoryState } from '@/types';
 
 interface IdeaViewProps {
     initialTopic?: string;
     onGenerate: (topic: string, genre: string) => void;
+    onApplyTemplate?: (state: Partial<StoryState>) => void;
     isProcessing?: boolean;
 }
 
+// Extended genre list with more options
 const GENRES = [
-    { id: 'Drama', label: 'Drama', icon: Heart, gradient: 'from-rose-900/40 to-rose-950/60' },
-    { id: 'Comedy', label: 'Comedy', icon: Laugh, gradient: 'from-amber-900/40 to-amber-950/60' },
-    { id: 'Thriller', label: 'Thriller', icon: Skull, gradient: 'from-slate-800/40 to-slate-950/60' },
-    { id: 'Sci-Fi', label: 'Sci-Fi', icon: Rocket, gradient: 'from-cyan-900/40 to-cyan-950/60' },
-    { id: 'Mystery', label: 'Mystery', icon: Search, gradient: 'from-violet-900/40 to-violet-950/60' },
-    { id: 'Action', label: 'Action', icon: Sword, gradient: 'from-orange-900/40 to-orange-950/60' },
+    { id: 'Drama', label: 'Drama', icon: Heart, gradient: 'from-rose-900/40 to-rose-950/60', description: 'Emotional, character-driven narratives' },
+    { id: 'Comedy', label: 'Comedy', icon: Laugh, gradient: 'from-amber-900/40 to-amber-950/60', description: 'Humor and lighthearted stories' },
+    { id: 'Thriller', label: 'Thriller', icon: Skull, gradient: 'from-slate-800/40 to-slate-950/60', description: 'Suspense and tension' },
+    { id: 'Sci-Fi', label: 'Sci-Fi', icon: Rocket, gradient: 'from-cyan-900/40 to-cyan-950/60', description: 'Futuristic and technological themes' },
+    { id: 'Mystery', label: 'Mystery', icon: Search, gradient: 'from-violet-900/40 to-violet-950/60', description: 'Puzzles and investigations' },
+    { id: 'Action', label: 'Action', icon: Sword, gradient: 'from-orange-900/40 to-orange-950/60', description: 'High-energy sequences' },
+    { id: 'Horror', label: 'Horror', icon: Ghost, gradient: 'from-gray-900/40 to-gray-950/60', description: 'Fear and supernatural elements' },
+    { id: 'Fantasy', label: 'Fantasy', icon: Wand2, gradient: 'from-purple-900/40 to-purple-950/60', description: 'Magic and mythical worlds' },
+    { id: 'Romance', label: 'Romance', icon: Heart, gradient: 'from-pink-900/40 to-pink-950/60', description: 'Love stories and relationships' },
+    { id: 'Historical', label: 'Historical', icon: Crown, gradient: 'from-yellow-900/40 to-yellow-950/60', description: 'Period pieces and true events' },
+    { id: 'Documentary', label: 'Documentary', icon: BookOpen, gradient: 'from-emerald-900/40 to-emerald-950/60', description: 'Educational and factual content' },
+    { id: 'Animation', label: 'Animation', icon: Baby, gradient: 'from-blue-900/40 to-blue-950/60', description: 'Animated storytelling' },
+];
+
+// Story templates/prompts for inspiration
+const STORY_TEMPLATES = [
+    { genre: 'Drama', prompt: 'A family reunites after 20 years to confront a secret that tore them apart...' },
+    { genre: 'Thriller', prompt: 'A detective discovers that the murder they\'re investigating was committed by their own future self...' },
+    { genre: 'Sci-Fi', prompt: 'In 2150, humanity discovers that Earth\'s moon is actually an ancient alien spacecraft...' },
+    { genre: 'Mystery', prompt: 'A small town librarian finds coded messages hidden in returned books, leading to a decades-old conspiracy...' },
+    { genre: 'Comedy', prompt: 'A wedding planner must organize the perfect ceremony for their ex and their new partner...' },
+    { genre: 'Action', prompt: 'A retired spy is pulled back into the game when their grandchild is kidnapped by an old enemy...' },
+    { genre: 'Horror', prompt: 'A family moves into their dream home, only to discover the previous owners never actually left...' },
+    { genre: 'Fantasy', prompt: 'A young mapmaker discovers their drawings have the power to reshape reality...' },
+    { genre: 'Romance', prompt: 'Two rival food truck owners compete for the same corner, but find themselves falling for each other...' },
+    { genre: 'Historical', prompt: 'The untold story of the women codebreakers who helped win World War II...' },
+    { genre: 'Documentary', prompt: 'An exploration of how a small village in Japan became the world\'s longest-living community...' },
+    { genre: 'Animation', prompt: 'A young robot dreams of becoming a painter in a world where machines aren\'t supposed to create art...' },
 ];
 
 export const IdeaView: React.FC<IdeaViewProps> = ({
     initialTopic = '',
     onGenerate,
+    onApplyTemplate,
     isProcessing = false
 }) => {
     const [topic, setTopic] = useState(initialTopic);
     const [genre, setGenre] = useState('Drama');
+    const [showAllGenres, setShowAllGenres] = useState(false);
+    const [showInspiration, setShowInspiration] = useState(false);
+    const [showTemplatesGallery, setShowTemplatesGallery] = useState(false);
+
+    // Get template for current genre
+    const currentTemplate = STORY_TEMPLATES.find(t => t.genre === genre);
+
+    // Use inspiration template
+    const handleUseTemplate = () => {
+        if (currentTemplate) {
+            setTopic(currentTemplate.prompt);
+        }
+    };
+
+    // Visible genres (first 6 or all)
+    const visibleGenres = showAllGenres ? GENRES : GENRES.slice(0, 6);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,20 +139,61 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                             {/* Paper texture overlay */}
                             <div className="absolute inset-0 pointer-events-none rounded-lg opacity-5 bg-[url('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20200%20200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter%20id%3D%22noise%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%224%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url(%23noise)%22%2F%3E%3C%2Fsvg%3E')]" />
                         </div>
+
+                        {/* Inspiration Button */}
+                        <div className="mt-3 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    type="button"
+                                    onClick={handleUseTemplate}
+                                    disabled={isProcessing || !currentTemplate}
+                                    className="flex items-center gap-2 text-sm text-[var(--cinema-spotlight)]/70 hover:text-[var(--cinema-spotlight)] transition-colors disabled:opacity-40"
+                                >
+                                    <Lightbulb className="w-4 h-4" />
+                                    <span>Need inspiration? Try a {genre} template</span>
+                                </button>
+                                {onApplyTemplate && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTemplatesGallery(true)}
+                                        disabled={isProcessing}
+                                        className="flex items-center gap-2 text-sm text-violet-400/70 hover:text-violet-400 transition-colors disabled:opacity-40"
+                                    >
+                                        <Layout className="w-4 h-4" />
+                                        <span>Browse Templates</span>
+                                    </button>
+                                )}
+                            </div>
+                            <span className="text-xs text-[var(--cinema-silver)]/40 font-mono">
+                                {topic.length} chars
+                            </span>
+                        </div>
                     </div>
 
                     {/* Genre Selection - Poster Cards */}
                     <div>
-                        <label className="block font-display text-sm text-[var(--cinema-silver)]/70 mb-4 tracking-widest uppercase">
-                            Select Genre
-                        </label>
+                        <div className="flex items-center justify-between mb-4">
+                            <label className="block font-display text-sm text-[var(--cinema-silver)]/70 tracking-widest uppercase">
+                                Select Genre
+                            </label>
+                            {!showAllGenres && GENRES.length > 6 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllGenres(true)}
+                                    className="flex items-center gap-1 text-xs text-[var(--cinema-spotlight)] hover:text-[var(--cinema-spotlight)]/80 transition-colors"
+                                >
+                                    <span>Show all {GENRES.length} genres</span>
+                                    <ChevronDown className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
                         <motion.div
                             variants={staggerContainer}
                             initial="initial"
                             animate="animate"
                             className="grid grid-cols-2 sm:grid-cols-3 gap-3"
                         >
-                            {GENRES.map((g) => {
+                            {visibleGenres.map((g) => {
                                 const Icon = g.icon;
                                 const isSelected = genre === g.id;
                                 return (
@@ -216,6 +300,35 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                     <div className="w-24 h-px bg-gradient-to-r from-transparent via-[var(--cinema-silver)]/20 to-transparent" />
                 </div>
             </motion.div>
+
+            {/* Templates Gallery Modal */}
+            <AnimatePresence>
+                {showTemplatesGallery && onApplyTemplate && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                        onClick={() => setShowTemplatesGallery(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-5xl h-[80vh]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <TemplatesGallery
+                                onApplyTemplate={(state) => {
+                                    onApplyTemplate(state);
+                                    setShowTemplatesGallery(false);
+                                }}
+                                onClose={() => setShowTemplatesGallery(false)}
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

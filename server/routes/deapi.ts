@@ -1,6 +1,6 @@
 import { Router, Response, Request } from 'express';
 import { ApiProxyRequest } from '../types.js';
-import { DEAPI_API_KEY } from '../utils/index.js';
+import { DEAPI_API_KEY, MAX_SINGLE_FILE } from '../utils/index.js';
 import { createLogger } from '../../services/logger.js';
 import fs from 'fs';
 import multer from 'multer';
@@ -8,7 +8,10 @@ import type { Txt2ImgParams } from '../../services/deapiService.js';
 
 const deapiLog = createLogger('DeAPI');
 const router = Router();
-const upload = multer({ dest: 'temp/' });
+const upload = multer({
+    dest: 'temp/',
+    limits: { fileSize: MAX_SINGLE_FILE }
+});
 
 router.post('/image', async (req: ApiProxyRequest, res: Response): Promise<void> => {
     if (!DEAPI_API_KEY) {

@@ -45,12 +45,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: true,  // Expose on local network
-      // COOP/COEP headers for SharedArrayBuffer (FFmpeg WASM) - web only
-      // These headers break mobile WebViews, so only apply in web dev mode
-      headers: isMobileBuild ? {} : {
-        "Cross-Origin-Opener-Policy": "same-origin",
-        "Cross-Origin-Embedder-Policy": "require-corp",
-      },
+      // Note: COOP/COEP headers for SharedArrayBuffer (FFmpeg WASM) are NOT set
+      // in dev mode because they break Firebase Auth popups/iframes.
+      // Client-side FFmpeg WASM will use single-threaded mode without SharedArrayBuffer.
+      // For production-quality export, use server-side FFmpeg via /api/export endpoints.
+      // In production, COOP/COEP can be set on non-auth routes via reverse proxy config.
       // Proxy API requests to Express server (port 3001)
       proxy: {
         '/api': {

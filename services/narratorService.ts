@@ -16,6 +16,26 @@ import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
 
+// --- TTS Throttling ---
+// Gemini TTS has rate limits; add minimum delay between calls to avoid 500 errors
+
+const TTS_INTER_CALL_DELAY_MS = 2000; // 2 seconds between TTS API calls
+let lastTtsCallTime = 0;
+
+/**
+ * Wait for TTS throttling to prevent rate limiting
+ */
+async function waitForTtsThrottle(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastCall = now - lastTtsCallTime;
+    if (timeSinceLastCall < TTS_INTER_CALL_DELAY_MS) {
+        const waitTime = TTS_INTER_CALL_DELAY_MS - timeSinceLastCall;
+        console.log(`[Narrator] Throttling: waiting ${waitTime}ms before next TTS call`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    lastTtsCallTime = Date.now();
+}
+
 // --- Voice Configuration ---
 
 /**
@@ -587,6 +607,9 @@ export const synthesizeSpeech = traceAsync(
         if (resolvedConfig.stylePrompt) {
             console.log(`[Narrator] Using style prompt: ${buildDirectorNote(resolvedConfig.stylePrompt)}`);
         }
+
+        // Apply throttling to prevent rate limiting (2-second minimum gap between calls)
+        await waitForTtsThrottle();
 
         // TTS is prone to transient 500 errors - use more aggressive retry settings
         return withRetry(async () => {

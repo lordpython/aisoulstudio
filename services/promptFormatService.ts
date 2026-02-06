@@ -154,16 +154,17 @@ export const ANALYSIS_JSON_SCHEMA = {
     },
     themes: { type: 'array', items: { type: 'string' } },
     motifs: { type: 'array', items: { type: 'string' } },
-    concreteMotifs: {
+    visualScenes: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          object: { type: 'string' },
-          timestamp: { type: 'string' },
-          emotionalContext: { type: 'string' }
+          visualPrompt: { type: 'string', description: 'Full 60-100 word Midjourney-style prompt' },
+          subjectContext: { type: 'string', description: 'Narrative significance of the scene' },
+          timestamp: { type: 'string', description: 'MM:SS format' },
+          emotionalTone: { type: 'string', description: 'Single word emotional tone' }
         },
-        required: ['object', 'timestamp', 'emotionalContext']
+        required: ['visualPrompt', 'subjectContext', 'timestamp', 'emotionalTone']
       }
     }
   },
@@ -234,11 +235,12 @@ export function getAnalysisFormatSpecification(): FormatSpecification {
   },
   "themes": ["string"],
   "motifs": ["string"],
-  "concreteMotifs": [
+  "visualScenes": [
     {
-      "object": "string",
+      "visualPrompt": "string (60-100 words, full Midjourney-style prompt)",
+      "subjectContext": "string (who/what and significance)",
       "timestamp": "MM:SS",
-      "emotionalContext": "string"
+      "emotionalTone": "string (single word)"
     }
   ]
 }`,
@@ -247,13 +249,15 @@ export function getAnalysisFormatSpecification(): FormatSpecification {
       'The "type" field MUST be lowercase (e.g., "verse" not "Verse")',
       'Timestamps MUST be in MM:SS format',
       'emotionalIntensity MUST be a number between 1 and 10',
+      'Each visualScene.visualPrompt MUST be 60-100 words',
       'All required fields must be present'
     ],
     commonMistakes: [
       'Using capitalized type values (use "verse" not "Verse")',
-      'Omitting the concreteMotifs array',
+      'Omitting the visualScenes array',
       'Using HH:MM:SS format instead of MM:SS',
-      'Wrapping output in markdown code blocks'
+      'Wrapping output in markdown code blocks',
+      'Writing short visualPrompts instead of full 60-100 word prompts'
     ]
   };
 }
@@ -330,11 +334,12 @@ export function getAnalysisExamples(): ResponseExample[] {
   },
   "themes": ["loss", "memory", "hope"],
   "motifs": ["fading light", "empty rooms", "old photographs"],
-  "concreteMotifs": [
+  "visualScenes": [
     {
-      "object": "candle",
+      "visualPrompt": "An elderly prophet with a flowing white beard stands before a weathered stone altar on a desolate mountaintop, his arm raised with a ceremonial knife, golden divine light piercing through dark storm clouds above, wind whipping his garments, low angle dramatic composition, cinematic rim lighting on his silhouette",
+      "subjectContext": "Prophet Ibrahim at the moment of ultimate test before divine intervention",
       "timestamp": "00:45",
-      "emotionalContext": "Represents fading hope and isolation"
+      "emotionalTone": "anguished"
     }
   ]
 }`,
@@ -342,7 +347,7 @@ export function getAnalysisExamples(): ResponseExample[] {
         'Type values are lowercase (intro, verse, not Intro, Verse)',
         'Timestamps in MM:SS format',
         'emotionalIntensity is a number, not a string',
-        'concreteMotifs captures literal objects from the content'
+        'visualScenes contains full 60-100 word Midjourney-style prompts'
       ]
     }
   ];

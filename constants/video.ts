@@ -99,7 +99,17 @@ export type VideoPurpose =
   | "horror_mystery"
   | "travel"
   | "motivational"
-  | "news_report";
+  | "news_report"
+  // Story Mode genre-specific purposes
+  | "story_drama"
+  | "story_comedy"
+  | "story_thriller"
+  | "story_scifi"
+  | "story_action"
+  | "story_fantasy"
+  | "story_romance"
+  | "story_historical"
+  | "story_animation";
 
 /**
  * Camera angles for visual variety in prompt generation.

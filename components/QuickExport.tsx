@@ -34,7 +34,7 @@ interface ExportPreset {
   width: number;
   height: number;
   orientation: "landscape" | "portrait";
-  quality: "fast" | "balanced" | "high";
+  quality: "draft" | "standard" | "high";
 }
 
 const EXPORT_PRESETS: ExportPreset[] = [
@@ -49,7 +49,7 @@ const EXPORT_PRESETS: ExportPreset[] = [
     width: 1080,
     height: 1920,
     orientation: "portrait",
-    quality: "balanced",
+    quality: "standard",
   },
   {
     id: "youtube",
@@ -88,7 +88,7 @@ const EXPORT_PRESETS: ExportPreset[] = [
     width: 1280,
     height: 720,
     orientation: "landscape",
-    quality: "fast",
+    quality: "draft",
   },
 ];
 
@@ -98,7 +98,7 @@ export interface QuickExportConfig {
   width: number;
   height: number;
   orientation: "landscape" | "portrait";
-  quality: "fast" | "balanced" | "high";
+  quality: "draft" | "standard" | "high";
 }
 
 interface QuickExportProps {

@@ -23,6 +23,8 @@ import { preloadAssets, clearFrameCache, type AssetLoadProgress } from "./assetL
 import { renderFrameToCanvas } from "./frameRenderer";
 import { cloudAutosave } from "../cloudStorageService";
 import { saveExportRecord } from "../projectService";
+import { subscribeToJob, isSSESupported, JobProgress } from "./sseClient";
+import { generateBatchChecksums, isChecksumSupported, FrameChecksum } from "./checksumGenerator";
 
 // Rendering constants
 const RENDER_WIDTH_LANDSCAPE = 1920;
@@ -268,24 +270,91 @@ export async function exportVideoWithFFmpeg(
 
     onProgress({
         stage: "encoding",
-        progress: 95,
-        message: "Finalizing video on server...",
+        progress: 90,
+        message: "Queuing video encoding...",
     });
+
+    // Determine encoding mode: async (SSE) or sync (legacy)
+    const useAsyncEncoding = isSSESupported();
 
     const finalizeRes = await fetch(`${SERVER_URL}/api/export/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, fps: FPS }),
+        body: JSON.stringify({
+            sessionId,
+            fps: FPS,
+            totalFrames,
+            sync: !useAsyncEncoding,
+        }),
     });
 
     if (!finalizeRes.ok) {
-        const error = await finalizeRes.json();
-        throw new Error(error.error || "Export failed");
+        const errorData = await finalizeRes.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(errorData.error || "Export failed");
     }
 
-    onProgress({ stage: "encoding", progress: 99, message: "Downloading..." });
+    let videoBlob: Blob;
 
-    const videoBlob = await finalizeRes.blob();
+    if (useAsyncEncoding) {
+        // Async mode: response is JSON with jobId
+        const finalizeData = await finalizeRes.json();
+        const jobId = finalizeData.jobId;
+        console.log(`[FFmpeg] Job ${jobId} queued, subscribing to SSE progress`);
+
+        onProgress({
+            stage: "encoding",
+            progress: 90,
+            message: "Server encoding started...",
+        });
+
+        // Wait for job completion via SSE
+        videoBlob = await new Promise<Blob>((resolve, reject) => {
+            const unsubscribe = subscribeToJob(
+                jobId,
+                (progress: JobProgress) => {
+                    // Map server progress (0-100) to UI progress (90-99)
+                    const uiProgress = 90 + Math.round(progress.progress * 0.09);
+
+                    onProgress({
+                        stage: "encoding",
+                        progress: uiProgress,
+                        message: progress.message,
+                        currentFrame: progress.currentFrame,
+                        totalFrames: progress.totalFrames,
+                    });
+
+                    if (progress.status === 'complete') {
+                        unsubscribe();
+                        // Download the completed video
+                        fetch(`${SERVER_URL}/api/export/download/${jobId}`)
+                            .then(res => {
+                                if (!res.ok) throw new Error('Failed to download video');
+                                return res.blob();
+                            })
+                            .then(resolve)
+                            .catch(reject);
+                    } else if (progress.status === 'failed') {
+                        unsubscribe();
+                        reject(new Error(progress.error || 'Export failed'));
+                    }
+                },
+                (error) => {
+                    unsubscribe();
+                    reject(error);
+                }
+            );
+
+            // Timeout after 30 minutes
+            setTimeout(() => {
+                unsubscribe();
+                reject(new Error('Export timed out'));
+            }, 30 * 60 * 1000);
+        });
+    } else {
+        // Sync mode: response IS the video blob (single request, no duplicate)
+        onProgress({ stage: "encoding", progress: 99, message: "Downloading..." });
+        videoBlob = await finalizeRes.blob();
+    }
 
     onProgress({ stage: "complete", progress: 100, message: "Export complete!" });
 
@@ -552,16 +621,13 @@ export async function exportVideoClientSide(
         "-c:a",
         "aac",
         "-b:a",
-        "320k", // Higher audio bitrate
+        "256k",
         "-pix_fmt",
         "yuv420p",
-        // NEW SCALING FILTER:
-        // This takes the 768x432 AI video and scales it up to 1920x1080 
-        // using 'Lanczos' (high quality) scaling.
-        "-vf", "scale=1920:1080:flags=lanczos,setsar=1",
+        "-vf", `scale=${WIDTH}:${HEIGHT}:flags=lanczos,setsar=1`,
         "-shortest",
-        "-preset", "medium", // Better compression than 'ultrafast'
-        "-crf", "20", // High visual quality
+        "-preset", "medium",
+        "-crf", "21",
         "output.mp4",
     ]);
 

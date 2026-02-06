@@ -216,9 +216,9 @@ export const analyzeContentTool = tool(
     },
     {
         name: "analyze_content",
-        description: `Analyze lyrics or story content to identify structure, emotional arc, themes, and motifs.
+        description: `Analyze lyrics or story content to identify structure, emotional arc, themes, and art-directed visual scenes.
 Use this FIRST before generating storyboards.
-RETURNS: A JSON object with sections, emotionalArc, themes, motifs, and concreteMotifs.
+RETURNS: A JSON object with sections, emotionalArc, themes, motifs, and visualScenes (full cinematic prompts).
 IMPORTANT: Copy the EXACT output of this tool and pass it directly to generate_storyboard's analysisJson parameter.`,
         schema: z.object({
             content: z.string().describe("The SRT/lyrics/story content to analyze"),
@@ -270,7 +270,7 @@ export const analyzeAndGenerateStoryboardTool = tool(
             // Step 1: Analyze content
             console.log("[AgentDirector] Step 1: Analyzing content...");
             const analysis = await runAnalyzer(content, contentType);
-            console.log(`[AgentDirector] Analysis complete: ${analysis.sections.length} sections, ${analysis.concreteMotifs?.length || 0} motifs`);
+            console.log(`[AgentDirector] Analysis complete: ${analysis.sections.length} sections, ${analysis.visualScenes?.length || 0} visual scenes`);
 
             // Step 2: Generate storyboard from analysis
             console.log("[AgentDirector] Step 2: Generating storyboard...");
@@ -299,7 +299,7 @@ export const analyzeAndGenerateStoryboardTool = tool(
                     sectionCount: analysis.sections.length,
                     themes: analysis.themes,
                     emotionalArc: analysis.emotionalArc,
-                    concreteMotifs: analysis.concreteMotifs,
+                    visualScenes: analysis.visualScenes,
                 },
                 storyboard: storyboard,
             }, null, 2);

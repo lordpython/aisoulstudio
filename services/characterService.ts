@@ -78,7 +78,7 @@ ${description}
 White background, neutral lighting, clean studio setting.
 Front view and three-quarter view, full body visible.
 Professional character reference sheet style, consistent proportions.
-No text, no labels, clean design.`;
+Clean design with focus on character details only.`;
 
     console.log(`[CharacterService] Generating reference sheet for: ${charName}`);
 

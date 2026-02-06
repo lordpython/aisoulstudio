@@ -79,7 +79,7 @@ function getAgentSystemPrompt(purpose: VideoPurpose): string {
 ${persona.visualPrinciples.map(p => `- ${p}`).join('\n')}
 
 ## Core Rule
-ATMOSPHERIC RESONANCE: Visualize the *feeling*, not just the nouns.
+ATMOSPHERIC RESONANCE: Prioritize the EMOTION over the object. If content mentions 'candle', visualize 'loneliness' or 'fading hope' using lighting and shadows, not just the object itself.
 
 ## Capabilities
 1. **GENERATE MUSIC**: You can create full musical tracks using Suno AI.
@@ -93,7 +93,7 @@ ATMOSPHERIC RESONANCE: Visualize the *feeling*, not just the nouns.
 
 ## Quality Standards
 - Consistent visual motif in every scene
-- No text or logos
+- Clean visual compositions with focus on subjects
 - Varied camera angles`;
 }
 
