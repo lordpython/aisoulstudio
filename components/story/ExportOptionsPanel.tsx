@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StoryState } from '@/types';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   downloadSubtitles,
   downloadProjectJSON,
@@ -56,6 +57,7 @@ export function ExportOptionsPanel({
   onExportVideo,
   className,
 }: ExportOptionsPanelProps) {
+  const { t } = useLanguage();
   const [exportStatus, setExportStatus] = useState<Record<string, ExportStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -181,48 +183,48 @@ export function ExportOptionsPanel({
   const exportOptions: ExportOption[] = [
     {
       id: 'mp4',
-      name: 'MP4 Video',
-      description: 'Standard video format for all devices',
+      name: t('story.export_panel.mp4Video'),
+      description: t('story.export_panel.mp4Desc'),
       icon: <FileVideo className="w-5 h-5" />,
       category: 'video',
       action: handleExportMP4,
       disabled: !onExportVideo,
-      disabledReason: 'Generate video first',
+      disabledReason: t('story.export_panel.generateVideoFirst'),
     },
     {
       id: 'webm',
-      name: 'WebM Video',
-      description: 'Web-optimized format for embedding',
+      name: t('story.export_panel.webmVideo'),
+      description: t('story.export_panel.webmDesc'),
       icon: <Globe className="w-5 h-5" />,
       category: 'video',
       action: handleExportWebM,
       disabled: !hasVideo,
-      disabledReason: 'Generate video first',
+      disabledReason: t('story.export_panel.generateVideoFirst'),
     },
     {
       id: 'srt',
-      name: 'SRT Subtitles',
-      description: 'Standard subtitle format',
+      name: t('story.export_panel.srtSubtitles'),
+      description: t('story.export_panel.srtDesc'),
       icon: <Subtitles className="w-5 h-5" />,
       category: 'subtitle',
       action: handleExportSRT,
       disabled: !hasShots,
-      disabledReason: 'Generate shots first',
+      disabledReason: t('story.export_panel.generateShotsFirst'),
     },
     {
       id: 'vtt',
-      name: 'WebVTT Subtitles',
-      description: 'HTML5 native subtitles',
+      name: t('story.export_panel.webvttSubtitles'),
+      description: t('story.export_panel.webvttDesc'),
       icon: <Subtitles className="w-5 h-5" />,
       category: 'subtitle',
       action: handleExportVTT,
       disabled: !hasShots,
-      disabledReason: 'Generate shots first',
+      disabledReason: t('story.export_panel.generateShotsFirst'),
     },
     {
       id: 'json',
-      name: 'Project File',
-      description: 'Full project backup (.json)',
+      name: t('story.export_panel.projectFile'),
+      description: t('story.export_panel.projectFileDesc'),
       icon: <FileJson className="w-5 h-5" />,
       category: 'project',
       action: handleExportJSON,
@@ -251,8 +253,8 @@ export function ExportOptionsPanel({
     <div className={cn('bg-black/40 rounded-xl border border-white/10 p-4', className)}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Download className="w-5 h-5 text-violet-400" />
-          <h3 className="font-medium text-white">Export Options</h3>
+          <Download className="w-5 h-5 text-[var(--cinema-spotlight)]" />
+          <h3 className="font-medium text-white">{t('story.export_panel.exportOptions')}</h3>
         </div>
         {onImportProject && (
           <button
@@ -260,7 +262,7 @@ export function ExportOptionsPanel({
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <Upload className="w-4 h-4" />
-            Import
+            {t('common.import')}
           </button>
         )}
       </div>
@@ -291,7 +293,7 @@ export function ExportOptionsPanel({
       {/* Video Exports */}
       <div className="mb-4">
         <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-          Video Formats
+          {t('story.export_panel.videoFormats')}
         </h4>
         <div className="grid grid-cols-2 gap-2">
           {videoOptions.map((option) => (
@@ -303,11 +305,11 @@ export function ExportOptionsPanel({
                 'p-3 rounded-lg border text-left transition-all',
                 option.disabled
                   ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-violet-500/50 hover:bg-violet-500/10'
+                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
               )}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-violet-400">{option.icon}</span>
+                <span className="text-[var(--cinema-spotlight)]">{option.icon}</span>
                 {getStatusIcon(option.id)}
               </div>
               <p className="text-sm font-medium text-white">{option.name}</p>
@@ -322,7 +324,7 @@ export function ExportOptionsPanel({
       {/* Subtitle Exports */}
       <div className="mb-4">
         <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-          Subtitles
+          {t('story.export_panel.subtitles')}
         </h4>
         <div className="grid grid-cols-2 gap-2">
           {subtitleOptions.map((option) => (
@@ -334,7 +336,7 @@ export function ExportOptionsPanel({
                 'p-3 rounded-lg border text-left transition-all',
                 option.disabled
                   ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-violet-500/50 hover:bg-violet-500/10'
+                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
               )}
             >
               <div className="flex items-center justify-between mb-1">
@@ -353,7 +355,7 @@ export function ExportOptionsPanel({
       {/* Project Exports */}
       <div>
         <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-          Project
+          {t('story.export_panel.project')}
         </h4>
         <div className="grid grid-cols-2 gap-2">
           {projectOptions.map((option) => (
@@ -365,7 +367,7 @@ export function ExportOptionsPanel({
                 'p-3 rounded-lg border text-left transition-all',
                 option.disabled
                   ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-violet-500/50 hover:bg-violet-500/10'
+                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
               )}
             >
               <div className="flex items-center justify-between mb-1">
@@ -395,12 +397,12 @@ export function ExportOptionsPanel({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-gray-900 rounded-xl border border-white/10 p-6"
+              className="w-full max-w-md bg-[var(--cinema-celluloid)] rounded-xl border border-white/10 p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h4 className="text-lg font-medium text-white mb-2">Import Project</h4>
+              <h4 className="text-lg font-medium text-white mb-2">{t('story.export_panel.importProject')}</h4>
               <p className="text-sm text-white/60 mb-4">
-                Select a project file (.json) to import. This will replace your current project.
+                {t('story.export_panel.importProjectDesc')}
               </p>
 
               <input
@@ -413,11 +415,11 @@ export function ExportOptionsPanel({
 
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-all"
+                className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center cursor-pointer hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/5 transition-all"
               >
                 <Upload className="w-10 h-10 mx-auto mb-3 text-white/40" />
-                <p className="text-white/60">Click to select a file</p>
-                <p className="text-xs text-white/30 mt-1">or drag and drop</p>
+                <p className="text-white/60">{t('story.export_panel.clickToSelect')}</p>
+                <p className="text-xs text-white/30 mt-1">{t('story.export_panel.orDragDrop')}</p>
               </div>
 
               <div className="flex items-center justify-end gap-3 mt-6">
@@ -425,7 +427,7 @@ export function ExportOptionsPanel({
                   onClick={() => setShowImportDialog(false)}
                   className="px-4 py-2 text-white/60 hover:text-white transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </motion.div>

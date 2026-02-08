@@ -7,6 +7,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle, Film } from 'lucide-react';
 import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
+import { useLanguage } from '@/i18n/useLanguage';
 
 export type BreakdownStage =
     | 'reading'
@@ -25,6 +26,13 @@ interface StageConfig {
     label: string;
 }
 
+const STAGE_KEYS: Record<BreakdownStage, string> = {
+    reading: 'story.breakdown_progress.readingIdea',
+    aligning: 'story.breakdown_progress.aligningGenre',
+    identifying: 'story.breakdown_progress.identifyingCharacters',
+    creating: 'story.breakdown_progress.creatingBreakdown',
+};
+
 const STAGES: StageConfig[] = [
     { id: 'reading', label: 'Reading your story idea' },
     { id: 'aligning', label: 'Aligning with genre' },
@@ -41,6 +49,7 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
     isComplete = false,
     genre = 'your genre',
 }) => {
+    const { t } = useLanguage();
     const currentIndex = getStageIndex(currentStage);
 
     const getStageStatus = (index: number): 'complete' | 'processing' | 'pending' => {
@@ -52,9 +61,9 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
 
     const getStageLabel = (stage: StageConfig) => {
         if (stage.id === 'aligning') {
-            return `Aligning with ${genre}`;
+            return t('story.breakdown_progress.aligningWith', { genre });
         }
-        return stage.label;
+        return t(STAGE_KEYS[stage.id]);
     };
 
     return (
@@ -85,10 +94,10 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                     </div>
 
                     <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight mb-3">
-                        DEVELOPING...
+                        {t('story.breakdown_progress.developing')}
                     </h2>
-                    <p className="font-script italic text-lg text-[var(--cinema-silver)]/60">
-                        Your story is being crafted frame by frame
+                    <p className="font-script italic text-lg text-[var(--cinema-silver)]/80">
+                        {t('story.breakdown_progress.craftedFrameByFrame')}
                     </p>
                 </div>
 
@@ -111,12 +120,12 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                         ? 'border-[var(--cinema-spotlight)]'
                                         : status === 'processing'
                                             ? 'border-[var(--cinema-silver)]'
-                                            : 'border-[var(--cinema-silver)]/20'
+                                            : 'border-[var(--cinema-silver)]/40'
                                     }
                                 `}
                             >
                                 {/* Frame Number */}
-                                <span className="absolute left-3 top-4 font-mono text-[10px] text-[var(--cinema-silver)]/30">
+                                <span className="absolute left-3 top-4 font-mono text-[10px] text-[var(--cinema-silver)]/60">
                                     {String(index + 1).padStart(2, '0')}
                                 </span>
 
@@ -136,7 +145,7 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                             </motion.div>
                                         )}
                                         {status === 'pending' && (
-                                            <Circle className="w-5 h-5 text-[var(--cinema-silver)]/20" />
+                                            <Circle className="w-5 h-5 text-[var(--cinema-silver)]/60" />
                                         )}
 
                                         <span className={`
@@ -145,7 +154,7 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                                 ? 'text-[var(--cinema-spotlight)]'
                                                 : status === 'processing'
                                                     ? 'text-[var(--cinema-silver)]'
-                                                    : 'text-[var(--cinema-silver)]/30'
+                                                    : 'text-[var(--cinema-silver)]/70'
                                             }
                                         `}>
                                             {getStageLabel(stage)}
@@ -158,7 +167,7 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                             transition={{ duration: 1.5, repeat: Infinity }}
                                             className="font-mono text-[10px] text-[var(--cinema-silver)]/60 uppercase tracking-widest"
                                         >
-                                            Processing
+                                            {t('story.breakdown_progress.processing')}
                                         </motion.span>
                                     )}
                                 </div>

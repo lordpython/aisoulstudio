@@ -48,6 +48,15 @@ export interface StorySyncDocument {
 }
 
 /**
+ * Recursively strip `undefined` values from an object before writing to Firestore.
+ * Firestore's setDoc() throws on undefined field values.
+ * Uses JSON round-trip which converts undefined → null → stripped.
+ */
+function sanitizeForFirestore<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data));
+}
+
+/**
  * Strip base64/blob data from state before syncing to Firestore.
  * Media URLs that start with https:// (cloud URLs) are kept.
  */
@@ -153,7 +162,7 @@ export async function saveStoryToCloud(
       storyDoc.createdAt = serverTimestamp();
     }
 
-    await setDoc(docRef, storyDoc, { merge: true });
+    await setDoc(docRef, sanitizeForFirestore(storyDoc), { merge: true });
     console.log(`[StorySync] Saved story ${sessionId} to Firestore`);
     return true;
   } catch (error) {

@@ -1290,9 +1290,9 @@ export function useStoryGeneration(projectId?: string | null) {
 
                     if (useDeApi && shot.imageUrl.startsWith('data:')) {
                         // Use DeAPI img2video to animate the existing image
-                        const base64 = shot.imageUrl.split(',')[1] || shot.imageUrl;
+                        // Pass the full data URL — animateImageWithDeApi uses fetch() to convert to Blob
                         videoUrl = await animateImageWithDeApi(
-                            base64,
+                            shot.imageUrl,
                             shot.description,
                             deapiAspectRatio,
                             sessionId || undefined,
@@ -1456,12 +1456,55 @@ export function useStoryGeneration(projectId?: string | null) {
             });
 
             // Build subtitle items from narration (with safe duration access)
-            const parsedSubtitles = narrationSegs.map((seg, idx) => ({
-                id: `sub_${idx}`,
-                text: seg.text,
-                startTime: narrationSegs.slice(0, idx).reduce((sum, s) => sum + (s.duration || 0), 0),
-                endTime: narrationSegs.slice(0, idx + 1).reduce((sum, s) => sum + (s.duration || 0), 0),
-            }));
+            // 1. Strip markdown metadata tags (e.g. **Emotional Hook:**, **Key Narrative Beat:**)
+            // 2. Split long narration blocks into sentence-level subtitles for readability
+            const parsedSubtitles: { id: string; text: string; startTime: number; endTime: number }[] = [];
+
+            for (let idx = 0; idx < narrationSegs.length; idx++) {
+                const seg = narrationSegs[idx]!;
+                const segStart = narrationSegs.slice(0, idx).reduce((sum, s) => sum + (s.duration || 0), 0);
+                const segDuration = seg.duration || 0;
+
+                // Clean the narration text: strip markdown bold tags and metadata labels
+                let cleanText = (seg.text || '')
+                    .replace(/\*\*[^*]*?\*\*:?\s*/g, '')  // Remove **Label:** patterns
+                    .replace(/\*\*/g, '')                   // Remove any remaining ** markers
+                    .replace(/^\s*[-–—]\s*/gm, '')          // Remove leading dashes/bullets
+                    .replace(/\n+/g, ' ')                   // Collapse newlines to spaces
+                    .replace(/\s{2,}/g, ' ')                // Collapse multiple spaces
+                    .trim();
+
+                if (!cleanText) continue;
+
+                // Split into sentences for pagination (max ~2 sentences per subtitle)
+                const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
+                const chunks: string[] = [];
+                let current = '';
+
+                for (const sentence of sentences) {
+                    const trimmed = sentence.trim();
+                    if (!trimmed) continue;
+                    if (current && (current + ' ' + trimmed).length > 120) {
+                        chunks.push(current);
+                        current = trimmed;
+                    } else {
+                        current = current ? current + ' ' + trimmed : trimmed;
+                    }
+                }
+                if (current) chunks.push(current);
+
+                // Distribute segment duration evenly across chunks
+                const chunkDuration = chunks.length > 0 ? segDuration / chunks.length : segDuration;
+
+                for (let c = 0; c < chunks.length; c++) {
+                    parsedSubtitles.push({
+                        id: `sub_${idx}_${c}`,
+                        text: chunks[c]!,
+                        startTime: segStart + c * chunkDuration,
+                        endTime: segStart + (c + 1) * chunkDuration,
+                    });
+                }
+            }
 
             setProgress({ message: 'Building video timeline...', percent: 20 });
 
@@ -1488,6 +1531,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 orientation: (state.aspectRatio === '9:16' ? 'portrait' : 'landscape') as 'portrait' | 'landscape',
                 subtitlePosition: 'bottom' as const,
                 subtitleSize: 'medium' as const,
+                contentMode: 'story' as const,
             };
 
             const exportResult = await exportVideoWithFFmpeg(

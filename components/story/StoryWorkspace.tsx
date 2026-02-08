@@ -8,6 +8,8 @@ import { LockWarningDialog } from './LockWarningDialog';
 import { StyleSelector } from './StyleSelector';
 import { BreakdownProgress } from './BreakdownProgress';
 import { StoryboardProgress } from './StoryboardProgress';
+import { SceneCard } from './SceneCard';
+import { StepProgressBar } from './StepProgressBar';
 import type { StoryState, StoryStep, CharacterProfile } from '@/types';
 import type { VisualStyleKey, AspectRatioId } from '@/constants/visualStyles';
 import { estimateProjectCost } from '@/utils/costEstimator';
@@ -20,6 +22,7 @@ import {
 import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check, History } from 'lucide-react';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { ExportOptionsPanel } from './ExportOptionsPanel';
+import { useLanguage } from '@/i18n/useLanguage';
 
 interface StageProgress {
     totalScenes: number;
@@ -118,6 +121,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onImportProject,
     projectId,
 }) => {
+    const { t } = useLanguage();
+
     const getHighLevelStep = (step: StoryStep): MainStep => {
         if (step === 'idea') return 'idea';
         if (['breakdown', 'script', 'characters'].includes(step)) return 'breakdown';
@@ -163,9 +168,9 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     }, [onUndo, onRedo, canUndo, canRedo]);
 
     const mainTabs: { id: MainStep; label: string; number: string; romanNumeral: string }[] = [
-        { id: 'idea', label: 'Story Idea', number: '1', romanNumeral: 'I' },
-        { id: 'breakdown', label: 'Breakdown', number: '2', romanNumeral: 'II' },
-        { id: 'storyboard', label: 'Storyboard', number: '3', romanNumeral: 'III' },
+        { id: 'idea', label: t('story.storyIdea'), number: '1', romanNumeral: 'I' },
+        { id: 'breakdown', label: t('story.breakdown'), number: '2', romanNumeral: 'II' },
+        { id: 'storyboard', label: t('story.storyboard'), number: '3', romanNumeral: 'III' },
     ];
 
     const handleProceed = () => {
@@ -238,170 +243,16 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
         return stepIndex < currentIndex ? 'completed' : 'pending';
     };
 
-    const renderSubNav = (tabs: { id: StoryStep; label: string }[]) => {
-        const currentIndex = tabs.findIndex(t => t.id === subTab);
-
-        return (
-            <div className="w-full bg-gradient-to-b from-[var(--cinema-celluloid)] to-[var(--cinema-void)] border-b border-[var(--cinema-silver)]/5">
-                <div className="max-w-5xl mx-auto px-8 py-6">
-                    {/* Progress Steps */}
-                    <div className="relative flex items-center justify-between">
-                        {/* Background Progress Line */}
-                        <div className="absolute top-5 left-0 right-0 h-0.5 bg-[var(--cinema-silver)]/10" />
-
-                        {/* Active Progress Line */}
-                        <motion.div
-                            className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-[var(--cinema-spotlight)] via-[var(--cinema-editorial)] to-emerald-500"
-                            initial={false}
-                            animate={{
-                                width: `${(currentIndex / Math.max(tabs.length - 1, 1)) * 100}%`,
-                            }}
-                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                            style={{ boxShadow: '0 0 12px var(--glow-spotlight)' }}
-                        />
-
-                        {tabs.map((tab, index) => {
-                            const status = getStepCompletionStatus(tab.id);
-                            const isActive = tab.id === subTab;
-                            const isCompleted = status === 'completed';
-                            const isProcessingStep = status === 'processing';
-                            const isPending = status === 'pending';
-                            const isAccessible = index <= currentIndex || isCompleted;
-
-                            return (
-                                <div key={tab.id} className="relative flex flex-col items-center z-10">
-                                    {/* Step Indicator */}
-                                    <motion.button
-                                        onClick={() => isAccessible && handleTabNavigation(tab.id)}
-                                        disabled={!isAccessible}
-                                        className={`
-                                            relative w-10 h-10 rounded-full flex items-center justify-center
-                                            transition-all duration-300 border-2
-                                            ${isActive
-                                                ? 'bg-[var(--cinema-spotlight)] border-[var(--cinema-spotlight)] text-[var(--cinema-void)] scale-110'
-                                                : isCompleted
-                                                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                                                    : isPending
-                                                        ? 'bg-[var(--cinema-void)] border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)]/30'
-                                                        : 'bg-[var(--cinema-celluloid)] border-[var(--cinema-silver)]/30 text-[var(--cinema-silver)]/50'
-                                            }
-                                            ${isAccessible && !isActive ? 'hover:border-[var(--cinema-spotlight)]/50 hover:scale-105 cursor-pointer' : ''}
-                                            ${!isAccessible ? 'cursor-not-allowed' : ''}
-                                        `}
-                                        whileHover={isAccessible && !isActive ? { scale: 1.08 } : {}}
-                                        whileTap={isAccessible ? { scale: 0.95 } : {}}
-                                    >
-                                        <AnimatePresence mode="wait">
-                                            {isProcessingStep ? (
-                                                <motion.div
-                                                    key="processing"
-                                                    initial={{ opacity: 0, scale: 0.5 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    exit={{ opacity: 0, scale: 0.5 }}
-                                                >
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                </motion.div>
-                                            ) : isCompleted ? (
-                                                <motion.div
-                                                    key="completed"
-                                                    initial={{ opacity: 0, scale: 0.5 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    exit={{ opacity: 0, scale: 0.5 }}
-                                                >
-                                                    <Check className="w-5 h-5" />
-                                                </motion.div>
-                                            ) : (
-                                                <motion.span
-                                                    key="number"
-                                                    initial={{ opacity: 0, scale: 0.5 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    exit={{ opacity: 0, scale: 0.5 }}
-                                                    className="font-mono text-sm font-bold"
-                                                >
-                                                    {index + 1}
-                                                </motion.span>
-                                            )}
-                                        </AnimatePresence>
-
-                                        {/* Pulse ring for active step */}
-                                        {isActive && (
-                                            <motion.div
-                                                className="absolute inset-0 rounded-full border-2 border-[var(--cinema-spotlight)]"
-                                                initial={{ scale: 1, opacity: 0.5 }}
-                                                animate={{ scale: 1.5, opacity: 0 }}
-                                                transition={{ duration: 1.5, repeat: Infinity }}
-                                            />
-                                        )}
-                                    </motion.button>
-
-                                    {/* Step Label */}
-                                    <motion.span
-                                        className={`
-                                            mt-3 text-xs font-medium tracking-wide whitespace-nowrap
-                                            transition-all duration-300
-                                            ${isActive
-                                                ? 'text-[var(--cinema-spotlight)]'
-                                                : isCompleted
-                                                    ? 'text-emerald-400/80'
-                                                    : 'text-[var(--cinema-silver)]/40'
-                                            }
-                                        `}
-                                        animate={{ y: isActive ? -2 : 0 }}
-                                    >
-                                        {tab.label}
-                                    </motion.span>
-
-                                    {/* Status Badge */}
-                                    <AnimatePresence>
-                                        {isCompleted && !isActive && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 5 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: 5 }}
-                                                className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center"
-                                            >
-                                                <Check className="w-2.5 h-2.5 text-white" />
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Phase Transition Indicator */}
-                    <AnimatePresence>
-                        {isProcessing && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="mt-4 pt-4 border-t border-[var(--cinema-silver)]/5"
-                            >
-                                <div className="flex items-center justify-center gap-3">
-                                    <Loader2 className="w-4 h-4 text-[var(--cinema-spotlight)] animate-spin" />
-                                    <span className="text-sm text-[var(--cinema-silver)]/60 font-script italic">
-                                        {progress.message || 'Processing...'}
-                                    </span>
-                                    <div className="w-32 h-1.5 bg-[var(--cinema-silver)]/10 rounded-full overflow-hidden">
-                                        <motion.div
-                                            className="h-full bg-gradient-to-r from-[var(--cinema-spotlight)] to-[var(--cinema-editorial)]"
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${progress.percent}%` }}
-                                            transition={{ duration: 0.3 }}
-                                        />
-                                    </div>
-                                    <span className="text-xs text-[var(--cinema-silver)]/40 font-mono">
-                                        {progress.percent}%
-                                    </span>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </div>
-        );
-    };
+    const renderSubNav = (tabs: { id: StoryStep; label: string }[]) => (
+        <StepProgressBar
+            tabs={tabs}
+            currentTabId={subTab}
+            onTabClick={(tabId) => handleTabNavigation(tabId as StoryStep)}
+            getStepStatus={(tabId) => getStepCompletionStatus(tabId as StoryStep)}
+            isProcessing={isProcessing}
+            progress={progress}
+        />
+    );
 
     const renderMainContent = () => {
         if (activeMainTab === 'idea') {
@@ -442,9 +293,9 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
             }
 
             const breakdownTabs: { id: StoryStep; label: string }[] = [
-                { id: 'breakdown', label: 'Scene Breakdown' },
-                { id: 'script', label: 'Script' },
-                { id: 'characters', label: 'Cast' },
+                { id: 'breakdown', label: t('story.sceneBreakdown') },
+                { id: 'script', label: t('story.script') },
+                { id: 'characters', label: t('story.cast') },
             ];
 
             return (
@@ -470,7 +321,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     className="p-8 max-w-5xl mx-auto w-full"
                                 >
                                     <h2 className="font-display text-3xl text-[var(--cinema-silver)] mb-8 tracking-tight">
-                                        Scene Breakdown
+                                        {t('story.sceneBreakdown')}
                                     </h2>
                                     <motion.div
                                         variants={staggerContainer}
@@ -479,36 +330,14 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         className="space-y-4"
                                     >
                                         {storyState.breakdown.map((scene) => (
-                                            <motion.div
+                                            <SceneCard
                                                 key={scene.id}
-                                                variants={staggerItem}
-                                                className="bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10 p-6 rounded-lg shadow-editorial hover:border-[var(--cinema-spotlight)]/30 transition-all duration-300"
-                                            >
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-xs text-[var(--cinema-spotlight)] tracking-widest">
-                                                            SCENE {String(scene.sceneNumber).padStart(2, '0')}
-                                                        </span>
-                                                        <div className="w-8 h-px bg-[var(--cinema-velvet)]" />
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            const feedback = window.prompt(`How should we redo Scene ${scene.sceneNumber}? (Optional)`, "");
-                                                            if (feedback !== null) onRegenerateScene?.(scene.sceneNumber, feedback);
-                                                        }}
-                                                        className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-spotlight)] rounded-lg transition-colors"
-                                                        disabled={isProcessing}
-                                                    >
-                                                        <RefreshCcw className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <h3 className="font-display text-xl text-[var(--cinema-silver)] mb-2" dir="auto">
-                                                    {scene.heading}
-                                                </h3>
-                                                <p className="font-script italic text-[var(--cinema-silver)]/70 leading-relaxed" dir="auto">
-                                                    {scene.action}
-                                                </p>
-                                            </motion.div>
+                                                sceneNumber={scene.sceneNumber}
+                                                heading={scene.heading}
+                                                content={scene.action}
+                                                onRegenerate={(num, feedback) => onRegenerateScene?.(num, feedback)}
+                                                isProcessing={isProcessing}
+                                            />
                                         ))}
                                     </motion.div>
                                 </motion.div>
@@ -566,12 +395,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
             }
 
             const storyboardTabs: { id: StoryStep; label: string }[] = [
-                { id: 'shots', label: 'Shot List' },
-                { id: 'style', label: 'Visual Style' },
-                { id: 'storyboard', label: 'Storyboard' },
-                { id: 'narration', label: 'Narration' },
-                { id: 'animation', label: 'Animation' },
-                { id: 'export', label: 'Export' },
+                { id: 'shots', label: t('story.shotList') },
+                { id: 'style', label: t('story.visualStyle') },
+                { id: 'storyboard', label: t('story.storyboard') },
+                { id: 'narration', label: t('story.narration') },
+                { id: 'animation', label: t('story.animation') },
+                { id: 'export', label: t('story.export') },
             ];
 
             return (
@@ -598,12 +427,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 >
                                     <div className="flex justify-between items-center mb-8">
                                         <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight">
-                                            Shot Breakdown
+                                            {t('story.shotBreakdown')}
                                         </h2>
                                         {storyState.isLocked && (
                                             <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--cinema-spotlight)]/10 text-[var(--cinema-spotlight)] rounded border border-[var(--cinema-spotlight)]/20">
                                                 <Lock className="w-3 h-3" />
-                                                <span className="text-xs font-mono tracking-widest">LOCKED</span>
+                                                <span className="text-xs font-mono tracking-widest">{t('story.locked')}</span>
                                             </div>
                                         )}
                                     </div>
@@ -635,7 +464,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                                 onClick={() => onGenerateShots(idx)}
                                                                 className="text-xs btn-cinematic px-4 py-1.5 rounded"
                                                             >
-                                                                Generate Shots
+                                                                {t('story.generateShots')}
                                                             </button>
                                                         )}
                                                     </div>
@@ -660,7 +489,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                         ))}
                                                         {shots.length === 0 && (
                                                             <div className="text-[var(--cinema-silver)]/30 font-script italic text-sm p-2">
-                                                                No shots generated
+                                                                {t('story.noShotsGenerated')}
                                                             </div>
                                                         )}
                                                     </div>
@@ -716,7 +545,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 >
                                     <div className="flex justify-between items-center mb-8">
                                         <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight">
-                                            Narration
+                                            {t('story.narration')}
                                         </h2>
                                         {onGenerateNarration && (
                                             <motion.button
@@ -727,12 +556,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                 className="btn-cinematic px-5 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                                             >
                                                 <Mic className="w-4 h-4" />
-                                                {allScenesHaveNarration?.() ? 'Regenerate Narration' : 'Generate Narration'}
+                                                {allScenesHaveNarration?.() ? t('story.regenerateNarration') : t('story.generateNarration')}
                                             </motion.button>
                                         )}
                                     </div>
                                     <p className="text-[var(--cinema-silver)]/60 font-script italic mb-6">
-                                        Generate AI voiceover for each scene using Gemini TTS.
+                                        {t('story.narrationDescription')}
                                     </p>
                                     <motion.div
                                         variants={staggerContainer}
@@ -769,8 +598,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         {(!storyState.narrationSegments || storyState.narrationSegments.length === 0) && (
                                             <div className="text-center py-16 text-[var(--cinema-silver)]/40">
                                                 <Mic className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                                                <p className="font-script italic">No narration generated yet</p>
-                                                <p className="text-xs mt-2">Click "Generate Narration" to create voiceover</p>
+                                                <p className="font-script italic">{t('story.noNarrationYet')}</p>
+                                                <p className="text-xs mt-2">{t('story.clickGenerateNarration')}</p>
                                             </div>
                                         )}
                                     </motion.div>
@@ -787,7 +616,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 >
                                     <div className="flex justify-between items-center mb-8">
                                         <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight">
-                                            Animation
+                                            {t('story.animation')}
                                         </h2>
                                         {onAnimateShots && (
                                             <motion.button
@@ -798,12 +627,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                 className="btn-cinematic px-5 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                                             >
                                                 <Video className="w-4 h-4" />
-                                                {allShotsHaveAnimation?.() ? 'Regenerate All' : 'Animate All Shots'}
+                                                {allShotsHaveAnimation?.() ? t('story.regenerateAll') : t('story.animateAllShots')}
                                             </motion.button>
                                         )}
                                     </div>
                                     <p className="text-[var(--cinema-silver)]/60 font-script italic mb-6">
-                                        Convert storyboard images to animated video clips using DeAPI or Veo.
+                                        {t('story.animationDescription')}
                                     </p>
                                     <motion.div
                                         variants={staggerContainer}
@@ -852,7 +681,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                         )}
                                                         {animated && (
                                                             <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500/80 text-white text-[10px] rounded uppercase tracking-wider">
-                                                                Animated
+                                                                {t('story.animated')}
                                                             </div>
                                                         )}
                                                     </div>
@@ -870,8 +699,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         {storyState.shotlist.length === 0 && (
                                             <div className="col-span-full text-center py-16 text-[var(--cinema-silver)]/40">
                                                 <Video className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                                                <p className="font-script italic">No shots to animate</p>
-                                                <p className="text-xs mt-2">Generate storyboard visuals first</p>
+                                                <p className="font-script italic">{t('story.noShotsToAnimate')}</p>
+                                                <p className="text-xs mt-2">{t('story.generateStoryboardFirst')}</p>
                                             </div>
                                         )}
                                     </motion.div>
@@ -887,7 +716,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     className="p-8 max-w-3xl mx-auto w-full"
                                 >
                                     <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight mb-8 text-center">
-                                        Export Video
+                                        {t('story.exportVideo')}
                                     </h2>
                                     <div className="bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10 rounded-xl p-8">
                                         {/* Preview */}
@@ -910,19 +739,19 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                 <div className="text-2xl font-display text-[var(--cinema-spotlight)]">
                                                     {storyState.breakdown.length}
                                                 </div>
-                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">Scenes</div>
+                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">{t('story.scenes')}</div>
                                             </div>
                                             <div className="text-center p-4 bg-[var(--cinema-void)]/50 rounded-lg">
                                                 <div className="text-2xl font-display text-[var(--cinema-editorial)]">
                                                     {storyState.shotlist.length}
                                                 </div>
-                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">Shots</div>
+                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">{t('story.shots')}</div>
                                             </div>
                                             <div className="text-center p-4 bg-[var(--cinema-void)]/50 rounded-lg">
                                                 <div className="text-2xl font-display text-emerald-400">
                                                     {storyState.narrationSegments?.reduce((sum, s) => sum + s.duration, 0).toFixed(0) || 0}s
                                                 </div>
-                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">Duration</div>
+                                                <div className="text-xs text-[var(--cinema-silver)]/50 uppercase tracking-wider">{t('story.duration')}</div>
                                             </div>
                                         </div>
                                         {/* Actions */}
@@ -938,12 +767,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                     {isProcessing ? (
                                                         <>
                                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                                            Rendering Video...
+                                                            {t('story.renderingVideo')}
                                                         </>
                                                     ) : (
                                                         <>
                                                             <Film className="w-5 h-5" />
-                                                            Export Video
+                                                            {t('story.exportVideo')}
                                                         </>
                                                     )}
                                                 </motion.button>
@@ -955,12 +784,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                                                 >
                                                     <Download className="w-5 h-5" />
-                                                    Download Video
+                                                    {t('story.downloadVideo')}
                                                 </motion.button>
                                             )}
                                             {!storyState.narrationSegments?.length && (
                                                 <p className="text-center text-xs text-[var(--cinema-velvet)]">
-                                                    Generate narration before exporting
+                                                    {t('story.generateNarrationBeforeExport')}
                                                 </p>
                                             )}
                                         </div>
@@ -992,114 +821,146 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
             {/* Vignette Effect */}
             <div className="absolute inset-0 pointer-events-none z-40 bg-[radial-gradient(ellipse_at_center,transparent_50%,var(--cinema-void)_100%)]" />
 
-            {/* Main Top Navigation - Cinematic Chapter Style */}
-            <div className="relative z-10 flex items-center justify-between px-8 py-6 bg-[var(--cinema-celluloid)]/80 backdrop-blur-xl border-b border-[var(--cinema-silver)]/5">
-                {/* Film Logo */}
-                <div className="flex items-center gap-3 mr-8">
-                    <Film className="w-5 h-5 text-[var(--cinema-spotlight)]" />
-                    <span className="font-display text-sm text-[var(--cinema-silver)]/60 tracking-widest">STORY MODE</span>
-                </div>
-
-                {/* Chapter Navigation */}
-                <div className="flex-1 flex items-center justify-center gap-16">
+            {/* Main Top Navigation */}
+            <div
+                className="relative z-10 flex items-center justify-between px-6 py-3"
+                style={{
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}
+            >
+                {/* Step Navigation */}
+                <div className="flex items-center gap-1">
                     {mainTabs.map((tab, index) => {
                         const isActive = activeMainTab === tab.id;
                         const stepOrder = ['idea', 'breakdown', 'storyboard'];
                         const currentIdx = stepOrder.indexOf(getHighLevelStep(storyState.currentStep));
                         const tabIdx = stepOrder.indexOf(tab.id);
                         const isAccessible = tabIdx <= currentIdx;
+                        const isCompleted = tabIdx < currentIdx;
 
                         return (
-                            <button
-                                key={tab.id}
-                                onClick={() => {
-                                    if (isAccessible) {
-                                        setActiveMainTab(tab.id);
-                                        if (tab.id === 'breakdown') setSubTab('breakdown');
-                                        if (tab.id === 'storyboard') setSubTab('shots');
-                                        if (tab.id === 'idea') setSubTab('idea');
-                                    }
-                                }}
-                                disabled={!isAccessible}
-                                className={`
-                                    group relative flex flex-col items-center gap-1 transition-all duration-500
-                                    ${isActive ? 'opacity-100' : isAccessible ? 'opacity-50 hover:opacity-80' : 'opacity-20 cursor-not-allowed'}
-                                `}
-                            >
-                                {/* Roman Numeral */}
-                                <span className={`
-                                    font-display text-2xl tracking-wider transition-colors duration-300
-                                    ${isActive ? 'text-[var(--cinema-spotlight)]' : 'text-[var(--cinema-silver)]'}
-                                `}>
-                                    {tab.romanNumeral}
-                                </span>
-
-                                {/* Label */}
-                                <span className="font-script text-sm italic text-[var(--cinema-silver)]/70">
-                                    {tab.label}
-                                </span>
-
-                                {/* Active Indicator - Spotlight Underline */}
-                                {isActive && (
-                                    <motion.div
-                                        layoutId="mainTabIndicator"
-                                        className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-16 h-0.5 bg-[var(--cinema-spotlight)]"
+                            <React.Fragment key={tab.id}>
+                                <motion.button
+                                    onClick={() => {
+                                        if (isAccessible) {
+                                            setActiveMainTab(tab.id);
+                                            if (tab.id === 'breakdown') setSubTab('breakdown');
+                                            if (tab.id === 'storyboard') setSubTab('shots');
+                                            if (tab.id === 'idea') setSubTab('idea');
+                                        }
+                                    }}
+                                    disabled={!isAccessible}
+                                    whileHover={isAccessible ? { scale: 1.01 } : {}}
+                                    whileTap={isAccessible ? { scale: 0.99 } : {}}
+                                    className="relative flex items-center gap-2.5 px-4 py-2 rounded-lg transition-all duration-200"
+                                    style={{
+                                        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                        border: `1px solid ${isActive ? 'rgba(255,255,255,0.1)' : 'transparent'}`,
+                                        opacity: !isAccessible ? 0.5 : isActive ? 1 : 0.8,
+                                        cursor: !isAccessible ? 'not-allowed' : 'pointer',
+                                    }}
+                                >
+                                    {/* Step number */}
+                                    <span
+                                        className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-editorial font-bold flex-shrink-0 transition-all duration-200"
                                         style={{
-                                            boxShadow: '0 0 20px var(--glow-spotlight), 0 0 40px var(--glow-spotlight)'
+                                            background: isActive
+                                                ? 'rgba(255,255,255,0.9)'
+                                                : isCompleted
+                                                    ? 'rgba(52, 211, 153, 0.2)'
+                                                    : 'rgba(255,255,255,0.06)',
+                                            color: isActive
+                                                ? '#000'
+                                                : isCompleted
+                                                    ? '#34D399'
+                                                    : 'rgba(255,255,255,0.7)',
+                                        }}
+                                    >
+                                        {isCompleted ? (
+                                            <Check className="w-3 h-3" />
+                                        ) : (
+                                            tab.number
+                                        )}
+                                    </span>
+
+                                    {/* Label */}
+                                    <span
+                                        className="font-editorial text-[13px] font-medium whitespace-nowrap transition-colors duration-200"
+                                        style={{
+                                            color: isActive
+                                                ? 'rgba(255,255,255,0.95)'
+                                                : isCompleted
+                                                    ? 'rgba(52, 211, 153, 0.85)'
+                                                    : 'rgba(255,255,255,0.75)',
+                                        }}
+                                    >
+                                        {tab.label}
+                                    </span>
+                                </motion.button>
+
+                                {/* Connector */}
+                                {index < mainTabs.length - 1 && (
+                                    <div
+                                        className="w-6 h-px mx-0.5 flex-shrink-0"
+                                        style={{
+                                            background: isCompleted
+                                                ? 'rgba(52, 211, 153, 0.3)'
+                                                : 'rgba(255,255,255,0.06)',
                                         }}
                                     />
                                 )}
-
-                                {/* Connector Line */}
-                                {index < mainTabs.length - 1 && (
-                                    <div className="absolute left-full top-1/2 -translate-y-1/2 w-16 h-px bg-[var(--cinema-silver)]/10 ml-8" />
-                                )}
-                            </button>
+                            </React.Fragment>
                         );
                     })}
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     {activeMainTab !== 'idea' && (
-                        <div className="flex items-center gap-1 mr-2">
+                        <div className="flex items-center gap-0.5 mr-1">
                             <button
                                 onClick={onUndo}
                                 disabled={!canUndo}
-                                className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                                className="p-1.5 rounded-md text-white/30 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent transition-all"
                                 title="Undo (Ctrl+Z)"
                             >
-                                <Undo2 className="w-4 h-4" />
+                                <Undo2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={onRedo}
                                 disabled={!canRedo}
-                                className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                                className="p-1.5 rounded-md text-white/30 hover:text-white/70 hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent transition-all"
                                 title="Redo (Ctrl+Y)"
                             >
-                                <Redo2 className="w-4 h-4" />
+                                <Redo2 className="w-3.5 h-3.5" />
                             </button>
                             {projectId && (
                                 <button
                                     onClick={() => setShowVersionHistory(true)}
-                                    className="p-2 text-[var(--cinema-silver)]/40 hover:text-violet-400 transition-colors"
+                                    className="p-1.5 rounded-md text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                                     title="Version History"
                                 >
-                                    <History className="w-4 h-4" />
+                                    <History className="w-3.5 h-3.5" />
                                 </button>
                             )}
+                            <div className="w-px h-4 bg-white/6 mx-1" />
                         </div>
                     )}
 
                     {activeMainTab === 'breakdown' && subTab === 'breakdown' && storyState.breakdown.length > 0 && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => handleTabNavigation('script')}
                             disabled={isProcessing}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200 disabled:opacity-40"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            {isProcessing ? 'Generating...' : 'Create Script'}
+                            {isProcessing ? t('studio.generating') : t('story.createScript')}
                         </motion.button>
                     )}
 
@@ -1108,105 +969,133 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                             {onExportScript && (
                                 <button
                                     onClick={onExportScript}
-                                    className="p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] transition-colors"
+                                    className="p-1.5 rounded-md text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                                     title="Export"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-3.5 h-3.5" />
                                 </button>
                             )}
                             <motion.button
-                                whileHover={{ scale: 1.02 }}
+                                whileHover={{ y: -1 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={handleProceed}
-                                className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                                style={{
+                                    background: 'rgba(255,255,255,0.9)',
+                                    color: '#000',
+                                }}
                             >
-                                {!storyState.isLocked && <Lock className="w-4 h-4" />}
-                                {storyState.isLocked ? 'Continue to Cast' : 'Lock Script'}
+                                {!storyState.isLocked && <Lock className="w-3 h-3" />}
+                                {storyState.isLocked ? t('story.continueToCast') : t('story.lockScript')}
                             </motion.button>
                         </div>
                     )}
 
                     {activeMainTab === 'breakdown' && subTab === 'characters' && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={onNextStep}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            Create Shot List
+                            {t('story.createShotList')}
                         </motion.button>
                     )}
 
                     {activeMainTab === 'storyboard' && subTab === 'shots' && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSubTab('style')}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            Select Style
+                            {t('story.selectStyle')}
                         </motion.button>
                     )}
 
                     {activeMainTab === 'storyboard' && subTab === 'style' && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={onNextStep}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            Generate Storyboard
+                            {t('story.generateStoryboard')}
                         </motion.button>
                     )}
 
                     {activeMainTab === 'storyboard' && subTab === 'storyboard' && storyState.scenesWithVisuals?.length && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSubTab('narration')}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            <Mic className="w-4 h-4" />
-                            Add Narration
+                            <Mic className="w-3 h-3" />
+                            {t('story.addNarration')}
                         </motion.button>
                     )}
 
                     {activeMainTab === 'storyboard' && subTab === 'narration' && storyState.narrationSegments?.length && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSubTab('animation')}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            <Video className="w-4 h-4" />
-                            Animate Shots
+                            <Video className="w-3 h-3" />
+                            {t('story.animateShots')}
                         </motion.button>
                     )}
 
                     {activeMainTab === 'storyboard' && subTab === 'animation' && (
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSubTab('export')}
-                            className="btn-cinematic px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-editorial text-[12px] font-semibold transition-all duration-200"
+                            style={{
+                                background: 'rgba(255,255,255,0.9)',
+                                color: '#000',
+                            }}
                         >
-                            <Film className="w-4 h-4" />
-                            Export
+                            <Film className="w-3 h-3" />
+                            {t('story.export')}
                         </motion.button>
                     )}
                 </div>
             </div>
 
-            {/* Cinematic Progress Bar */}
+            {/* Progress Bar */}
             {isProcessing && (
-                <div className="h-1 w-full bg-[var(--cinema-celluloid)] overflow-hidden relative z-10">
+                <div className="h-0.5 w-full overflow-hidden relative z-10" style={{ background: 'rgba(255,255,255,0.04)' }}>
                     <motion.div
-                        className="h-full bg-gradient-to-r from-[var(--cinema-spotlight)] to-[var(--cinema-editorial)]"
+                        className="h-full"
                         initial={{ width: 0 }}
                         animate={{ width: `${progress.percent}%` }}
                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                         style={{
-                            boxShadow: '0 0 10px var(--glow-spotlight)'
+                            background: 'linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.8))',
                         }}
                     />
                 </div>
@@ -1223,7 +1112,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                     >
                         <AlertCircle className="w-5 h-5 text-[var(--cinema-velvet)] shrink-0 mt-0.5" />
                         <div className="flex-1">
-                            <p className="text-sm text-[var(--cinema-silver)] font-medium">Something went wrong</p>
+                            <p className="text-sm text-[var(--cinema-silver)] font-medium">{t('common.somethingWentWrong')}</p>
                             <p className="text-xs text-[var(--cinema-silver)]/60 mt-1 font-script italic">{error}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1233,7 +1122,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     className="px-3 py-1.5 text-xs font-medium bg-[var(--cinema-velvet)]/30 hover:bg-[var(--cinema-velvet)]/50 text-[var(--cinema-silver)] rounded transition-all flex items-center gap-1.5"
                                 >
                                     <RefreshCcw className="w-3 h-3" />
-                                    Retry
+                                    {t('common.retry')}
                                 </button>
                             )}
                             {onClearError && (

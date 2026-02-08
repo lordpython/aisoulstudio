@@ -8,6 +8,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Film, X, Info } from 'lucide-react';
 import { backdropFade, modalScale } from '@/lib/cinematicMotion';
+import { useLanguage } from '@/i18n/useLanguage';
 
 interface LockWarningDialogProps {
     isOpen: boolean;
@@ -26,6 +27,8 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
     sceneCount = 0,
     estimatedShots = 0,
 }) => {
+    const { t } = useLanguage();
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -78,12 +81,12 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
 
                             {/* Title */}
                             <h2 className="font-display text-3xl text-[var(--cinema-silver)] text-center mb-3 tracking-tight">
-                                LOCK THE SCRIPT
+                                {t('story.lock_dialog.lockTheScript')}
                             </h2>
 
                             {/* Warning Message */}
                             <p className="font-script italic text-[var(--cinema-silver)]/60 text-center text-lg mb-8">
-                                Your screenplay will be finalized and production begins...
+                                {t('story.lock_dialog.scriptFinalized')}
                             </p>
 
                             {/* Cost Breakdown - Cinematic Style */}
@@ -91,7 +94,7 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-8 h-px bg-[var(--cinema-spotlight)]/30" />
                                     <span className="font-mono text-[10px] text-[var(--cinema-silver)]/40 uppercase tracking-[0.2em]">
-                                        Production Estimate
+                                        {t('story.lock_dialog.productionEstimate')}
                                     </span>
                                     <div className="flex-1 h-px bg-[var(--cinema-spotlight)]/30" />
                                 </div>
@@ -99,19 +102,19 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                                 <div className="space-y-3">
                                     {sceneCount > 0 && (
                                         <div className="flex justify-between items-center">
-                                            <span className="font-script italic text-[var(--cinema-silver)]/60">Scenes</span>
+                                            <span className="font-script italic text-[var(--cinema-silver)]/60">{t('story.scenes')}</span>
                                             <span className="font-mono text-[var(--cinema-silver)]">{sceneCount}</span>
                                         </div>
                                     )}
                                     {estimatedShots > 0 && (
                                         <div className="flex justify-between items-center">
-                                            <span className="font-script italic text-[var(--cinema-silver)]/60">Estimated Shots</span>
+                                            <span className="font-script italic text-[var(--cinema-silver)]/60">{t('story.lock_dialog.estimatedShots')}</span>
                                             <span className="font-mono text-[var(--cinema-silver)]">~{estimatedShots}</span>
                                         </div>
                                     )}
                                     <div className="h-px bg-[var(--cinema-silver)]/10 my-3" />
                                     <div className="flex justify-between items-center">
-                                        <span className="font-display text-[var(--cinema-silver)]">Total Budget</span>
+                                        <span className="font-display text-[var(--cinema-silver)]">{t('story.lock_dialog.totalBudget')}</span>
                                         <span className="font-display text-2xl text-[var(--cinema-spotlight)]">
                                             ${estimatedCost.toFixed(2)}
                                         </span>
@@ -123,8 +126,7 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                             <div className="flex items-start gap-3 mb-8 p-4 bg-[var(--cinema-spotlight)]/5 border border-[var(--cinema-spotlight)]/20 rounded-lg">
                                 <Info className="w-4 h-4 text-[var(--cinema-spotlight)] mt-0.5 shrink-0" />
                                 <p className="font-script italic text-sm text-[var(--cinema-silver)]/60">
-                                    Shot breakdowns will be generated and visuals prepared for production.
-                                    Final costs may vary based on shot complexity.
+                                    {t('story.lock_dialog.shotBreakdownInfo')}
                                 </p>
                             </div>
 
@@ -136,7 +138,7 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                                     onClick={onClose}
                                     className="flex-1 px-6 py-3.5 rounded-lg font-display text-[var(--cinema-silver)] bg-[var(--cinema-void)] border border-[var(--cinema-silver)]/20 hover:border-[var(--cinema-silver)]/40 transition-all"
                                 >
-                                    Back to Edit
+                                    {t('story.lock_dialog.backToEdit')}
                                 </motion.button>
                                 <motion.button
                                     whileHover={{ scale: 1.02 }}
@@ -145,7 +147,7 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg btn-cinematic font-display"
                                 >
                                     <Lock className="w-4 h-4" />
-                                    Lock & Begin
+                                    {t('story.lock_dialog.lockAndBegin')}
                                 </motion.button>
                             </div>
                         </div>

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Film, Ghost, Crown, Baby, Plane, BookOpen, Lightbulb, Wand2, ChevronDown, Layout } from 'lucide-react';
-import { staggerContainer, staggerItem, cardHover, filmReelSpin } from '@/lib/cinematicMotion';
+import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Ghost, Crown, Baby, BookOpen, Lightbulb, Wand2, ChevronRight, Layout, ArrowRight, Zap } from 'lucide-react';
 import { TemplatesGallery } from './TemplatesGallery';
 import type { StoryState } from '@/types';
+import { useLanguage } from '@/i18n/useLanguage';
 
 interface IdeaViewProps {
     initialTopic?: string;
@@ -12,23 +12,21 @@ interface IdeaViewProps {
     isProcessing?: boolean;
 }
 
-// Extended genre list with more options
 const GENRES = [
-    { id: 'Drama', label: 'Drama', icon: Heart, gradient: 'from-rose-900/40 to-rose-950/60', description: 'Emotional, character-driven narratives' },
-    { id: 'Comedy', label: 'Comedy', icon: Laugh, gradient: 'from-amber-900/40 to-amber-950/60', description: 'Humor and lighthearted stories' },
-    { id: 'Thriller', label: 'Thriller', icon: Skull, gradient: 'from-slate-800/40 to-slate-950/60', description: 'Suspense and tension' },
-    { id: 'Sci-Fi', label: 'Sci-Fi', icon: Rocket, gradient: 'from-cyan-900/40 to-cyan-950/60', description: 'Futuristic and technological themes' },
-    { id: 'Mystery', label: 'Mystery', icon: Search, gradient: 'from-violet-900/40 to-violet-950/60', description: 'Puzzles and investigations' },
-    { id: 'Action', label: 'Action', icon: Sword, gradient: 'from-orange-900/40 to-orange-950/60', description: 'High-energy sequences' },
-    { id: 'Horror', label: 'Horror', icon: Ghost, gradient: 'from-gray-900/40 to-gray-950/60', description: 'Fear and supernatural elements' },
-    { id: 'Fantasy', label: 'Fantasy', icon: Wand2, gradient: 'from-purple-900/40 to-purple-950/60', description: 'Magic and mythical worlds' },
-    { id: 'Romance', label: 'Romance', icon: Heart, gradient: 'from-pink-900/40 to-pink-950/60', description: 'Love stories and relationships' },
-    { id: 'Historical', label: 'Historical', icon: Crown, gradient: 'from-yellow-900/40 to-yellow-950/60', description: 'Period pieces and true events' },
-    { id: 'Documentary', label: 'Documentary', icon: BookOpen, gradient: 'from-emerald-900/40 to-emerald-950/60', description: 'Educational and factual content' },
-    { id: 'Animation', label: 'Animation', icon: Baby, gradient: 'from-blue-900/40 to-blue-950/60', description: 'Animated storytelling' },
+    { id: 'Drama', icon: Heart, color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.08)' },
+    { id: 'Comedy', icon: Laugh, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.08)' },
+    { id: 'Thriller', icon: Skull, color: '#64748B', bg: 'rgba(100, 116, 139, 0.08)' },
+    { id: 'Sci-Fi', icon: Rocket, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.08)' },
+    { id: 'Mystery', icon: Search, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.08)' },
+    { id: 'Action', icon: Sword, color: '#F97316', bg: 'rgba(249, 115, 22, 0.08)' },
+    { id: 'Horror', icon: Ghost, color: '#6B7280', bg: 'rgba(107, 114, 128, 0.08)' },
+    { id: 'Fantasy', icon: Wand2, color: '#A855F7', bg: 'rgba(168, 85, 247, 0.08)' },
+    { id: 'Romance', icon: Heart, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.08)' },
+    { id: 'Historical', icon: Crown, color: '#D97706', bg: 'rgba(217, 119, 6, 0.08)' },
+    { id: 'Documentary', icon: BookOpen, color: '#10B981', bg: 'rgba(16, 185, 129, 0.08)' },
+    { id: 'Animation', icon: Baby, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.08)' },
 ];
 
-// Story templates/prompts for inspiration
 const STORY_TEMPLATES = [
     { genre: 'Drama', prompt: 'A family reunites after 20 years to confront a secret that tore them apart...' },
     { genre: 'Thriller', prompt: 'A detective discovers that the murder they\'re investigating was committed by their own future self...' },
@@ -50,24 +48,24 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
     onApplyTemplate,
     isProcessing = false
 }) => {
+    const { t } = useLanguage();
     const [topic, setTopic] = useState(initialTopic);
     const [genre, setGenre] = useState('Drama');
     const [showAllGenres, setShowAllGenres] = useState(false);
-    const [showInspiration, setShowInspiration] = useState(false);
     const [showTemplatesGallery, setShowTemplatesGallery] = useState(false);
+    const [textareaFocused, setTextareaFocused] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Get template for current genre
     const currentTemplate = STORY_TEMPLATES.find(t => t.genre === genre);
+    const selectedGenre = GENRES.find(g => g.id === genre);
+    const visibleGenres = showAllGenres ? GENRES : GENRES.slice(0, 6);
 
-    // Use inspiration template
     const handleUseTemplate = () => {
         if (currentTemplate) {
             setTopic(currentTemplate.prompt);
+            textareaRef.current?.focus();
         }
     };
-
-    // Visible genres (first 6 or all)
-    const visibleGenres = showAllGenres ? GENRES : GENRES.slice(0, 6);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -76,229 +74,240 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
         }
     };
 
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = Math.max(120, textareaRef.current.scrollHeight) + 'px';
+        }
+    }, [topic]);
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-[70vh] p-8">
+        <div className="flex flex-col items-center min-h-[70vh] px-6 py-12">
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full max-w-3xl"
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full max-w-2xl"
             >
-                {/* Cinematic Header */}
-                <div className="text-center mb-12">
-                    {/* Film Reel Decoration */}
-                    <div className="flex items-center justify-center gap-4 mb-6">
-                        <div className="w-16 h-px bg-gradient-to-r from-transparent to-[var(--cinema-spotlight)]/50" />
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                            className="w-10 h-10 rounded-full border-2 border-[var(--cinema-spotlight)]/30 flex items-center justify-center"
+                {/* Minimal Header */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.1, duration: 0.5 }}
+                    className="mb-10"
+                >
+                    <div className="flex items-center gap-3 mb-3">
+                        <div
+                            className="w-7 h-7 rounded-lg flex items-center justify-center"
+                            style={{ background: 'linear-gradient(135deg, #fff2, #fff1)' }}
                         >
-                            <Film className="w-5 h-5 text-[var(--cinema-spotlight)]" />
-                        </motion.div>
-                        <div className="w-16 h-px bg-gradient-to-l from-transparent to-[var(--cinema-spotlight)]/50" />
+                            <Zap className="w-3.5 h-3.5 text-white/70" />
+                        </div>
+                        <span className="font-editorial text-[11px] font-medium tracking-[0.2em] uppercase text-white/40">
+                            {t('story.storyIdea')}
+                        </span>
                     </div>
-
-                    {/* ACT ONE Title */}
-                    <h1 className="font-display text-5xl text-[var(--cinema-silver)] tracking-tight mb-3">
-                        ACT ONE
+                    <h1 className="font-editorial text-3xl font-semibold text-white tracking-tight leading-tight">
+                        {t('story.whatsYourStory')}
                     </h1>
-                    <p className="font-script text-xl italic text-[var(--cinema-silver)]/60">
-                        Every great film begins with an idea...
+                    <p className="font-editorial text-[15px] text-white/40 mt-2 leading-relaxed">
+                        {t('story.describeYourConcept')}
                     </p>
-                </div>
+                </motion.div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-10">
-                    {/* Topic Input - Paper Texture Style */}
-                    <div>
-                        <label htmlFor="topic-input" className="block font-display text-sm text-[var(--cinema-silver)]/70 mb-3 tracking-widest uppercase">
-                            Your Story
-                        </label>
-                        <div className="relative">
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    {/* Textarea */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2, duration: 0.4 }}
+                    >
+                        <div
+                            className="relative rounded-xl transition-all duration-300"
+                            style={{
+                                background: textareaFocused
+                                    ? 'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                                    : 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))',
+                                border: `1px solid ${textareaFocused ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}`,
+                                boxShadow: textareaFocused
+                                    ? '0 0 0 3px rgba(255,255,255,0.03), 0 8px 32px rgba(0,0,0,0.3)'
+                                    : 'none',
+                            }}
+                        >
                             <textarea
+                                ref={textareaRef}
                                 id="topic-input"
                                 value={topic}
                                 onChange={(e) => setTopic(e.target.value)}
-                                placeholder="A detective discovers that the murder they're investigating was committed by their own future self..."
+                                onFocus={() => setTextareaFocused(true)}
+                                onBlur={() => setTextareaFocused(false)}
+                                placeholder={t('story.placeholderStory')}
                                 className="
-                                    w-full h-36 px-6 py-5
-                                    bg-[var(--cinema-celluloid)]
-                                    border-2 border-[var(--cinema-silver)]/10
-                                    rounded-lg
-                                    font-script text-lg text-[var(--cinema-silver)] italic
-                                    placeholder:text-[var(--cinema-silver)]/30 placeholder:not-italic
-                                    focus:outline-none focus:border-[var(--cinema-spotlight)]
-                                    focus:shadow-[0_0_20px_var(--glow-spotlight)]
+                                    w-full min-h-[120px] px-5 py-4
+                                    bg-transparent
+                                    font-editorial text-[15px] text-white/90 leading-relaxed
+                                    placeholder:text-white/20
+                                    focus:outline-none
                                     resize-none
-                                    transition-all duration-300
                                 "
                                 disabled={isProcessing}
                                 autoFocus
                             />
-                            {/* Paper texture overlay */}
-                            <div className="absolute inset-0 pointer-events-none rounded-lg opacity-5 bg-[url('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20200%20200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter%20id%3D%22noise%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%224%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url(%23noise)%22%2F%3E%3C%2Fsvg%3E')]" />
-                        </div>
 
-                        {/* Inspiration Button */}
-                        <div className="mt-3 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <button
-                                    type="button"
-                                    onClick={handleUseTemplate}
-                                    disabled={isProcessing || !currentTemplate}
-                                    className="flex items-center gap-2 text-sm text-[var(--cinema-spotlight)]/70 hover:text-[var(--cinema-spotlight)] transition-colors disabled:opacity-40"
-                                >
-                                    <Lightbulb className="w-4 h-4" />
-                                    <span>Need inspiration? Try a {genre} template</span>
-                                </button>
-                                {onApplyTemplate && (
+                            {/* Bottom bar */}
+                            <div className="flex items-center justify-between px-5 pb-3.5 pt-0">
+                                <div className="flex items-center gap-3">
                                     <button
                                         type="button"
-                                        onClick={() => setShowTemplatesGallery(true)}
-                                        disabled={isProcessing}
-                                        className="flex items-center gap-2 text-sm text-violet-400/70 hover:text-violet-400 transition-colors disabled:opacity-40"
+                                        onClick={handleUseTemplate}
+                                        disabled={isProcessing || !currentTemplate}
+                                        className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors disabled:opacity-30 disabled:hover:text-white/30"
                                     >
-                                        <Layout className="w-4 h-4" />
-                                        <span>Browse Templates</span>
+                                        <Lightbulb className="w-3.5 h-3.5" />
+                                        <span>{t('story.tryTemplate')}</span>
                                     </button>
-                                )}
+                                    {onApplyTemplate && (
+                                        <>
+                                            <div className="w-px h-3 bg-white/10" />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowTemplatesGallery(true)}
+                                                disabled={isProcessing}
+                                                className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors disabled:opacity-30"
+                                            >
+                                                <Layout className="w-3.5 h-3.5" />
+                                                <span>{t('story.browseAll')}</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                <span className="font-code text-[11px] text-white/20 tabular-nums">
+                                    {topic.length}
+                                </span>
                             </div>
-                            <span className="text-xs text-[var(--cinema-silver)]/40 font-mono">
-                                {topic.length} chars
-                            </span>
                         </div>
-                    </div>
+                    </motion.div>
 
-                    {/* Genre Selection - Poster Cards */}
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <label className="block font-display text-sm text-[var(--cinema-silver)]/70 tracking-widest uppercase">
-                                Select Genre
-                            </label>
+                    {/* Genre Selection */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.4 }}
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="font-editorial text-[11px] font-medium tracking-[0.15em] uppercase text-white/35">
+                                {t('story.genre')}
+                            </span>
                             {!showAllGenres && GENRES.length > 6 && (
                                 <button
                                     type="button"
                                     onClick={() => setShowAllGenres(true)}
-                                    className="flex items-center gap-1 text-xs text-[var(--cinema-spotlight)] hover:text-[var(--cinema-spotlight)]/80 transition-colors"
+                                    className="flex items-center gap-1 text-[11px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors"
                                 >
-                                    <span>Show all {GENRES.length} genres</span>
-                                    <ChevronDown className="w-3 h-3" />
+                                    <span>{t('story.allCount', { count: GENRES.length })}</span>
+                                    <ChevronRight className="w-3 h-3" />
                                 </button>
                             )}
                         </div>
-                        <motion.div
-                            variants={staggerContainer}
-                            initial="initial"
-                            animate="animate"
-                            className="grid grid-cols-2 sm:grid-cols-3 gap-3"
-                        >
-                            {visibleGenres.map((g) => {
-                                const Icon = g.icon;
-                                const isSelected = genre === g.id;
-                                return (
-                                    <motion.button
-                                        key={g.id}
-                                        type="button"
-                                        variants={staggerItem}
-                                        onClick={() => setGenre(g.id)}
-                                        disabled={isProcessing}
-                                        whileHover={!isProcessing ? { scale: 1.03, y: -4 } : {}}
-                                        whileTap={!isProcessing ? { scale: 0.98 } : {}}
-                                        className={`
-                                            group relative overflow-hidden
-                                            aspect-[4/3] rounded-lg
-                                            bg-gradient-to-b ${g.gradient}
-                                            border-2 transition-all duration-300
-                                            ${isSelected
-                                                ? 'border-[var(--cinema-spotlight)] shadow-[0_0_30px_var(--glow-spotlight)]'
-                                                : 'border-[var(--cinema-silver)]/10 hover:border-[var(--cinema-silver)]/30'
-                                            }
-                                            disabled:opacity-50 disabled:cursor-not-allowed
-                                        `}
-                                    >
-                                        {/* Vignette overlay */}
-                                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,var(--cinema-void)_100%)] opacity-60" />
 
-                                        {/* Content */}
-                                        <div className="relative z-10 h-full flex flex-col items-center justify-center gap-2 p-4">
-                                            <Icon className={`
-                                                w-8 h-8 transition-colors duration-300
-                                                ${isSelected ? 'text-[var(--cinema-spotlight)]' : 'text-[var(--cinema-silver)]/60 group-hover:text-[var(--cinema-silver)]'}
-                                            `} />
-                                            <span className={`
-                                                font-display text-base tracking-wide transition-colors duration-300
-                                                ${isSelected ? 'text-[var(--cinema-spotlight)]' : 'text-[var(--cinema-silver)]/80'}
-                                            `}>
-                                                {g.label}
-                                            </span>
-                                        </div>
-
-                                        {/* Selection indicator */}
-                                        {isSelected && (
-                                            <motion.div
-                                                initial={{ opacity: 0, scale: 0.5 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[var(--cinema-spotlight)] flex items-center justify-center"
+                        <div className="flex flex-wrap gap-2">
+                            <AnimatePresence mode="popLayout">
+                                {visibleGenres.map((g, i) => {
+                                    const Icon = g.icon;
+                                    const isSelected = genre === g.id;
+                                    return (
+                                        <motion.button
+                                            key={g.id}
+                                            type="button"
+                                            layout
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            transition={{ delay: i * 0.03, duration: 0.25 }}
+                                            onClick={() => setGenre(g.id)}
+                                            disabled={isProcessing}
+                                            className="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            style={{
+                                                background: isSelected ? g.bg : 'transparent',
+                                                border: `1px solid ${isSelected ? g.color + '30' : 'rgba(255,255,255,0.06)'}`,
+                                                boxShadow: isSelected ? `0 0 20px ${g.color}10` : 'none',
+                                            }}
+                                            whileHover={!isProcessing ? { scale: 1.03 } : {}}
+                                            whileTap={!isProcessing ? { scale: 0.97 } : {}}
+                                        >
+                                            <Icon
+                                                className="w-3.5 h-3.5 transition-colors duration-200"
+                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.3)' }}
+                                            />
+                                            <span
+                                                className="font-editorial text-[13px] font-medium transition-colors duration-200"
+                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.5)' }}
                                             >
-                                                <div className="w-2 h-2 rounded-full bg-[var(--cinema-void)]" />
-                                            </motion.div>
-                                        )}
-                                    </motion.button>
-                                );
-                            })}
-                        </motion.div>
-                    </div>
+                                                {t(`story.genres.${g.id}`)}
+                                            </span>
 
-                    {/* Submit Button - Cinematic Gold */}
-                    <motion.button
-                        type="submit"
-                        disabled={!topic.trim() || isProcessing}
-                        whileHover={!isProcessing && topic.trim() ? { scale: 1.02 } : {}}
-                        whileTap={!isProcessing && topic.trim() ? { scale: 0.98 } : {}}
-                        className="
-                            w-full flex items-center justify-center gap-3
-                            btn-cinematic
-                            px-8 py-4 rounded-lg
-                            font-display text-lg tracking-wide
-                            disabled:opacity-40 disabled:cursor-not-allowed
-                            disabled:hover:transform-none disabled:hover:shadow-none
-                        "
+                                            {isSelected && (
+                                                <motion.div
+                                                    layoutId="genre-dot"
+                                                    className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+                                                    style={{ background: g.color }}
+                                                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                                                />
+                                            )}
+                                        </motion.button>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+
+                    {/* Submit */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4, duration: 0.4 }}
                     >
-                        {isProcessing ? (
-                            <>
-                                {/* Film Reel Spinner */}
-                                <div className="relative w-6 h-6">
+                        <motion.button
+                            type="submit"
+                            disabled={!topic.trim() || isProcessing}
+                            whileHover={!isProcessing && topic.trim() ? { y: -1 } : {}}
+                            whileTap={!isProcessing && topic.trim() ? { scale: 0.99 } : {}}
+                            className="
+                                group w-full flex items-center justify-center gap-3
+                                px-8 py-3.5 rounded-xl
+                                font-editorial text-[14px] font-semibold tracking-wide
+                                transition-all duration-300
+                                disabled:opacity-30 disabled:cursor-not-allowed
+                            "
+                            style={{
+                                background: topic.trim() && !isProcessing
+                                    ? `linear-gradient(135deg, ${selectedGenre?.color || '#fff'}, ${selectedGenre?.color || '#fff'}cc)`
+                                    : 'rgba(255,255,255,0.06)',
+                                color: topic.trim() && !isProcessing ? '#000' : 'rgba(255,255,255,0.3)',
+                                boxShadow: topic.trim() && !isProcessing
+                                    ? `0 4px 24px ${selectedGenre?.color || '#fff'}30, 0 1px 3px rgba(0,0,0,0.3)`
+                                    : 'none',
+                            }}
+                        >
+                            {isProcessing ? (
+                                <>
                                     <motion.div
+                                        className="w-4 h-4 rounded-full border-2 border-current border-t-transparent"
                                         animate={{ rotate: 360 }}
-                                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-0 border-2 border-[var(--cinema-void)] border-t-transparent rounded-full"
+                                        transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                                     />
-                                    <motion.div
-                                        animate={{ rotate: -360 }}
-                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-1 border-2 border-[var(--cinema-void)]/50 border-b-transparent rounded-full"
-                                    />
-                                </div>
-                                <span>Developing Your Vision...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="w-5 h-5" />
-                                <span>Begin the Story</span>
-                            </>
-                        )}
-                    </motion.button>
+                                    <span>{t('story.buildingStory')}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>{t('story.beginStory')}</span>
+                                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                                </>
+                            )}
+                        </motion.button>
+                    </motion.div>
                 </form>
-
-                {/* Decorative Footer */}
-                <div className="mt-12 flex items-center justify-center gap-4">
-                    <div className="w-24 h-px bg-gradient-to-r from-transparent via-[var(--cinema-silver)]/20 to-transparent" />
-                    <span className="font-mono text-[10px] text-[var(--cinema-silver)]/30 tracking-widest">
-                        LYRICLENS STUDIOS
-                    </span>
-                    <div className="w-24 h-px bg-gradient-to-r from-transparent via-[var(--cinema-silver)]/20 to-transparent" />
-                </div>
             </motion.div>
 
             {/* Templates Gallery Modal */}

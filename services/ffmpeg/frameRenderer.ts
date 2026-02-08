@@ -261,7 +261,11 @@ function renderSubtitles(
     const totalDuration = activeSub.endTime - activeSub.startTime;
     const lineProgress = Math.max(0, Math.min(1, (adjustedTime - activeSub.startTime) / totalDuration));
 
-    const fontSize = config.orientation === "portrait" ? 36 : 42;
+    // Smaller font for story mode (narration text is longer than lyrics)
+    const isStory = config.contentMode === "story";
+    const fontSize = isStory
+        ? (config.orientation === "portrait" ? 28 : 34)
+        : (config.orientation === "portrait" ? 36 : 42);
     const fontWeight = config.useModernEffects ? "600" : "bold";
     ctx.font = `${fontWeight} ${fontSize}px "Inter", "Segoe UI", "Arial", sans-serif`;
     ctx.textAlign = "left";

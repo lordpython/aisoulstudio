@@ -8,40 +8,47 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Video, Music, AudioWaveform, Sparkles } from 'lucide-react';
+import { Video, Music, AudioWaveform, Film } from 'lucide-react';
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/Header';
 import { ForwardChevron } from '@/components/layout/DirectionalIcon';
+import {
+  staggerContainer,
+  staggerItem,
+} from '@/lib/cinematicMotion';
 
-// Creation mode card data
+// Creation mode card data with cinematic palette
 const CREATION_MODES = [
   {
     id: 'video' as const,
     titleKey: 'home.createVideo',
     descKey: 'home.createVideoDesc',
+    featuresKey: 'home.features.video',
     icon: Video,
-    color: 'from-violet-500 to-purple-600',
+    accentColor: 'var(--cinema-spotlight)',
+    accentGlow: 'var(--glow-spotlight)',
     route: '/studio?mode=video',
-    features: ['AI Narration', 'Visual Generation', 'Background Music'],
   },
   {
     id: 'music' as const,
     titleKey: 'home.createMusic',
     descKey: 'home.createMusicDesc',
+    featuresKey: 'home.features.music',
     icon: Music,
-    color: 'from-pink-500 to-rose-600',
+    accentColor: 'var(--cinema-editorial)',
+    accentGlow: 'var(--glow-velvet)',
     route: '/studio?mode=music',
-    features: ['Full Songs', 'Instrumentals', 'Custom Lyrics'],
   },
   {
     id: 'visualizer' as const,
     titleKey: 'home.visualizer',
     descKey: 'home.visualizerDesc',
+    featuresKey: 'home.features.visualizer',
     icon: AudioWaveform,
-    color: 'from-cyan-500 to-blue-600',
+    accentColor: 'var(--primary)',
+    accentGlow: 'var(--glow-primary)',
     route: '/visualizer',
-    features: ['Lyric Sync', 'Visual Effects', 'Custom Timing'],
   },
 ];
 
@@ -53,7 +60,6 @@ export default function HomeScreen() {
 
   // Focus main content on navigation (Requirement 9.4)
   useEffect(() => {
-    // Small delay to ensure DOM is ready
     const timer = setTimeout(() => {
       mainContentRef.current?.focus();
     }, 100);
@@ -65,22 +71,32 @@ export default function HomeScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden flex flex-col">
-      {/* Background gradient */}
+    <div className="min-h-screen bg-background text-foreground overflow-hidden flex flex-col">
+      {/* Cinematic background */}
       <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-[128px]" />
+        <div
+          className="absolute top-[-20%] left-[10%] w-[600px] h-[600px] rounded-full blur-[180px] opacity-20"
+          style={{ background: 'var(--cinema-spotlight)' }}
+        />
+        <div
+          className="absolute bottom-[-10%] right-[15%] w-[500px] h-[500px] rounded-full blur-[160px] opacity-10"
+          style={{ background: 'var(--primary)' }}
+        />
+        <div
+          className="absolute top-[40%] right-[5%] w-[300px] h-[300px] rounded-full blur-[120px] opacity-8"
+          style={{ background: 'var(--cinema-velvet)' }}
+        />
       </div>
 
       {/* Content */}
       <div className="relative z-10 flex flex-col flex-1">
-        {/* Header with language switcher - using semantic header element */}
+        {/* Header */}
         <div className="p-4 md:p-6">
           <Header />
         </div>
 
-        {/* Main Content - using semantic main element with id for skip-to-content */}
-        <main 
+        {/* Main Content */}
+        <main
           id="main-content"
           ref={mainContentRef}
           className="flex-1 flex items-center justify-center p-4 md:p-6"
@@ -88,100 +104,152 @@ export default function HomeScreen() {
           aria-label={t('home.title')}
         >
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-5xl w-full"
           >
-            {/* Title */}
-            <div className={cn(
-              "text-center mb-8 md:mb-12",
-              isRTL && "rtl"
-            )}>
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-white" aria-hidden="true" />
+            {/* Title Block */}
+            <div className={cn('text-center mb-12 md:mb-16', isRTL && 'rtl')}>
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center justify-center gap-3 mb-6"
+              >
+                <div
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--cinema-spotlight), oklch(0.65 0.12 70))',
+                    boxShadow: '0 4px 24px var(--glow-spotlight)',
+                  }}
+                >
+                  <Film className="w-6 h-6 md:w-7 md:h-7 text-[var(--cinema-void)]" aria-hidden="true" />
                 </div>
-              </div>
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3 md:mb-4">
+              </motion.div>
+
+              <motion.h1
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="heading-hero mb-4"
+              >
                 {t('home.title')}
-              </h1>
-              <p className="text-base md:text-lg text-white/60 max-w-2xl mx-auto">
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="text-body-editorial max-w-2xl mx-auto"
+              >
                 {t('home.subtitle')}
-              </p>
+              </motion.p>
             </div>
 
-            {/* Mode Cards - 3 creation modes as per Requirement 7.1 */}
+            {/* Mode Cards */}
             <nav aria-label={t('a11y.mainNav')}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6" role="list">
-                {CREATION_MODES.map((mode, index) => {
+              <motion.div
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+                className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6"
+                role="list"
+              >
+                {CREATION_MODES.map((mode) => {
                   const Icon = mode.icon;
+                  const features = t(mode.featuresKey, { returnObjects: true }) as string[];
                   return (
                     <motion.button
                       key={mode.id}
+                      variants={staggerItem}
                       onClick={() => handleModeSelect(mode.route)}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ scale: 1.02, y: -4 }}
+                      whileHover={{ y: -6, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
-                        "group relative p-5 md:p-6 rounded-2xl text-start transition-all duration-300",
-                        "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20",
-                        "backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0f]",
-                        isRTL && "text-right"
+                        'group relative surface-card p-6 md:p-7 text-start',
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cinema-spotlight)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        isRTL && 'text-right'
                       )}
+                      style={{
+                        ['--card-accent' as string]: mode.accentColor,
+                      }}
                       aria-label={`${t(mode.titleKey)} - ${t(mode.descKey)}`}
                       role="listitem"
                     >
+                      {/* Top accent line */}
+                      <div
+                        className="absolute top-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                        style={{ background: `linear-gradient(90deg, transparent, ${mode.accentColor}, transparent)` }}
+                      />
+
                       {/* Icon */}
-                      <div className={cn(
-                        "w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br flex items-center justify-center mb-4",
-                        mode.color
-                      )} aria-hidden="true">
-                        <Icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
+                      <div
+                        className="w-11 h-11 rounded-lg flex items-center justify-center mb-5 transition-all duration-300 group-hover:shadow-lg"
+                        style={{
+                          background: `color-mix(in oklch, ${mode.accentColor}, transparent 88%)`,
+                          border: `1px solid color-mix(in oklch, ${mode.accentColor}, transparent 75%)`,
+                        }}
+                        aria-hidden="true"
+                      >
+                        <Icon
+                          className="w-5 h-5 transition-colors duration-300"
+                          style={{ color: mode.accentColor }}
+                        />
                       </div>
 
                       {/* Title & Description */}
-                      <h3 className="text-lg md:text-xl font-semibold mb-2">
+                      <h3 className="heading-card mb-2 transition-colors duration-300">
                         {t(mode.titleKey)}
                       </h3>
-                      <p className="text-sm text-white/60 mb-4">
+                      <p className="text-body-editorial text-sm mb-5 leading-relaxed">
                         {t(mode.descKey)}
                       </p>
 
                       {/* Features */}
-                      <div className={cn(
-                        "flex flex-wrap gap-2",
-                        isRTL && "justify-end"
-                      )} aria-label="Features">
-                        {mode.features.map((feature) => (
-                          <span
-                            key={feature}
-                            className="px-2 py-1 text-xs rounded-full bg-white/10 text-white/70"
-                          >
-                            {feature}
-                          </span>
-                        ))}
+                      <div
+                        className={cn('flex flex-wrap gap-2', isRTL && 'justify-end')}
+                        aria-label="Features"
+                      >
+                        {Array.isArray(features) &&
+                          features.map((feature: string, i: number) => (
+                            <span
+                              key={i}
+                              className="px-2.5 py-1 text-[11px] font-editorial font-medium rounded-md transition-colors duration-200"
+                              style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.06)',
+                                color: 'oklch(0.70 0.02 60)',
+                              }}
+                            >
+                              {feature}
+                            </span>
+                          ))}
                       </div>
 
-                      {/* Arrow indicator - using DirectionalIcon */}
-                      <div className={cn(
-                        "absolute top-6 opacity-0 group-hover:opacity-100 transition-opacity",
-                        isRTL ? "left-6" : "right-6"
-                      )} aria-hidden="true">
-                        <ForwardChevron size={20} className="text-white/60" />
+                      {/* Arrow indicator */}
+                      <div
+                        className={cn(
+                          'absolute top-7 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-1',
+                          isRTL ? 'left-6 group-hover:-translate-x-1' : 'right-6'
+                        )}
+                        aria-hidden="true"
+                      >
+                        <ForwardChevron size={18} className="text-[var(--cinema-silver)]/60" />
                       </div>
                     </motion.button>
                   );
                 })}
-              </div>
+              </motion.div>
             </nav>
           </motion.div>
         </main>
 
-        {/* Footer - using semantic footer element */}
-        <footer className="p-4 md:p-6 text-center text-sm text-white/40">
-          Powered by Gemini AI & Suno
+        {/* Footer */}
+        <footer className="p-4 md:p-6 text-center">
+          <span className="text-caption-mono">
+            Powered by Gemini AI & Suno
+          </span>
         </footer>
       </div>
     </div>

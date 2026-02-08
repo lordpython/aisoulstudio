@@ -82,10 +82,14 @@ router.post('/proxy/generateImages', async (req: ApiProxyRequest, res: Response)
         const { GoogleGenAI } = await import('@google/genai');
         const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+        // Strip unsupported parameters: seed is not supported by imagen-4.0 via @google/genai
+        const sanitizedConfig = config ? { ...config } : {};
+        delete sanitizedConfig.seed;
+
         const result = await (client as any).models.generateImages({
             model,
             prompt,
-            config
+            config: sanitizedConfig
         });
 
         geminiLog.info('Image generation success');

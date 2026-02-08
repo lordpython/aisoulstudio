@@ -102,31 +102,28 @@ function isImagenModel(model: string): boolean {
 /**
  * Generate image using Imagen API (generateImages method).
  * Used for imagen-3.0, imagen-4.0, etc.
- * 
+ *
+ * NOTE: The `seed` parameter is NOT supported by the Gemini API for imagen-4.0.
+ * Character consistency is achieved by embedding detailed physical descriptions
+ * in the prompt text instead (see getCharacterSeed → prompt-based approach).
+ *
  * @param prompt - The image generation prompt
  * @param aspectRatio - Image aspect ratio
- * @param seed - Optional seed for consistent character generation
+ * @param _seed - Deprecated: seed is not supported by Imagen API. Kept for signature compat.
  */
 async function generateWithImagenAPI(
   prompt: string,
   aspectRatio: string,
-  seed?: number
+  _seed?: number
 ): Promise<string> {
-  console.log(`[ImageService] Using Imagen API with model: ${MODELS.IMAGE}${seed ? ` (seed: ${seed})` : ''}`);
+  console.log(`[ImageService] Using Imagen API with model: ${MODELS.IMAGE}`);
 
-  // Build base config
+  // Build config — seed is NOT supported by imagen-4.0 via @google/genai SDK
   const config: Record<string, unknown> = {
     numberOfImages: 1,
     aspectRatio: aspectRatio,
     personGeneration: "allow_adult",
   };
-
-  // Add seed if provided - NOTE: seed requires addWatermark=false and enhancePrompt=false
-  if (seed !== undefined) {
-    config.seed = seed;
-    config.addWatermark = false;
-    config.enhancePrompt = false;
-  }
 
   const response = await ai.models.generateImages({
     model: MODELS.IMAGE,

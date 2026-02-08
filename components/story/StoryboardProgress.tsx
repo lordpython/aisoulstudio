@@ -8,6 +8,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle, Film, Clapperboard } from 'lucide-react';
 import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
+import { useLanguage } from '@/i18n/useLanguage';
 
 export type StoryboardStage =
     | 'shotlist'
@@ -25,6 +26,12 @@ interface StageConfig {
     description: string;
 }
 
+const STAGE_KEYS: Record<StoryboardStage, { label: string; description: string }> = {
+    shotlist: { label: 'story.storyboard_progress.generatingShotList', description: 'story.storyboard_progress.breakingScenes' },
+    characters: { label: 'story.storyboard_progress.preparingCast', description: 'story.storyboard_progress.loadingProfiles' },
+    storyboard: { label: 'story.storyboard_progress.renderingStoryboard', description: 'story.storyboard_progress.creatingFrames' },
+};
+
 const STAGES: StageConfig[] = [
     { id: 'shotlist', label: 'Generating Shot List', description: 'Breaking down scenes into shots' },
     { id: 'characters', label: 'Preparing Cast', description: 'Loading character profiles' },
@@ -39,6 +46,7 @@ export const StoryboardProgress: React.FC<StoryboardProgressProps> = ({
     currentStage,
     isComplete = false,
 }) => {
+    const { t } = useLanguage();
     const currentIndex = getStageIndex(currentStage);
 
     const getStageStatus = (index: number): 'complete' | 'processing' | 'pending' => {
@@ -64,10 +72,10 @@ export const StoryboardProgress: React.FC<StoryboardProgressProps> = ({
                         <div className="w-12 h-px bg-[var(--cinema-spotlight)]/30" />
                     </div>
                     <h1 className="font-display text-4xl text-[var(--cinema-silver)] tracking-tight mb-4">
-                        DEVELOPING YOUR VISION
+                        {t('story.storyboard_progress.developingVision')}
                     </h1>
-                    <p className="font-script italic text-xl text-[var(--cinema-silver)]/60 leading-relaxed">
-                        Your storyboard is being rendered frame by frame...
+                    <p className="font-script italic text-xl text-[var(--cinema-silver)]/80 leading-relaxed">
+                        {t('story.storyboard_progress.renderedFrameByFrame')}
                     </p>
                 </div>
 
@@ -99,7 +107,7 @@ export const StoryboardProgress: React.FC<StoryboardProgressProps> = ({
                                         />
                                     )}
                                     {status === 'pending' && (
-                                        <Circle className="w-6 h-6 text-[var(--cinema-silver)]/20" />
+                                        <Circle className="w-6 h-6 text-[var(--cinema-silver)]/60" />
                                     )}
                                 </div>
 
@@ -111,19 +119,19 @@ export const StoryboardProgress: React.FC<StoryboardProgressProps> = ({
                                             ? 'text-[var(--cinema-spotlight)]'
                                             : status === 'processing'
                                                 ? 'text-[var(--cinema-silver)]'
-                                                : 'text-[var(--cinema-silver)]/30'
+                                                : 'text-[var(--cinema-silver)]/70'
                                         }
                                     `}>
-                                        {stage.label}
+                                        {t(STAGE_KEYS[stage.id].label)}
                                     </span>
                                     <span className={`
                                         font-script italic text-sm transition-colors duration-300
                                         ${status === 'pending'
-                                            ? 'text-[var(--cinema-silver)]/20'
-                                            : 'text-[var(--cinema-silver)]/50'
+                                            ? 'text-[var(--cinema-silver)]/50'
+                                            : 'text-[var(--cinema-silver)]/70'
                                         }
                                     `}>
-                                        {stage.description}
+                                        {t(STAGE_KEYS[stage.id].description)}
                                     </span>
                                 </div>
                             </motion.div>
@@ -178,8 +186,8 @@ export const StoryboardProgress: React.FC<StoryboardProgressProps> = ({
 
                 {/* Caption Below Preview */}
                 <div className="mt-4 text-center">
-                    <p className="font-script italic text-sm text-[var(--cinema-silver)]/40">
-                        Your visual masterpiece is taking shape...
+                    <p className="font-script italic text-sm text-[var(--cinema-silver)]/70">
+                        {t('story.storyboard_progress.visualMasterpiece')}
                     </p>
                 </div>
             </motion.div>

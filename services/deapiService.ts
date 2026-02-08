@@ -592,12 +592,13 @@ export const generateVideoWithDeApi = async (
  * Animate an image using DeAPI img2video endpoint
  */
 export const animateImageWithDeApi = async (
-  base64Image: string,
+  base64ImageInput: string,
   prompt: string,
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
   sessionId?: string,
   sceneIndex?: number,
 ): Promise<string> => {
+  let base64Image = base64ImageInput;
   if (!isDeApiConfigured()) {
     throw new Error(
       "DeAPI API key is not configured on the server.\n\n" +
@@ -612,13 +613,21 @@ export const animateImageWithDeApi = async (
     );
   }
 
-  // Rate limiting disabled - removed to allow parallel requests
-  // const waitTime = img2videoRateLimiter.getEstimatedWaitTime();
-  // if (waitTime > 0) {
-  //   console.log(`[DeAPI] Queuing animation request. Estimated wait: ${waitTime}s`);
-  // }
-  // await img2videoRateLimiter.waitForSlot();
-  console.log(`[DeAPI] Proceeding with animation (rate limiting disabled)...`);
+  // Validate that base64Image is a proper data URL that can be converted to a Blob
+  if (!base64Image || (!base64Image.startsWith('data:image/') && !base64Image.startsWith('data:application/octet-stream'))) {
+    // Attempt to fix: if it looks like raw base64 without the data URL prefix, add one
+    if (base64Image && /^[A-Za-z0-9+/=]/.test(base64Image) && !base64Image.includes(':')) {
+      console.warn('[DeAPI] Received raw base64 without data URL prefix, adding image/png prefix');
+      base64Image = `data:image/png;base64,${base64Image}`;
+    } else {
+      throw new Error(
+        `DeAPI img2video requires a valid image data URL. ` +
+        `Received: ${base64Image ? base64Image.substring(0, 50) + '...' : 'empty/null'}`
+      );
+    }
+  }
+
+  console.log(`[DeAPI] Proceeding with animation...`);
 
   // Get dimensions that comply with DeAPI's max 768px limit
   const { width, height } = getDeApiDimensions(aspectRatio);

@@ -147,6 +147,31 @@ export const cardFlip: Variants = {
 };
 
 // ==========================================
+// ROUTE & PAGE TRANSITIONS
+// ==========================================
+
+/** Route transition - for page-level navigation */
+export const routeTransition: Variants = {
+  initial: {
+    opacity: 0,
+    y: 20,
+    filter: "blur(4px)",
+  },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.5, ease: cinematicEasing.cinematic },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    filter: "blur(2px)",
+    transition: { duration: 0.3 },
+  },
+};
+
+// ==========================================
 // INTERACTIVE ELEMENTS
 // ==========================================
 
@@ -159,6 +184,19 @@ export const cardHover = {
   },
   whileTap: {
     scale: 0.98,
+    transition: { duration: 0.1 },
+  },
+};
+
+/** Card lift - cinematic hover with shadow depth */
+export const cardLift = {
+  whileHover: {
+    y: -6,
+    boxShadow: "0 20px 40px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(0.75 0.15 80 / 0.08)",
+    transition: { duration: 0.3, ease: cinematicEasing.smooth },
+  },
+  whileTap: {
+    scale: 0.99,
     transition: { duration: 0.1 },
   },
 };
