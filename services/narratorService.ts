@@ -11,10 +11,13 @@
  */
 
 import { ai, API_KEY, MODELS, withRetry } from "./shared/apiClient";
-import { Scene, NarrationSegment, EmotionalTone } from "../types";
+import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet } from "../types";
 import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
+import { getEffectiveTriplet, getEffectiveLegacyTone } from "./tripletUtils";
+import { tripletToPromptFragments } from "./prompt/vibeLibrary";
+import { convertMarkersToDirectorNote } from "./tts/deliveryMarkers";
 
 // --- TTS Throttling ---
 // Gemini TTS has rate limits; add minimum delay between calls to avoid 500 errors
@@ -94,53 +97,53 @@ export interface ExtendedVoiceConfig extends VoiceConfig {
  */
 const TONE_VOICE_MAP: Record<EmotionalTone, ExtendedVoiceConfig> = {
     professional: {
-        voiceName: TTS_VOICES.KORE,
+        voiceName: TTS_VOICES.LEDA,
         pitch: 0,
-        speakingRate: 1.1, // Slightly faster for modern pacing
+        speakingRate: 1.1,
         stylePrompt: {
-            persona: "A confident business presenter",
-            emotion: "clear, authoritative, and polished",
-            pacing: "measured and articulate"
+            persona: "A polished corporate presenter delivering a keynote",
+            emotion: "clear, authoritative, confident, and composed",
+            pacing: "measured and articulate with crisp enunciation"
         }
     },
     dramatic: {
-        voiceName: TTS_VOICES.KORE,
-        pitch: -1,
-        speakingRate: 1.05, // Slightly faster while maintaining drama
+        voiceName: TTS_VOICES.FENRIR,
+        pitch: -2,
+        speakingRate: 0.95,
         stylePrompt: {
-            persona: "A cinematic narrator",
-            emotion: "intense, powerful, and gripping",
-            pacing: "natural with occasional dramatic pauses"
+            persona: "A legendary storyteller narrating an epic tale by firelight",
+            emotion: "intense, powerful, gripping, with gravitas",
+            pacing: "deliberate with dramatic pauses before key revelations"
         }
     },
     friendly: {
-        voiceName: TTS_VOICES.KORE,
-        pitch: 1,
-        speakingRate: 1.15, // Energetic, modern pacing
+        voiceName: TTS_VOICES.PUCK,
+        pitch: 2,
+        speakingRate: 1.2,
         stylePrompt: {
-            persona: "A warm, approachable guide",
-            emotion: "cheerful, welcoming, and genuine",
-            pacing: "natural and conversational"
+            persona: "An enthusiastic best friend sharing an exciting story",
+            emotion: "warm, cheerful, genuine, and inviting",
+            pacing: "natural and conversational with energetic emphasis"
         }
     },
     urgent: {
-        voiceName: TTS_VOICES.KORE,
-        pitch: 0,
-        speakingRate: 1.2, // Fast for urgency
+        voiceName: TTS_VOICES.CHARON,
+        pitch: -1,
+        speakingRate: 1.3,
         stylePrompt: {
-            persona: "A news anchor delivering breaking news",
-            emotion: "alert, compelling, and serious",
-            pacing: "brisk and purposeful"
+            persona: "A field correspondent reporting live from a crisis zone",
+            emotion: "alert, compelling, serious, with controlled intensity",
+            pacing: "rapid and purposeful, each word hitting with weight"
         }
     },
     calm: {
-        voiceName: TTS_VOICES.KORE,
-        pitch: -1,
-        speakingRate: 1.0, // Calm but not too slow
+        voiceName: TTS_VOICES.AOEDE,
+        pitch: -3,
+        speakingRate: 0.9,
         stylePrompt: {
-            persona: "A meditation guide",
-            emotion: "serene, soothing, and peaceful",
-            pacing: "relaxed with gentle pauses"
+            persona: "A gentle guide leading a moonlit meditation",
+            emotion: "serene, soothing, peaceful, like a warm breeze",
+            pacing: "slow and flowing with long restful pauses between phrases"
         }
     },
 };
@@ -476,6 +479,16 @@ export function getAutoStylePrompt(
 }
 
 /**
+ * Build a Director's Note from an InstructionTriplet.
+ * Looks up vibe term prompt fragments and assembles a rich voice direction.
+ */
+export function buildTripletDirectorNote(triplet: InstructionTriplet): string {
+    const { emotionFragment, cinematicFragment, atmosphereFragment } = tripletToPromptFragments(triplet);
+
+    return `Deliver this with ${emotionFragment}, matching the visual intensity of ${cinematicFragment}, as if speaking within ${atmosphereFragment}`;
+}
+
+/**
  * Format text with director's note for Gemini TTS.
  * Uses the natural language prompt format: "[Director's Note]: [Text]"
  * 
@@ -484,14 +497,22 @@ export function getAutoStylePrompt(
  * @returns Formatted text with director's note
  */
 function formatTextWithStyle(text: string, stylePrompt?: StylePrompt): string {
-    const directorNote = buildDirectorNote(stylePrompt);
+    // First, extract delivery markers from the text
+    const { directorInstructions: markerInstructions, cleanText } = convertMarkersToDirectorNote(text);
 
-    if (!directorNote) {
-        return text;
+    // Build the base director note from style prompt
+    const baseNote = buildDirectorNote(stylePrompt);
+
+    // Combine: base style note + marker-derived instructions
+    const parts = [baseNote, markerInstructions].filter(Boolean);
+    const combinedNote = parts.join(". ");
+
+    if (!combinedNote) {
+        return cleanText;
     }
 
     // Gemini 2.5 TTS format: prepend style instruction
-    return `${directorNote}: "${text}"`;
+    return `${combinedNote}: "${cleanText}"`;
 }
 
 /**
@@ -708,27 +729,40 @@ export async function narrateScene(
 ): Promise<NarrationSegment> {
     console.log(`[Narrator] Narrating scene: ${scene.name}`);
 
-    // Get base voice config from emotional tone
-    const baseVoiceConfig = TONE_VOICE_MAP[scene.emotionalTone];
+    // Resolve tone via triplet bridge (backward compatible)
+    const effectiveTone = getEffectiveLegacyTone(scene);
+
+    // Get base voice config from effective emotional tone
+    const baseVoiceConfig = TONE_VOICE_MAP[effectiveTone];
 
     // Check if language-specific voice should be used
     const languageVoice = config?.language && config.language !== 'auto'
         ? LANGUAGE_VOICE_MAP[config.language]
         : undefined;
 
-    // Auto-generate style prompt based on tone + purpose + any override
-    const autoStyle = getAutoStylePrompt(
-        scene.emotionalTone,
-        config?.videoPurpose,
-        config?.styleOverride
-    );
+    // Build style prompt: triplet-based if available, else legacy auto-style
+    let stylePrompt: StylePrompt;
+
+    if (scene.instructionTriplet) {
+        // New system: rich Director's Note from InstructionTriplet
+        const tripletNote = buildTripletDirectorNote(scene.instructionTriplet);
+        stylePrompt = { customDirectorNote: tripletNote };
+        console.log(`[Narrator] Using triplet-based director note for "${scene.name}"`);
+    } else {
+        // Legacy: auto-generate from tone + purpose + override
+        stylePrompt = getAutoStylePrompt(
+            effectiveTone,
+            config?.videoPurpose,
+            config?.styleOverride
+        );
+    }
 
     // Create enhanced voice config with auto-generated style
     // Language-specific voice takes precedence if set
     const enhancedVoiceConfig: ExtendedVoiceConfig = {
         ...baseVoiceConfig,
         ...(languageVoice && { voiceName: languageVoice }),
-        stylePrompt: autoStyle,
+        stylePrompt,
     };
 
     if (languageVoice) {

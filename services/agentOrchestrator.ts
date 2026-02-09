@@ -27,6 +27,7 @@ import { animateImageWithDeApi, isDeApiConfigured } from "./deapiService";
 import { generateProfessionalVideo } from "./videoService";
 import { generateMotionPrompt } from "./promptService";
 import { generateVideoSFXPlan, generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "./sfxService";
+import { getEffectiveLegacyTone } from "./tripletUtils";
 import { traceAsync, isTracingEnabled } from "./tracing";
 import {
     withTimeout,
@@ -454,7 +455,7 @@ export const runProductionPipeline = traceAsync(
                         const motionPrompt = await withTimeout(
                             generateMotionPrompt(
                                 scene.visualDescription,
-                                scene.emotionalTone || "cinematic",
+                                getEffectiveLegacyTone(scene),
                                 config.globalSubject || ""
                             ),
                             30_000,
@@ -519,7 +520,7 @@ export const runProductionPipeline = traceAsync(
                                     generateProfessionalVideo(
                                         scene.visualDescription,
                                         mergedConfig.visualStyle || "Cinematic",
-                                        scene.emotionalTone || "dramatic",
+                                        getEffectiveLegacyTone(scene),
                                         config.globalSubject || "",
                                         videoPurpose,
                                         (mergedConfig.aspectRatio as "16:9" | "9:16") || "16:9",
@@ -591,7 +592,7 @@ export const runProductionPipeline = traceAsync(
                             generateProfessionalVideo(
                                 scene.visualDescription,
                                 mergedConfig.visualStyle || "Cinematic",
-                                scene.emotionalTone || "dramatic",
+                                getEffectiveLegacyTone(scene),
                                 config.globalSubject || "",
                                 videoPurpose,
                                 (mergedConfig.aspectRatio as "16:9" | "9:16") || "16:9",

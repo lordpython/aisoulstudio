@@ -13,6 +13,7 @@
 
 import { Scene, EmotionalTone, AmbientSFX, SFXCategory, SceneSFXPlan, VideoSFXPlan } from "../types";
 import { VideoPurpose } from "../constants";
+import { getEffectiveLegacyTone } from "./tripletUtils";
 
 // Re-export types that other modules need
 export type { VideoSFXPlan, SceneSFXPlan, AmbientSFX };
@@ -390,7 +391,7 @@ function scoreSFXMatch(sfx: AmbientSFX, scene: Scene, sceneKeywords: string[], p
   }
 
   // Mood match (0-25 points)
-  if (sfx.moods.includes(scene.emotionalTone)) {
+  if (sfx.moods.includes(getEffectiveLegacyTone(scene))) {
     score += 25;
   }
 
@@ -492,8 +493,8 @@ export function generateVideoSFXPlan(
     }
 
     // Get transition sounds
-    const transitionIn = index > 0 ? getTransitionSound(videoPurpose, scene.emotionalTone) : null;
-    const transitionOut = index < scenes.length - 1 ? getTransitionSound(videoPurpose, scene.emotionalTone) : null;
+    const transitionIn = index > 0 ? getTransitionSound(videoPurpose, getEffectiveLegacyTone(scene)) : null;
+    const transitionOut = index < scenes.length - 1 ? getTransitionSound(videoPurpose, getEffectiveLegacyTone(scene)) : null;
 
     return {
       sceneId: scene.id,
@@ -509,7 +510,7 @@ export function generateVideoSFXPlan(
   if (preferences.useBackgroundMusic) {
     const musicalBeds = AMBIENT_LIBRARY.filter(sfx => sfx.category === "musical");
     // Find one that matches the overall mood
-    const dominantMood = scenes[0]?.emotionalTone || "professional";
+    const dominantMood = scenes[0] ? getEffectiveLegacyTone(scenes[0]) : "professional";
     backgroundMusic = musicalBeds.find(m => m.moods.includes(dominantMood)) || musicalBeds[0] || null;
   }
 

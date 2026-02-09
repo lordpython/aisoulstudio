@@ -40,6 +40,101 @@ const USER_ID_KEY = 'ai_soul_studio_story_user_id';
 const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
 
 /**
+ * Strip markdown and metadata artifacts from narration text.
+ * Prevents dirty text from reaching TTS and subtitles.
+ */
+function cleanNarrationText(text: string): string {
+    return text
+        .replace(/\*\*[^*]*?\*\*:?\s*/g, '')  // Remove **Label:** patterns
+        .replace(/\*\*/g, '')                   // Remove remaining ** markers
+        .replace(/\*([^*]*?)\*/g, '$1')         // *italic* → content
+        .replace(/#{1,6}\s+/g, '')              // # headings
+        .replace(/`([^`]*?)`/g, '$1')           // `code` → content
+        .replace(/^\s*[-–—*+]\s+/gm, '')        // bullets/dashes
+        .replace(/\n+/g, ' ')                   // newlines → spaces
+        .replace(/\s{2,}/g, ' ')                // collapse whitespace
+        .trim();
+}
+
+/**
+ * Infer emotional tone and instruction triplet for a scene based on its content
+ * and position in the narrative arc. Replaces hardcoded 'dramatic' for all scenes.
+ */
+function inferSceneEmotion(scene: ScreenplayScene, index: number, total: number): {
+    emotionalTone: 'professional' | 'dramatic' | 'friendly' | 'urgent' | 'calm';
+    instructionTriplet: { primaryEmotion: string; cinematicDirection: string; environmentalAtmosphere: string };
+} {
+    const text = `${scene.heading} ${scene.action}`.toLowerCase();
+
+    // Keyword-based emotion detection
+    const urgentWords = /\b(run|escape|chase|hurry|danger|attack|fight|scream|crash|explode|fire|flood|storm)\b/;
+    const calmWords = /\b(peace|serene|quiet|gentle|soft|still|dawn|morning|garden|rest|sleep|dream)\b/;
+    const friendlyWords = /\b(smile|laugh|friend|welcome|warm|celebrate|joy|happy|festival|feast|gift)\b/;
+    const dramaticWords = /\b(reveal|secret|truth|betray|lost|dark|shadow|death|ancient|fate|destiny|mystery)\b/;
+
+    // Narrative arc position
+    const position = total > 1 ? index / (total - 1) : 0.5;
+    const isOpening = index === 0;
+    const isClimax = position >= 0.6 && position <= 0.8;
+    const isEnding = index === total - 1;
+
+    let tone: 'professional' | 'dramatic' | 'friendly' | 'urgent' | 'calm' = 'dramatic';
+    let emotion = 'cinematic-wonder';
+    let cinematic = 'slow-push-in';
+    let atmosphere = 'golden-hour-decay';
+
+    if (urgentWords.test(text)) {
+        tone = 'urgent';
+        emotion = 'visceral-dread';
+        cinematic = 'handheld-float';
+        atmosphere = 'tension-drone';
+    } else if (calmWords.test(text)) {
+        tone = 'calm';
+        emotion = 'nostalgic-warmth';
+        cinematic = 'slow-pull-back';
+        atmosphere = 'golden-hour-decay';
+    } else if (friendlyWords.test(text)) {
+        tone = 'friendly';
+        emotion = 'bittersweet-longing';
+        cinematic = 'tracking-shot';
+        atmosphere = 'hopeful-pad';
+    } else if (dramaticWords.test(text)) {
+        tone = 'dramatic';
+        emotion = 'visceral-dread';
+        cinematic = 'dutch-angle';
+        atmosphere = 'foggy-ruins';
+    }
+
+    // Narrative arc overrides
+    if (isOpening) {
+        cinematic = 'slow-push-in';
+        if (tone === 'dramatic') atmosphere = 'foggy-ruins';
+    }
+    if (isClimax) {
+        tone = urgentWords.test(text) ? 'urgent' : 'dramatic';
+        cinematic = 'dutch-angle';
+        emotion = 'visceral-dread';
+    }
+    if (isEnding) {
+        cinematic = 'slow-pull-back';
+        if (!urgentWords.test(text)) {
+            tone = 'calm';
+            emotion = 'nostalgic-warmth';
+            atmosphere = 'golden-hour-decay';
+        }
+    }
+
+    return {
+        emotionalTone: tone,
+        instructionTriplet: {
+            primaryEmotion: emotion,
+            cinematicDirection: cinematic,
+            environmentalAtmosphere: atmosphere,
+        },
+    };
+}
+
+/**
  * Strip base64 image/audio/video data from state before saving to localStorage.
  * Media is saved to cloud storage separately, so we only need metadata for recovery.
  * This prevents QuotaExceededError when state contains many generated assets.
@@ -888,6 +983,14 @@ export function useStoryGeneration(projectId?: string | null) {
             const updatedShotlist: ShotlistEntry[] = [...state.shotlist];
             const style = state.visualStyle || 'Cinematic';
 
+            // Build character reference map: name → visual description
+            const charRefMap = new Map<string, string>();
+            for (const char of state.characters) {
+                if (char.visualDescription) {
+                    charRefMap.set(char.name.toLowerCase(), char.visualDescription);
+                }
+            }
+
             for (let i = 0; i < shotsToProcess.length; i++) {
                 const shot = shotsToProcess[i];
                 if (!shot) continue;
@@ -899,8 +1002,42 @@ export function useStoryGeneration(projectId?: string | null) {
                 });
 
                 try {
-                    // Build prompt with shot details
-                    const prompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
+                    // Find characters present in this shot's parent scene
+                    const parentScene = state.breakdown.find(s => s.id === shot.sceneId);
+                    const sceneCharacters = parentScene?.charactersPresent || [];
+
+                    // Also detect character names mentioned in the shot description
+                    const shotDescLower = shot.description.toLowerCase();
+                    const mentionedChars = [...charRefMap.entries()]
+                        .filter(([name]) => shotDescLower.includes(name))
+                        .map(([name]) => name);
+
+                    // Combine scene characters + mentioned characters, dedupe
+                    const allCharNames = [...new Set([
+                        ...sceneCharacters.map(c => c.toLowerCase()),
+                        ...mentionedChars,
+                    ])];
+
+                    // Build character description prefix for the prompt
+                    let charPrefix = '';
+                    const MAX_PROMPT_LENGTH = 500;
+                    for (const name of allCharNames) {
+                        const desc = charRefMap.get(name);
+                        if (desc) {
+                            const truncated = desc.length > 120 ? desc.substring(0, 117) + '...' : desc;
+                            charPrefix += `[${name}: ${truncated}] `;
+                        }
+                    }
+
+                    if (charPrefix) {
+                        console.log(`[useStoryGeneration] Character refs for shot ${shot.id}:`, charPrefix.substring(0, 100));
+                    }
+
+                    // Build prompt with character descriptions + shot details
+                    const basePrompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
+                    const prompt = charPrefix
+                        ? `${charPrefix}${basePrompt}`.substring(0, MAX_PROMPT_LENGTH)
+                        : basePrompt;
 
                     let imageUrl = await generateImageFromPrompt(
                         prompt,
@@ -1153,18 +1290,26 @@ export function useStoryGeneration(projectId?: string | null) {
             const narrationSegments: NonNullable<StoryState['narrationSegments']> = [];
 
             // Convert screenplay scenes to Scene format for narrator
-            const scenesForNarration: Scene[] = state.breakdown.map((scene) => ({
-                id: scene.id,
-                name: scene.heading,
-                duration: 8, // Default duration, will be adjusted by TTS
-                visualDescription: scene.action,
-                narrationScript: scene.action,
-                emotionalTone: 'dramatic' as const,
-            }));
+            const totalScenes = state.breakdown.length;
+            const scenesForNarration: Scene[] = state.breakdown.map((scene, idx) => {
+                const { emotionalTone, instructionTriplet } = inferSceneEmotion(scene, idx, totalScenes);
+                return {
+                    id: scene.id,
+                    name: scene.heading,
+                    duration: 8, // Default duration, will be adjusted by TTS
+                    visualDescription: scene.action,
+                    narrationScript: cleanNarrationText(scene.action),
+                    emotionalTone,
+                    instructionTriplet,
+                };
+            });
 
+            // Detect language from scene content instead of hardcoding
+            const sampleText = state.breakdown[0]?.action || '';
+            const isArabicContent = /[\u0600-\u06FF]/.test(sampleText);
             const narratorConfig: NarratorConfig = {
                 videoPurpose: 'storytelling',
-                language: 'ar', // Arabic based on the story content
+                ...(isArabicContent ? { language: 'ar' as const } : {}),
             };
 
             for (let i = 0; i < scenesForNarration.length; i++) {

@@ -28,6 +28,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
 import { AppState } from '@/types';
+import { getEffectiveLegacyTone } from '@/services/tripletUtils';
 
 // Layout & UI Components
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
@@ -698,7 +699,7 @@ export default function StudioScreen() {
     const prompts = contentPlan.scenes.map((scene, idx) => ({
       id: scene.id,
       text: scene.visualDescription,
-      mood: scene.emotionalTone,
+      mood: getEffectiveLegacyTone(scene),
       timestampSeconds: parsedSubtitles[idx]?.startTime || 0,
     }));
 
@@ -776,11 +777,11 @@ export default function StudioScreen() {
       targetAudience: 'General audience',
       overallTone: 'Cinematic',
       scenes: [
-        { id: 'scene-1', name: 'الصمت قبل العاصفة', duration: 15, visualDescription: 'Scene 1', narrationScript: '', emotionalTone: 'dramatic' as const },
-        { id: 'scene-2', name: 'الاستيقاظ الداخلي', duration: 14, visualDescription: 'Scene 2', narrationScript: '', emotionalTone: 'dramatic' as const },
-        { id: 'scene-3', name: 'زئير الفينيق', duration: 16, visualDescription: 'Scene 3', narrationScript: '', emotionalTone: 'dramatic' as const },
-        { id: 'scene-4', name: 'الرمية المقدسة', duration: 17, visualDescription: 'Scene 4', narrationScript: '', emotionalTone: 'dramatic' as const },
-        { id: 'scene-5', name: 'الاحتراق والنصر', duration: 16, visualDescription: 'Scene 5', narrationScript: '', emotionalTone: 'dramatic' as const },
+        { id: 'scene-1', name: 'الصمت قبل العاصفة', duration: 15, visualDescription: 'Scene 1', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'visceral-dread', cinematicDirection: 'slow-push-in', environmentalAtmosphere: 'desert-silence' } },
+        { id: 'scene-2', name: 'الاستيقاظ الداخلي', duration: 14, visualDescription: 'Scene 2', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'bittersweet-longing', cinematicDirection: 'close-up', environmentalAtmosphere: 'cathedral-reverb' } },
+        { id: 'scene-3', name: 'زئير الفينيق', duration: 16, visualDescription: 'Scene 3', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'euphoric-wonder', cinematicDirection: 'tracking-shot', environmentalAtmosphere: 'ethereal-echo' } },
+        { id: 'scene-4', name: 'الرمية المقدسة', duration: 17, visualDescription: 'Scene 4', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'seething-rage', cinematicDirection: 'handheld-float', environmentalAtmosphere: 'tension-drone' } },
+        { id: 'scene-5', name: 'الاحتراق والنصر', duration: 16, visualDescription: 'Scene 5', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'stoic-resignation', cinematicDirection: 'pull-back', environmentalAtmosphere: 'golden-hour-decay' } },
       ],
     };
 

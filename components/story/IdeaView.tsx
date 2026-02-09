@@ -104,14 +104,14 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         >
                             <Zap className="w-3.5 h-3.5 text-white/70" />
                         </div>
-                        <span className="font-editorial text-[11px] font-medium tracking-[0.2em] uppercase text-white/40">
+                        <span className="font-editorial text-[11px] font-medium tracking-[0.2em] uppercase text-white/60">
                             {t('story.storyIdea')}
                         </span>
                     </div>
                     <h1 className="font-editorial text-3xl font-semibold text-white tracking-tight leading-tight">
                         {t('story.whatsYourStory')}
                     </h1>
-                    <p className="font-editorial text-[15px] text-white/40 mt-2 leading-relaxed">
+                    <p className="font-editorial text-[15px] text-white/60 mt-2 leading-relaxed">
                         {t('story.describeYourConcept')}
                     </p>
                 </motion.div>
@@ -147,7 +147,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                     w-full min-h-[120px] px-5 py-4
                                     bg-transparent
                                     font-editorial text-[15px] text-white/90 leading-relaxed
-                                    placeholder:text-white/20
+                                    placeholder:text-white/40
                                     focus:outline-none
                                     resize-none
                                 "
@@ -162,7 +162,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                         type="button"
                                         onClick={handleUseTemplate}
                                         disabled={isProcessing || !currentTemplate}
-                                        className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors disabled:opacity-30 disabled:hover:text-white/30"
+                                        className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors disabled:opacity-30 disabled:hover:text-white/50"
                                     >
                                         <Lightbulb className="w-3.5 h-3.5" />
                                         <span>{t('story.tryTemplate')}</span>
@@ -174,7 +174,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                                 type="button"
                                                 onClick={() => setShowTemplatesGallery(true)}
                                                 disabled={isProcessing}
-                                                className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors disabled:opacity-30"
+                                                className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors disabled:opacity-30"
                                             >
                                                 <Layout className="w-3.5 h-3.5" />
                                                 <span>{t('story.browseAll')}</span>
@@ -182,7 +182,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                         </>
                                     )}
                                 </div>
-                                <span className="font-code text-[11px] text-white/20 tabular-nums">
+                                <span className="font-code text-[11px] text-white/40 tabular-nums">
                                     {topic.length}
                                 </span>
                             </div>
@@ -196,14 +196,14 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         transition={{ delay: 0.3, duration: 0.4 }}
                     >
                         <div className="flex items-center justify-between mb-3">
-                            <span className="font-editorial text-[11px] font-medium tracking-[0.15em] uppercase text-white/35">
+                            <span className="font-editorial text-[11px] font-medium tracking-[0.15em] uppercase text-white/60">
                                 {t('story.genre')}
                             </span>
                             {!showAllGenres && GENRES.length > 6 && (
                                 <button
                                     type="button"
                                     onClick={() => setShowAllGenres(true)}
-                                    className="flex items-center gap-1 text-[11px] font-editorial font-medium text-white/30 hover:text-white/60 transition-colors"
+                                    className="flex items-center gap-1 text-[11px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors"
                                 >
                                     <span>{t('story.allCount', { count: GENRES.length })}</span>
                                     <ChevronRight className="w-3 h-3" />
@@ -238,7 +238,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                         >
                                             <Icon
                                                 className="w-3.5 h-3.5 transition-colors duration-200"
-                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.3)' }}
+                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.5)' }}
                                             />
                                             <span
                                                 className="font-editorial text-[13px] font-medium transition-colors duration-200"
@@ -284,7 +284,7 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                 background: topic.trim() && !isProcessing
                                     ? `linear-gradient(135deg, ${selectedGenre?.color || '#fff'}, ${selectedGenre?.color || '#fff'}cc)`
                                     : 'rgba(255,255,255,0.06)',
-                                color: topic.trim() && !isProcessing ? '#000' : 'rgba(255,255,255,0.3)',
+                                color: topic.trim() && !isProcessing ? '#000' : 'rgba(255,255,255,0.5)',
                                 boxShadow: topic.trim() && !isProcessing
                                     ? `0 4px 24px ${selectedGenre?.color || '#fff'}30, 0 1px 3px rgba(0,0,0,0.3)`
                                     : 'none',

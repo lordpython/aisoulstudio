@@ -8,6 +8,7 @@
 import { ContentPlan, Scene, NarrationSegment, ValidationResult } from "../types";
 import { VideoSFXPlan } from "./sfxService";
 import { VideoPurpose } from "../constants";
+import { getEffectiveLegacyTone } from "./tripletUtils";
 
 // --- Quality Metrics Types ---
 
@@ -400,7 +401,7 @@ export function generateQualityReport(
   
   // Determine creativity level
   const avgDescLength = sceneMetrics.reduce((sum, s) => sum + s.visualDescriptionLength, 0) / sceneCount;
-  const hasVariedTones = new Set(contentPlan.scenes.map(s => s.emotionalTone)).size >= 2;
+  const hasVariedTones = new Set(contentPlan.scenes.map(s => getEffectiveLegacyTone(s))).size >= 2;
   const contentPlannerCreativity: "low" | "medium" | "high" = 
     avgDescLength > 120 && hasVariedTones ? "high" :
     avgDescLength > 80 ? "medium" : "low";

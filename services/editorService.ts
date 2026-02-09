@@ -21,6 +21,7 @@ import {
     GeneratedImage
 } from "../types";
 import { API_KEY, MODELS } from "./shared/apiClient";
+import { getEffectiveLegacyTone } from "./tripletUtils";
 
 // --- Zod Schemas ---
 
@@ -298,7 +299,7 @@ export async function critiqueContentPlan(
 
     // Format scenes for the prompt
     const scenesDescription = plan.scenes.map((scene, i) =>
-        `${i + 1}. ${scene.name} (${scene.duration}s, ${scene.emotionalTone})
+        `${i + 1}. ${scene.name} (${scene.duration}s, ${getEffectiveLegacyTone(scene)})
    Visual: ${scene.visualDescription}
    Narration: ${scene.narrationScript.substring(0, 100)}...`
     ).join("\n\n");

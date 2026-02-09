@@ -16,6 +16,21 @@ import { type ScreenplayScene, type ShotlistEntry, type CharacterProfile } from 
 
 const log = agentLogger.child('Production');
 
+/**
+ * Strip markdown formatting from LLM-generated text.
+ * Removes **bold**, *italic*, # headings, `code`, and bullet markers.
+ */
+function stripMarkdown(text: string): string {
+    return text
+        .replace(/#{1,6}\s+/g, '')          // # headings
+        .replace(/\*\*([^*]*?)\*\*/g, '$1') // **bold** → content
+        .replace(/\*([^*]*?)\*/g, '$1')     // *italic* → content
+        .replace(/`([^`]*?)`/g, '$1')       // `code` → content
+        .replace(/^\s*[-*+]\s+/gm, '')      // bullet markers
+        .replace(/\s{2,}/g, ' ')            // collapse whitespace
+        .trim();
+}
+
 // --- Generate Breakdown Tool ---
 
 export const generateBreakdownTool = tool(
@@ -118,13 +133,21 @@ Format each scene with:
 - ACTION: [Description]
 - DIALOGUE: [Character]: [Text]
 
+IMPORTANT — ACTION LINE RULES:
+- ACTION lines describe what the CAMERA SEES, not internal emotions.
+- These lines will be used as voiceover narration — make them vivid and cinematic.
+- BAD: "He felt fear." / "She was overwhelmed with sadness."
+- GOOD: "His hands trembled. The door creaked open, revealing darkness." / "Tears rolled down her cheeks as rain hammered the window."
+- Describe sensory details: sounds, textures, movement, light, color.
+- NEVER use markdown formatting (no **, *, #, or backticks).
+
 Limit to 3-5 scenes.`;
 
         let scriptText: string;
         try {
             log.info(' Invoking Gemini API for screenplay...');
             const response = await model.invoke(prompt);
-            scriptText = response.content as string;
+            scriptText = stripMarkdown(response.content as string);
             log.info(' Screenplay generated successfully');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -142,19 +165,40 @@ Limit to 3-5 scenes.`;
         sceneBlocks.forEach((block, i) => {
             const lines = block.split('\n').filter(l => l.trim());
             const heading = lines[0] || 'Untitled Scene';
-            const actionLines = lines.filter(l => l.toUpperCase().startsWith('ACTION:'));
-            const dialogueLines = lines.filter(l => l.includes(':') && !l.toUpperCase().startsWith('ACTION:'));
+            // Match ACTION: prefix regardless of residual markdown wrapping
+            const actionLines = lines.filter(l => /^(\*{0,2})ACTION(\*{0,2})\s*:/i.test(l.trim()));
+            const dialogueLines = lines.filter(l => {
+                const trimmed = l.trim();
+                // Skip action lines and bare labels
+                if (/^(\*{0,2})ACTION(\*{0,2})\s*:/i.test(trimmed)) return false;
+                if (/^(\*{0,2})DIALOGUE(\*{0,2})\s*:/i.test(trimmed)) return false;
+                return trimmed.includes(':');
+            });
+
+            // Extract action text, stripping label prefix
+            const actionText = actionLines
+                .map(l => l.replace(/^(\*{0,2})ACTION(\*{0,2})\s*:\s*/i, '').trim())
+                .join(' ');
+
+            // Extract character names from dialogue speakers and name mentions in action
+            const speakers = dialogueLines
+                .map(l => {
+                    const [speaker] = l.split(':');
+                    return (speaker || '').replace(/^(\*{0,2})DIALOGUE(\*{0,2})\s*/i, '').trim();
+                })
+                .filter(s => s && s.length > 0 && s.length < 50);
+            const uniqueCharacters = [...new Set(speakers)];
 
             scenes.push({
                 id: `scene_${i}`,
                 sceneNumber: i + 1,
-                heading: heading.replace(/ACTION:|DIALOGUE:/gi, '').trim(),
-                action: actionLines.map(l => l.replace('ACTION:', '').trim()).join(' '),
+                heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE)(\*{0,2})\s*:/gi, '').trim(),
+                action: actionText,
                 dialogue: dialogueLines.map(l => {
                     const [speaker, ...text] = l.split(':');
                     return { speaker: (speaker || "").trim(), text: text.join(':').trim() };
                 }),
-                charactersPresent: [],
+                charactersPresent: uniqueCharacters,
             });
         });
 

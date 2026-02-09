@@ -28,7 +28,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, isRTL, getTextDirection } from "@/lib/utils";
-import { Scene, EmotionalTone, TransitionType } from "@/types";
+import { Scene, EmotionalTone, TransitionType, InstructionTriplet } from "@/types";
+import { getEffectiveLegacyTone } from "@/services/tripletUtils";
 
 interface SceneEditorProps {
     scenes: Scene[];
@@ -291,7 +292,7 @@ function SceneCard({
                                 <div className="flex-1">
                                     <label className="text-sm text-slate-400 mb-2 block">Emotional Tone</label>
                                     <Select
-                                        value={scene.emotionalTone}
+                                        value={getEffectiveLegacyTone(scene)}
                                         onValueChange={(v) => onChange({ emotionalTone: v as EmotionalTone })}
                                     >
                                         <SelectTrigger className="glass-button w-full border-white/10">
@@ -326,6 +327,48 @@ function SceneCard({
                                     </Select>
                                 </div>
                             </div>
+
+                            {/* Instruction Triplet */}
+                            {scene.instructionTriplet && (
+                                <div className="space-y-2 mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
+                                    <label className="text-xs text-cyan-400 font-medium block">Instruction Triplet</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-slate-500 block mb-1">Emotion</label>
+                                            <Input
+                                                value={scene.instructionTriplet.primaryEmotion}
+                                                onChange={(e) => onChange({
+                                                    instructionTriplet: { ...scene.instructionTriplet!, primaryEmotion: e.target.value }
+                                                })}
+                                                className="glass-button text-xs h-8 border-white/10"
+                                                placeholder="e.g. visceral-dread"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-slate-500 block mb-1">Cinematic</label>
+                                            <Input
+                                                value={scene.instructionTriplet.cinematicDirection}
+                                                onChange={(e) => onChange({
+                                                    instructionTriplet: { ...scene.instructionTriplet!, cinematicDirection: e.target.value }
+                                                })}
+                                                className="glass-button text-xs h-8 border-white/10"
+                                                placeholder="e.g. slow-push-in"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-slate-500 block mb-1">Atmosphere</label>
+                                            <Input
+                                                value={scene.instructionTriplet.environmentalAtmosphere}
+                                                onChange={(e) => onChange({
+                                                    instructionTriplet: { ...scene.instructionTriplet!, environmentalAtmosphere: e.target.value }
+                                                })}
+                                                className="glass-button text-xs h-8 border-white/10"
+                                                placeholder="e.g. foggy-ruins"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
                 )}
@@ -363,6 +406,11 @@ export function SceneEditor({
             visualDescription: "",
             narrationScript: "",
             emotionalTone: "friendly",
+            instructionTriplet: {
+                primaryEmotion: "warm-welcome",
+                cinematicDirection: "medium",
+                environmentalAtmosphere: "soft-daylight",
+            },
             transitionTo: "dissolve",
         };
         onChange([...scenes, newScene]);

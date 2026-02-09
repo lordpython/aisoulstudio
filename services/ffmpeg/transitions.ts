@@ -11,18 +11,35 @@ import { RenderAsset, ExportConfig } from "./exportConfig";
 import { seekVideoToTime, getCachedFrame, cacheFrame } from "./assetLoader";
 
 /**
- * Ken Burns movement types for visual variety
+ * Ken Burns movement types for visual variety.
+ * Includes compound movements for more cinematic camera motion.
  */
-type KenBurnsMovement = 'zoom_in' | 'zoom_out' | 'pan_left' | 'pan_right' | 'pan_up' | 'pan_down';
+type KenBurnsMovement =
+    | 'zoom_in' | 'zoom_out'
+    | 'pan_left' | 'pan_right' | 'pan_up' | 'pan_down'
+    | 'zoom_in_pan_left' | 'zoom_in_pan_right'
+    | 'zoom_out_pan_up' | 'zoom_out_pan_down';
 
 /**
- * Get deterministic but varied Ken Burns movement based on asset index/time
- * This ensures variety across scenes while being reproducible
+ * Ease-in-out cubic for organic camera motion
+ */
+function easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Get deterministic but varied Ken Burns movement based on asset index/time.
+ * Uses better hash distribution across 10 movements.
  */
 function getKenBurnsMovement(assetTime: number): KenBurnsMovement {
-    const movements: KenBurnsMovement[] = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down'];
-    // Use asset start time to pick movement - deterministic but varied
-    const index = Math.floor(assetTime) % movements.length;
+    const movements: KenBurnsMovement[] = [
+        'zoom_in', 'zoom_out',
+        'pan_left', 'pan_right', 'pan_up', 'pan_down',
+        'zoom_in_pan_left', 'zoom_in_pan_right',
+        'zoom_out_pan_up', 'zoom_out_pan_down',
+    ];
+    // Better hash: multiply by prime for more spread across sequential times
+    const index = Math.floor(assetTime * 7.3) % movements.length;
     return movements[index] || 'zoom_in';
 }
 
@@ -90,67 +107,95 @@ export async function drawAsset(
     if (useModernEffects) {
         // Get varied Ken Burns movement based on asset timing
         const movement = getKenBurnsMovement(asset.time);
-        const intensity = 0.12; // 12% movement range
-        const panDistance = 40; // pixels for pan movements
-        
+        const intensity = 0.18; // 18% movement range (was 12%)
+        const panDistance = 80; // pixels for pan movements (was 40)
+        // Apply ease-in-out for organic camera motion
+        const p = easeInOutCubic(progress);
+
         switch (movement) {
             case 'zoom_in':
-                // Classic Ken Burns: Zoom from 1.0 to 1.12
-                scale = baseScale * (1.0 + progress * intensity);
+                scale = baseScale * (1.0 + p * intensity);
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
                 x = (width - drawWidth) / 2;
                 y = (height - drawHeight) / 2;
                 break;
-                
+
             case 'zoom_out':
-                // Reverse: Zoom from 1.12 to 1.0
-                scale = baseScale * (1.0 + intensity - progress * intensity);
+                scale = baseScale * (1.0 + intensity - p * intensity);
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
                 x = (width - drawWidth) / 2;
                 y = (height - drawHeight) / 2;
                 break;
-                
+
             case 'pan_left':
-                // Pan from right to left (image moves left, camera pans right)
-                scale = baseScale * 1.1; // Slight zoom to allow pan room
+                scale = baseScale * 1.15;
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
-                x = (width - drawWidth) / 2 - (progress * panDistance);
+                x = (width - drawWidth) / 2 - (p * panDistance);
                 y = (height - drawHeight) / 2;
                 break;
-                
+
             case 'pan_right':
-                // Pan from left to right
-                scale = baseScale * 1.1;
+                scale = baseScale * 1.15;
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
-                x = (width - drawWidth) / 2 + (progress * panDistance);
+                x = (width - drawWidth) / 2 + (p * panDistance);
                 y = (height - drawHeight) / 2;
                 break;
-                
+
             case 'pan_up':
-                // Pan from bottom to top
-                scale = baseScale * 1.1;
+                scale = baseScale * 1.15;
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
                 x = (width - drawWidth) / 2;
-                y = (height - drawHeight) / 2 - (progress * panDistance);
+                y = (height - drawHeight) / 2 - (p * panDistance);
                 break;
-                
+
             case 'pan_down':
-                // Pan from top to bottom
-                scale = baseScale * 1.1;
+                // FIX: was adjusting x instead of y
+                scale = baseScale * 1.15;
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
-                x = (width - drawWidth) / 2 + (progress * panDistance);
+                x = (width - drawWidth) / 2;
+                y = (height - drawHeight) / 2 + (p * panDistance);
+                break;
+
+            case 'zoom_in_pan_left':
+                scale = baseScale * (1.0 + p * intensity);
+                drawWidth = naturalWidth * scale;
+                drawHeight = naturalHeight * scale;
+                x = (width - drawWidth) / 2 - (p * panDistance * 0.6);
                 y = (height - drawHeight) / 2;
                 break;
-                
+
+            case 'zoom_in_pan_right':
+                scale = baseScale * (1.0 + p * intensity);
+                drawWidth = naturalWidth * scale;
+                drawHeight = naturalHeight * scale;
+                x = (width - drawWidth) / 2 + (p * panDistance * 0.6);
+                y = (height - drawHeight) / 2;
+                break;
+
+            case 'zoom_out_pan_up':
+                scale = baseScale * (1.0 + intensity - p * intensity);
+                drawWidth = naturalWidth * scale;
+                drawHeight = naturalHeight * scale;
+                x = (width - drawWidth) / 2;
+                y = (height - drawHeight) / 2 - (p * panDistance * 0.6);
+                break;
+
+            case 'zoom_out_pan_down':
+                scale = baseScale * (1.0 + intensity - p * intensity);
+                drawWidth = naturalWidth * scale;
+                drawHeight = naturalHeight * scale;
+                x = (width - drawWidth) / 2;
+                y = (height - drawHeight) / 2 + (p * panDistance * 0.6);
+                break;
+
             default:
-                // Fallback to zoom in
-                scale = baseScale * (1.0 + progress * intensity);
+                scale = baseScale * (1.0 + p * intensity);
                 drawWidth = naturalWidth * scale;
                 drawHeight = naturalHeight * scale;
                 x = (width - drawWidth) / 2;

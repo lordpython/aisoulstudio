@@ -67,7 +67,9 @@ export enum AppState {
 // --- Multi-Agent Production Types ---
 
 /**
- * Emotional tone for narration voice matching
+ * Emotional tone for narration voice matching.
+ * @deprecated Prefer using InstructionTriplet for richer creative direction.
+ * Kept for backward compatibility with existing voice selection logic.
  */
 export type EmotionalTone =
   | "professional"
@@ -75,6 +77,20 @@ export type EmotionalTone =
   | "friendly"
   | "urgent"
   | "calm";
+
+/**
+ * Instruction Triplet: 3-axis creative direction system.
+ * Replaces the flat EmotionalTone with richer vibe-based control.
+ *
+ * - primaryEmotion: Core emotional state (e.g., "visceral-dread", "bittersweet-longing")
+ * - cinematicDirection: Visual/camera style (e.g., "dutch-angle", "slow-push-in")
+ * - environmentalAtmosphere: Ambient texture (e.g., "foggy-ruins", "neon-rain")
+ */
+export interface InstructionTriplet {
+  primaryEmotion: string;
+  cinematicDirection: string;
+  environmentalAtmosphere: string;
+}
 
 /**
  * Camera shot type for cinematography
@@ -117,7 +133,14 @@ export interface Scene {
   duration: number; // seconds
   visualDescription: string;
   narrationScript: string;
-  emotionalTone: EmotionalTone;
+  /**
+   * @deprecated Prefer instructionTriplet for new scenes.
+   * Still used by voice selection (TONE_VOICE_MAP) and SFX matching.
+   * Use getEffectiveLegacyTone() from tripletUtils for safe access.
+   */
+  emotionalTone?: EmotionalTone;
+  /** 3-axis creative direction (new system) */
+  instructionTriplet?: InstructionTriplet;
   transitionTo?: TransitionType;
   /** AI-suggested ambient sound effect ID */
   ambientSfx?: string;

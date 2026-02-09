@@ -17,6 +17,7 @@ import {
     isSunoConfigured
 } from "../../../sunoService";
 import { fetchAndCacheAsBlob } from "../../../videoService";
+import { getEffectiveLegacyTone } from "../../../tripletUtils";
 
 const log = agentLogger.child('Production');
 
@@ -52,7 +53,7 @@ export const generateVideoTool = tool(
             const videoUrl = await generateProfessionalVideo(
                 scene.visualDescription,
                 style || "Cinematic",
-                scene.emotionalTone || "dramatic",
+                getEffectiveLegacyTone(scene),
                 "",
                 "documentary",
                 (aspectRatio === "9:16" ? "9:16" : "16:9"),
@@ -150,7 +151,7 @@ export const animateImageTool = tool(
             return generateProfessionalVideo(
                 scene.visualDescription,
                 "Cinematic",
-                scene.emotionalTone || "dramatic",
+                getEffectiveLegacyTone(scene),
                 "",
                 "documentary",
                 (aspectRatio === "9:16" ? "9:16" : "16:9"),
@@ -201,7 +202,7 @@ export const animateImageTool = tool(
             log.info(` Generating motion prompt for scene ${sceneIndex}`);
             const motionPrompt = await generateMotionPrompt(
                 scene.visualDescription,
-                scene.emotionalTone || "cinematic",
+                getEffectiveLegacyTone(scene),
                 ""
             );
             log.info(` Motion prompt: ${motionPrompt.substring(0, 100)}...`);

@@ -19,6 +19,8 @@ import { getSystemPersona, type Persona } from "./prompt/personaData";
 import { getStyleEnhancement, type StyleEnhancement } from "./prompt/styleEnhancements";
 import { type VideoPurpose, type LanguageCode, getLanguageName } from "../constants";
 import { traceAsync } from "./tracing";
+import { getEffectiveLegacyTone } from "./tripletUtils";
+import { getVibeTerms, SCENARIO_TEMPLATES } from "./prompt/vibeLibrary";
 
 // --- Zod Schemas ---
 
@@ -72,7 +74,13 @@ export const ContentPlanSchema = z.object({
         duration: z.number().describe("Scene duration in seconds"),
         visualDescription: z.string().max(200).describe("Detailed visual description for image/video generation (max 200 chars)"),
         narrationScript: z.string().describe("Narration script to be spoken"),
-        emotionalTone: z.enum(["professional", "dramatic", "friendly", "urgent", "calm"]).describe("Emotional tone for voice"),
+        emotionalTone: z.enum(["professional", "dramatic", "friendly", "urgent", "calm"]).optional().describe("Legacy emotional tone (fallback)"),
+        // Instruction Triplet — preferred over emotionalTone
+        instructionTriplet: z.object({
+            primaryEmotion: z.string().describe("Core emotional vibe (e.g., 'visceral-dread', 'nostalgic-warmth')"),
+            cinematicDirection: z.string().describe("Camera/visual style (e.g., 'slow-push-in', 'dutch-angle')"),
+            environmentalAtmosphere: z.string().describe("Ambient texture (e.g., 'foggy-ruins', 'neon-rain')"),
+        }).optional().describe("3-axis creative direction (preferred over emotionalTone)"),
         transitionTo: z.enum(["none", "fade", "dissolve", "zoom", "slide"]).optional().describe("Transition to next scene"),
         ambientSfx: z.string().optional().describe("Suggested ambient sound effect ID"),
         // Cinematography fields
@@ -143,7 +151,7 @@ function createModel(config: ContentPlannerConfig = {}): ChatGoogleGenerativeAI 
 
 // --- Prompt Template ---
 
-function createContentPlannerTemplate(persona: Persona, style: StyleEnhancement, language: LanguageCode): ChatPromptTemplate {
+function createContentPlannerTemplate(persona: Persona, style: StyleEnhancement, language: LanguageCode, videoPurpose?: VideoPurpose): ChatPromptTemplate {
     // Build explicit language directive (placed at TOP for maximum visibility)
     const languageDirective = language && language !== 'auto'
         ? `🚨 MANDATORY LANGUAGE REQUIREMENT 🚨
@@ -177,6 +185,68 @@ VISUAL STYLE: ${style.mediumDescription}
 STYLE KEYWORDS TO INCORPORATE:
 ${style.keywords.slice(0, 5).map(k => `- ${k}`).join('\n')}`;
 
+    // Build Instruction Triplet guidance
+    const emotionVibes = getVibeTerms("emotion", videoPurpose).map(v => v.id);
+    const cinematicVibes = getVibeTerms("cinematic", videoPurpose).map(v => v.id);
+    const atmosphereVibes = getVibeTerms("atmosphere", videoPurpose).map(v => v.id);
+
+    const tripletGuidance = `
+=== INSTRUCTION TRIPLET SYSTEM (PREFERRED) ===
+For each scene, provide an "instructionTriplet" with 3 axes of creative direction:
+
+1. **primaryEmotion** — The core emotional vibe driving the narration voice.
+   Available: ${emotionVibes.slice(0, 15).join(', ')}...
+
+2. **cinematicDirection** — The camera/visual style for the scene.
+   Available: ${cinematicVibes.slice(0, 15).join(', ')}...
+
+3. **environmentalAtmosphere** — The ambient texture/soundscape of the scene.
+   Available: ${atmosphereVibes.slice(0, 15).join(', ')}...
+
+Example:
+"instructionTriplet": {
+  "primaryEmotion": "visceral-dread",
+  "cinematicDirection": "slow-push-in",
+  "environmentalAtmosphere": "foggy-ruins"
+}
+
+You may ALSO provide "emotionalTone" as a fallback (one of: professional, dramatic, friendly, urgent, calm).
+If you provide instructionTriplet, it takes precedence.`;
+
+    // Build scenario engine hint
+    const matchedScenario = SCENARIO_TEMPLATES.find(s =>
+      videoPurpose === 'horror_mystery' && s.id === 'ghost-protocol' ||
+      videoPurpose === 'storytelling' && s.id === 'desert-crossing' ||
+      videoPurpose === 'commercial' && s.id === 'neon-descent' ||
+      videoPurpose === 'documentary' && s.id === 'silent-signal'
+    );
+    const scenarioHint = matchedScenario
+      ? `\n=== SCENARIO ENGINE ===\nConsider the "${matchedScenario.name}" narrative template: ${matchedScenario.description}\nSuggested arc: ${matchedScenario.arcBeats.map(b => b.beat).join(' → ')}\n`
+      : '';
+
+    // TTS-optimized narration style
+    const ttsStyleGuidance = `
+=== TTS-OPTIMIZED NARRATION STYLE ===
+Write narration scripts optimized for text-to-speech delivery:
+- Use SHORT, PUNCHY sentences (5-15 words each)
+- Embed delivery markers when appropriate:
+  [pause: long] — dramatic beat before a reveal
+  [emphasis]key phrase[/emphasis] — vocal stress on important words
+  [low-tone]dark content[/low-tone] — drop to lower register
+  [whisper]secret or intimate[/whisper] — hushed delivery
+  [breath] — natural breath for realism
+- Open scenes with a HOOK that creates curiosity
+- End scenes with a CLIFFHANGER or question that pulls into the next scene
+- NEVER end a narration with a generic summary sentence
+- Think documentary-mystery style: revelations, not explanations`;
+
+    // Language hybridization rules
+    const hybridLanguageNote = `
+=== LANGUAGE HYBRIDIZATION ===
+- narrationScript: MUST be in the target/detected language
+- instructionTriplet values: ALWAYS in English (they are system identifiers)
+- visualDescription: ALWAYS in English (for image generation)`;
+
     return ChatPromptTemplate.fromMessages([
         ["system", `${languageDirective}
 
@@ -186,6 +256,11 @@ Your job is to take a topic or content and create a detailed, CREATIVE, and ENGA
 ${personaGuidance}
 
 ${styleGuidance}
+
+${tripletGuidance}
+${scenarioHint}
+${ttsStyleGuidance}
+${hybridLanguageNote}
 
 CREATIVITY GUIDELINES:
 - Be IMAGINATIVE and ORIGINAL - don't just state facts, tell a compelling story
@@ -309,6 +384,25 @@ GOOD: Visual: "Low angle of man looking up at sunrise, slight smile forming"
 BAD: "The atmosphere was tense" →
 GOOD: Visual: "Close-up of white-knuckled grip on steering wheel, sweat on brow"
 
+=== NARRATION "SHOW DON'T TELL" (for narrationScript) ===
+narrationScript will be spoken as voiceover. The viewer HEARS the narration while SEEING the visuals.
+Write narration that describes what the VIEWER SEES — sensory, cinematic, grounded.
+
+BAD narration: "He felt overwhelming fear as the situation became dangerous."
+GOOD narration: "His breath caught. The corridor stretched into shadow, and something moved."
+
+BAD narration: "She was very happy to see her old friend again."
+GOOD narration: "Her eyes widened. A laugh escaped — the kind that shakes your whole body."
+
+BAD narration: "The village had been abandoned for many years."
+GOOD narration: "Dust coated every surface. A child's shoe lay in the doorway, sun-bleached and cracked."
+
+RULES for narrationScript:
+- Describe what the camera CAPTURES: movement, light, texture, sound
+- Use concrete sensory details, not abstract emotional labels
+- Short declarative sentences hit harder than long explanations
+- Let the visuals carry the emotion — narration adds texture, not exposition
+
 === VISUAL VARIETY CHECKLIST ===
 Across your scenes, ensure you have:
 - [ ] At least ONE extreme close-up (detail shot)
@@ -351,6 +445,11 @@ Return a valid JSON object matching this structure:
       "visualDescription": "Close-up of coffee beans being poured into a grinder, warm morning light, ${style.keywords[0]} (ALWAYS IN ENGLISH)",
       "narrationScript": "Narration text in the SAME language as the input topic",
       "emotionalTone": "friendly",
+      "instructionTriplet": {{
+        "primaryEmotion": "nostalgic-warmth",
+        "cinematicDirection": "slow-push-in",
+        "environmentalAtmosphere": "golden-hour-decay"
+      }},
       "transitionTo": "dissolve",
       "ambientSfx": "cafe-ambience"
     }}
@@ -387,7 +486,7 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
     const persona = getSystemPersona(mergedConfig.videoPurpose);
     const style = getStyleEnhancement(mergedConfig.visualStyle);
 
-    const template = createContentPlannerTemplate(persona, style, mergedConfig.language);
+    const template = createContentPlannerTemplate(persona, style, mergedConfig.language, mergedConfig.videoPurpose);
 
     return RunnableSequence.from([
         template,
@@ -413,37 +512,52 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
                     const validTransitions = ["none", "fade", "dissolve", "zoom", "slide"];
 
                     if (parsed.scenes && Array.isArray(parsed.scenes)) {
-                        parsed.scenes = parsed.scenes.map((scene: any) => ({
-                            ...scene,
-                            // Truncate visualDescription to 200 chars max (AI sometimes gets creative)
-                            visualDescription: scene.visualDescription?.length > 200
-                                ? scene.visualDescription.substring(0, 197) + "..."
-                                : scene.visualDescription,
-                            // Normalize emotionalTone to lowercase and map to valid value
-                            emotionalTone: validTones.includes(scene.emotionalTone?.toLowerCase?.())
+                        parsed.scenes = parsed.scenes.map((scene: any) => {
+                            // Normalize emotionalTone if present
+                            const normalizedTone = validTones.includes(scene.emotionalTone?.toLowerCase?.())
                                 ? scene.emotionalTone.toLowerCase()
-                                : "friendly", // Default
-                            // Intelligent transition selection based on emotional tone
-                            // If AI provided a transition, validate it; otherwise, auto-select based on mood
-                            transitionTo: (() => {
-                                if (scene.transitionTo && validTransitions.includes(scene.transitionTo?.toLowerCase?.())) {
-                                    return scene.transitionTo.toLowerCase();
+                                : undefined;
+
+                            // Preserve instructionTriplet if provided
+                            const instructionTriplet = scene.instructionTriplet && typeof scene.instructionTriplet === 'object'
+                                ? {
+                                    primaryEmotion: String(scene.instructionTriplet.primaryEmotion || "nostalgic-warmth"),
+                                    cinematicDirection: String(scene.instructionTriplet.cinematicDirection || "handheld-float"),
+                                    environmentalAtmosphere: String(scene.instructionTriplet.environmentalAtmosphere || "golden-hour-decay"),
                                 }
-                                // Auto-select transition based on emotional tone
-                                const moodTransitionMap: Record<string, string> = {
-                                    'dramatic': 'dissolve',   // Slow cross-fade for drama
-                                    'urgent': 'none',         // Quick cuts for urgency
-                                    'calm': 'fade',           // Gentle fade for calm scenes
-                                    'friendly': 'slide',      // Playful slide for friendly
-                                    'professional': 'dissolve', // Clean dissolve for professional
-                                };
-                                return moodTransitionMap[scene.emotionalTone?.toLowerCase?.()] || 'dissolve';
-                            })(),
-                            // Validate ambientSfx against known categories
-                            ambientSfx: scene.ambientSfx && (SFX_CATEGORIES as readonly string[]).includes(scene.ambientSfx)
-                                ? scene.ambientSfx
-                                : undefined,
-                        }));
+                                : undefined;
+
+                            // Effective tone for transition selection
+                            const effectiveTone = normalizedTone || "friendly";
+
+                            return {
+                                ...scene,
+                                // Truncate visualDescription to 200 chars max (AI sometimes gets creative)
+                                visualDescription: scene.visualDescription?.length > 200
+                                    ? scene.visualDescription.substring(0, 197) + "..."
+                                    : scene.visualDescription,
+                                emotionalTone: normalizedTone,
+                                instructionTriplet,
+                                // Intelligent transition selection based on emotional tone
+                                transitionTo: (() => {
+                                    if (scene.transitionTo && validTransitions.includes(scene.transitionTo?.toLowerCase?.())) {
+                                        return scene.transitionTo.toLowerCase();
+                                    }
+                                    const moodTransitionMap: Record<string, string> = {
+                                        'dramatic': 'dissolve',
+                                        'urgent': 'none',
+                                        'calm': 'fade',
+                                        'friendly': 'slide',
+                                        'professional': 'dissolve',
+                                    };
+                                    return moodTransitionMap[effectiveTone] || 'dissolve';
+                                })(),
+                                // Validate ambientSfx against known categories
+                                ambientSfx: scene.ambientSfx && (SFX_CATEGORIES as readonly string[]).includes(scene.ambientSfx)
+                                    ? scene.ambientSfx
+                                    : undefined,
+                            };
+                        });
                     }
 
                     const validated = ContentPlanSchema.parse(parsed);
@@ -472,7 +586,9 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
                             'professional': 1.0,
                             'friendly': 1.0,
                         };
-                        const emotionalMultiplier = emotionalMultipliers[scene.emotionalTone] || 1.0;
+                        // Use getEffectiveLegacyTone for scenes with triplet or legacy tone
+                        const sceneTone = getEffectiveLegacyTone(scene as Scene);
+                        const emotionalMultiplier = emotionalMultipliers[sceneTone] || 1.0;
 
                         // 3. Action intensity: Fast-paced visual content = shorter scenes
                         const actionPatterns = /\b(explode|run|chase|fight|crash|fall|jump|speed|rush|race|attack|escape|sprint|collide)\b/gi;
@@ -485,7 +601,7 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
                         // Clamp to valid range: min 5s, max 15s (avoid boring static images)
                         const calculatedDuration = Math.max(5, Math.min(15, Math.ceil(smartDuration) + 1));
 
-                        console.log(`[ContentPlanner] Scene ${index + 1}: ${words} words, ${scene.emotionalTone} → ${calculatedDuration}s (complexity: x${complexityMultiplier.toFixed(2)}, emotion: x${emotionalMultiplier}, action: x${actionMultiplier})`);
+                        console.log(`[ContentPlanner] Scene ${index + 1}: ${words} words, ${sceneTone} → ${calculatedDuration}s (complexity: x${complexityMultiplier.toFixed(2)}, emotion: x${emotionalMultiplier}, action: x${actionMultiplier})`);
                         totalDuration += calculatedDuration;
 
                         return {
@@ -573,9 +689,10 @@ export const generateContentPlan = traceAsync(
                     duration: scene.duration,
                     visualDescription: scene.visualDescription,
                     narrationScript: scene.narrationScript,
-                    emotionalTone: scene.emotionalTone as EmotionalTone,
+                    emotionalTone: (scene.emotionalTone as EmotionalTone | undefined),
+                    instructionTriplet: scene.instructionTriplet,
                     transitionTo: scene.transitionTo as TransitionType | undefined,
-                    ambientSfx: scene.ambientSfx, // AI-suggested SFX
+                    ambientSfx: scene.ambientSfx,
                 })),
             };
         } catch (error) {

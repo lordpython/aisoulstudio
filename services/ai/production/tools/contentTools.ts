@@ -33,6 +33,7 @@ import {
 import { type VideoPurpose } from "../../../../constants";
 import { type GeneratedImage } from "../../../../types";
 import { cloudAutosave } from "../../../cloudStorageService";
+import { getEffectiveLegacyTone } from "../../../tripletUtils";
 import { type ProductionProgress, createInitialState } from "../types";
 
 const log = agentLogger.child('Production');
@@ -255,7 +256,7 @@ export const generateVisualsTool = tool(
                             imageUrl = await generateProfessionalVideo(
                                 scene.visualDescription,
                                 style || "Cinematic",
-                                scene.emotionalTone || "dramatic",
+                                getEffectiveLegacyTone(scene),
                                 "", "documentary",
                                 (aspectRatio === "9:16" ? "9:16" : "16:9"),
                                 8, true,
