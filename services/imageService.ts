@@ -13,6 +13,7 @@ import { IMAGE_STYLE_MODIFIERS, DEFAULT_NEGATIVE_CONSTRAINTS } from "../constant
 import { refineImagePrompt } from "./promptService";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
+import { withAILogging } from "./aiLogService";
 
 // --- Character Seed Registry ---
 // Stores seeds for character consistency across scenes
@@ -379,9 +380,23 @@ ${negative}
       // Check if we're using an Imagen model (requires different API)
       let imageUrl: string;
       if (isImagenModel(MODELS.IMAGE)) {
-        imageUrl = await generateWithImagenAPI(finalPrompt, aspectRatio, effectiveSeed);
+        imageUrl = await withAILogging(
+          sessionId,
+          'image_gen',
+          MODELS.IMAGE,
+          finalPrompt,
+          () => generateWithImagenAPI(finalPrompt, aspectRatio, effectiveSeed),
+          () => `image generated (${aspectRatio})`,
+        );
       } else {
-        imageUrl = await generateWithGeminiAPI(finalPrompt, aspectRatio);
+        imageUrl = await withAILogging(
+          sessionId,
+          'image_gen',
+          MODELS.IMAGE,
+          finalPrompt,
+          () => generateWithGeminiAPI(finalPrompt, aspectRatio),
+          () => `image generated (${aspectRatio})`,
+        );
       }
 
       // Cloud autosave trigger (fire-and-forget, non-blocking)

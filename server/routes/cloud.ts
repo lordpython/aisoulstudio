@@ -94,7 +94,7 @@ router.post('/upload-asset', memoryUpload.single('file'), async (req: Request, r
         return;
     }
 
-    const validAssetTypes = ['visuals', 'audio', 'music', 'video_clips', 'sfx', 'subtitles', 'exports'];
+    const validAssetTypes = ['visuals', 'audio', 'music', 'video_clips', 'sfx', 'subtitles', 'exports', 'ai_logs'];
     const safeAssetType = validAssetTypes.includes(assetType) ? assetType : 'misc';
     const safeFilename = path.basename(filename || `asset_${Date.now()}`);
     const destination = buildStoragePath(sessionId, userId, safeAssetType, safeFilename);

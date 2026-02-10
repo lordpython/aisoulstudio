@@ -12,6 +12,7 @@ import { GoogleGenAI } from "@google/genai";
 import { VIDEO_STYLE_MODIFIERS } from "../constants";
 import { generateProfessionalVideoPrompt } from "./promptService";
 import { cloudAutosave } from "./cloudStorageService";
+import { logAICall } from "./aiLogService";
 
 // Initialize the AI client
 const API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
@@ -278,6 +279,7 @@ Smooth camera motion. Focus on clean visuals without any text elements.
     }
 
     // Generate video
+    const videoGenStart = Date.now();
     let operation;
     try {
       // @ts-ignore - generateVideos types may be incomplete
@@ -318,7 +320,40 @@ Smooth camera motion. Focus on clean visuals without any text elements.
     }
 
     // Poll until complete
-    const completedOp = await pollVideoOperation(operation);
+    let completedOp;
+    try {
+      completedOp = await pollVideoOperation(operation);
+    } catch (pollErr) {
+      // Log failed video generation
+      if (sessionId) {
+        logAICall({
+          sessionId,
+          step: 'animation',
+          model: modelToUse,
+          input: finalPrompt,
+          output: '',
+          durationMs: Date.now() - videoGenStart,
+          status: 'error',
+          error: pollErr instanceof Error ? pollErr.message : String(pollErr),
+          metadata: { aspectRatio, durationSeconds },
+        });
+      }
+      throw pollErr;
+    }
+
+    // Log successful video generation
+    if (sessionId) {
+      logAICall({
+        sessionId,
+        step: 'animation',
+        model: modelToUse,
+        input: finalPrompt,
+        output: `video generated (${aspectRatio}, ${durationSeconds}s)`,
+        durationMs: Date.now() - videoGenStart,
+        status: 'success',
+        metadata: { aspectRatio, durationSeconds },
+      });
+    }
 
     console.log(`[Video Service] Video generation complete!`);
 

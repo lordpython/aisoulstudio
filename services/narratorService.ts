@@ -15,6 +15,7 @@ import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet } from "../t
 import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
+import { logAICall } from "./aiLogService";
 import { getEffectiveTriplet, getEffectiveLegacyTone } from "./tripletUtils";
 import { tripletToPromptFragments } from "./prompt/vibeLibrary";
 import { convertMarkersToDirectorNote } from "./tts/deliveryMarkers";
@@ -769,14 +770,53 @@ export async function narrateScene(
         console.log(`[Narrator] Using language-specific voice "${languageVoice}" for ${config?.language}`);
     }
 
-    const audioBlob = await synthesizeSpeech(
-        scene.narrationScript,
-        enhancedVoiceConfig,
-        config
-    );
+    const ttsStart = Date.now();
+    let audioBlob: Blob;
+    try {
+        audioBlob = await synthesizeSpeech(
+            scene.narrationScript,
+            enhancedVoiceConfig,
+            config
+        );
+    } catch (err) {
+        // Log the failed TTS call
+        if (sessionId) {
+            logAICall({
+                sessionId,
+                step: 'tts',
+                model: MODELS.TTS,
+                input: scene.narrationScript,
+                output: '',
+                durationMs: Date.now() - ttsStart,
+                status: 'error',
+                error: err instanceof Error ? err.message : String(err),
+                metadata: { sceneName: scene.name, voice: enhancedVoiceConfig.voiceName },
+            });
+        }
+        throw err;
+    }
 
     // Calculate duration from WAV blob (precise since we know the format)
     const audioDuration = calculateAudioDuration(audioBlob);
+
+    // Log the successful TTS call (fire-and-forget)
+    if (sessionId) {
+        logAICall({
+            sessionId,
+            step: 'tts',
+            model: MODELS.TTS,
+            input: scene.narrationScript,
+            output: `audio: ${audioDuration.toFixed(1)}s, ${audioBlob.size} bytes`,
+            durationMs: Date.now() - ttsStart,
+            status: 'success',
+            metadata: {
+                sceneName: scene.name,
+                voice: enhancedVoiceConfig.voiceName,
+                audioDurationSec: audioDuration,
+                audioSizeBytes: audioBlob.size,
+            },
+        });
+    }
 
     const wordCount = scene.narrationScript.split(/\s+/).filter(w => w.length > 0).length;
     console.log(`[Narrator] Scene "${scene.name}" audio: ${audioDuration.toFixed(1)}s (${wordCount} words, ${audioBlob.size} bytes)`);

@@ -9,6 +9,7 @@ import { tool } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { agentLogger } from "../../../logger";
 import { GEMINI_API_KEY, MODELS } from "../../../shared/apiClient";
+import { withAILogging } from "../../../aiLogService";
 import { StoryModeSchema, VerifyCharacterConsistencySchema, type StoryModeState } from "../types";
 import { storyModeStore, productionStore } from "../store";
 import { verifyCharacterConsistency } from "../../../visualConsistencyService";
@@ -65,7 +66,14 @@ Format as a structured list.`;
         let breakdown: string;
         try {
             log.info(' Invoking Gemini API for story breakdown...');
-            const response = await model.invoke(prompt);
+            const response = await withAILogging(
+                id,
+                'breakdown',
+                MODELS.TEXT_EXP,
+                prompt,
+                () => model.invoke(prompt),
+                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+            );
             breakdown = response.content as string;
             log.info(' Story breakdown generated successfully');
         } catch (error) {
@@ -146,7 +154,14 @@ Limit to 3-5 scenes.`;
         let scriptText: string;
         try {
             log.info(' Invoking Gemini API for screenplay...');
-            const response = await model.invoke(prompt);
+            const response = await withAILogging(
+                sessionId,
+                'screenplay',
+                MODELS.TEXT_EXP,
+                prompt,
+                () => model.invoke(prompt),
+                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+            );
             scriptText = stripMarkdown(response.content as string);
             log.info(' Screenplay generated successfully');
         } catch (error) {
@@ -237,7 +252,7 @@ export const generateCharactersTool = tool(
             `${s.heading}\n${s.action}\n${s.dialogue.map(d => `${d.speaker}: ${d.text}`).join('\n')}`
         ).join('\n\n');
 
-        const characters = await extractCharacters(scriptText);
+        const characters = await extractCharacters(scriptText, sessionId);
         const charactersWithRefs = await generateAllCharacterReferences(characters, sessionId);
 
         state.characters = charactersWithRefs;
@@ -295,7 +310,14 @@ For each shot, provide:
         let shotlistText: string;
         try {
             log.info(' Invoking Gemini API for shotlist...');
-            const response = await model.invoke(prompt);
+            const response = await withAILogging(
+                sessionId,
+                'shotlist',
+                MODELS.TEXT_EXP,
+                prompt,
+                () => model.invoke(prompt),
+                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+            );
             shotlistText = response.content as string;
             log.info(' Shotlist generated successfully');
         } catch (error) {

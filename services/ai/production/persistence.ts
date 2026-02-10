@@ -17,7 +17,7 @@ import { agentLogger } from '../../logger';
 const log = agentLogger.child('Persistence');
 
 const DB_NAME = 'lyriclens-production';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface SessionMetadata {
     sessionId: string;
@@ -80,6 +80,14 @@ async function getDB(): Promise<IDBPDatabase> {
             // Blob store for large binary data (optional)
             if (!db.objectStoreNames.contains('blobs')) {
                 db.createObjectStore('blobs', { keyPath: 'id' });
+            }
+
+            // AI logs store (v2+)
+            if (!db.objectStoreNames.contains('ai-logs')) {
+                const aiLogsStore = db.createObjectStore('ai-logs', { keyPath: 'id' });
+                aiLogsStore.createIndex('sessionId', 'sessionId');
+                aiLogsStore.createIndex('timestamp', 'timestamp');
+                aiLogsStore.createIndex('step', 'step');
             }
         },
         blocked() {
@@ -312,6 +320,78 @@ export async function loadBlob(id: string): Promise<Blob | null> {
 }
 
 // ============================================================
+// AI LOG PERSISTENCE
+// ============================================================
+
+/**
+ * AI log entry stored in IndexedDB
+ */
+export interface AILogEntry {
+    id: string;
+    sessionId: string;
+    step: string;
+    model: string;
+    input: string;
+    output: string;
+    durationMs: number;
+    timestamp: number;
+    status: 'success' | 'error';
+    error?: string;
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * Save an AI log entry to IndexedDB (fire-and-forget)
+ */
+export async function saveAILog(entry: AILogEntry): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.put('ai-logs', entry);
+    } catch (error) {
+        log.error('Failed to save AI log:', error);
+    }
+}
+
+/**
+ * Get all AI logs for a session, ordered by timestamp
+ */
+export async function getAILogsForSession(sessionId: string): Promise<AILogEntry[]> {
+    try {
+        const db = await getDB();
+        const logs = await db.getAllFromIndex('ai-logs', 'sessionId', sessionId) as AILogEntry[];
+        return logs.sort((a, b) => a.timestamp - b.timestamp);
+    } catch (error) {
+        log.error('Failed to get AI logs:', error);
+        return [];
+    }
+}
+
+/**
+ * Get AI logs for a session filtered by step
+ */
+export async function getAILogsByStep(sessionId: string, step: string): Promise<AILogEntry[]> {
+    const logs = await getAILogsForSession(sessionId);
+    return logs.filter(l => l.step === step);
+}
+
+/**
+ * Delete all AI logs for a session
+ */
+export async function deleteAILogsForSession(sessionId: string): Promise<void> {
+    try {
+        const db = await getDB();
+        const logs = await db.getAllFromIndex('ai-logs', 'sessionId', sessionId) as AILogEntry[];
+        const tx = db.transaction('ai-logs', 'readwrite');
+        for (const entry of logs) {
+            await tx.store.delete(entry.id);
+        }
+        await tx.done;
+    } catch (error) {
+        log.error('Failed to delete AI logs:', error);
+    }
+}
+
+// ============================================================
 // CLEANUP UTILITIES
 // ============================================================
 
@@ -329,6 +409,7 @@ export async function cleanupOldSessions(maxAgeDays: number = 7): Promise<number
         for (const record of oldSessions) {
             await db.delete('sessions', record.sessionId);
             await db.delete('blobs', `${record.sessionId}-video`);
+            await deleteAILogsForSession(record.sessionId);
         }
 
         if (oldSessions.length > 0) {
@@ -351,6 +432,7 @@ export async function clearAllPersistedData(): Promise<void> {
         await db.clear('sessions');
         await db.clear('story-sessions');
         await db.clear('blobs');
+        await db.clear('ai-logs');
         log.info('Cleared all persisted data');
     } catch (error) {
         log.error('Failed to clear persisted data:', error);

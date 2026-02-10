@@ -97,7 +97,7 @@ async function uploadWithRetry(
 /**
  * Type for asset categories in cloud storage
  */
-export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sfx' | 'subtitles';
+export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sfx' | 'subtitles' | 'ai_logs';
 
 /**
  * Cloud autosave state tracker
@@ -356,6 +356,50 @@ export const cloudAutosave = {
     } catch (e) {
       console.warn(`[Autosave] Failed to save animated video for shot ${shotId}:`, e);
       return null;
+    }
+  },
+
+  /**
+   * Save AI log entry to cloud storage as JSON.
+   * Stores logs in the ai_logs folder within the session directory.
+   *
+   * @param sessionId - The production session ID
+   * @param logEntry - The AI log entry to save
+   */
+  async saveAILog(
+    sessionId: string,
+    logEntry: {
+      id: string;
+      step: string;
+      model: string;
+      input: string;
+      output: string;
+      durationMs: number;
+      timestamp: number;
+      status: 'success' | 'error';
+      error?: string;
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<{ success: boolean; path?: string; error?: string }> {
+    if (!sessionId) {
+      return { success: false, error: 'No sessionId' };
+    }
+
+    try {
+      // Create JSON blob from log entry
+      const jsonContent = JSON.stringify(logEntry, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const filename = `${logEntry.step}_${logEntry.id}.json`;
+
+      const result = await this.saveAsset(sessionId, blob, filename, 'ai_logs', false, false);
+
+      if (result.success) {
+        console.log(`[Autosave] ✓ AI log saved: ${logEntry.step}/${logEntry.id}`);
+      }
+      return result;
+    } catch (e) {
+      console.warn(`[Autosave] Failed to save AI log:`, e);
+      return { success: false, error: String(e) };
     }
   },
 

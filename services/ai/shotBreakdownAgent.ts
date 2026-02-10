@@ -9,6 +9,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { MODELS } from "../shared/apiClient";
 import { agentLogger } from "../logger";
 import type { ScreenplayScene } from "@/types";
+import { withAILogging } from "../aiLogService";
 
 const log = agentLogger.child('ShotBreakdown');
 
@@ -194,7 +195,8 @@ function normalizeShot(raw: RawShotData, index: number, sceneId: string): Shot {
 export async function breakSceneIntoShots(
     scene: ScreenplayScene,
     genre: string,
-    geminiModel?: ChatGoogleGenerativeAI
+    geminiModel?: ChatGoogleGenerativeAI,
+    sessionId?: string,
 ): Promise<Shot[]> {
     const model = geminiModel || getGeminiModel();
 
@@ -215,7 +217,14 @@ export async function breakSceneIntoShots(
     log.info(`Breaking down scene ${scene.sceneNumber} into shots...`);
 
     try {
-        const response = await model.invoke([{ role: 'user', content: prompt }]);
+        const response = await withAILogging(
+            sessionId,
+            'shot_breakdown',
+            MODELS.TEXT,
+            prompt,
+            () => model.invoke([{ role: 'user', content: prompt }]),
+            (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+        );
         const content = typeof response.content === 'string'
             ? response.content
             : JSON.stringify(response.content);
@@ -240,7 +249,8 @@ export async function breakSceneIntoShots(
 export async function breakAllScenesIntoShots(
     scenes: ScreenplayScene[],
     genre: string,
-    onProgress?: (sceneIndex: number, totalScenes: number) => void
+    onProgress?: (sceneIndex: number, totalScenes: number) => void,
+    sessionId?: string,
 ): Promise<Shot[]> {
     const model = getGeminiModel();
     const allShots: Shot[] = [];
@@ -255,7 +265,7 @@ export async function breakAllScenesIntoShots(
         onProgress?.(i, scenes.length);
 
         try {
-            const shots = await breakSceneIntoShots(scene, genre, model);
+            const shots = await breakSceneIntoShots(scene, genre, model, sessionId);
             allShots.push(...shots);
         } catch (error) {
             log.error(`Failed to process scene ${i + 1}:`, error);

@@ -11,6 +11,7 @@ import { GEMINI_API_KEY, MODELS } from "./shared/apiClient";
 import { generateImageFromPrompt } from "./imageService";
 import { z } from "zod";
 import type { CharacterProfile } from "@/types";
+import { withAILogging } from "./aiLogService";
 
 // Schema for structured character extraction
 const CharacterExtractionSchema = z.object({
@@ -28,16 +29,16 @@ const CharacterExtractionSchema = z.object({
  * @param scriptText - The full script or story text to analyze
  * @returns Array of CharacterProfile objects
  */
-export async function extractCharacters(scriptText: string): Promise<CharacterProfile[]> {
+export async function extractCharacters(scriptText: string, sessionId?: string): Promise<CharacterProfile[]> {
     const model = new ChatGoogleGenerativeAI({
         model: MODELS.TEXT_EXP,
         apiKey: GEMINI_API_KEY,
         temperature: 0.2,
     }).withStructuredOutput(CharacterExtractionSchema);
 
-    const prompt = `Extract the main characters from this script/story. 
+    const prompt = `Extract the main characters from this script/story.
 For each character, create a detailed and consistent visual description that can be used for image generation.
-The visual description should include: approximate age, gender, ethnicity, hair color/style, eye color, 
+The visual description should include: approximate age, gender, ethnicity, hair color/style, eye color,
 body type, typical clothing/style, and any distinguishing features.
 Make descriptions vivid and specific enough to maintain visual consistency across multiple images.
 
@@ -45,7 +46,14 @@ Script:
 ${scriptText}`;
 
     try {
-        const result = await model.invoke(prompt);
+        const result = await withAILogging(
+            sessionId,
+            'character_extract',
+            MODELS.TEXT_EXP,
+            prompt,
+            () => model.invoke(prompt),
+            (r) => JSON.stringify(r.characters),
+        );
 
         return result.characters.map((c, i) => ({
             id: `char_${Date.now()}_${i}`,

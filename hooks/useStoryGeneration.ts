@@ -866,7 +866,8 @@ export function useStoryGeneration(projectId?: string | null) {
                         message: `Processing scene ${sceneIdx + 1} of ${totalScenes}...`,
                         percent
                     });
-                }
+                },
+                sessionId || undefined,
             );
 
             // Convert Shot[] to StoryShot[]
