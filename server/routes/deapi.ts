@@ -4,7 +4,7 @@ import { DEAPI_API_KEY, MAX_SINGLE_FILE } from '../utils/index.js';
 import { createLogger } from '../../services/logger.js';
 import fs from 'fs';
 import multer from 'multer';
-import type { Txt2ImgParams } from '../../services/deapiService.js';
+import type { Txt2ImgParams, DeApiImageModel } from '../../services/deapiService.js';
 
 const deapiLog = createLogger('DeAPI');
 const router = Router();
@@ -20,7 +20,8 @@ router.post('/image', async (req: ApiProxyRequest, res: Response): Promise<void>
     }
 
     try {
-        const { prompt, options = {} } = req.body;
+        // Safely destructure with fallback to prevent TypeError when req.body is undefined
+        const { prompt, options = {} } = req.body ?? {};
 
         if (!prompt) {
             res.status(400).json({ success: false, error: 'Prompt is required' });
@@ -31,7 +32,7 @@ router.post('/image', async (req: ApiProxyRequest, res: Response): Promise<void>
 
         const params: Txt2ImgParams = {
             prompt: prompt,
-            model: (options.model as any) || "Flux1schnell",
+            model: (options.model as DeApiImageModel) || "Flux1schnell",
             ...options
         };
 
@@ -52,7 +53,8 @@ router.post('/animate', async (req: ApiProxyRequest, res: Response) => {
     }
 
     try {
-        const { imageUrl, options = {} } = req.body;
+        // Safely destructure with fallback to prevent TypeError when req.body is undefined
+        const { imageUrl, options = {} } = req.body ?? {};
 
         if (!imageUrl) {
             return res.status(400).json({ success: false, error: 'Image URL is required' });
@@ -144,7 +146,9 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
     }
 
     try {
-        const { prompt, width, height, frames, model, guidance, steps, seed } = req.body;
+        // Safely destructure with fallback to empty object to prevent TypeError
+        // when req.body is undefined (missing Content-Type: application/json header)
+        const { prompt, width, height, frames, model, guidance, steps, seed } = req.body ?? {};
 
         if (!prompt) {
             res.status(400).json({ error: 'Prompt is required' });
@@ -192,7 +196,8 @@ const pendingJobs = new Map<string, {
 
 router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
     try {
-        const { event, request_id, result_url, error } = req.body;
+        // Safely destructure with fallback to prevent TypeError when req.body is undefined
+        const { event, request_id, result_url, error } = req.body ?? {};
 
         // Validate webhook signature (recommended for production)
         // const signature = req.headers['x-deapi-signature'];

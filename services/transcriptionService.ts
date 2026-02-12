@@ -24,6 +24,26 @@ interface TranscriptionResponse {
 // --- Helper Functions ---
 
 /**
+ * Infer audio MIME type from filename extension when File.type is empty.
+ */
+export function inferAudioMimeType(filename: string, fileType?: string): string {
+  if (fileType) return fileType;
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = {
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    flac: 'audio/flac',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    webm: 'audio/webm',
+    wma: 'audio/x-ms-wma',
+    opus: 'audio/opus',
+  };
+  return (ext && mimeMap[ext]) || 'audio/mpeg'; // Default to mp3
+}
+
+/**
  * Convert a File to base64 string for use with Gemini API.
  */
 export const fileToGenerativePart = async (file: File): Promise<string> => {

@@ -92,6 +92,10 @@ async function initializeRenderingInfrastructure(): Promise<void> {
           });
           break;
 
+        case 'HEARTBEAT':
+          jobQueue.recordHeartbeat(msg.jobId);
+          break;
+
         case 'ERROR':
           jobQueue.handleJobError(msg.jobId, new Error(msg.data?.error || 'Unknown error'));
           break;
@@ -114,7 +118,7 @@ async function initializeRenderingInfrastructure(): Promise<void> {
 }
 
 // Listen on all interfaces (0.0.0.0) for network access
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(Number(PORT), '0.0.0.0', async () => {
   const networkIP = getNetworkIP();
   serverLog.info(`API server running on:`);
   serverLog.info(`  ➜  Local:   http://localhost:${PORT}`);

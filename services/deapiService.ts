@@ -238,15 +238,18 @@ export interface DeApiResponse {
 // Text-to-image models available on DeAPI
 export type DeApiImageModel =
   | "Flux1schnell"        // Fast, high-quality (recommended for speed)
+  | "Flux_2_Klein_4B_BF16"   // FLUX.2 Klein 4B - fast generation, up to 1536px, supports guidance
   | "ZImageTurbo_INT8";   // Photorealistic, exceptional clarity (recommended for quality)
 
 /**
  * Model recommendations based on use case:
  * - Flux1schnell: Best for rapid iteration, 1-4 steps, ~2-3 seconds per image
+ * - Flux_2_Klein_4B_BF16: Fast generation with guidance control, up to 1536px, ideal for storyboarding
  * - ZImageTurbo_INT8: Best for final production, photorealistic output, INT8 optimized
  */
 export const MODEL_RECOMMENDATIONS = {
   speed: "Flux1schnell" as DeApiImageModel,
+  storyboard: "Flux_2_Klein_4B_BF16" as DeApiImageModel,
   quality: "ZImageTurbo_INT8" as DeApiImageModel,
 } as const;
 
@@ -260,6 +263,8 @@ export interface Txt2ImgParams {
   steps?: number;         // Inference steps (default: 4, max: 10 for FLUX)
   seed?: number;          // Random seed (-1 for random)
   negative_prompt?: string;
+  loras?: string;         // Optional: LoRA adapters for model fine-tuning
+  webhook_url?: string;   // Optional: Webhook URL for async completion notification
 }
 
 /**
@@ -438,6 +443,25 @@ export interface Txt2VideoParams {
   frames?: number;
   fps?: number;
   seed?: number;
+  webhook_url?: string;   // Optional: Webhook URL for async completion notification
+}
+
+/**
+ * Image-to-video generation parameters
+ */
+export interface Img2VideoParams {
+  first_frame_image: string;  // Base64 or URL
+  last_frame_image?: string;  // Optional: Ending frame image
+  prompt: string;
+  model?: string;
+  width?: number;
+  height?: number;
+  guidance?: number;
+  steps?: number;
+  frames?: number;
+  fps?: number;
+  seed?: number;
+  webhook_url?: string;   // Optional: Webhook URL for async completion notification
 }
 
 /**
@@ -476,6 +500,7 @@ export const generateVideoWithDeApi = async (
     frames = 120, // 4 seconds at 30fps
     fps = 30,
     seed = -1,
+    webhook_url,
   } = params;
 
   console.log(`[DeAPI] Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
@@ -491,15 +516,33 @@ export const generateVideoWithDeApi = async (
   formData.append("frames", frames.toString());
   formData.append("fps", fps.toString());
   formData.append("seed", seed.toString());
+  
+  // Add optional webhook_url if provided
+  if (webhook_url) {
+    formData.append("webhook_url", webhook_url);
+  }
 
   // Submit request
   let response: Response;
 
   if (isBrowser) {
-    // Use proxy endpoint for browser
+    // Use proxy endpoint for browser - send as JSON for express.json() middleware
     response = await fetch('/api/deapi/txt2video', {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt,
+        model,
+        width,
+        height,
+        guidance,
+        steps,
+        frames,
+        fps,
+        seed,
+      }),
     });
   } else {
     // Direct API call from Node.js
@@ -597,6 +640,10 @@ export const animateImageWithDeApi = async (
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
   sessionId?: string,
   sceneIndex?: number,
+  options?: {
+    last_frame_image?: string;  // Optional: Ending frame image (base64)
+    webhook_url?: string;       // Optional: Webhook for async completion
+  },
 ): Promise<string> => {
   let base64Image = base64ImageInput;
   if (!isDeApiConfigured()) {
@@ -646,6 +693,17 @@ export const animateImageWithDeApi = async (
   formData.append("guidance", "3"); // Required parameter - guidance scale
   formData.append("steps", "1"); // Distilled model requires max 1 step
   formData.append("seed", "-1"); // Random seed
+
+  // Add optional last_frame_image if provided
+  if (options?.last_frame_image) {
+    const lastFrameBlob = await base64ToBlob(options.last_frame_image);
+    formData.append("last_frame_image", lastFrameBlob, "frame_last.png");
+  }
+
+  // Add optional webhook_url if provided
+  if (options?.webhook_url) {
+    formData.append("webhook_url", options.webhook_url);
+  }
 
   console.log(`[DeAPI] Submitting img2video request: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
 
@@ -808,6 +866,8 @@ export const generateImageWithDeApi = async (
     steps = 4,  // FLUX models work best with 1-4 steps, max 10
     seed = -1,
     negative_prompt = "blur, darkness, noise, low quality",
+    loras,
+    webhook_url,
   } = params;
 
   console.log(`[DeAPI] Generating image: ${model}, ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
@@ -824,19 +884,26 @@ export const generateImageWithDeApi = async (
     headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LyricLens/1.0";
   }
 
+  // Build request body with optional parameters
+  const requestBody: Record<string, unknown> = {
+    prompt,
+    model,
+    width,
+    height,
+    guidance,
+    steps,
+    seed,
+    negative_prompt,
+  };
+
+  // Add optional parameters if provided
+  if (loras) requestBody.loras = loras;
+  if (webhook_url) requestBody.webhook_url = webhook_url;
+
   const response = await fetch(`${API_BASE}/txt2img`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      prompt,
-      model,
-      width,
-      height,
-      guidance,
-      steps,
-      seed,
-      negative_prompt,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

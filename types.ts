@@ -539,6 +539,7 @@ export interface StoryState {
   visualStyle?: string;
   aspectRatio?: string;
   genre?: string;
+  imageProvider?: 'gemini' | 'deapi';  // Image generation provider for storyboard visuals
 
   // Per-scene generation progress tracking
   scenesWithShots?: string[]; // scene IDs that have shots generated

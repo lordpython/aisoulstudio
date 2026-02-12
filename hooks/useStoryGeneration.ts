@@ -19,9 +19,10 @@ import type {
 import { runProductionAgent } from '@/services/ai/productionAgent';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
+import type { StoryModeState } from '@/services/ai/production/types';
 import { narrateScene, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
-import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured } from '@/services/deapiService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { cloudAutosave } from '@/services/cloudStorageService';
 import { createCombinedNarrationAudio } from '@/services/audioConcatService';
@@ -51,6 +52,7 @@ function cleanNarrationText(text: string): string {
         .replace(/#{1,6}\s+/g, '')              // # headings
         .replace(/`([^`]*?)`/g, '$1')           // `code` → content
         .replace(/^\s*[-–—*+]\s+/gm, '')        // bullets/dashes
+        .replace(/\s*[0-9\u0660-\u0669\u06F0-\u06F9]+\.\s*\*{0,2}\s*$/, '') // Trailing "٢. **" artifacts
         .replace(/\n+/g, ' ')                   // newlines → spaces
         .replace(/\s{2,}/g, ' ')                // collapse whitespace
         .trim();
@@ -66,11 +68,11 @@ function inferSceneEmotion(scene: ScreenplayScene, index: number, total: number)
 } {
     const text = `${scene.heading} ${scene.action}`.toLowerCase();
 
-    // Keyword-based emotion detection
-    const urgentWords = /\b(run|escape|chase|hurry|danger|attack|fight|scream|crash|explode|fire|flood|storm)\b/;
-    const calmWords = /\b(peace|serene|quiet|gentle|soft|still|dawn|morning|garden|rest|sleep|dream)\b/;
-    const friendlyWords = /\b(smile|laugh|friend|welcome|warm|celebrate|joy|happy|festival|feast|gift)\b/;
-    const dramaticWords = /\b(reveal|secret|truth|betray|lost|dark|shadow|death|ancient|fate|destiny|mystery)\b/;
+    // Keyword-based emotion detection (English + Arabic)
+    const urgentWords = /\b(run|escape|chase|hurry|danger|attack|fight|scream|crash|explode|fire|flood|storm)\b|يركض|يهرب|خطر|هجوم|يهاجم|يصرخ|صراخ|ينفجر|حريق|فيضان|عاصفة|خنق|يخنق|رعب|فزع|هلع|يطارد/;
+    const calmWords = /\b(peace|serene|quiet|gentle|soft|still|dawn|morning|garden|rest|sleep|dream)\b|سلام|هدوء|سكون|صباح|حديقة|راحة|نوم|حلم|فجر|طمأنينة|أمان/;
+    const friendlyWords = /\b(smile|laugh|friend|welcome|warm|celebrate|joy|happy|festival|feast|gift)\b|ابتسامة|ضحك|صديق|ترحيب|فرح|احتفال|سعادة|عيد|هدية/;
+    const dramaticWords = /\b(reveal|secret|truth|betray|lost|dark|shadow|death|ancient|fate|destiny|mystery)\b|سر|حقيقة|خيانة|ظلام|ظل|موت|قديم|مصير|قدر|غموض|لغز|شبح|جن|لعنة|مهجور|مخيف|غامض/;
 
     // Narrative arc position
     const position = total > 1 ? index / (total - 1) : 0.5;
@@ -175,6 +177,45 @@ function stripImageDataForStorage(state: StoryState): StoryState {
     };
 }
 
+/** Matches ASCII digits (0-9), Arabic-Indic (٠-٩), and Extended Arabic-Indic (۰-۹) */
+const DIGITS = '(?:[0-9\u0660-\u0669\u06F0-\u06F9])';
+
+/**
+ * Strip LLM preamble text that appears before the first scene/act/chapter marker.
+ * LLMs often prepend conversational text like "Here is a narrative breakdown..."
+ * or Arabic equivalents like "إليك تفصيل سردي..." which pollutes scene data.
+ */
+function stripLLMPreamble(text: string): string {
+    // Find the first occurrence of a scene/act/chapter marker
+    const markerPattern = new RegExp(`(?:Act|Chapter|Scene|Part|فصل|مشهد)\\s*${DIGITS}+`, 'i');
+    const match = text.match(markerPattern);
+
+    if (match && match.index !== undefined && match.index > 0) {
+        const preamble = text.substring(0, match.index).trim();
+        // Only strip if the preamble looks like conversational text (not actual content)
+        // Heuristic: preamble is short-ish (< 300 chars) and doesn't contain multiple newlines
+        // (which would suggest it's actual structured content)
+        const newlineCount = (preamble.match(/\n/g) || []).length;
+        if (preamble.length < 300 || newlineCount < 3) {
+            console.log(`[parseBreakdown] Stripped LLM preamble (${preamble.length} chars): "${preamble.substring(0, 80)}..."`);
+            return text.substring(match.index);
+        }
+    }
+
+    // Also try numbered list markers (e.g., "1." or "1)" or "١.")
+    const numberedMatch = text.match(new RegExp(`^\\s*${DIGITS}[.)]\\s`, 'm'));
+    if (numberedMatch && numberedMatch.index !== undefined && numberedMatch.index > 0) {
+        const preamble = text.substring(0, numberedMatch.index).trim();
+        const newlineCount = (preamble.match(/\n/g) || []).length;
+        if (preamble.length < 300 || newlineCount < 3) {
+            console.log(`[parseBreakdown] Stripped LLM preamble before numbered list (${preamble.length} chars)`);
+            return text.substring(numberedMatch.index);
+        }
+    }
+
+    return text;
+}
+
 /**
  * Parse AI-generated breakdown text into structured ScreenplayScene objects.
  * Handles various formats: "Act 1:", "Chapter 1:", "Scene 1:", numbered lists, etc.
@@ -182,10 +223,14 @@ function stripImageDataForStorage(state: StoryState): StoryState {
 function parseBreakdownToScenes(breakdownText: string, topic: string): ScreenplayScene[] {
     const scenes: ScreenplayScene[] = [];
 
+    // Strip LLM preamble before parsing to prevent it from becoming scene_0
+    const cleanedText = stripLLMPreamble(breakdownText);
+
     // Try to split by common patterns: Act, Chapter, Scene, or numbered sections
+    // Supports ASCII digits (0-9), Arabic-Indic (٠-٩), and Extended Arabic-Indic (۰-۹)
     const patterns = [
-        /(?:Act|Chapter|Scene|Part)\s*\d+[:.]?\s*/gi,
-        /(?:^\d+[.)]\s*)/gm,
+        new RegExp(`(?:Act|Chapter|Scene|Part|فصل|مشهد|المشهد)\\s*${DIGITS}+[:.]?\\s*`, 'gi'),
+        new RegExp(`(?:^${DIGITS}+[.)]\\s*)`, 'gm'),
         /(?:\n\n+)/g, // Double newlines as fallback
     ];
 
@@ -193,13 +238,13 @@ function parseBreakdownToScenes(breakdownText: string, topic: string): Screenpla
 
     // Try each pattern until we get reasonable sections
     for (const pattern of patterns) {
-        sections = breakdownText.split(pattern).filter(s => s.trim().length > 20);
+        sections = cleanedText.split(pattern).filter(s => s.trim().length > 20);
         if (sections.length >= 2 && sections.length <= 10) break;
     }
 
     // If no good split found, treat whole text as one section
     if (sections.length < 2) {
-        sections = [breakdownText];
+        sections = [cleanedText];
     }
 
     sections.forEach((section, index) => {
@@ -212,7 +257,12 @@ function parseBreakdownToScenes(breakdownText: string, topic: string): Screenpla
         title = title.replace(/[*_#]/g, '').substring(0, 100);
 
         // Rest of lines become the action/description
-        const actionLines = lines.slice(1).join(' ').trim();
+        // Strip trailing scene number artifacts (e.g., "٢. **" or "3. **") that leak
+        // from the next section's numbering during split, and clean leftover markdown.
+        const actionLines = lines.slice(1).join(' ').trim()
+            .replace(/\s*[0-9\u0660-\u0669\u06F0-\u06F9]+\.\s*\*{0,2}\s*$/, '')
+            .replace(/\*{2,}/g, '')
+            .trim();
 
         scenes.push({
             id: `scene_${index}`,
@@ -464,21 +514,46 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Generating story breakdown...', percent: 20 });
 
         try {
-            const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${inputTopic}. Return exactly 6 scenes.`;
+            const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${inputTopic}. Return 3-5 scenes.`;
+            let capturedSessionId: string | null = null;
+            
             await runProductionAgent(prompt, (progress) => {
                 setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 50 });
+                // Capture sessionId from the progress callback
+                if (progress.sessionId) {
+                    capturedSessionId = progress.sessionId;
+                }
             });
 
-            // Find the session from storyModeStore (the tool creates sessions with story_ prefix)
-            let foundSessionId: string | null = null;
+            // Use the captured sessionId, or fall back to searching storyModeStore
+            let foundSessionId: string | null = capturedSessionId;
             let foundState = null;
 
-            // Get the most recently created story session
-            for (const [sid, storyState] of storyModeStore.entries()) {
-                if (storyState.topic === inputTopic || sid.startsWith('story_')) {
-                    foundSessionId = sid;
-                    foundState = storyState;
+            if (!foundSessionId) {
+                // Fallback: Find the best matching story session
+                // Priority: exact topic match > most recent story session
+                let bestMatch: { sid: string; state: StoryModeState; updatedAt: number } | null = null;
+                for (const [sid, storyState] of storyModeStore.entries()) {
+                    if (storyState.topic === inputTopic) {
+                        // Exact topic match — use immediately
+                        foundSessionId = sid;
+                        foundState = storyState;
+                        break;
+                    }
+                    if (sid.startsWith('story_')) {
+                        const ts = storyState.updatedAt || 0;
+                        if (!bestMatch || ts > bestMatch.updatedAt) {
+                            bestMatch = { sid, state: storyState, updatedAt: ts };
+                        }
+                    }
                 }
+                if (!foundSessionId && bestMatch) {
+                    foundSessionId = bestMatch.sid;
+                    foundState = bestMatch.state;
+                }
+            } else {
+                // Get the state from storyModeStore using the captured sessionId
+                foundState = storyModeStore.get(foundSessionId);
             }
 
             if (foundSessionId && foundState && foundState.breakdown) {
@@ -569,16 +644,44 @@ export function useStoryGeneration(projectId?: string | null) {
             if (storyState && storyState.screenplay && storyState.screenplay.length > 0) {
                 console.log('[useStoryGeneration] Screenplay retrieved:', storyState.screenplay.length, 'scenes');
 
+                // Reconcile scene count: if screenplay has fewer scenes than breakdown,
+                // align breakdown to match screenplay to prevent downstream misalignment
+                // (e.g., narration iterating over more scenes than the screenplay covers).
+                const screenplayScenes = storyState.screenplay;
+                let reconciledBreakdown = state.breakdown;
+
+                if (screenplayScenes.length !== state.breakdown.length) {
+                    console.warn(
+                        `[useStoryGeneration] Scene count mismatch: breakdown=${state.breakdown.length}, screenplay=${screenplayScenes.length}. Reconciling...`
+                    );
+                    // Use screenplay as source of truth — trim or pad breakdown to match
+                    reconciledBreakdown = screenplayScenes.map((sp, idx) => {
+                        // Try to match with existing breakdown scene by index
+                        const existing = state.breakdown[idx];
+                        return {
+                            ...sp,
+                            // Preserve breakdown's id scheme for consistency
+                            id: existing?.id || `scene_${idx}`,
+                            sceneNumber: idx + 1,
+                            // Use screenplay's richer action text if available
+                            action: sp.action || existing?.action || '',
+                            heading: sp.heading || existing?.heading || `Scene ${idx + 1}`,
+                        };
+                    });
+                    console.log(`[useStoryGeneration] Reconciled to ${reconciledBreakdown.length} scenes`);
+                }
+
                 // Build script object from screenplay scenes
                 const script = {
-                    title: state.breakdown[0]?.heading || 'Untitled Story',
-                    scenes: storyState.screenplay,
+                    title: reconciledBreakdown[0]?.heading || 'Untitled Story',
+                    scenes: screenplayScenes,
                 };
 
                 setState(prev => ({
                     ...prev,
                     currentStep: 'script',
                     script,
+                    breakdown: reconciledBreakdown,
                 }));
             } else {
                 setError('Screenplay was generated but could not be retrieved. Please try again.');
@@ -942,6 +1045,16 @@ export function useStoryGeneration(projectId?: string | null) {
     }, []);
 
     /**
+     * Update Image Provider (gemini or deapi)
+     */
+    const updateImageProvider = useCallback((provider: 'gemini' | 'deapi') => {
+        setState(prev => ({
+            ...prev,
+            imageProvider: provider,
+        }));
+    }, []);
+
+    /**
      * Generate storyboard visuals for all scenes or a specific scene.
      * This enables per-scene control over visual generation.
      *
@@ -992,96 +1105,122 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
             }
 
-            for (let i = 0; i < shotsToProcess.length; i++) {
-                const shot = shotsToProcess[i];
-                if (!shot) continue;
-
-                const percent = 10 + ((i + 1) / shotsToProcess.length) * 80;
-                setProgress({
-                    message: `Generating visual ${i + 1} of ${shotsToProcess.length}...`,
-                    percent
-                });
-
-                try {
-                    // Find characters present in this shot's parent scene
-                    const parentScene = state.breakdown.find(s => s.id === shot.sceneId);
-                    const sceneCharacters = parentScene?.charactersPresent || [];
-
-                    // Also detect character names mentioned in the shot description
-                    const shotDescLower = shot.description.toLowerCase();
-                    const mentionedChars = [...charRefMap.entries()]
-                        .filter(([name]) => shotDescLower.includes(name))
-                        .map(([name]) => name);
-
-                    // Combine scene characters + mentioned characters, dedupe
-                    const allCharNames = [...new Set([
-                        ...sceneCharacters.map(c => c.toLowerCase()),
-                        ...mentionedChars,
-                    ])];
-
-                    // Build character description prefix for the prompt
-                    let charPrefix = '';
-                    const MAX_PROMPT_LENGTH = 500;
-                    for (const name of allCharNames) {
-                        const desc = charRefMap.get(name);
-                        if (desc) {
-                            const truncated = desc.length > 120 ? desc.substring(0, 117) + '...' : desc;
-                            charPrefix += `[${name}: ${truncated}] `;
-                        }
+            // Helper: build prompt for a shot
+            const MAX_PROMPT_LENGTH = 500;
+            const buildShotPrompt = (shot: NonNullable<typeof shotsToProcess[0]>) => {
+                const parentScene = state.breakdown.find(s => s.id === shot.sceneId);
+                const sceneCharacters = parentScene?.charactersPresent || [];
+                const shotDescLower = shot.description.toLowerCase();
+                const mentionedChars = [...charRefMap.entries()]
+                    .filter(([name]) => shotDescLower.includes(name))
+                    .map(([name]) => name);
+                const allCharNames = [...new Set([
+                    ...sceneCharacters.map(c => c.toLowerCase()),
+                    ...mentionedChars,
+                ])];
+                let charPrefix = '';
+                for (const name of allCharNames) {
+                    const desc = charRefMap.get(name);
+                    if (desc) {
+                        const truncated = desc.length > 120 ? desc.substring(0, 117) + '...' : desc;
+                        charPrefix += `[${name}: ${truncated}] `;
                     }
+                }
+                const basePrompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
+                return charPrefix
+                    ? `${charPrefix}${basePrompt}`.substring(0, MAX_PROMPT_LENGTH)
+                    : basePrompt;
+            };
 
-                    if (charPrefix) {
-                        console.log(`[useStoryGeneration] Character refs for shot ${shot.id}:`, charPrefix.substring(0, 100));
+            // Helper: upload to cloud and create shotlist entry
+            const processShotResult = async (shot: NonNullable<typeof shotsToProcess[0]>, imageUrl: string) => {
+                let finalUrl = imageUrl;
+                if (sessionId && finalUrl && (finalUrl.startsWith('data:') || finalUrl.startsWith('blob:'))) {
+                    const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, finalUrl, shot.id);
+                    if (cloudUrl) {
+                        console.log(`[useStoryGeneration] Image uploaded to cloud: ${shot.id}`);
+                        finalUrl = cloudUrl;
                     }
+                }
+                const existingIdx = updatedShotlist.findIndex(s => s.id === shot.id);
+                const shotlistEntry: ShotlistEntry = {
+                    id: shot.id,
+                    sceneId: shot.sceneId,
+                    shotNumber: shot.shotNumber,
+                    description: shot.description,
+                    cameraAngle: shot.cameraAngle,
+                    movement: shot.movement,
+                    lighting: shot.lighting,
+                    dialogue: '',
+                    imageUrl: finalUrl,
+                };
+                if (existingIdx >= 0) {
+                    updatedShotlist[existingIdx] = shotlistEntry;
+                } else {
+                    updatedShotlist.push(shotlistEntry);
+                }
+            };
 
-                    // Build prompt with character descriptions + shot details
-                    const basePrompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
-                    const prompt = charPrefix
-                        ? `${charPrefix}${basePrompt}`.substring(0, MAX_PROMPT_LENGTH)
-                        : basePrompt;
+            if (state.imageProvider === 'deapi') {
+                // Parallel generation via DeAPI batch
+                const validShots = shotsToProcess.filter((s): s is NonNullable<typeof s> => s != null);
+                const batchItems = validShots.map((shot) => ({
+                    id: shot.id,
+                    prompt: buildShotPrompt(shot),
+                    aspectRatio: (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
+                    model: 'Flux_2_Klein_4B_BF16' as const,
+                }));
 
-                    let imageUrl = await generateImageFromPrompt(
-                        prompt,
-                        style,
-                        '',
-                        state.aspectRatio || '16:9',
-                        false,
-                        undefined,
-                        sessionId || undefined,
-                        i
-                    );
+                const batchResults = await generateImageBatch(
+                    batchItems,
+                    5, // concurrency
+                    (prog) => {
+                        const percent = 10 + (prog.completed / prog.total) * 80;
+                        setProgress({
+                            message: `Generating visuals ${prog.completed}/${prog.total} (parallel)...`,
+                            percent,
+                        });
+                    },
+                );
 
-                    // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
-                    if (sessionId && imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
-                        const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, imageUrl, shot.id);
-                        if (cloudUrl) {
-                            console.log(`[useStoryGeneration] Image uploaded to cloud: ${shot.id}`);
-                            imageUrl = cloudUrl; // Use cloud URL for persistence
-                        }
-                    }
-
-                    // Find or create shotlist entry
-                    const existingIdx = updatedShotlist.findIndex(s => s.id === shot.id);
-                    const shotlistEntry: ShotlistEntry = {
-                        id: shot.id,
-                        sceneId: shot.sceneId,
-                        shotNumber: shot.shotNumber,
-                        description: shot.description,
-                        cameraAngle: shot.cameraAngle,
-                        movement: shot.movement,
-                        lighting: shot.lighting,
-                        dialogue: '',
-                        imageUrl,
-                    };
-
-                    if (existingIdx >= 0) {
-                        updatedShotlist[existingIdx] = shotlistEntry;
+                // Process results
+                for (const result of batchResults) {
+                    const shot = validShots.find(s => s.id === result.id);
+                    if (!shot) continue;
+                    if (result.success && result.imageUrl) {
+                        await processShotResult(shot, result.imageUrl);
                     } else {
-                        updatedShotlist.push(shotlistEntry);
+                        console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, result.error);
                     }
-                } catch (err) {
-                    console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, err);
-                    // Continue with other shots
+                }
+            } else {
+                // Sequential generation via Gemini Imagen
+                for (let i = 0; i < shotsToProcess.length; i++) {
+                    const shot = shotsToProcess[i];
+                    if (!shot) continue;
+
+                    const percent = 10 + ((i + 1) / shotsToProcess.length) * 80;
+                    setProgress({
+                        message: `Generating visual ${i + 1} of ${shotsToProcess.length}...`,
+                        percent
+                    });
+
+                    try {
+                        const prompt = buildShotPrompt(shot);
+                        const imageUrl = await generateImageFromPrompt(
+                            prompt,
+                            style,
+                            '',
+                            state.aspectRatio || '16:9',
+                            false,
+                            undefined,
+                            sessionId || undefined,
+                            i
+                        );
+                        await processShotResult(shot, imageUrl);
+                    } catch (err) {
+                        console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, err);
+                    }
                 }
             }
 
@@ -1117,7 +1256,7 @@ export function useStoryGeneration(projectId?: string | null) {
     const regenerateShotVisual = useCallback(async (shotId: string, customPrompt?: string) => {
         const shot = state.shots?.find(s => s.id === shotId);
         const existingEntry = state.shotlist.find(s => s.id === shotId);
-        
+
         if (!shot && !existingEntry) {
             setError(`Shot ${shotId} not found`);
             return;
@@ -1138,21 +1277,30 @@ export function useStoryGeneration(projectId?: string | null) {
             const lighting = shot?.lighting || existingEntry?.lighting || 'Natural';
             const emotion = shot?.emotion || 'neutral';
 
-            const prompt = customPrompt 
+            const prompt = customPrompt
                 ? `${customPrompt}. ${style} style.`
                 : `${baseDescription}. ${shotType} shot, ${cameraAngle} angle, ${lighting} lighting. ${emotion} mood. ${style} style.`;
 
             setProgress({ message: 'Generating new image...', percent: 50 });
 
-            let imageUrl = await generateImageFromPrompt(
-                prompt,
-                style,
-                '',
-                state.aspectRatio || '16:9',
-                false,
-                undefined, // New seed for variation
-                sessionId || undefined
-            );
+            let imageUrl: string;
+            if (state.imageProvider === 'deapi') {
+                imageUrl = await generateImageWithAspectRatio(
+                    prompt,
+                    (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
+                    'Flux_2_Klein_4B_BF16',
+                );
+            } else {
+                imageUrl = await generateImageFromPrompt(
+                    prompt,
+                    style,
+                    '',
+                    state.aspectRatio || '16:9',
+                    false,
+                    undefined, // New seed for variation
+                    sessionId || undefined
+                );
+            }
 
             // Upload to cloud storage for persistence
             if (sessionId && imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
@@ -1166,8 +1314,8 @@ export function useStoryGeneration(projectId?: string | null) {
             setProgress({ message: 'Updating storyboard...', percent: 90 });
 
             // Update the shotlist with new image
-            const updatedShotlist = state.shotlist.map(entry => 
-                entry.id === shotId 
+            const updatedShotlist = state.shotlist.map(entry =>
+                entry.id === shotId
                     ? { ...entry, imageUrl, description: customPrompt || entry.description }
                     : entry
             );
@@ -1290,16 +1438,22 @@ export function useStoryGeneration(projectId?: string | null) {
         try {
             const narrationSegments: NonNullable<StoryState['narrationSegments']> = [];
 
-            // Convert screenplay scenes to Scene format for narrator
+            // Convert screenplay scenes to Scene format for narrator.
+            // Use screenplay (state.script.scenes) as the source — its action text
+            // is written as cinematic voiceover. The breakdown contains raw production
+            // notes (emotional hooks, narrative beats) which should NOT be narrated.
+            const screenplayScenes = state.script?.scenes || [];
             const totalScenes = state.breakdown.length;
             const scenesForNarration: Scene[] = state.breakdown.map((scene, idx) => {
+                const screenplayScene = screenplayScenes.find(s => s.id === scene.id) || screenplayScenes[idx];
+                const narrationText = screenplayScene?.action || scene.action;
                 const { emotionalTone, instructionTriplet } = inferSceneEmotion(scene, idx, totalScenes);
                 return {
                     id: scene.id,
                     name: scene.heading,
                     duration: 8, // Default duration, will be adjusted by TTS
                     visualDescription: scene.action,
-                    narrationScript: cleanNarrationText(scene.action),
+                    narrationScript: cleanNarrationText(narrationText),
                     emotionalTone,
                     instructionTriplet,
                 };
@@ -1535,10 +1689,10 @@ export function useStoryGeneration(projectId?: string | null) {
             // Build SongData structure for FFmpeg exporter
             // Safely get narration segments (already validated above)
             const narrationSegs = state.narrationSegments || [];
-            
+
             // Calculate total duration with fallback for undefined/NaN values
             const totalDuration = narrationSegs.reduce((sum, s) => sum + (s.duration || 0), 0);
-            
+
             console.log('[useStoryGeneration] Export stats:', {
                 narrationSegments: narrationSegs.length,
                 totalDuration,
@@ -1548,7 +1702,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
             // Combine all narration audio segments into a single audio track
             let combinedAudioUrl: string;
-            
+
             try {
                 combinedAudioUrl = await createCombinedNarrationAudio(
                     narrationSegs,
@@ -1564,7 +1718,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Ensure we have a valid duration (fallback to 5 seconds per shot if no audio)
             const effectiveDuration = totalDuration > 0 ? totalDuration : state.shotlist.length * 5;
             const shotDuration = effectiveDuration / Math.max(state.shotlist.length, 1);
-            
+
             console.log('[useStoryGeneration] Shot timing:', {
                 effectiveDuration,
                 shotDuration,
@@ -1579,8 +1733,8 @@ export function useStoryGeneration(projectId?: string | null) {
                 timestamp: `${Math.floor((idx * shotDuration) / 60)}:${Math.floor((idx * shotDuration) % 60).toString().padStart(2, '0')}`,
                 timestampSeconds: idx * shotDuration,
             }));
-            
-            console.log('[useStoryGeneration] First 3 prompt timestamps:', 
+
+            console.log('[useStoryGeneration] First 3 prompt timestamps:',
                 prompts.slice(0, 3).map(p => ({ id: p.id, ts: p.timestampSeconds })));
 
             // Build generatedImages array
@@ -1592,7 +1746,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     type: (animated ? 'video' : 'image') as 'video' | 'image',
                 };
             });
-            
+
             // Validate generatedImages have URLs
             const validImages = generatedImages.filter(g => g.imageUrl);
             console.log('[useStoryGeneration] Generated images:', {
@@ -1664,7 +1818,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 generatedImages,
                 durationSeconds: effectiveDuration,
             };
-            
+
             console.log('[useStoryGeneration] SongData built:', {
                 promptCount: prompts.length,
                 generatedImagesCount: generatedImages.length,
@@ -1834,6 +1988,7 @@ export function useStoryGeneration(projectId?: string | null) {
         updateVisualStyle,
         updateAspectRatio,
         updateGenre,
+        updateImageProvider,
         // New step-by-step generation methods
         generateShots,
         generateVisuals,

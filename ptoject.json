@@ -1,0 +1,758 @@
+{
+  "version": "1.0.0",
+  "exportedAt": "2026-02-12T06:32:41.842Z",
+  "projectName": "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail.",
+  "state": {
+    "currentStep": "export",
+    "breakdown": [
+      {
+        "id": "scene_0",
+        "sceneNumber": 1,
+        "heading": "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail.",
+        "action": "Scene from: قصة مغامرة في الصحراء\n\nمجموعة أصدقاء يضيعون في رحلة برية\nيكتشفون واحة مخفية وآثار قديمة\nيتعلمون قيمة الصداقة والتعاون للنجاة",
+        "dialogue": [
+          {
+            "speaker": "EXT. DESERT DUNES - DUSK ACTION",
+            "text": "Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger. DIALOGUE: JAX: I told you the map said turn left at the ridge. DIALOGUE: LEO: The map was loading! You're the one who wanted to drift the dunes. DIALOGUE: SAM: Stop it. Both of you. Look at the sun. We are miles from the trail."
+          }
+        ],
+        "charactersPresent": [
+          "EXT. DESERT DUNES - DUSK ACTION"
+        ]
+      },
+      {
+        "id": "scene_1",
+        "sceneNumber": 2,
+        "heading": "EXT. DEEP DESERT - DAY  A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map.  SAM: (Raspy whisper) Tell me that's real.  JAX: It's green. It's actually green.",
+        "action": "*   **Title:** *Off the Beaten Path* *   **Emotional Hook:** The transition from the high-energy excitement of youth and freedom to the creeping, cold realization of total isolation. *   **Key Narrative Beat:** The group, confident and laughing, decides to ignore the GPS to chase a \"shortcut\" or a scenic dune. The upbeat music cuts abruptly when their vehicle breaks down or gets hopelessly stuck in soft sand miles from civilization. The first cracks in their friendship appear as the sun begins to set and the blame game begins.",
+        "dialogue": [
+          {
+            "speaker": "EXT. DEEP DESERT - DAY ACTION",
+            "text": "A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map. DIALOGUE: SAM: (Raspy whisper) Tell me that's real. DIALOGUE: JAX: It's green. It's actually green."
+          }
+        ],
+        "charactersPresent": [
+          "EXT. DEEP DESERT - DAY ACTION"
+        ]
+      },
+      {
+        "id": "scene_2",
+        "sceneNumber": 3,
+        "heading": "EXT. CANYON OASIS - DAY  Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void.  LEO: The wall is giving way! Grab that slab!  JAX: Together! On three! One, two, three!",
+        "action": "*   **Title:** *Thirst and Shadows* *   **Emotional Hook:** The visceral fear of mortality. The audience should feel the scorching heat, the parched throats, and the overwhelming silence of the desert that makes the characters feel insignificant. *   **Key Narrative Beat:** After walking for hours in search of a signal or road, the group is on the verge of physical collapse. Just as one friend is about to give up entirely, they crest a massive dune and spot not a mirage, but actual greenery tucked into a deep, rocky canyon—a hidden oasis that shouldn't exist on modern maps.",
+        "dialogue": [
+          {
+            "speaker": "EXT. CANYON OASIS - DAY ACTION",
+            "text": "Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void. DIALOGUE: LEO: The wall is giving way! Grab that slab! DIALOGUE: JAX: Together! On three! One, two, three!"
+          }
+        ],
+        "charactersPresent": [
+          "EXT. CANYON OASIS - DAY ACTION"
+        ]
+      },
+      {
+        "id": "scene_3",
+        "sceneNumber": 4,
+        "heading": "EXT. RUINS - MORNING  The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight.  SAM: We made it.  JAX: We made it.",
+        "action": "*   **Title:** *The Emerald Secret* *   **Emotional Hook:** A sense of wonder and awe that temporarily suspends their fear. The contrast between the harsh yellow sand and the cool blue water/green palms creates a spiritual moment of relief. *   **Key Narrative Beat:** While resting and drinking at the oasis, they explore the surroundings and discover crumbling stone walls and petroglyphs—ancient ruins of a forgotten caravan waystation. However, a massive sandstorm (Haboob) approaches on the horizon. They realize the ruins are the only shelter, but the structure is unstable. They must stop arguing and work together to reinforce a collapsed wall using rocks and debris before the storm hits.",
+        "dialogue": [
+          {
+            "speaker": "EXT. RUINS - MORNING ACTION",
+            "text": "The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight. DIALOGUE: SAM: We made it. DIALOGUE: JAX: We made it."
+          }
+        ],
+        "charactersPresent": [
+          "EXT. RUINS - MORNING ACTION"
+        ]
+      }
+    ],
+    "script": {
+      "title": "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail.",
+      "scenes": [
+        {
+          "id": "scene_0",
+          "sceneNumber": 1,
+          "heading": "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail.",
+          "action": "",
+          "dialogue": [
+            {
+              "speaker": "EXT. DESERT DUNES - DUSK ACTION",
+              "text": "Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger. DIALOGUE: JAX: I told you the map said turn left at the ridge. DIALOGUE: LEO: The map was loading! You're the one who wanted to drift the dunes. DIALOGUE: SAM: Stop it. Both of you. Look at the sun. We are miles from the trail."
+            }
+          ],
+          "charactersPresent": [
+            "EXT. DESERT DUNES - DUSK ACTION"
+          ]
+        },
+        {
+          "id": "scene_1",
+          "sceneNumber": 2,
+          "heading": "EXT. DEEP DESERT - DAY  A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map.  SAM: (Raspy whisper) Tell me that's real.  JAX: It's green. It's actually green.",
+          "action": "",
+          "dialogue": [
+            {
+              "speaker": "EXT. DEEP DESERT - DAY ACTION",
+              "text": "A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map. DIALOGUE: SAM: (Raspy whisper) Tell me that's real. DIALOGUE: JAX: It's green. It's actually green."
+            }
+          ],
+          "charactersPresent": [
+            "EXT. DEEP DESERT - DAY ACTION"
+          ]
+        },
+        {
+          "id": "scene_2",
+          "sceneNumber": 3,
+          "heading": "EXT. CANYON OASIS - DAY  Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void.  LEO: The wall is giving way! Grab that slab!  JAX: Together! On three! One, two, three!",
+          "action": "",
+          "dialogue": [
+            {
+              "speaker": "EXT. CANYON OASIS - DAY ACTION",
+              "text": "Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void. DIALOGUE: LEO: The wall is giving way! Grab that slab! DIALOGUE: JAX: Together! On three! One, two, three!"
+            }
+          ],
+          "charactersPresent": [
+            "EXT. CANYON OASIS - DAY ACTION"
+          ]
+        },
+        {
+          "id": "scene_3",
+          "sceneNumber": 4,
+          "heading": "EXT. RUINS - MORNING  The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight.  SAM: We made it.  JAX: We made it.",
+          "action": "",
+          "dialogue": [
+            {
+              "speaker": "EXT. RUINS - MORNING ACTION",
+              "text": "The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight. DIALOGUE: SAM: We made it. DIALOGUE: JAX: We made it."
+            }
+          ],
+          "charactersPresent": [
+            "EXT. RUINS - MORNING ACTION"
+          ]
+        }
+      ]
+    },
+    "characters": [
+      {
+        "id": "char_1770877312069_0",
+        "name": "Jax",
+        "role": "Protagonist / Navigator",
+        "visualDescription": "Male, approx 25 years old, athletic build, tanned skin. Messy dark brown hair, hazel eyes. Wearing a distressed grey t-shirt, khaki cargo shorts, and sturdy hiking boots. Accessories include a rugged wristwatch. Face and clothes are covered in desert dust and sweat. Sharp features, determined expression.",
+        "referenceImageUrl": "data:image/png;base64,+0oVMQ8aiz6Q5iRik1csEGDRecQYWaYsrVpaU1Q1eSDE0eiwyryAkGxsgvC0bSeb4Fq+DhOOCnPQ6YHc9y1dcwQslTTPaMigCYtmK0vCsJXuZDT7aZ9p+qjPRBJsOfdTWr3gft6lalM2fP4dgYpOP2W8k37mb/AqgZmWWk0EAjq/eqbbP1Yn3mqZZ828tWoq9TyC19qq+DP9UXt8YfAGJYi5NNwBSnHTy2grZSOlKQ0N/oT6SsKmMge+iO3p34avgn6OR+0XbKNUiV1SWHT6d6I1zVRG74ISAT1UECmg1lojO5TK5X9YXmkv5WuWTG15EK4g5loCfipIYLwCsf+lrETV0VQrHiqJheDbMSOklFr2TcJ4QBhuzUSiQEuY+FXKs6sdE53/iw8O82D9PPFwsxgN6PEuTwAVSC1V399thgsA+CLjyeZ2RgigFTncr1mwKkbkWHXQ90qdvDCeVA9cpm+k/aM6la9CsEGwLnjOOQa1Rb7ydTog+ukkQ3A5QhIsonkrXhTsYcAfL+i6en+YD1bMjR6OzV36zDXEN8nZ1LEumu1tlQfrcGkPOBXLym6ev9jMEADLHtVgGXtUdT6SS2AX1Jf0phdC7/rbsqbcrDspmKUA9jBfNYZBzJeTeVvBMvcCdAFVHZNS9wjwGcUxAxq2mxS6u1WYMPi2C/iaXYFhd9QRwpcNlUReXNlcTyES7XcXyZJEDu710D4tdRuixCTB9/5ttKX5ceBnff7YpQu1S7C2opiWWxUETkQ1SbKn9tZa24FvM+xcMkrdkPQ1ConzPQLrB/7rjB1yp7JP4bNVWh1tp0xvIfcsOIKNGbqdOea3WFx7efVuanG3CBT5aeUPhtbOSgIpMnpbNl7QH2pUnGef36uTtk4YnmRQ7/npI2pet0P+tOtoAA9Y8KUdz7qyLmSzdX7a6q6BRiiRWvJuNC4kSN81vGy8Wo4X+gM/T25TPub+3ZT9PWvzzz0aPEWsCyFb1hNaXk2ZAOAb+4r88aA7Ukmgn+nAZAZv2rsDygI9lGB+ZKXAm6Z/Jrwa3BUkQHvr1uYtLyUbD/9fbLt+gagj4hpgn3CisGpa1uJ0PS4obKOSCylB4Svzrq2UukZv6EpCxDZtnXIFDLQnopUEYup5DYPi5fC2RbD2iF38O4CGcBgnnRaG4Npjya2u4Kqeb/f3yXYdpATlcHtEU2v8yncU7rzWYcF6+Io3fztSRQR+fPhJ6CpiRinDBbfPQWu9Sgg5FYYItWxDkjENYkxfMWuMsEb9YTvBdm8qZvIWzRgPWQ3cafhYgwveedJ0kQEPC/oT6pxsWnkON3P4+KjPwHY7RShqebo3FnBkaMaADWhnyYJCn59Zv1X8npefPEfMNrYq9eUTZSy3w90Eq/eaZpe7rM2L0Bn5TazPs8EOK4pzS9fin1yPohRAu+vuJ3AHxfOq9KdUZYJwkTCrNnFRwKsj5HBUzEja1Wn+45Nr6uk/gPdPPNmimeBIQAAAABJRU5ErkJggg=="
+      }
+    ],
+    "shotlist": [
+      {
+        "id": "shot_scene_0_1",
+        "sceneId": "scene_0",
+        "shotNumber": 1,
+        "description": "A battered vintage 4x4 tears across the crest of a massive sand dune at high speed. A massive 'rooster tail' of fine golden sand erupts behind the tires. The low-hanging sun creates intense lens flares across the frame. The mood is high-octane and adventurous.",
+        "cameraAngle": "Low",
+        "movement": "Tracking",
+        "lighting": "Warm",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_1.png"
+      },
+      {
+        "id": "shot_scene_0_2",
+        "sceneId": "scene_0",
+        "shotNumber": 2,
+        "description": "The camera jars violently as the front of the vehicle slams into a deep sand pocket. White steam hisses aggressively from the crumpled hood, spiraling into the orange sky. The vehicle is tilted at an unnatural, precarious angle. The frame is shaky and chaotic.",
+        "cameraAngle": "Dutch",
+        "movement": "Handheld",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_2.png"
+      },
+      {
+        "id": "shot_scene_0_3",
+        "sceneId": "scene_0",
+        "shotNumber": 3,
+        "description": "An extreme high-angle shot looking straight down at the tiny 4x4 stranded in a vast, undulating ocean of sand. Long, ink-black shadows stretch out from the vehicle across the ripples of the dunes. The silence is visual; the scale makes the characters look like ants.",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "lighting": "Natural",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_3.png"
+      },
+      {
+        "id": "shot_scene_0_4",
+        "sceneId": "scene_0",
+        "shotNumber": 4,
+        "description": "From behind Leo’s shoulder, we see JAX pointing an accusing finger. Jax’s face is covered in a fine layer of dust, his brow furrowed in a deep V of anger. The setting sun hits the side of his face, creating a harsh rim light that emphasizes his sweat and frustration.",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "lighting": "Chiaroscuro",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_4.png"
+      },
+      {
+        "id": "shot_scene_0_5",
+        "sceneId": "scene_0",
+        "shotNumber": 5,
+        "description": "LEO stares back, his eyes darting between Jax and a dead smartphone screen. His expression is one of defensive panic. The camera has a slight organic jitter to reflect his internal agitation. The background is a blur of soft-focus golden sand.",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "lighting": "Soft",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_5.png"
+      },
+      {
+        "id": "shot_scene_0_6",
+        "sceneId": "scene_0",
+        "shotNumber": 6,
+        "description": "SAM stands between the two men, turning her back to them to face the horizon. She is framed as a dark silhouette against a blood-orange sun that is halfway submerged below the desert line. As the camera zooms out slowly, the vast, empty trail-less desert ahead of them is revealed.",
+        "cameraAngle": "Low",
+        "movement": "Zoom",
+        "lighting": "Silhouette",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_0_6.png"
+      },
+      {
+        "id": "shot_scene_1_1",
+        "sceneId": "scene_1",
+        "shotNumber": 1,
+        "description": "An extreme high-angle shot looking down at an endless sea of undulating yellow sand dunes. Three tiny human figures trudge slowly across the frame, leaving thin, erratic trails behind them. Intense heat ripples distort the air at the edges of the frame. The sun is a white-hot disc directly overhead, washing out the sky into a pale, bleached blue.",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "lighting": "Hard",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_1.png"
+      },
+      {
+        "id": "shot_scene_1_2",
+        "sceneId": "scene_1",
+        "shotNumber": 2,
+        "description": "A side-profile tracking shot following the characters at their walking pace. Focus is on Sam, whose shirt is caked with white salt patterns. His skin is sun-scorched and his lips are visibly cracked and bleeding. The camera shakes slightly to mimic the unsteady gait of the exhausted men. Dust hangs in the air around their boots.",
+        "cameraAngle": "Eye-level",
+        "movement": "Tracking",
+        "lighting": "Hard",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_2.png"
+      },
+      {
+        "id": "shot_scene_1_3",
+        "sceneId": "scene_1",
+        "shotNumber": 3,
+        "description": "The camera is positioned low to the ground as Sam’s knees slam into the scorching sand, sending a small cloud of dust upward. Immediately, Leo’s weathered, dirty hand enters the frame, gripping Sam’s bicep with urgency. The background is a blur of shimmering heat waves and golden sand.",
+        "cameraAngle": "Low",
+        "movement": "Handheld",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_3.png"
+      },
+      {
+        "id": "shot_scene_1_4",
+        "sceneId": "scene_1",
+        "shotNumber": 4,
+        "description": "The trio reaches the base of a massive, razor-sharp ridge. The camera tilts upward as they struggle to the summit. They are silhouetted against the blinding white sun, appearing as dark shapes against the overexposed sky. As they reach the top, their body language shifts from heavy trudging to a sudden, frozen halt.",
+        "cameraAngle": "Low",
+        "movement": "Tilt",
+        "lighting": "Silhouette",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_4.png"
+      },
+      {
+        "id": "shot_scene_1_5",
+        "sceneId": "scene_1",
+        "shotNumber": 5,
+        "description": "From Sam’s perspective, the camera pans across a deep, jagged rocky fissure. The monochrome yellow of the desert is violently interrupted by a dense, vibrant shock of emerald green vegetation. Palm fronds sway gently in a hidden canyon below. The colors are hyper-saturated, making the oasis look almost hallucinatory compared to the surrounding wasteland.",
+        "cameraAngle": "Eye-level",
+        "movement": "Pan",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_5.png"
+      },
+      {
+        "id": "shot_scene_1_6",
+        "sceneId": "scene_1",
+        "shotNumber": 6,
+        "description": "A tight shot of Sam and Jax standing shoulder to shoulder, looking off-camera at the oasis. Sam’s face is covered in grime, his eyes wide and glassy with disbelief as he whispers. Jax is next to him, his expression moving from shock to a faint, trembling relief. The sunlight catches the sweat on their brows, making them glow against the harsh background.",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "lighting": "Natural",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_1_6.png"
+      },
+      {
+        "id": "shot_scene_2_1",
+        "sceneId": "scene_2",
+        "shotNumber": 1,
+        "description": "Sun-scorched, trembling hands cup crystal-clear water from a spring. Droplets fall onto parched, cracked lips in slow motion. The background shows the blurred, warm texture of ancient canyon stone.",
+        "cameraAngle": "Low",
+        "movement": "Static",
+        "lighting": "Natural",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_1.png"
+      },
+      {
+        "id": "shot_scene_2_2",
+        "sceneId": "scene_2",
+        "shotNumber": 2,
+        "description": "Leo and Jax are small figures huddled by the pool at the base of towering canyon walls. Faded petroglyphs of camels and stars are etched into the rock behind them. The lush greenery of the oasis contrasts with the harsh, orange desert stone.",
+        "cameraAngle": "High",
+        "movement": "Pan",
+        "lighting": "Warm",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_2.png"
+      },
+      {
+        "id": "shot_scene_2_3",
+        "sceneId": "scene_2",
+        "shotNumber": 3,
+        "description": "A monolithic wall of brown dust—the Haboob—stretches across the entire horizon, rapidly swallowing the deep blue sky. The transition line between the golden sun and the approaching chocolate-brown darkness is sharp and terrifying.",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_3.png"
+      },
+      {
+        "id": "shot_scene_2_4",
+        "sceneId": "scene_2",
+        "shotNumber": 4,
+        "description": "The camera shakes as the first gust of wind hits. Leo looks toward the horizon, his hair whipping violently. The light shifts rapidly from bright yellow to a sickly, dim sepia as sand begins to cloud the air.",
+        "cameraAngle": "Dutch",
+        "movement": "Handheld",
+        "lighting": "Hard",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_4.png"
+      },
+      {
+        "id": "shot_scene_2_5",
+        "sceneId": "scene_2",
+        "shotNumber": 5,
+        "description": "Jax’s face is gritted with exertion, sweat and dust mixing into mud on his skin. He is pressed against a heavy stone slab. The low angle emphasizes the weight of the debris and the monumental effort of the struggle.",
+        "cameraAngle": "Low",
+        "movement": "Handheld",
+        "lighting": "Chiaroscuro",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_5.png"
+      },
+      {
+        "id": "shot_scene_2_6",
+        "sceneId": "scene_2",
+        "shotNumber": 6,
+        "description": "The camera pushes in on Leo and Jax as they shoulder the slab together against a crumbling archway. The background is now a chaotic brown void of screaming wind. Their movements are synchronized as they heave the stone on 'Three!', sealing themselves in.",
+        "cameraAngle": "Eye-level",
+        "movement": "Tracking",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_2_6.png"
+      },
+      {
+        "id": "shot_scene_3_1",
+        "sceneId": "scene_3",
+        "shotNumber": 1,
+        "description": "A cinematic bird's-eye view tilting up from the smooth, wind-swept golden sand dunes to reveal three small figures emerging from the cracked, ancient stone ruins. The morning sun sits low on the horizon, casting long, dramatic shadows across the pristine desert floor. The atmosphere is hazy with lingering dust.",
+        "cameraAngle": "High",
+        "movement": "Tilt",
+        "lighting": "Warm",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_1.png"
+      },
+      {
+        "id": "shot_scene_3_2",
+        "sceneId": "scene_3",
+        "shotNumber": 2,
+        "description": "Jax, caked in pale grey dust with sweat-streaked skin, stands amidst the rubble. He holds a jagged, mirror-like shard of polished metal. The camera dollies in as he tilts the shard; a brilliant, blinding white flash of reflected sunlight strikes the lens, creating a rhythmic anamorphic lens flare.",
+        "cameraAngle": "Low",
+        "movement": "Dolly",
+        "lighting": "Dramatic",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_2.png"
+      },
+      {
+        "id": "shot_scene_3_3",
+        "sceneId": "scene_3",
+        "shotNumber": 3,
+        "description": "Jax's perspective looking up into a vast, cloudless deep blue sky. A tiny, glinting silver speck of a helicopter hovers in the distance. The beam of light from the shard rhythmically cuts through the air toward the speck. The frame shakes slightly, mimicking the adrenaline and the buffeting wind of the approaching rotors.",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "lighting": "Natural",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_3.png"
+      },
+      {
+        "id": "shot_scene_3_4",
+        "sceneId": "scene_3",
+        "shotNumber": 4,
+        "description": "Tight shot of Sam and Jax’s faces. Their hair is whipped violently by the downward prop-wash of the rescue helicopter. Dust swirls around them in a chaotic vortex. Their eyes are wide, squinting against the wind, reflecting a mixture of exhaustion and disbelief as the thumping sound of the rotors reaches a crescendo.",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "lighting": "Hard",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_4.png"
+      },
+      {
+        "id": "shot_scene_3_5",
+        "sceneId": "scene_3",
+        "shotNumber": 5,
+        "description": "The camera pushes in aggressively on three filthy, scarred hands coming together in the center of the frame. The knuckles are white with tension as they clasp together in a desperate, unbreakable grip. The background is a blur of bright morning sky and the dark silhouette of the helicopter belly passing overhead.",
+        "cameraAngle": "Eye-level",
+        "movement": "Zoom",
+        "lighting": "Silhouette",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_5.png"
+      },
+      {
+        "id": "shot_scene_3_6",
+        "sceneId": "scene_3",
+        "shotNumber": 6,
+        "description": "A stable side-profile shot of the three friends. They stand huddled together, a unified silhouette against the vast, sun-drenched desert. The helicopter's shadow sweeps over them, cooling the frame momentarily. Sam and Jax speak, their lips moving slowly, tears carving clean tracks through the dust on their cheeks.",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "lighting": "Soft",
+        "dialogue": "",
+        "imageUrl": "/api/cloud/file?path=production_story_1770877202837%2Fvisuals%2Fshot_shot_scene_3_6.png"
+      }
+    ],
+    "genre": "Drama",
+    "isLocked": true,
+    "lockedAt": "2026-02-12T06:21:30.070Z",
+    "version": "locked_v1",
+    "shots": [
+      {
+        "id": "shot_scene_0_1",
+        "sceneId": "scene_0",
+        "shotNumber": 1,
+        "shotType": "Wide",
+        "cameraAngle": "Low",
+        "movement": "Tracking",
+        "duration": 4,
+        "description": "A battered vintage 4x4 tears across the crest of a massive sand dune at high speed. A massive 'rooster tail' of fine golden sand erupts behind the tires. The low-hanging sun creates intense lens flares across the frame. The mood is high-octane and adventurous.",
+        "emotion": "Exhilarating",
+        "lighting": "Warm"
+      },
+      {
+        "id": "shot_scene_0_2",
+        "sceneId": "scene_0",
+        "shotNumber": 2,
+        "shotType": "Medium",
+        "cameraAngle": "Dutch",
+        "movement": "Handheld",
+        "duration": 3,
+        "description": "The camera jars violently as the front of the vehicle slams into a deep sand pocket. White steam hisses aggressively from the crumpled hood, spiraling into the orange sky. The vehicle is tilted at an unnatural, precarious angle. The frame is shaky and chaotic.",
+        "emotion": "Shock",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_0_3",
+        "sceneId": "scene_0",
+        "shotNumber": 3,
+        "shotType": "Wide",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "duration": 6,
+        "description": "An extreme high-angle shot looking straight down at the tiny 4x4 stranded in a vast, undulating ocean of sand. Long, ink-black shadows stretch out from the vehicle across the ripples of the dunes. The silence is visual; the scale makes the characters look like ants.",
+        "emotion": "Isolation",
+        "lighting": "Natural"
+      },
+      {
+        "id": "shot_scene_0_4",
+        "sceneId": "scene_0",
+        "shotNumber": 4,
+        "shotType": "Over-the-shoulder",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "duration": 5,
+        "description": "From behind Leo’s shoulder, we see JAX pointing an accusing finger. Jax’s face is covered in a fine layer of dust, his brow furrowed in a deep V of anger. The setting sun hits the side of his face, creating a harsh rim light that emphasizes his sweat and frustration.",
+        "emotion": "Hostile",
+        "lighting": "Chiaroscuro"
+      },
+      {
+        "id": "shot_scene_0_5",
+        "sceneId": "scene_0",
+        "shotNumber": 5,
+        "shotType": "Close-up",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "duration": 5,
+        "description": "LEO stares back, his eyes darting between Jax and a dead smartphone screen. His expression is one of defensive panic. The camera has a slight organic jitter to reflect his internal agitation. The background is a blur of soft-focus golden sand.",
+        "emotion": "Defensive",
+        "lighting": "Soft"
+      },
+      {
+        "id": "shot_scene_0_6",
+        "sceneId": "scene_0",
+        "shotNumber": 6,
+        "shotType": "Wide",
+        "cameraAngle": "Low",
+        "movement": "Zoom",
+        "duration": 8,
+        "description": "SAM stands between the two men, turning her back to them to face the horizon. She is framed as a dark silhouette against a blood-orange sun that is halfway submerged below the desert line. As the camera zooms out slowly, the vast, empty trail-less desert ahead of them is revealed.",
+        "emotion": "Dread",
+        "lighting": "Silhouette"
+      },
+      {
+        "id": "shot_scene_1_1",
+        "sceneId": "scene_1",
+        "shotNumber": 1,
+        "shotType": "Wide",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "duration": 6,
+        "description": "An extreme high-angle shot looking down at an endless sea of undulating yellow sand dunes. Three tiny human figures trudge slowly across the frame, leaving thin, erratic trails behind them. Intense heat ripples distort the air at the edges of the frame. The sun is a white-hot disc directly overhead, washing out the sky into a pale, bleached blue.",
+        "emotion": "Isolation",
+        "lighting": "Hard"
+      },
+      {
+        "id": "shot_scene_1_2",
+        "sceneId": "scene_1",
+        "shotNumber": 2,
+        "shotType": "Medium",
+        "cameraAngle": "Eye-level",
+        "movement": "Tracking",
+        "duration": 5,
+        "description": "A side-profile tracking shot following the characters at their walking pace. Focus is on Sam, whose shirt is caked with white salt patterns. His skin is sun-scorched and his lips are visibly cracked and bleeding. The camera shakes slightly to mimic the unsteady gait of the exhausted men. Dust hangs in the air around their boots.",
+        "emotion": "Exhaustion",
+        "lighting": "Hard"
+      },
+      {
+        "id": "shot_scene_1_3",
+        "sceneId": "scene_1",
+        "shotNumber": 3,
+        "shotType": "Close-up",
+        "cameraAngle": "Low",
+        "movement": "Handheld",
+        "duration": 4,
+        "description": "The camera is positioned low to the ground as Sam’s knees slam into the scorching sand, sending a small cloud of dust upward. Immediately, Leo’s weathered, dirty hand enters the frame, gripping Sam’s bicep with urgency. The background is a blur of shimmering heat waves and golden sand.",
+        "emotion": "Desperation",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_1_4",
+        "sceneId": "scene_1",
+        "shotNumber": 4,
+        "shotType": "Wide",
+        "cameraAngle": "Low",
+        "movement": "Tilt",
+        "duration": 6,
+        "description": "The trio reaches the base of a massive, razor-sharp ridge. The camera tilts upward as they struggle to the summit. They are silhouetted against the blinding white sun, appearing as dark shapes against the overexposed sky. As they reach the top, their body language shifts from heavy trudging to a sudden, frozen halt.",
+        "emotion": "Anticipation",
+        "lighting": "Silhouette"
+      },
+      {
+        "id": "shot_scene_1_5",
+        "sceneId": "scene_1",
+        "shotNumber": 5,
+        "shotType": "POV",
+        "cameraAngle": "Eye-level",
+        "movement": "Pan",
+        "duration": 5,
+        "description": "From Sam’s perspective, the camera pans across a deep, jagged rocky fissure. The monochrome yellow of the desert is violently interrupted by a dense, vibrant shock of emerald green vegetation. Palm fronds sway gently in a hidden canyon below. The colors are hyper-saturated, making the oasis look almost hallucinatory compared to the surrounding wasteland.",
+        "emotion": "Awe",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_1_6",
+        "sceneId": "scene_1",
+        "shotNumber": 6,
+        "shotType": "Medium",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "duration": 7,
+        "description": "A tight shot of Sam and Jax standing shoulder to shoulder, looking off-camera at the oasis. Sam’s face is covered in grime, his eyes wide and glassy with disbelief as he whispers. Jax is next to him, his expression moving from shock to a faint, trembling relief. The sunlight catches the sweat on their brows, making them glow against the harsh background.",
+        "emotion": "Hope",
+        "lighting": "Natural"
+      },
+      {
+        "id": "shot_scene_2_1",
+        "sceneId": "scene_2",
+        "shotNumber": 1,
+        "shotType": "Close-up",
+        "cameraAngle": "Low",
+        "movement": "Static",
+        "duration": 4,
+        "description": "Sun-scorched, trembling hands cup crystal-clear water from a spring. Droplets fall onto parched, cracked lips in slow motion. The background shows the blurred, warm texture of ancient canyon stone.",
+        "emotion": "visceral relief",
+        "lighting": "Natural"
+      },
+      {
+        "id": "shot_scene_2_2",
+        "sceneId": "scene_2",
+        "shotNumber": 2,
+        "shotType": "Wide",
+        "cameraAngle": "High",
+        "movement": "Pan",
+        "duration": 6,
+        "description": "Leo and Jax are small figures huddled by the pool at the base of towering canyon walls. Faded petroglyphs of camels and stars are etched into the rock behind them. The lush greenery of the oasis contrasts with the harsh, orange desert stone.",
+        "emotion": "vulnerable",
+        "lighting": "Warm"
+      },
+      {
+        "id": "shot_scene_2_3",
+        "sceneId": "scene_2",
+        "shotNumber": 3,
+        "shotType": "Wide",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "duration": 5,
+        "description": "A monolithic wall of brown dust—the Haboob—stretches across the entire horizon, rapidly swallowing the deep blue sky. The transition line between the golden sun and the approaching chocolate-brown darkness is sharp and terrifying.",
+        "emotion": "overwhelming awe",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_2_4",
+        "sceneId": "scene_2",
+        "shotNumber": 4,
+        "shotType": "Medium",
+        "cameraAngle": "Dutch",
+        "movement": "Handheld",
+        "duration": 4,
+        "description": "The camera shakes as the first gust of wind hits. Leo looks toward the horizon, his hair whipping violently. The light shifts rapidly from bright yellow to a sickly, dim sepia as sand begins to cloud the air.",
+        "emotion": "panic",
+        "lighting": "Hard"
+      },
+      {
+        "id": "shot_scene_2_5",
+        "sceneId": "scene_2",
+        "shotNumber": 5,
+        "shotType": "Close-up",
+        "cameraAngle": "Low",
+        "movement": "Handheld",
+        "duration": 5,
+        "description": "Jax’s face is gritted with exertion, sweat and dust mixing into mud on his skin. He is pressed against a heavy stone slab. The low angle emphasizes the weight of the debris and the monumental effort of the struggle.",
+        "emotion": "determination",
+        "lighting": "Chiaroscuro"
+      },
+      {
+        "id": "shot_scene_2_6",
+        "sceneId": "scene_2",
+        "shotNumber": 6,
+        "shotType": "Medium",
+        "cameraAngle": "Eye-level",
+        "movement": "Tracking",
+        "duration": 7,
+        "description": "The camera pushes in on Leo and Jax as they shoulder the slab together against a crumbling archway. The background is now a chaotic brown void of screaming wind. Their movements are synchronized as they heave the stone on 'Three!', sealing themselves in.",
+        "emotion": "desperate cooperation",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_3_1",
+        "sceneId": "scene_3",
+        "shotNumber": 1,
+        "shotType": "Wide",
+        "cameraAngle": "High",
+        "movement": "Tilt",
+        "duration": 6,
+        "description": "A cinematic bird's-eye view tilting up from the smooth, wind-swept golden sand dunes to reveal three small figures emerging from the cracked, ancient stone ruins. The morning sun sits low on the horizon, casting long, dramatic shadows across the pristine desert floor. The atmosphere is hazy with lingering dust.",
+        "emotion": "Awe",
+        "lighting": "Warm"
+      },
+      {
+        "id": "shot_scene_3_2",
+        "sceneId": "scene_3",
+        "shotNumber": 2,
+        "shotType": "Medium",
+        "cameraAngle": "Low",
+        "movement": "Dolly",
+        "duration": 5,
+        "description": "Jax, caked in pale grey dust with sweat-streaked skin, stands amidst the rubble. He holds a jagged, mirror-like shard of polished metal. The camera dollies in as he tilts the shard; a brilliant, blinding white flash of reflected sunlight strikes the lens, creating a rhythmic anamorphic lens flare.",
+        "emotion": "Hopeful",
+        "lighting": "Dramatic"
+      },
+      {
+        "id": "shot_scene_3_3",
+        "sceneId": "scene_3",
+        "shotNumber": 3,
+        "shotType": "POV",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "duration": 4,
+        "description": "Jax's perspective looking up into a vast, cloudless deep blue sky. A tiny, glinting silver speck of a helicopter hovers in the distance. The beam of light from the shard rhythmically cuts through the air toward the speck. The frame shakes slightly, mimicking the adrenaline and the buffeting wind of the approaching rotors.",
+        "emotion": "Urgent",
+        "lighting": "Natural"
+      },
+      {
+        "id": "shot_scene_3_4",
+        "sceneId": "scene_3",
+        "shotNumber": 4,
+        "shotType": "Close-up",
+        "cameraAngle": "Eye-level",
+        "movement": "Handheld",
+        "duration": 5,
+        "description": "Tight shot of Sam and Jax’s faces. Their hair is whipped violently by the downward prop-wash of the rescue helicopter. Dust swirls around them in a chaotic vortex. Their eyes are wide, squinting against the wind, reflecting a mixture of exhaustion and disbelief as the thumping sound of the rotors reaches a crescendo.",
+        "emotion": "Overwhelmed",
+        "lighting": "Hard"
+      },
+      {
+        "id": "shot_scene_3_5",
+        "sceneId": "scene_3",
+        "shotNumber": 5,
+        "shotType": "Close-up",
+        "cameraAngle": "Eye-level",
+        "movement": "Zoom",
+        "duration": 5,
+        "description": "The camera pushes in aggressively on three filthy, scarred hands coming together in the center of the frame. The knuckles are white with tension as they clasp together in a desperate, unbreakable grip. The background is a blur of bright morning sky and the dark silhouette of the helicopter belly passing overhead.",
+        "emotion": "Solidarity",
+        "lighting": "Silhouette"
+      },
+      {
+        "id": "shot_scene_3_6",
+        "sceneId": "scene_3",
+        "shotNumber": 6,
+        "shotType": "Medium",
+        "cameraAngle": "Eye-level",
+        "movement": "Static",
+        "duration": 7,
+        "description": "A stable side-profile shot of the three friends. They stand huddled together, a unified silhouette against the vast, sun-drenched desert. The helicopter's shadow sweeps over them, cooling the frame momentarily. Sam and Jax speak, their lips moving slowly, tears carving clean tracks through the dust on their cheeks.",
+        "emotion": "Cathartic",
+        "lighting": "Soft"
+      }
+    ],
+    "scenesWithShots": [
+      "scene_0",
+      "scene_1",
+      "scene_2",
+      "scene_3"
+    ],
+    "imageProvider": "deapi",
+    "scenesWithVisuals": [
+      "scene_0",
+      "scene_1",
+      "scene_2",
+      "scene_3"
+    ],
+    "narrationSegments": [
+      {
+        "sceneId": "scene_0",
+        "audioUrl": "/api/cloud/file?path=production_story_1770877202837%2Faudio%2Fnarration_scene_0.wav",
+        "duration": 20.49095833333333,
+        "text": "Scene from: قصة مغامرة في الصحراء مجموعة أصدقاء يضيعون في رحلة برية يكتشفون واحة مخفية وآثار قديمة يتعلمون قيمة الصداقة والتعاون للنجاة"
+      },
+      {
+        "sceneId": "scene_1",
+        "audioUrl": "/api/cloud/file?path=production_story_1770877202837%2Faudio%2Fnarration_scene_1.wav",
+        "duration": 34.650958333333335,
+        "text": "Off the Beaten Path The transition from the high-energy excitement of youth and freedom to the creeping, cold realization of total isolation. * The group, confident and laughing, decides to ignore the GPS to chase a \"shortcut\" or a scenic dune. The upbeat music cuts abruptly when their vehicle breaks down or gets hopelessly stuck in soft sand miles from civilization. The first cracks in their friendship appear as the sun begins to set and the blame game begins."
+      },
+      {
+        "sceneId": "scene_2",
+        "audioUrl": "/api/cloud/file?path=production_story_1770877202837%2Faudio%2Fnarration_scene_2.wav",
+        "duration": 38.81095833333333,
+        "text": "Thirst and Shadows The visceral fear of mortality. The audience should feel the scorching heat, the parched throats, and the overwhelming silence of the desert that makes the characters feel insignificant. * After walking for hours in search of a signal or road, the group is on the verge of physical collapse. Just as one friend is about to give up entirely, they crest a massive dune and spot not a mirage, but actual greenery tucked into a deep, rocky canyon—a hidden oasis that shouldn't exist on modern maps."
+      },
+      {
+        "sceneId": "scene_3",
+        "audioUrl": "/api/cloud/file?path=production_story_1770877202837%2Faudio%2Fnarration_scene_3.wav",
+        "duration": 57.650958333333335,
+        "text": "The Emerald Secret A sense of wonder and awe that temporarily suspends their fear. The contrast between the harsh yellow sand and the cool blue water/green palms creates a spiritual moment of relief. * While resting and drinking at the oasis, they explore the surroundings and discover crumbling stone walls and petroglyphs—ancient ruins of a forgotten caravan waystation. However, a massive sandstorm (Haboob) approaches on the horizon. They realize the ruins are the only shelter, but the structure is unstable. They must stop arguing and work together to reinforce a collapsed wall using rocks and debris before the storm hits."
+      }
+    ],
+    "scenesWithNarration": [
+      "scene_0",
+      "scene_1",
+      "scene_2",
+      "scene_3"
+    ],
+    "animatedShots": [],
+    "shotsWithAnimation": [],
+    "finalVideoUrl": "/api/cloud/file?path=production_story_1770877202837%2Fexports%2Fexport_2026-02-12T06-30-54-866Z.mp4"
+  },
+  "metadata": {
+    "totalScenes": 4,
+    "totalShots": 24,
+    "totalCharacters": 3,
+    "duration": 127
+  }
+}

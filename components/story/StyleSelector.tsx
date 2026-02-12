@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, Film, RectangleHorizontal } from 'lucide-react';
+import { Check, Film, RectangleHorizontal, Cpu } from 'lucide-react';
 import {
     VISUAL_STYLES,
     ASPECT_RATIOS,
@@ -19,6 +19,8 @@ interface StyleSelectorProps {
     onSelectStyle: (style: VisualStyleKey) => void;
     aspectRatio: AspectRatioId;
     onSelectAspectRatio: (ratio: AspectRatioId) => void;
+    imageProvider?: 'gemini' | 'deapi';
+    onSelectImageProvider?: (provider: 'gemini' | 'deapi') => void;
 }
 
 export const StyleSelector: React.FC<StyleSelectorProps> = ({
@@ -26,6 +28,8 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     onSelectStyle,
     aspectRatio,
     onSelectAspectRatio,
+    imageProvider = 'gemini',
+    onSelectImageProvider,
 }) => {
     const styles = Object.values(VISUAL_STYLES);
 
@@ -111,6 +115,59 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                     })}
                 </div>
             </motion.div>
+
+            {/* Image Provider Selector */}
+            {onSelectImageProvider && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.25 }}
+                    className="mb-12"
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <Cpu className="w-4 h-4 text-[var(--cinema-silver)]/40" />
+                        <span className="font-mono text-xs text-[var(--cinema-silver)]/40 uppercase tracking-widest">
+                            Image Engine
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {([
+                            { id: 'gemini' as const, label: 'Imagen 4', desc: 'Google AI (default)' },
+                            { id: 'deapi' as const, label: 'FLUX.2 Klein', desc: 'DeAPI, fast generation' },
+                        ]).map((provider) => {
+                            const isSelected = imageProvider === provider.id;
+                            return (
+                                <motion.button
+                                    key={provider.id}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => onSelectImageProvider(provider.id)}
+                                    className={`
+                                        group relative px-5 py-3 rounded-lg transition-all duration-300
+                                        ${isSelected
+                                            ? 'bg-[var(--cinema-spotlight)]/20 border-2 border-[var(--cinema-spotlight)] shadow-[0_0_20px_var(--glow-spotlight)]'
+                                            : 'bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10 hover:border-[var(--cinema-silver)]/30'
+                                        }
+                                    `}
+                                >
+                                    <span className={`
+                                        font-display text-lg transition-colors
+                                        ${isSelected ? 'text-[var(--cinema-spotlight)]' : 'text-[var(--cinema-silver)]'}
+                                    `}>
+                                        {provider.label}
+                                    </span>
+                                    <span className={`
+                                        ml-2 font-script italic text-sm
+                                        ${isSelected ? 'text-[var(--cinema-spotlight)]/70' : 'text-[var(--cinema-silver)]/40'}
+                                    `}>
+                                        {provider.desc}
+                                    </span>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
+                </motion.div>
+            )}
 
             {/* Style Grid by Category */}
             <div className="space-y-12">

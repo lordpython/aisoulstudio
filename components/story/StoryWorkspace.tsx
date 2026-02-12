@@ -51,6 +51,7 @@ interface StoryWorkspaceProps {
     onLockStory?: () => void;
     onUpdateVisualStyle?: (style: string) => void;
     onUpdateAspectRatio?: (ratio: string) => void;
+    onUpdateImageProvider?: (provider: 'gemini' | 'deapi') => void;
     onGenerateShots?: (sceneIndex?: number) => void;
     onGenerateVisuals?: (sceneIndex?: number) => void;
     stageProgress?: StageProgress;
@@ -97,6 +98,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onLockStory,
     onUpdateVisualStyle,
     onUpdateAspectRatio,
+    onUpdateImageProvider,
     onGenerateShots,
     onGenerateVisuals,
     stageProgress,
@@ -430,9 +432,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             {t('story.shotBreakdown')}
                                         </h2>
                                         {storyState.isLocked && (
-                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--cinema-spotlight)]/10 text-[var(--cinema-spotlight)] rounded border border-[var(--cinema-spotlight)]/20">
-                                                <Lock className="w-3 h-3" />
-                                                <span className="text-xs font-mono tracking-widest">{t('story.locked')}</span>
+                                            <div className="flex items-center gap-2.5 px-4 py-2.5 bg-[var(--cinema-spotlight)]/15 text-[var(--cinema-spotlight)] rounded-lg border-2 border-[var(--cinema-spotlight)]/30 shadow-lg shadow-[var(--cinema-spotlight)]/10">
+                                                <Lock className="w-4 h-4" />
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-mono font-bold tracking-wide">{t('story.locked')}</span>
+                                                    <span className="text-[10px] text-[var(--cinema-silver)]/70 font-editorial">Story structure finalized</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -448,48 +453,62 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                 <motion.div
                                                     key={scene.id}
                                                     variants={staggerItem}
-                                                    className="bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10 rounded-lg overflow-hidden shadow-editorial"
+                                                    className="bg-gradient-to-br from-[var(--cinema-celluloid)]/80 to-[var(--cinema-void)]/40 border border-[var(--cinema-silver)]/20 rounded-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
                                                 >
-                                                    <div className="px-5 py-4 bg-[var(--cinema-void)]/50 flex justify-between items-center border-b border-[var(--cinema-silver)]/5">
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="font-mono text-xs text-[var(--cinema-spotlight)]">
+                                                    <div className="px-6 py-4 bg-gradient-to-r from-[var(--cinema-void)]/70 to-[var(--cinema-void)]/50 flex justify-between items-center border-b border-[var(--cinema-silver)]/10 backdrop-blur-sm">
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="font-mono text-sm font-bold text-[var(--cinema-spotlight)] bg-[var(--cinema-spotlight)]/10 px-2.5 py-1 rounded-md border border-[var(--cinema-spotlight)]/20">
                                                                 {String(scene.sceneNumber).padStart(2, '0')}
                                                             </span>
-                                                            <span className="font-display text-[var(--cinema-silver)]">
+                                                            <span className="font-display text-base text-white/95">
                                                                 {scene.heading}
                                                             </span>
                                                         </div>
                                                         {!shots.length && onGenerateShots && (
                                                             <button
                                                                 onClick={() => onGenerateShots(idx)}
-                                                                className="text-xs btn-cinematic px-4 py-1.5 rounded"
+                                                                className="text-sm btn-cinematic px-5 py-2 rounded-lg font-medium"
                                                             >
                                                                 {t('story.generateShots')}
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                                         {shots.map(shot => (
                                                             <div
                                                                 key={shot.id}
-                                                                className="bg-[var(--cinema-void)]/60 border border-[var(--cinema-silver)]/5 p-4 rounded hover:border-[var(--cinema-spotlight)]/20 transition-colors"
+                                                                className="group bg-gradient-to-br from-[var(--cinema-celluloid)]/30 to-[var(--cinema-void)]/80 border-2 border-[var(--cinema-silver)]/10 rounded-xl overflow-hidden hover:border-[var(--cinema-spotlight)]/40 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)] transition-all duration-300"
                                                             >
-                                                                <div className="flex justify-between text-xs mb-2">
-                                                                    <span className="font-mono text-[var(--cinema-spotlight)]">
-                                                                        SHOT {shot.shotNumber}
-                                                                    </span>
-                                                                    <span className="text-[var(--cinema-silver)]/40 uppercase tracking-wider">
+                                                                {/* Visual Thumbnail Placeholder - Addresses cognitive load */}
+                                                                <div className="relative aspect-video bg-gradient-to-br from-[var(--cinema-void)] to-[var(--cinema-celluloid)] border-b-2 border-[var(--cinema-silver)]/10 flex items-center justify-center overflow-hidden">
+                                                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,175,55,0.05)_0%,transparent_70%)]" />
+                                                                    <Film className="w-12 h-12 text-[var(--cinema-silver)]/20 group-hover:text-[var(--cinema-spotlight)]/30 transition-colors" />
+                                                                    <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-[10px] font-mono text-white/80">
                                                                         {shot.shotType}
-                                                                    </span>
+                                                                    </div>
                                                                 </div>
-                                                                <p className="font-script text-[var(--cinema-silver)]/80 text-sm italic">
-                                                                    {shot.description}
-                                                                </p>
+                                                                
+                                                                <div className="p-4">
+                                                                    <div className="flex justify-between items-center mb-3">
+                                                                        <span className="font-mono text-sm font-bold text-[#F4D03F]">
+                                                                            SHOT {shot.shotNumber}
+                                                                        </span>
+                                                                        <span className="text-xs text-white/60 uppercase tracking-wider font-editorial">
+                                                                            {shot.cameraAngle || 'Standard'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="font-script text-white/90 text-sm leading-relaxed italic line-clamp-4">
+                                                                        {shot.description}
+                                                                    </p>
+                                                                </div>
                                                             </div>
                                                         ))}
                                                         {shots.length === 0 && (
-                                                            <div className="text-[var(--cinema-silver)]/30 font-script italic text-sm p-2">
-                                                                {t('story.noShotsGenerated')}
+                                                            <div className="col-span-full text-center py-12">
+                                                                <Film className="w-16 h-16 mx-auto mb-4 text-[var(--cinema-silver)]/20" />
+                                                                <p className="text-white/60 font-script italic text-base">
+                                                                    {t('story.noShotsGenerated')}
+                                                                </p>
                                                             </div>
                                                         )}
                                                     </div>
@@ -512,6 +531,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onSelectStyle={(style) => onUpdateVisualStyle?.(style)}
                                         aspectRatio={(storyState.aspectRatio || '16:9') as AspectRatioId}
                                         onSelectAspectRatio={(ratio) => onUpdateAspectRatio?.(ratio)}
+                                        imageProvider={storyState.imageProvider || 'gemini'}
+                                        onSelectImageProvider={onUpdateImageProvider}
                                     />
                                 </motion.div>
                             )}
@@ -861,20 +882,20 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         cursor: !isAccessible ? 'not-allowed' : 'pointer',
                                     }}
                                 >
-                                    {/* Step number */}
+                                    {/* Step number - Improved contrast (Addresses Design Review Issue #1) */}
                                     <span
                                         className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-editorial font-bold flex-shrink-0 transition-all duration-200"
                                         style={{
                                             background: isActive
                                                 ? 'rgba(255,255,255,0.9)'
                                                 : isCompleted
-                                                    ? 'rgba(52, 211, 153, 0.2)'
-                                                    : 'rgba(255,255,255,0.06)',
+                                                    ? 'rgba(52, 211, 153, 0.25)'
+                                                    : 'rgba(255,255,255,0.12)',
                                             color: isActive
                                                 ? '#000'
                                                 : isCompleted
                                                     ? '#34D399'
-                                                    : 'rgba(255,255,255,0.7)',
+                                                    : 'rgba(255,255,255,0.95)',
                                         }}
                                     >
                                         {isCompleted ? (

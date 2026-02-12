@@ -55,7 +55,18 @@ export const generateBreakdownTool = tool(
             maxRetries: 2,
         });
 
-        const prompt = `Create a narrative breakdown for a video story about: "${topic}".
+        // Detect Arabic topic to use language-appropriate prompt and markers
+        const isArabicTopic = /[\u0600-\u06FF]/.test(topic);
+
+        const prompt = isArabicTopic
+            ? `أنشئ تفصيلًا سرديًا لقصة فيديو عن: "${topic}".
+قسّمها إلى 3-5 فصول أو مشاهد متميزة. لكل فصل، قدّم:
+1. العنوان (بعد كلمة "مشهد" ورقمه، مثال: مشهد ١: العنوان)
+2. الخطاف العاطفي
+3. النقطة السردية الرئيسية
+
+نسّق كقائمة مرقّمة باستخدام الأرقام العربية (١، ٢، ٣...).`
+            : `Create a narrative breakdown for a video story about: "${topic}".
 Divide it into 3-5 distinct acts or chapters. For each act, provide:
 1. Title
 2. Emotional Hook
@@ -133,7 +144,26 @@ export const createScreenplayTool = tool(
             maxRetries: 2,
         });
 
-        const prompt = `Write a short cinematic screenplay based on this breakdown:
+        // Detect Arabic content to use appropriate scene markers
+        const isArabicContent = /[\u0600-\u06FF]/.test(state.breakdown);
+
+        const prompt = isArabicContent
+            ? `اكتب سيناريو سينمائي قصير بناءً على هذا التفصيل:
+${state.breakdown}
+
+نسّق كل مشهد كالتالي:
+- مشهد [الرقم]: [العنوان]
+- الحدث: [الوصف]
+- الحوار: [الشخصية]: [النص]
+
+قواعد مهمة لسطر الحدث:
+- أسطر الحدث تصف ما تراه الكاميرا، وليس المشاعر الداخلية.
+- ستُستخدم كتعليق صوتي — اجعلها حية وسينمائية.
+- صِف التفاصيل الحسية: الأصوات، الملمس، الحركة، الضوء، اللون.
+- لا تستخدم تنسيق markdown (بدون ** أو * أو # أو backticks).
+
+حدّد 3-5 مشاهد.`
+            : `Write a short cinematic screenplay based on this breakdown:
 ${state.breakdown}
 
 Format each scene with:
@@ -174,32 +204,36 @@ Limit to 3-5 scenes.`;
         }
 
         // Simple parser for the draft screenplay
+        // Supports English "SCENE 1:" and Arabic "مشهد ١:" / "المشهد ١:" markers
+        // with ASCII digits (0-9), Arabic-Indic (٠-٩), and Extended Arabic-Indic (۰-۹)
         const scenes: ScreenplayScene[] = [];
-        const sceneBlocks = scriptText.split(/SCENE\s+\d+:/i).filter(b => b.trim());
+        const sceneBlocks = scriptText.split(/(?:SCENE|مشهد|المشهد)\s+[0-9\u0660-\u0669\u06F0-\u06F9]+\s*:/i).filter(b => b.trim());
 
         sceneBlocks.forEach((block, i) => {
             const lines = block.split('\n').filter(l => l.trim());
             const heading = lines[0] || 'Untitled Scene';
-            // Match ACTION: prefix regardless of residual markdown wrapping
-            const actionLines = lines.filter(l => /^(\*{0,2})ACTION(\*{0,2})\s*:/i.test(l.trim()));
+            // Match ACTION:/الحدث: prefix regardless of residual markdown wrapping
+            const actionPattern = /^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:/i;
+            const dialogueLabelPattern = /^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*:/i;
+            const actionLines = lines.filter(l => actionPattern.test(l.trim()));
             const dialogueLines = lines.filter(l => {
                 const trimmed = l.trim();
                 // Skip action lines and bare labels
-                if (/^(\*{0,2})ACTION(\*{0,2})\s*:/i.test(trimmed)) return false;
-                if (/^(\*{0,2})DIALOGUE(\*{0,2})\s*:/i.test(trimmed)) return false;
+                if (actionPattern.test(trimmed)) return false;
+                if (dialogueLabelPattern.test(trimmed)) return false;
                 return trimmed.includes(':');
             });
 
-            // Extract action text, stripping label prefix
+            // Extract action text, stripping label prefix (English or Arabic)
             const actionText = actionLines
-                .map(l => l.replace(/^(\*{0,2})ACTION(\*{0,2})\s*:\s*/i, '').trim())
+                .map(l => l.replace(/^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:\s*/i, '').trim())
                 .join(' ');
 
             // Extract character names from dialogue speakers and name mentions in action
             const speakers = dialogueLines
                 .map(l => {
                     const [speaker] = l.split(':');
-                    return (speaker || '').replace(/^(\*{0,2})DIALOGUE(\*{0,2})\s*/i, '').trim();
+                    return (speaker || '').replace(/^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*/i, '').trim();
                 })
                 .filter(s => s && s.length > 0 && s.length < 50);
             const uniqueCharacters = [...new Set(speakers)];
@@ -207,7 +241,7 @@ Limit to 3-5 scenes.`;
             scenes.push({
                 id: `scene_${i}`,
                 sceneNumber: i + 1,
-                heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE)(\*{0,2})\s*:/gi, '').trim(),
+                heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE|الحدث|الحوار)(\*{0,2})\s*:/gi, '').trim(),
                 action: actionText,
                 dialogue: dialogueLines.map(l => {
                     const [speaker, ...text] = l.split(':');
@@ -283,43 +317,47 @@ export const generateShotlistTool = tool(
         if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
         const state = storyModeStore.get(sessionId);
         if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+        if (!state.screenplay || state.screenplay.length === 0) {
+            return JSON.stringify({ success: false, error: "Screenplay is empty. Create screenplay first." });
+        }
 
         log.info(` Generating shotlist for: ${sessionId}`);
 
-        const model = new ChatGoogleGenerativeAI({
-            model: MODELS.TEXT_EXP,
-            apiKey: GEMINI_API_KEY,
-            temperature: 0.5,
-            maxRetries: 2,
-        });
-
-        const prompt = `Based on this screenplay and character list, create a professional shotlist for a storyboard.
-For each scene, provide 1-2 key camera shots.
-
-Screenplay:
-${JSON.stringify(state.screenplay)}
-
-Characters:
-${JSON.stringify(state.characters)}
-
-For each shot, provide:
-1. Shot Type (Wide, Close-up, etc.)
-2. Visual description including character movements and lighting.
-3. Audio/Dialogue for that shot.`;
-
-        let shotlistText: string;
         try {
-            log.info(' Invoking Gemini API for shotlist...');
-            const response = await withAILogging(
+            const { breakAllScenesIntoShots } = await import("../../shotBreakdownAgent");
+
+            const genre = 'Drama'; // Default genre; ideally passed from session state
+            const rawShots = await breakAllScenesIntoShots(
+                state.screenplay,
+                genre,
+                (sceneIndex, totalScenes) => {
+                    log.info(` Shotlist progress: scene ${sceneIndex + 1}/${totalScenes}`);
+                },
                 sessionId,
-                'shotlist',
-                MODELS.TEXT_EXP,
-                prompt,
-                () => model.invoke(prompt),
-                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
             );
-            shotlistText = response.content as string;
-            log.info(' Shotlist generated successfully');
+
+            // Convert Shot[] to ShotlistEntry[]
+            const shots: ShotlistEntry[] = rawShots.map(shot => ({
+                id: shot.id,
+                sceneId: shot.sceneId,
+                shotNumber: shot.shotNumber,
+                description: shot.description,
+                cameraAngle: shot.cameraAngle,
+                movement: shot.movement,
+                lighting: shot.lighting,
+                dialogue: "",
+            }));
+
+            state.shotlist = shots;
+            state.currentStep = 'shotlist';
+            state.updatedAt = Date.now();
+            storyModeStore.set(sessionId, state);
+
+            return JSON.stringify({
+                success: true,
+                shotCount: shots.length,
+                message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.`,
+            });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             log.error(` Failed to generate shotlist: ${errorMessage}`);
@@ -328,30 +366,6 @@ For each shot, provide:
                 error: `Failed to generate shotlist: ${errorMessage}`,
             });
         }
-
-        // Basic mock shotlist for now, ideally parsed from AI response
-        const shots: ShotlistEntry[] = state.screenplay.map((s, i) => ({
-            id: `shot_${i}`,
-            sceneId: s.id,
-            shotNumber: i + 1,
-            description: `Visualizing: ${s.action}`,
-            cameraAngle: "Medium",
-            movement: "Static",
-            lighting: "Cinematic",
-            dialogue: s.dialogue[0]?.text || "",
-        }));
-
-        state.shotlist = shots;
-        state.currentStep = 'shotlist';
-        state.updatedAt = Date.now();
-        storyModeStore.set(sessionId, state);
-
-        // Return minimal info - full shotlist is stored in state
-        return JSON.stringify({
-            success: true,
-            shotCount: shots.length,
-            message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.`,
-        });
     },
     {
         name: "generate_shotlist",

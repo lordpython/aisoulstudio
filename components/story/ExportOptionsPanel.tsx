@@ -150,7 +150,8 @@ export function ExportOptionsPanel({
       }
     } catch (err) {
       setStatus('mp4', 'error');
-      setError('Failed to export MP4 video');
+      const detail = err instanceof Error ? err.message : String(err);
+      setError(`Failed to export MP4 video: ${detail}`);
     }
   };
 

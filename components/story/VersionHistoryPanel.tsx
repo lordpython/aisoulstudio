@@ -30,6 +30,8 @@ import {
   type VersionSnapshot,
   type VersionHistoryStats,
 } from '@/services/versionHistoryService';
+import { formatRelativeTime, formatAbsoluteTime } from '@/utils/timeFormatting';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface VersionHistoryPanelProps {
   projectId: string;
@@ -271,10 +273,20 @@ export function VersionHistoryPanel({
                         </button>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
-                      <Calendar className="w-3 h-3" />
-                      <span>{formatSnapshotDate(snapshot.timestamp)}</span>
-                    </div>
+                    {/* Relative time with absolute tooltip (Addresses Design Review Issue #28) */}
+                    <TooltipProvider>
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-white/40 cursor-help">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatRelativeTime(snapshot.timestamp)}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs">
+                          {formatAbsoluteTime(snapshot.timestamp)}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {snapshot.metadata && (
                       <div className="flex items-center gap-2 mt-1 text-xs text-white/30">
                         <span>{snapshot.metadata.sceneCount} scenes</span>

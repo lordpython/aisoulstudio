@@ -27,6 +27,8 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
 }) => {
     const [selectedShotIndex, setSelectedShotIndex] = useState(0);
     const [localDuration, setLocalDuration] = useState<number>(0);
+    const [showNavArrows, setShowNavArrows] = useState(true);
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
     if (!shots || shots.length === 0) {
         return (
@@ -48,8 +50,22 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     useEffect(() => {
         if (currentShot) {
             setLocalDuration(currentShot.durationEst || 5);
+            setIsDescriptionExpanded(false); // Reset expansion when changing shots
         }
     }, [currentShot?.id, currentShot?.durationEst]);
+
+    // Auto-hide navigation arrows after initial display (Addresses Design Review Issue #11)
+    useEffect(() => {
+        if (shots.length <= 1) {
+            return;
+        }
+        
+        setShowNavArrows(true);
+        const timer = setTimeout(() => {
+            setShowNavArrows(false);
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [shots.length]);
 
     const handleNext = () => {
         if (selectedShotIndex < shots.length - 1) {
@@ -62,6 +78,26 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
             setSelectedShotIndex(prev => prev - 1);
         }
     };
+
+    // Keyboard navigation support (Addresses Design Review Issue #11)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent): void => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                handlePrev();
+                return;
+            }
+            
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                handleNext();
+                return;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedShotIndex, shots.length]);
 
     const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseFloat(e.target.value);
@@ -147,30 +183,78 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                 )}
                             </div>
 
-                            {/* Description */}
-                            <h3 className="font-display text-2xl text-[var(--cinema-silver)] leading-snug">
-                                {currentShot?.description || 'No description'}
-                            </h3>
-
-                            {/* Duration Control */}
-                            <div className="flex items-center gap-4 bg-[var(--cinema-celluloid)]/50 w-fit px-4 py-2 rounded-lg border border-[var(--cinema-silver)]/10">
-                                <Clock className="w-4 h-4 text-[var(--cinema-silver)]/40" />
-                                <span className="font-script italic text-sm text-[var(--cinema-silver)]/60">Duration:</span>
-                                <input
-                                    type="number"
-                                    value={localDuration}
-                                    onChange={handleDurationChange}
-                                    className="w-16 bg-transparent border-b border-[var(--cinema-silver)]/30 text-[var(--cinema-silver)] text-center font-mono focus:outline-none focus:border-[var(--cinema-spotlight)]"
-                                    min={1}
-                                    max={60}
-                                />
-                                <span className="font-mono text-xs text-[var(--cinema-silver)]/40">sec</span>
-                                <button
-                                    onClick={handleSaveDuration}
-                                    className="font-mono text-[10px] uppercase text-[var(--cinema-spotlight)] hover:text-[var(--cinema-silver)] transition-colors tracking-wider"
+                            {/* Description - Expandable for long content (Addresses Design Review Issue #22) */}
+                            <div className="relative">
+                                <h3 
+                                    className={`font-display text-2xl text-[var(--cinema-silver)] leading-snug transition-all duration-300 ${
+                                        !isDescriptionExpanded && currentShot?.description && currentShot.description.length > 150 
+                                            ? 'line-clamp-3' 
+                                            : ''
+                                    }`}
                                 >
-                                    Update
-                                </button>
+                                    {currentShot?.description || 'No description'}
+                                </h3>
+                                {currentShot?.description && currentShot.description.length > 150 && (
+                                    <button
+                                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                                        className="mt-2 text-xs font-editorial text-[var(--cinema-spotlight)] hover:text-[var(--cinema-spotlight)]/80 transition-colors uppercase tracking-wide flex items-center gap-1"
+                                    >
+                                        {isDescriptionExpanded ? '− Show Less' : '+ Show More'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Duration Control - Improved with visible label (Addresses Design Review Issue #9) */}
+                            <div className="flex flex-col gap-2">
+                                <label 
+                                    htmlFor="shot-duration-input" 
+                                    className="font-editorial text-xs text-[var(--cinema-silver)]/70 uppercase tracking-wide"
+                                >
+                                    Shot Duration
+                                </label>
+                                <div className="flex items-center gap-4 bg-[var(--cinema-celluloid)]/50 w-fit px-4 py-2 rounded-lg border border-[var(--cinema-silver)]/10">
+                                    <Clock className="w-4 h-4 text-[var(--cinema-silver)]/40" />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const newDuration = Math.max(1, localDuration - 1);
+                                                setLocalDuration(newDuration);
+                                                if (onUpdateDuration && currentShot) {
+                                                    onUpdateDuration(currentShot.id, newDuration);
+                                                }
+                                            }}
+                                            className="w-6 h-6 flex items-center justify-center rounded bg-[var(--cinema-silver)]/10 hover:bg-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] transition-colors"
+                                            aria-label="Decrease duration"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            id="shot-duration-input"
+                                            type="number"
+                                            value={localDuration}
+                                            onChange={handleDurationChange}
+                                            onBlur={handleSaveDuration}
+                                            className="w-16 bg-transparent border-b border-[var(--cinema-silver)]/30 text-[var(--cinema-silver)] text-center font-mono focus:outline-none focus:border-[var(--cinema-spotlight)]"
+                                            min={1}
+                                            max={60}
+                                            aria-label="Shot duration in seconds"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const newDuration = Math.min(60, localDuration + 1);
+                                                setLocalDuration(newDuration);
+                                                if (onUpdateDuration && currentShot) {
+                                                    onUpdateDuration(currentShot.id, newDuration);
+                                                }
+                                            }}
+                                            className="w-6 h-6 flex items-center justify-center rounded bg-[var(--cinema-silver)]/10 hover:bg-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] transition-colors"
+                                            aria-label="Increase duration"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <span className="font-mono text-xs text-[var(--cinema-silver)]/40">sec</span>
+                                </div>
                             </div>
                         </div>
 
@@ -195,13 +279,19 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                     </div>
                 </div>
 
-                {/* Left/Right Navigation */}
+                {/* Left/Right Navigation - Improved discoverability (Addresses Design Review Issue #11) */}
                 <button
                     onClick={handlePrev}
                     disabled={selectedShotIndex === 0}
-                    className="absolute left-8 inset-y-0 w-24 bg-gradient-to-r from-[var(--cinema-void)]/80 to-transparent flex items-center justify-start pl-4 opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-10"
+                    onMouseEnter={() => setShowNavArrows(true)}
+                    className={`
+                        absolute left-8 inset-y-0 w-24 bg-gradient-to-r from-[var(--cinema-void)]/80 to-transparent 
+                        flex items-center justify-start pl-4 transition-opacity duration-300 disabled:hidden z-10
+                        ${showNavArrows ? 'opacity-100' : 'opacity-0 hover:opacity-100'}
+                    `}
+                    aria-label="Previous shot (Left arrow key)"
                 >
-                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)]">
+                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] hover:bg-[var(--cinema-silver)]/10 transition-colors">
                         <ChevronLeft className="w-6 h-6" />
                     </div>
                 </button>
@@ -209,9 +299,15 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                 <button
                     onClick={handleNext}
                     disabled={selectedShotIndex === shots.length - 1}
-                    className="absolute right-0 inset-y-0 w-24 bg-gradient-to-l from-[var(--cinema-void)]/80 to-transparent flex items-center justify-end pr-4 opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-10"
+                    onMouseEnter={() => setShowNavArrows(true)}
+                    className={`
+                        absolute right-0 inset-y-0 w-24 bg-gradient-to-l from-[var(--cinema-void)]/80 to-transparent 
+                        flex items-center justify-end pr-4 transition-opacity duration-300 disabled:hidden z-10
+                        ${showNavArrows ? 'opacity-100' : 'opacity-0 hover:opacity-100'}
+                    `}
+                    aria-label="Next shot (Right arrow key)"
                 >
-                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)]">
+                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] hover:bg-[var(--cinema-silver)]/10 transition-colors">
                         <ChevronRight className="w-6 h-6" />
                     </div>
                 </button>
@@ -261,7 +357,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                         ))}
                     </div>
 
-                    {/* Thumbnail Strip */}
+                    {/* Thumbnail Strip - Improved touch targets for mobile (Addresses Design Review Issue #4) */}
                     <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 flex gap-2 no-scrollbar">
                         {shots.map((shot, idx) => {
                             const isSelected = idx === selectedShotIndex;
@@ -276,6 +372,8 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                             ? 'border-[var(--cinema-spotlight)] shadow-[0_0_20px_var(--glow-spotlight)] scale-105 z-10'
                                             : 'border-[var(--cinema-silver)]/10 opacity-60 hover:opacity-100'
                                         }
+                                        /* Ensure minimum 44px touch target on mobile */
+                                        touch-manipulation min-h-[44px] sm:min-h-[112px]
                                     `}
                                 >
                                     {shot.imageUrl ? (

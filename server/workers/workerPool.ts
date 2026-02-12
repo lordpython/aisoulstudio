@@ -16,8 +16,8 @@ const log = createLogger('WorkerPool');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration
-const MAX_WORKERS = 2; // Maximum concurrent worker processes
-const WORKER_MEMORY_LIMIT_MB = 2048; // 2GB per worker
+const MAX_WORKERS = 4; // Maximum concurrent worker processes
+const WORKER_MEMORY_LIMIT_MB = 8192; // 8GB per worker
 const WORKER_RESTART_DELAY_MS = 1000;
 
 export type WorkerEventCallback = (message: WorkerMessage) => void;

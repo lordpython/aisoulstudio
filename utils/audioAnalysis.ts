@@ -5,11 +5,27 @@ export const extractFrequencyData = async (
 ): Promise<Uint8Array[]> => {
   const duration = audioBuffer.duration;
   const totalFrames = Math.ceil(duration * fps);
-  const offlineCtx = new OfflineAudioContext(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    audioBuffer.sampleRate
-  );
+
+  // Guard: If we are in an environment without proper Web Audio API support
+  // (e.g. some Node.js polyfills missing suspend()), safely return empty data.
+  // We try to instantiate the context first.
+  let offlineCtx: OfflineAudioContext;
+  try {
+    offlineCtx = new OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+  } catch (e) {
+    console.warn('Failed to create OfflineAudioContext, skipping audio analysis:', e);
+    return Array(totalFrames).fill(new Uint8Array(fftSize / 2).fill(0));
+  }
+
+  // Check if suspend is supported (Node.js web-audio-api might lack this)
+  if (typeof offlineCtx.suspend !== 'function') {
+    console.warn('OfflineAudioContext.suspend() is not supported in this environment. Skipping precise audio analysis.');
+    return Array(totalFrames).fill(new Uint8Array(fftSize / 2).fill(0));
+  }
 
   const source = offlineCtx.createBufferSource();
   source.buffer = audioBuffer;
@@ -28,19 +44,27 @@ export const extractFrequencyData = async (
   for (let i = 1; i < totalFrames; i++) {
     const frameIndex = i;
     const time = i / fps;
+
+    // We validated suspend exists above
     offlineCtx.suspend(time).then(() => {
       const dataArray = new Uint8Array(bufferLength);
       analyser.getByteFrequencyData(dataArray);
       frameDataMap.set(frameIndex, new Uint8Array(dataArray));
       offlineCtx.resume();
+    }).catch(err => {
+      console.error(`Error processing audio frame ${i}:`, err);
     });
   }
 
   source.start(0);
-  await offlineCtx.startRendering();
+  try {
+    await offlineCtx.startRendering();
+  } catch (e) {
+    console.error('Audio rendering failed:', e);
+    return Array(totalFrames).fill(new Uint8Array(bufferLength).fill(0));
+  }
 
   // Frame 0: Use empty data since audio hasn't played yet at t=0
-  // (This is accurate - at time 0, no audio has been processed)
   frameDataMap.set(0, new Uint8Array(bufferLength).fill(0));
 
   // Convert Map to ordered array

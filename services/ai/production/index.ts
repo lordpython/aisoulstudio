@@ -51,6 +51,7 @@ export {
     detectLanguageFromText,
     generateSessionId,
     validateContentPlanId,
+    isValidSessionId,
     createStepIdentifier,
 } from "./utils";
 

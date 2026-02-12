@@ -183,6 +183,8 @@ export interface ProductionProgress {
         sfx: number;
         subtitles: number;
     };
+    /** Session ID created by plan_video, create_storyboard, or generate_breakdown */
+    sessionId?: string;
     /** @deprecated Use progress */
     percentage?: number;
 }

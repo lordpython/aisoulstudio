@@ -51,6 +51,7 @@ import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { useProjectSession } from '@/hooks/useProjectSession';
 import { getCurrentUser } from '@/services/firebase/authService';
 import { StoryWorkspace } from '@/components/story';
+import { StoryWorkspaceErrorBoundary } from '@/components/story/StoryWorkspaceErrorBoundary';
 
 // ============================================================
 // Types & Helpers
@@ -179,6 +180,7 @@ export default function StudioScreen() {
   // Local UI state
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [storyInitialTopic, setStoryInitialTopic] = useState(params.mode === 'story' ? (params.topic || '') : '');
 
   // Video preview state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -260,6 +262,12 @@ export default function StudioScreen() {
             }
           }, effectiveTopic);
         }, 500);
+      }
+    } else if (params.mode === 'story') {
+      // Apply topic from URL params or project for story mode
+      const storyTopic = project?.topic || params.topic;
+      if (storyTopic) {
+        setStoryInitialTopic(storyTopic);
       }
     } else if (params.mode === 'music') {
       setShowMusic(true);
@@ -1039,13 +1047,22 @@ export default function StudioScreen() {
       }
     >
       {studioMode === 'story' ? (
-        <StoryWorkspace
+        <StoryWorkspaceErrorBoundary 
           storyState={storyHook.state}
-          initialTopic={topic || ''}
-          onGenerateIdea={(storyTopic, genre) => {
-            storyHook.updateGenre(genre);
-            storyHook.generateBreakdown(storyTopic, genre);
+          onRestore={() => {
+            // Restore from version history or last saved state
+            console.log('[StoryWorkspace] Restoring from last saved state');
+            // The version history system already handles auto-save
           }}
+        >
+          <StoryWorkspace
+            storyState={storyHook.state}
+            initialTopic={storyInitialTopic || topic || ''}
+            onGenerateIdea={(storyTopic, genre) => {
+              setStoryInitialTopic(storyTopic);
+              storyHook.updateGenre(genre);
+              storyHook.generateBreakdown(storyTopic, genre);
+            }}
           onExportScript={storyHook.exportScreenplay}
           onRegenerateScene={storyHook.regenerateScene}
           onVerifyConsistency={storyHook.verifyConsistency}
@@ -1061,7 +1078,7 @@ export default function StudioScreen() {
 
             if (step === 'idea') {
               // Idea → Breakdown: Generate story outline
-              storyHook.generateBreakdown(topic || "A generic story", "Drama");
+              storyHook.generateBreakdown(storyInitialTopic || topic || "A generic story", "Drama");
             } else if (step === 'breakdown') {
               // Breakdown → Script: Generate full screenplay
               storyHook.generateScreenplay();
@@ -1096,6 +1113,7 @@ export default function StudioScreen() {
           onLockStory={storyHook.lockStory}
           onUpdateVisualStyle={storyHook.updateVisualStyle}
           onUpdateAspectRatio={storyHook.updateAspectRatio}
+          onUpdateImageProvider={storyHook.updateImageProvider}
           // Error handling
           error={storyHook.error}
           onClearError={storyHook.clearError}
@@ -1112,6 +1130,7 @@ export default function StudioScreen() {
           onApplyTemplate={storyHook.applyTemplate}
           onImportProject={storyHook.importProject}
         />
+        </StoryWorkspaceErrorBoundary>
       ) : (
         <>
           {/* Welcome State */}

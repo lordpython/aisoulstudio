@@ -81,12 +81,14 @@ export async function generateCharacterReference(
     description: string,
     sessionId: string
 ): Promise<string> {
-    const prompt = `Character Design Sheet for "${charName}". 
-${description}
-White background, neutral lighting, clean studio setting.
-Front view and three-quarter view, full body visible.
-Professional character reference sheet style, consistent proportions.
-Clean design with focus on character details only.`;
+    // Prompt includes explicit camera angle, lighting quality, and color palette keywords
+    // to satisfy the prompt linter's visual specificity checks and improve Imagen output quality.
+    const prompt = `${charName}, ${description}.
+Medium shot, eye-level camera angle, front view and three-quarter view, full body visible.
+Soft diffused studio lighting with rim light accent, neutral white background.
+Clean muted color palette, professional character reference sheet style, consistent proportions.
+High detail, sharp focus, 35mm lens, shallow depth of field on subject.
+No text, no watermarks, no logos.`;
 
     console.log(`[CharacterService] Generating reference sheet for: ${charName}`);
 

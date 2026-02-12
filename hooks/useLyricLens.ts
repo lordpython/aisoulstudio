@@ -3,6 +3,7 @@ import { AppState, SongData, GeneratedImage, AssetType, ImagePrompt, SubtitleIte
 import {
   transcribeAudioWithWordTiming,
   fileToGenerativePart,
+  inferAudioMimeType,
   generateImageFromPrompt,
   generateVideoFromPrompt,
   refineImagePrompt,
@@ -83,7 +84,7 @@ export function useLyricLens() {
       setAppState(AppState.TRANSCRIBING);
       const parsedSubs = await transcribeAudioWithWordTiming(
         base64Audio,
-        file.type,
+        inferAudioMimeType(file.name, file.type),
       );
       // Generate SRT string for backward compat (downloads, prompts)
       const srt = subtitlesToSRT(parsedSubs);

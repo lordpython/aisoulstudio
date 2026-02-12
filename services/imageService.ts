@@ -153,7 +153,7 @@ async function generateWithImagenAPI(
 
 /**
  * Generate image using Gemini API (generateContent method).
- * Used for gemini-2.5-flash-image, gemini-3-pro-image-preview, etc.
+ * Used for gemini-2.5-flash-image, gemini-3-pro-preview, etc.
  */
 async function generateWithGeminiAPI(prompt: string, aspectRatio: string): Promise<string> {
   console.log(`[ImageService] Using Gemini API with model: ${MODELS.IMAGE}`);

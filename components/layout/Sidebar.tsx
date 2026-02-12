@@ -66,7 +66,13 @@ const NavItem = React.memo<NavItemProps>(({
           aria-label={label}
           aria-pressed={isActive}
           aria-disabled={isDisabled}
-          className={cn(baseStyles, variantStyles[variant], isDisabled && disabledStyles)}
+          className={cn(
+            baseStyles, 
+            variantStyles[variant], 
+            isDisabled && disabledStyles,
+            // Add visible focus indicator (Addresses Design Review Issue #2)
+            "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cinema-spotlight)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--cinema-void)]"
+          )}
           onClick={handleClick}
           onKeyDown={handleKeyDown}
           whileTap={isDisabled ? undefined : { scale: 0.9 }}

@@ -224,6 +224,13 @@ export class JobQueueManager extends EventEmitter {
   }
 
   /**
+   * Record a heartbeat for a job (from worker)
+   */
+  recordHeartbeat(jobId: string): void {
+    timeoutManager.recordHeartbeat(jobId);
+  }
+
+  /**
    * Register frames received in a chunk
    */
   registerFrames(

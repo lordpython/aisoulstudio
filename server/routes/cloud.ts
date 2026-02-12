@@ -114,19 +114,9 @@ router.post('/upload-asset', memoryUpload.single('file'), async (req: Request, r
         blobStream.on('finish', async () => {
             let publicUrl: string | undefined;
             if (shouldMakePublic) {
-                try {
-                    await blob.makePublic();
-                    publicUrl = `https://storage.googleapis.com/${GCS_BUCKET_NAME}/${destination}`;
-                } catch (makePublicError) {
-                    // makePublic failed, try signed URL (requires service account)
-                    try {
-                        const [signedUrl] = await blob.getSignedUrl({ action: 'read', expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-                        publicUrl = signedUrl;
-                    } catch (signedUrlError) {
-                        // Neither worked - return without public URL (file is still uploaded to GCS)
-                        console.warn('[Cloud] Cannot create public/signed URL:', (signedUrlError as Error).message);
-                    }
-                }
+                // Use proxy URL to avoid CORS issues
+                // The proxy endpoint serves files through our server
+                publicUrl = `/api/cloud/file?path=${encodeURIComponent(destination)}`;
             }
             res.json({ success: true, publicUrl, gsUri: `gs://${GCS_BUCKET_NAME}/${destination}` });
         });
@@ -144,6 +134,51 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
         res.json({ available: exists, bucketName: GCS_BUCKET_NAME });
     } catch (error: any) {
         res.json({ available: false, message: error.message });
+    }
+});
+
+/**
+ * Proxy endpoint to serve GCS files - avoids CORS issues
+ * Query params:
+ *   - path: The GCS file path (e.g., production_story_1770746549079/audio/narration_scene_0.wav)
+ * 
+ * Supports both user-aware and legacy paths:
+ * - User-aware: users/{userId}/projects/{sessionId}/{assetType}/{filename}
+ * - Legacy: production_{sessionId}/{assetType}/{filename}
+ */
+router.get('/file', async (req: Request, res: Response): Promise<void> => {
+    const filePath = req.query.path as string;
+    
+    if (!filePath) {
+        res.status(400).json({ error: 'File path is required (use ?path=...)' });
+        return;
+    }
+
+    try {
+        const storage = await getGcsStorageClient();
+        const bucket = storage.bucket(GCS_BUCKET_NAME);
+        const file = bucket.file(filePath);
+
+        // Check if file exists
+        const [exists] = await file.exists();
+        if (!exists) {
+            res.status(404).json({ error: 'File not found' });
+            return;
+        }
+
+        // Get file metadata for content-type
+        const [metadata] = await file.getMetadata();
+        const contentType = metadata.contentType || 'application/octet-stream';
+
+        // Set response headers
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        
+        // Stream the file to response
+        file.createReadStream().pipe(res);
+    } catch (error: any) {
+        cloudLog.error('File proxy error:', error);
+        res.status(500).json({ error: error.message || 'Failed to retrieve file' });
     }
 });
 

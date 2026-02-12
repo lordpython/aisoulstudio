@@ -123,27 +123,43 @@ export function validateContentPlanId(contentPlanId: string): string | null {
     if (!contentPlanId) {
         return JSON.stringify({
             success: false,
-            error: `Missing contentPlanId. You must provide the sessionId returned by plan_video.`
+            error: `Missing contentPlanId. You must provide the sessionId returned by plan_video or generate_breakdown.`
         });
     }
 
     // Check for common placeholder patterns
-    if (contentPlanId.match(/^(plan_\d+|cp_\d+|session_\d+|plan_\w{3,8})$/)) {
+    if (contentPlanId.match(/^(plan_\d+|cp_\d+|session_\d+|plan_\w{3,8}|cp_\w{3,8})$/)) {
         return JSON.stringify({
             success: false,
-            error: `Invalid contentPlanId: "${contentPlanId}". You must use the ACTUAL sessionId returned by plan_video (format: prod_TIMESTAMP_HASH). Never use placeholder values.`
+            error: `Invalid contentPlanId: "${contentPlanId}". You must use the ACTUAL sessionId returned by plan_video or generate_breakdown. Never use placeholder values.`
         });
     }
 
-    // Check if it matches the expected format
-    if (!contentPlanId.startsWith('prod_')) {
+    // Check if it matches the expected formats (prod_ or story_)
+    if (!contentPlanId.startsWith('prod_') && !contentPlanId.startsWith('story_')) {
         return JSON.stringify({
             success: false,
-            error: `Invalid contentPlanId format: "${contentPlanId}". Expected format: prod_TIMESTAMP_HASH. Make sure you are using the exact sessionId returned by plan_video.`
+            error: `Invalid contentPlanId format: "${contentPlanId}". Expected format: prod_TIMESTAMP_HASH or story_TIMESTAMP. Make sure you are using the exact sessionId returned by plan_video or generate_breakdown.`
         });
     }
 
     return null; // Valid
+}
+
+/**
+ * Validate a sessionId at runtime (not a placeholder).
+ * Returns true if valid, false if invalid.
+ */
+export function isValidSessionId(sessionId: string | null | undefined): sessionId is string {
+    if (!sessionId) return false;
+    
+    // Check for common placeholder patterns
+    if (sessionId.match(/^(plan_\d+|cp_\d+|session_\d+|plan_\w{3,8}|cp_\w{3,8})$/)) {
+        return false;
+    }
+    
+    // Check if it matches the expected formats (prod_ or story_)
+    return sessionId.startsWith('prod_') || sessionId.startsWith('story_');
 }
 
 /**

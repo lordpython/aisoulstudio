@@ -19,7 +19,7 @@ import { agentLogger } from "../../logger";
 
 import { ProductionState, ProductionProgress } from "./types";
 import { productionStore } from "./store";
-import { createStepIdentifier } from "./utils";
+import { createStepIdentifier, isValidSessionId } from "./utils";
 import { PRODUCTION_AGENT_PROMPT } from "./prompts";
 import { productionTools, toolMap } from "./toolRegistration";
 import { setGlobalProgressCallback } from "./tools/contentTools";
@@ -71,6 +71,14 @@ export async function runProductionAgent(
         model: "gemini-3-flash-preview",
         apiKey: GEMINI_API_KEY,
         temperature: 0.3,
+        // Relax safety filters to allow creative content (horror, thriller, etc.)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+        ] as any,
     });
 
     const modelWithTools = model.bindTools(productionTools);
@@ -126,7 +134,26 @@ export async function runProductionAgent(
                 });
             }
 
-            const response = await modelWithTools.invoke(messages as Parameters<typeof modelWithTools.invoke>[0]);
+            let response;
+            try {
+                response = await modelWithTools.invoke(messages as Parameters<typeof modelWithTools.invoke>[0]);
+            } catch (invokeError: unknown) {
+                // LangChain crashes with "chatGeneration is undefined" when Gemini
+                // safety filters block the response (zero candidates returned).
+                const msg = invokeError instanceof Error ? invokeError.message : String(invokeError);
+                if (msg.includes("chatGeneration is undefined") || msg.includes("can't access property")) {
+                    log.error(" Model response blocked (likely safety filter). Retrying with simplified prompt.");
+                    onProgress?.({
+                        stage: "warning",
+                        message: "Response blocked by safety filters. Retrying...",
+                        isComplete: false,
+                    });
+                    // Remove the last user/tool message and add a nudge to continue
+                    messages.push(new HumanMessage("Please continue with the production. Use appropriate creative language."));
+                    continue;
+                }
+                throw invokeError;
+            }
             messages.push(response as unknown as AIMessage);
 
             const toolCalls = response.tool_calls;
@@ -246,9 +273,18 @@ export async function runProductionAgent(
                 // Parse result for session ID and emit progress
                 try {
                     const parsed = JSON.parse(result);
-                    if (!sessionId && (toolName === 'plan_video' || toolName === 'create_storyboard')) {
-                        if (parsed.sessionId) {
+                    if (!sessionId && (toolName === 'plan_video' || toolName === 'create_storyboard' || toolName === 'generate_breakdown')) {
+                        if (parsed.sessionId && isValidSessionId(parsed.sessionId)) {
                             sessionId = parsed.sessionId;
+                            // Emit sessionId to the progress callback so UI can capture it
+                            onProgress?.({
+                                stage: "session_created",
+                                message: `Session created: ${sessionId}`,
+                                isComplete: false,
+                                sessionId: sessionId ?? undefined,
+                            });
+                        } else if (parsed.sessionId) {
+                            log.warn(`Invalid sessionId format from ${toolName}: ${parsed.sessionId}`);
                         }
                     }
                     if (parsed.message) {

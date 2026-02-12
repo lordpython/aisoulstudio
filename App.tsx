@@ -8,6 +8,7 @@
 import { useState, Suspense, lazy } from "react";
 import { AnimatePresence } from "framer-motion";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppShell } from "./components/layout/AppShell";
 import { AppRouter } from "./router";
@@ -37,6 +38,9 @@ export default function App() {
 
           {/* Main App with React Router */}
           <AppRouter />
+          
+          {/* Toast Notifications */}
+          <Toaster />
         </AppShell>
       </ErrorBoundary>
     </TooltipProvider>

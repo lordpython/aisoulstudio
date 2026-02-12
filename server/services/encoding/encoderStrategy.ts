@@ -112,9 +112,12 @@ function getFFmpegEncoders(): string[] {
 async function testEncoder(encoder: EncoderType): Promise<boolean> {
   return new Promise((resolve) => {
     // Create a minimal test - encode 1 frame of black
+    // NOTE: Some hardware encoders (e.g. NVENC) require a minimum resolution
+    // larger than tiny thumbnails like 64x64. Use a safe HD size so the
+    // health check reflects real-world usage instead of failing on size.
     const testArgs = [
       '-f', 'lavfi',
-      '-i', 'color=black:s=64x64:d=0.1',
+      '-i', 'color=black:s=1280x720:d=0.1',
       '-c:v', encoder,
       '-f', 'null',
       '-',

@@ -1,0 +1,937 @@
+[useAuth] Auth state changed: fofe91@gmail.com 2 useAuth.ts:37:15
+[ProjectService] Created project proj_1770877066062_svxdqvoc projectService.ts:110:13
+[API Client] Running in browser mode (using proxy) apiClient.ts:8:11
+[Tracing] LangSmith tracing enabled for project: pr-essential-cloth-51 langsmithTracing.ts:6:11
+[Suno] API Key configured: YES sunoService.ts:68:11
+[Agent:ToolRegistration] Registered tools with registry: 
+Object { IMPORT: {…}, CONTENT: {…}, MEDIA: {…}, ENHANCEMENT: {…}, EXPORT: {…} }
+logger.ts:41:17
+[Agent:KnowledgeBase]  Initializing... logger.ts:41:17
+[Agent:KnowledgeBase] Initialized with 7 documents in 0ms logger.ts:41:17
+[Agent:ExampleLibrary]  ✅ Initialized logger.ts:41:17
+[Agent:Studio]  Phase 2 RAG enabled - knowledge base will be used logger.ts:41:17
+[useAuth] Starting auth initialization... 2 useAuth.ts:34:13
+[useStoryGeneration] Different project detected, resetting state 
+Object { current: "proj_1770877066062_svxdqvoc", saved: "proj_1770745954778_hf2rpy84" }
+useStoryGeneration.ts:248:15
+[useAuth] Starting auth initialization... 2 <anonymous code>:1:150327
+[useAuth] Auth state changed: fofe91@gmail.com 2 useAuth.ts:37:15
+[ProjectService] Loaded project proj_1770877066062_svxdqvoc 2 projectService.ts:140:13
+[Agent:Persistence] Session production_proj_1770877066062_svxdqvoc not found in IndexedDB logger.ts:38:17
+[useProjectSession] No existing session, initializing production_proj_1770877066062_svxdqvoc useProjectSession.ts:57:19
+[Agent:Persistence] Saved session production_proj_1770877066062_svxdqvoc (0 scenes) logger.ts:38:17
+[Autosave] ✓ Cloud session initialized: production_production_proj_1770877066062_svxdqvoc 2 cloudStorageService.ts:111:17
+[Agent:AgentExecutor]  Intent analysis: 
+Object { firstTool: "generate_breakdown", hasYouTubeUrl: false, wantsAnimation: false, wantsMusic: false, detectedStyle: null, optionalTools: [] }
+logger.ts:41:17
+Source map error: Error: JSON.parse: unexpected character at line 1 column 1 of the JSON data
+Stack in the worker:parseSourceMapInput@resource://devtools/client/shared/vendor/source-map/lib/util.js:163:15
+_factory@resource://devtools/client/shared/vendor/source-map/lib/source-map-consumer.js:1069:22
+SourceMapConsumer@resource://devtools/client/shared/vendor/source-map/lib/source-map-consumer.js:26:12
+_fetch@resource://devtools/client/shared/source-map-loader/utils/fetchSourceMap.js:83:19
+
+Resource URL: http://localhost:3000/%3Canonymous%20code%3E
+Source Map URL: installHook.js.map
+[Agent:Production]  Generating story breakdown for: قصة مغامرة في الصحراء: مجموعة أصدقاء يضيعون في رحلة برية، يكتشفون واحة مخفية وآثار قديمة، يتعلمون قيمة الصداقة والتعاون للنجاة logger.ts:41:17
+[Agent:Production]  Invoking Gemini API for story breakdown... logger.ts:41:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: breakdown/log_1770877227430_ja50we9h cloudStorageService.ts:273:17
+[Agent:Production]  Story breakdown generated successfully logger.ts:41:17
+[Autosave] ✓ ai_logs/breakdown_log_1770877227430_ja50we9h.json saved to cloud cloudStorageService.ts:156:19
+[useStoryGeneration] Breakdown parsed into scenes: 5 useStoryGeneration.ts:385:17
+[Autosave] ✓ Cloud session initialized: production_story_1770877202837 cloudStorageService.ts:111:17
+[useStoryGeneration] Cloud storage initialized for session useStoryGeneration.ts:378:21
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[Agent:AgentExecutor]  Intent analysis: 
+Object { firstTool: "plan_video", hasYouTubeUrl: false, wantsAnimation: false, wantsMusic: false, detectedStyle: null, optionalTools: [] }
+logger.ts:41:17
+[Agent:Production]  Creating screenplay for: story_1770877202837 logger.ts:41:17
+[Agent:Production]  Invoking Gemini API for screenplay... logger.ts:41:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: screenplay/log_1770877267290_051dwnkt cloudStorageService.ts:273:17
+[Agent:Production]  Screenplay generated successfully logger.ts:41:17
+[Autosave] ✓ ai_logs/screenplay_log_1770877267290_051dwnkt.json saved to cloud cloudStorageService.ts:156:19
+[useStoryGeneration] Screenplay retrieved: 4 scenes useStoryGeneration.ts:435:17
+[useStoryGeneration] Scene count mismatch: breakdown=5, screenplay=4. Reconciling... <anonymous code>:1:147461
+[useStoryGeneration] Reconciled to 4 scenes useStoryGeneration.ts:454:19
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[Agent:AgentExecutor]  Intent analysis: 
+Object { firstTool: "generate_breakdown", hasYouTubeUrl: false, wantsAnimation: false, wantsMusic: false, detectedStyle: null, optionalTools: [] }
+logger.ts:41:17
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[Agent:Production]  Extracting characters for: story_1770877202837 logger.ts:41:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: character_extract/log_1770877312068_79czk75d cloudStorageService.ts:273:17
+[CharacterService] Generating reference 1/3: Jax characterService.ts:71:13
+[CharacterService] Generating reference sheet for: Jax characterService.ts:54:11
+[prompt-lint] contains_text_instruction | style=Character Sheet | aspectRatio=1:1 imageService.ts:188:19
+[ImageService] Created new seed 843687983 for character: jax imageService.ts:29:11
+[ImageService] Using Imagen API with model: imagen-4.0-fast-generate-001 imageService.ts:43:11
+[Autosave] ✓ ai_logs/character_extract_log_1770877312068_79czk75d.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: image_gen/log_1770877317935_kenjwvy8 cloudStorageService.ts:273:17
+[CharacterService] Generating reference 2/3: Leo characterService.ts:71:13
+[CharacterService] Generating reference sheet for: Leo characterService.ts:54:11
+[prompt-lint] contains_text_instruction | style=Character Sheet | aspectRatio=1:1 imageService.ts:188:19
+[ImageService] Created new seed 778389962 for character: leo imageService.ts:29:11
+[ImageService] Using Imagen API with model: imagen-4.0-fast-generate-001 imageService.ts:43:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/image_gen_log_1770877317935_kenjwvy8.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ visuals/scene_1770877317935.png saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: image_gen/log_1770877322937_j4enxklv cloudStorageService.ts:273:17
+[CharacterService] Generating reference 3/3: Sam characterService.ts:71:13
+[CharacterService] Generating reference sheet for: Sam characterService.ts:54:11
+[prompt-lint] contains_text_instruction | style=Character Sheet | aspectRatio=1:1 imageService.ts:188:19
+[ImageService] Created new seed 976491764 for character: sam imageService.ts:29:11
+[ImageService] Using Imagen API with model: imagen-4.0-fast-generate-001 imageService.ts:43:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/image_gen_log_1770877322937_j4enxklv.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ visuals/scene_1770877322938.png saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: image_gen/log_1770877328772_936abmkt cloudStorageService.ts:273:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/image_gen_log_1770877328772_936abmkt.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ visuals/scene_1770877328773.png saved to cloud cloudStorageService.ts:156:19
+[useStoryGeneration] Characters retrieved: 3 useStoryGeneration.ts:487:17
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[Agent:ShotBreakdown] Breaking down scene 1 into shots... logger.ts:41:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: shot_breakdown/log_1770877355067_ut8zthih cloudStorageService.ts:273:17
+[Agent:ShotBreakdown] Generated 6 shots for scene 1 logger.ts:41:17
+[Agent:ShotBreakdown] Breaking down scene 2 into shots... logger.ts:41:17
+[Autosave] ✓ ai_logs/shot_breakdown_log_1770877355067_ut8zthih.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: shot_breakdown/log_1770877367777_qsdk4u34 cloudStorageService.ts:273:17
+[Agent:ShotBreakdown] Generated 6 shots for scene 2 logger.ts:41:17
+[Agent:ShotBreakdown] Breaking down scene 3 into shots... logger.ts:41:17
+[Autosave] ✓ ai_logs/shot_breakdown_log_1770877367777_qsdk4u34.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: shot_breakdown/log_1770877381562_jhqqmng4 cloudStorageService.ts:273:17
+[Agent:ShotBreakdown] Generated 6 shots for scene 3 logger.ts:41:17
+[Agent:ShotBreakdown] Breaking down scene 4 into shots... logger.ts:41:17
+[Autosave] ✓ ai_logs/shot_breakdown_log_1770877381562_jhqqmng4.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: shot_breakdown/log_1770877393708_f1wkga5u cloudStorageService.ts:273:17
+[Agent:ShotBreakdown] Generated 6 shots for scene 4 logger.ts:41:17
+[Agent:ShotBreakdown] Total shots generated: 24 across 4 scenes logger.ts:41:17
+[Autosave] ✓ ai_logs/shot_breakdown_log_1770877393708_f1wkga5u.json saved to cloud cloudStorageService.ts:156:19
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[DeAPI Batch] Starting batch generation: 24 items, concurrency: 5 deapiService.ts:652:11
+[DeAPI Batch] Processing item shot_scene_0_1: A battered vintage 4x4 tears across the crest of a... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: A battered vintage 4x4 tears across the crest of a... deapiService.ts:514:11
+[DeAPI Batch] Processing item shot_scene_0_2: The camera jars violently as the front of the vehi... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: The camera jars violently as the front of the vehi... deapiService.ts:514:11
+[DeAPI Batch] Processing item shot_scene_0_3: An extreme high-angle shot looking straight down a... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: An extreme high-angle shot looking straight down a... deapiService.ts:514:11
+[DeAPI Batch] Processing item shot_scene_0_4: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI Batch] Processing item shot_scene_0_5: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "cfd23d12-3eb2-4e4e-9ef8-32ede85b7b08"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "cfd23d12-3eb2-4e4e-9ef8-32ede85b7b08" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: cfd23d12-3eb2-4e4e-9ef8-32ede85b7b08 deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "8ef9a860-8798-4cc6-a6fb-b34c6fed4579"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "8ef9a860-8798-4cc6-a6fb-b34c6fed4579" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 8ef9a860-8798-4cc6-a6fb-b34c6fed4579 deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "9a0b203a-e422-4395-8e2e-257f3d2c5b0e"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "9a0b203a-e422-4395-8e2e-257f3d2c5b0e" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 9a0b203a-e422-4395-8e2e-257f3d2c5b0e deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "43346fab-9a38-4662-b03f-73dc41ccc23c"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "43346fab-9a38-4662-b03f-73dc41ccc23c" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 43346fab-9a38-4662-b03f-73dc41ccc23c deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "0294184d-8a3f-41be-9717-de597074d81e"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "0294184d-8a3f-41be-9717-de597074d81e" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 0294184d-8a3f-41be-9717-de597074d81e deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Status: pending (poll 1/60) 4 deapiService.ts:209:17
+[DeAPI] Progress: 75% (poll 2/60) deapiService.ts:207:17
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Status: pending (poll 2/60) 3 deapiService.ts:209:17
+[DeAPI] Generation complete after 3 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222918/DJe67cW4n0OCR7wgbmI... deapiService.ts:574:11
+[DeAPI] Status: processing (poll 3/60) 2 deapiService.ts:209:17
+[DeAPI] Status: pending (poll 3/60) 2 deapiService.ts:209:17
+[DeAPI] Image downloaded: 513.27 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_0_6: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "e6d47d26-b294-4bcc-88b1-30db8da44e05"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "e6d47d26-b294-4bcc-88b1-30db8da44e05" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: e6d47d26-b294-4bcc-88b1-30db8da44e05 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Status: processing (poll 4/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222930/AQRoBeHwh2opap3dukP... deapiService.ts:574:11
+[DeAPI] Status: pending (poll 4/60) 2 deapiService.ts:209:17
+[DeAPI] Image downloaded: 644.69 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_1: An extreme high-angle shot looking down at an endl... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: An extreme high-angle shot looking down at an endl... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "3df79f4a-06e3-49ce-b23e-7d0ce2148051"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "3df79f4a-06e3-49ce-b23e-7d0ce2148051" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 3df79f4a-06e3-49ce-b23e-7d0ce2148051 deapiService.ts:568:13
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Progress: 75% (poll 5/60) deapiService.ts:207:17
+[DeAPI] Generation complete after 5 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222937/S0T6x8VHzbHZnNv3rMe... deapiService.ts:574:11
+[DeAPI] Generation complete after 5 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222938/Ds0sdIUcK54dRpkSPis... deapiService.ts:574:11
+[DeAPI] Image downloaded: 381.46 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_2: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "38cf1d83-a8e6-46a8-ad64-d6d071769709"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "38cf1d83-a8e6-46a8-ad64-d6d071769709" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 38cf1d83-a8e6-46a8-ad64-d6d071769709 deapiService.ts:568:13
+[DeAPI] Image downloaded: 431.77 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_3: [leo: Male, approx 26 years old, broad-shouldered ... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [leo: Male, approx 26 years old, broad-shouldered ... deapiService.ts:514:11
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "69313e9e-da1f-477f-a4a8-3ac831fb60df"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "69313e9e-da1f-477f-a4a8-3ac831fb60df" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 69313e9e-da1f-477f-a4a8-3ac831fb60df deapiService.ts:568:13
+[DeAPI] Progress: 75% (poll 3/60) deapiService.ts:207:17
+[DeAPI] Progress: 75% (poll 2/60) deapiService.ts:207:17
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 6 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222945/9mknlAzrgFXq5yXbjte... deapiService.ts:574:11
+[DeAPI] Image downloaded: 442.85 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_4: The trio reaches the base of a massive, razor-shar... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: The trio reaches the base of a massive, razor-shar... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "e92ae493-6563-4944-b48a-066c5f683e8e"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "e92ae493-6563-4944-b48a-066c5f683e8e" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: e92ae493-6563-4944-b48a-066c5f683e8e deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222946/LE1u5ltXHoyJVkZ8Mq3... deapiService.ts:574:11
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222944/c9aU475BVOSU1dlDGbo... deapiService.ts:574:11
+[DeAPI] Generation complete after 3 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222943/qFBrLiDdVal4EPQCTp6... deapiService.ts:574:11
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Image downloaded: 501.37 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_5: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [sam: Male, approx 23 years old, slim and wiry bui... deapiService.ts:514:11
+[DeAPI] Image downloaded: 214.29 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_1_6: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "5e576aaf-e7fc-4e21-bbc9-93c13a1fdeae"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "5e576aaf-e7fc-4e21-bbc9-93c13a1fdeae" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 5e576aaf-e7fc-4e21-bbc9-93c13a1fdeae deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "95133260-0966-4671-92dc-8d0f5d858f8f"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "95133260-0966-4671-92dc-8d0f5d858f8f" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 95133260-0966-4671-92dc-8d0f5d858f8f deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Image downloaded: 412.67 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_1: Sun-scorched, trembling hands cup crystal-clear wa... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: Sun-scorched, trembling hands cup crystal-clear wa... deapiService.ts:514:11
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "fc03de3d-fe5c-4f08-bbe2-4eaa52a2859f"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "fc03de3d-fe5c-4f08-bbe2-4eaa52a2859f" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: fc03de3d-fe5c-4f08-bbe2-4eaa52a2859f deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222948/LXsX7yKZTvLCOS2GvD9... deapiService.ts:574:11
+[DeAPI] Image downloaded: 220.71 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_2: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] Generation complete after 3 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222949/ezn9lu6CvGtfwEmsqBI... deapiService.ts:574:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "8f830afa-11f7-419a-af2c-da3729959395"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "8f830afa-11f7-419a-af2c-da3729959395" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 8f830afa-11f7-419a-af2c-da3729959395 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Image downloaded: 469.98 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_3: A monolithic wall of brown dust—the Haboob—stretch... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: A monolithic wall of brown dust—the Haboob—stretch... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "7f504459-58d5-4d5f-946a-f6cf24bf68c8"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "7f504459-58d5-4d5f-946a-f6cf24bf68c8" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 7f504459-58d5-4d5f-946a-f6cf24bf68c8 deapiService.ts:568:13
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222951/Whk2O9WoptDtKiDbda5... deapiService.ts:574:11
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222950/XHP0BnxO2C89gXEXlTN... deapiService.ts:574:11
+[DeAPI] Image downloaded: 683.39 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_4: [leo: Male, approx 26 years old, broad-shouldered ... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [leo: Male, approx 26 years old, broad-shouldered ... deapiService.ts:514:11
+[DeAPI] Image downloaded: 481.96 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_5: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "a4b869b5-77e2-4d90-b537-6a2d2f13fd09"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "a4b869b5-77e2-4d90-b537-6a2d2f13fd09" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: a4b869b5-77e2-4d90-b537-6a2d2f13fd09 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "70c3f8e4-034c-45f1-90a2-d6c503a7bdde"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "70c3f8e4-034c-45f1-90a2-d6c503a7bdde" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 70c3f8e4-034c-45f1-90a2-d6c503a7bdde deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222952/9dFleiT3fPPEYciyz8M... deapiService.ts:574:11
+[DeAPI] Progress: 75% (poll 3/60) deapiService.ts:207:17
+[DeAPI] Image downloaded: 329.91 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_2_6: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "cd8c66bb-973a-45dd-b0b5-070655878027"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "cd8c66bb-973a-45dd-b0b5-070655878027" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: cd8c66bb-973a-45dd-b0b5-070655878027 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222953/toknt6V1hKJzMOA7NSp... deapiService.ts:574:11
+[DeAPI] Status: pending (poll 2/60) deapiService.ts:209:17
+[DeAPI] Image downloaded: 474.05 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_1: A cinematic bird's-eye view tilting up from the sm... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: A cinematic bird's-eye view tilting up from the sm... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "98a1fbf9-84da-4a0d-9bd3-ae00f36d0023"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "98a1fbf9-84da-4a0d-9bd3-ae00f36d0023" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 98a1fbf9-84da-4a0d-9bd3-ae00f36d0023 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Progress: 75% (poll 3/60) deapiService.ts:207:17
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222954/duBS8IBA7iB7GtHymmv... deapiService.ts:574:11
+[DeAPI] Image downloaded: 497.25 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_2: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "04bd120a-ba7a-4bf0-aaf5-df9aeafac6f9"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "04bd120a-ba7a-4bf0-aaf5-df9aeafac6f9" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 04bd120a-ba7a-4bf0-aaf5-df9aeafac6f9 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Progress: 75% (poll 3/60) deapiService.ts:207:17
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222956/RvHjZZK2DPAVqQafeD3... deapiService.ts:574:11
+[DeAPI] Image downloaded: 652.17 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_3: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "25652302-0b3c-4265-bb77-fafb81df817d"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "25652302-0b3c-4265-bb77-fafb81df817d" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 25652302-0b3c-4265-bb77-fafb81df817d deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] Progress: 75% (poll 3/60) deapiService.ts:207:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222958/c9PyhvI0zfkC83giY0A... deapiService.ts:574:11
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222957/gj2f3LrPS3KaOecJ8UX... deapiService.ts:574:11
+[DeAPI] Image downloaded: 466.98 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_4: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] Image downloaded: 537.83 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_5: The camera pushes in aggressively on three filthy,... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: The camera pushes in aggressively on three filthy,... deapiService.ts:514:11
+[DeAPI] Generation complete after 3 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222960/PG5i2pF8sgmjoKn81HZ... deapiService.ts:574:11
+[DeAPI] Image downloaded: 426.78 KB deapiService.ts:580:11
+[DeAPI Batch] Processing item shot_scene_3_6: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:656:15
+[DeAPI] Generating image: Flux_2_Klein_4B_BF16, 768x432, prompt: [jax: Male, approx 25 years old, athletic build, t... deapiService.ts:514:11
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "04e52832-813d-4f28-b24c-1048b494a797"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "04e52832-813d-4f28-b24c-1048b494a797" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 04e52832-813d-4f28-b24c-1048b494a797 deapiService.ts:568:13
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "61118d96-b0bf-4491-acc1-88afa62de647"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "61118d96-b0bf-4491-acc1-88afa62de647" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 61118d96-b0bf-4491-acc1-88afa62de647 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) deapiService.ts:209:17
+[DeAPI] txt2img raw response: {
+  "data": {
+    "request_id": "55c714ce-35d9-4c93-884d-13223dc240e5"
+  }
+} deapiService.ts:558:11
+[DeAPI] txt2img parsed response: 
+Object { request_id: "55c714ce-35d9-4c93-884d-13223dc240e5" }
+deapiService.ts:560:11
+[DeAPI] Polling for txt2img request: 55c714ce-35d9-4c93-884d-13223dc240e5 deapiService.ts:568:13
+[DeAPI] Status: pending (poll 1/60) 2 deapiService.ts:209:17
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222961/dpEPd1Td7A9oi9dKSti... deapiService.ts:574:11
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222959/ycLuutMGwvCiLPdIJaC... deapiService.ts:574:11
+[DeAPI] Image downloaded: 376.66 KB deapiService.ts:580:11
+[DeAPI] Image downloaded: 557.87 KB deapiService.ts:580:11
+[DeAPI] Generation complete after 2 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222962/uJpS7xOHCPuYq2LbDJu... deapiService.ts:574:11
+[DeAPI] Status: pending (poll 2/60) deapiService.ts:209:17
+[DeAPI] Status: processing (poll 2/60) deapiService.ts:209:17
+[DeAPI] Image downloaded: 565.53 KB deapiService.ts:580:11
+[DeAPI] Status: processing (poll 3/60) deapiService.ts:209:17
+[DeAPI] Generation complete after 3 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222963/rvQWKbycXF4rtlWFBqz... deapiService.ts:574:11
+[DeAPI] Image downloaded: 403.26 KB deapiService.ts:580:11
+[DeAPI] Generation complete after 4 polls deapiService.ts:200:17
+[DeAPI] Downloading image from: https://depinprod.s3.pl-waw.scw.cloud/depin-results/10222964/63ZKEYvwS9mvcCkk7FU... deapiService.ts:574:11
+[DeAPI] Image downloaded: 361.60 KB deapiService.ts:580:11
+[DeAPI Batch] Batch complete: 24/24 successful deapiService.ts:694:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_1.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_1 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_2.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_2 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_3.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_3 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_4.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_4 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_5.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_5 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_0_6.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_0_6 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_1.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_1 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_2.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_2 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_3.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_3 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_4.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_4 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_5.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_5 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_1_6.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_1_6 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_1.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_1 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_2.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_2 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_3.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_3 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_4.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_4 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_5.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_5 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_2_6.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_2_6 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_1.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_1 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_2.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_2 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_3.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_3 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_4.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_4 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_5.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_5 useStoryGeneration.ts:815:21
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ visuals/shot_shot_scene_3_6.png saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Image uploaded to cloud: shot_scene_3_6 useStoryGeneration.ts:815:21
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[Narrator] Narrating scene: EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail. narratorService.ts:445:11
+[Narrator] Using triplet-based director note for "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail." narratorService.ts:453:13
+[Narrator] Using language-specific voice "Aoede" for ar narratorService.ts:467:13
+[Narrator] Synthesizing speech: "Scene from: قصة مغامرة في الصحراء مجموعة أصدقاء يض..." with voice Aoede narratorService.ts:381:13
+[Narrator] Using style prompt: Deliver this with gentle nostalgic warmth, like sunlight through old glass, matching the visual intensity of gradual slow push-in building focus and intensity, as if speaking within fading golden hour light casting long shadows as day dies narratorService.ts:383:15
+[Narrator] Received 983566 bytes of PCM audio, converting to WAV narratorService.ts:419:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Narrator] Scene "EXT. DESERT DUNES - DUSK  Golden light flares across the windshield as a battered 4x4 tears through powder-soft sand, kicking up a rooster tail of dust. Laughter erupts from the open windows, competing with the roar of the engine. Suddenly, a sickening crunch echoes from the undercarriage. The vehicle lurches violently and sinks into a drift. Steam hisses from the hood, spiraling into the dry air. The engine sputters and dies. The silence of the desert rushes in, heavy and absolute. Long shadows stretch across the dunes as the sun dips below the horizon. Fingers point in accusation. Brows furrow in anger.  JAX: I told you the map said turn left at the ridge.  LEO: The map was loading! You're the one who wanted to drift the dunes.  SAM: Stop it. Both of you. Look at the sun. We are miles from the trail." audio: 20.5s (22 words, 983610 bytes) narratorService.ts:512:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: tts/log_1770877568163_qpc6837v cloudStorageService.ts:273:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/tts_log_1770877568163_qpc6837v.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_0.wav saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Narration uploaded to cloud: scene_0 useStoryGeneration.ts:1084:25
+[Autosave] ✓ audio/narration_scene_0.wav saved to cloud cloudStorageService.ts:156:19
+[Narrator] Narrating scene: EXT. DEEP DESERT - DAY  A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map.  SAM: (Raspy whisper) Tell me that's real.  JAX: It's green. It's actually green. narratorService.ts:445:11
+[Narrator] Using triplet-based director note for "EXT. DEEP DESERT - DAY  A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map.  SAM: (Raspy whisper) Tell me that's real.  JAX: It's green. It's actually green." narratorService.ts:453:13
+[Narrator] Using language-specific voice "Aoede" for ar narratorService.ts:467:13
+[Narrator] Synthesizing speech: "Off the Beaten Path The transition from the high-e..." with voice Aoede narratorService.ts:381:13
+[Narrator] Using style prompt: Deliver this with a gut-punch of visceral dread, breath caught in the throat, matching the visual intensity of subtle handheld float adding organic documentary realism, as if speaking within low-frequency tension drone building beneath the surface narratorService.ts:383:15
+[Narrator] Received 1663246 bytes of PCM audio, converting to WAV narratorService.ts:419:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Narrator] Scene "EXT. DEEP DESERT - DAY  A relentless white sun hammers down on an endless sea of yellow dunes. Heat waves ripple off the ground, distorting the horizon. Three figures trudge forward, their footprints weaving erratic lines in the sand. Sweat has dried into white salt patterns on their shirts. Lips are cracked and bleeding. Sam stumbles, knees hitting the scorching ground. Leo grabs his arm, hoisting him up, refusing to let go. They crest a massive, razor-sharp ridge. Below, deep in a rocky fissure, a shock of emerald green slashes through the monochrome landscape. Palm fronds sway in a canyon that defies the map.  SAM: (Raspy whisper) Tell me that's real.  JAX: It's green. It's actually green." audio: 34.7s (79 words, 1663290 bytes) narratorService.ts:512:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: tts/log_1770877596182_33s9rpnv cloudStorageService.ts:273:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/tts_log_1770877596182_33s9rpnv.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_1.wav saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_1.wav saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Narration uploaded to cloud: scene_1 useStoryGeneration.ts:1084:25
+[Narrator] Narrating scene: EXT. CANYON OASIS - DAY  Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void.  LEO: The wall is giving way! Grab that slab!  JAX: Together! On three! One, two, three! narratorService.ts:445:11
+[Narrator] Using triplet-based director note for "EXT. CANYON OASIS - DAY  Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void.  LEO: The wall is giving way! Grab that slab!  JAX: Together! On three! One, two, three!" narratorService.ts:453:13
+[Narrator] Using language-specific voice "Aoede" for ar narratorService.ts:467:13
+[Narrator] Synthesizing speech: "Thirst and Shadows The visceral fear of mortality...." with voice Aoede narratorService.ts:381:13
+[Narrator] Using style prompt: Deliver this with a gut-punch of visceral dread, breath caught in the throat, matching the visual intensity of tilted dutch angle creating visual unease and disorientation, as if speaking within low-frequency tension drone building beneath the surface narratorService.ts:383:15
+[Narrator] Received 1862926 bytes of PCM audio, converting to WAV narratorService.ts:419:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Narrator] Scene "EXT. CANYON OASIS - DAY  Cool, clear water splashes over dusty faces. Hands cup the liquid life, drinking greedily from a natural spring. Behind the pool, weathered stone walls rise, etched with faded petroglyphs of camels and stars. The moment of relief breaks as the sky darkens rapidly. On the horizon, a towering wall of brown dust—a Haboob—swallows the blue sky, blotting out the sun. The wind begins to scream, whipping sand into a frenzy. Panic shifts into synchronized purpose. Shoulders strain against heavy stones. Debris is piled high against a crumbling archway. They brace the wall together as the world turns into a chaotic brown void.  LEO: The wall is giving way! Grab that slab!  JAX: Together! On three! One, two, three!" audio: 38.8s (89 words, 1862970 bytes) narratorService.ts:512:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: tts/log_1770877620480_4vlgaqpf cloudStorageService.ts:273:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/tts_log_1770877620480_4vlgaqpf.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_2.wav saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_2.wav saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Narration uploaded to cloud: scene_2 useStoryGeneration.ts:1084:25
+[Narrator] Narrating scene: EXT. RUINS - MORNING  The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight.  SAM: We made it.  JAX: We made it. narratorService.ts:445:11
+[Narrator] Using triplet-based director note for "EXT. RUINS - MORNING  The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight.  SAM: We made it.  JAX: We made it." narratorService.ts:453:13
+[Narrator] Using language-specific voice "Aoede" for ar narratorService.ts:467:13
+[Narrator] Synthesizing speech: "The Emerald Secret A sense of wonder and awe that ..." with voice Aoede narratorService.ts:381:13
+[Narrator] Using style prompt: Deliver this with a gut-punch of visceral dread, breath caught in the throat, matching the visual intensity of slow-pull-back, as if speaking within low-frequency tension drone building beneath the surface narratorService.ts:383:15
+[Narrator] Received 2767246 bytes of PCM audio, converting to WAV narratorService.ts:419:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Narrator] Scene "EXT. RUINS - MORNING  The morning sun rises over a desert scrubbed clean and smooth by the storm. The three friends emerge from the rubble, coated in dust but breathing in the stillness. A low hum vibrates in the distance. Jax tilts a shard of polished metal found in the ruins, catching the sun's rays. A beam of brilliant light cuts through the air, flashing rhythmically toward a silver speck in the sky. As the thumping rotor blades of a rescue helicopter grow louder, the wind whips their hair. The camera pushes in on three dirty hands clasping together, knuckles white, holding on tight.  SAM: We made it.  JAX: We made it." audio: 57.7s (100 words, 2767290 bytes) narratorService.ts:512:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ AI log saved: tts/log_1770877649461_3og9so1r cloudStorageService.ts:273:17
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ ai_logs/tts_log_1770877649461_3og9so1r.json saved to cloud cloudStorageService.ts:156:19
+[Autosave] ✓ audio/narration_scene_3.wav saved to cloud (public) cloudStorageService.ts:156:19
+[useStoryGeneration] Narration uploaded to cloud: scene_3 useStoryGeneration.ts:1084:25
+[Autosave] ✓ audio/narration_scene_3.wav saved to cloud cloudStorageService.ts:156:19
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[DeAPI] Generating video from text: 768x432, prompt: A battered vintage 4x4 tears across the crest of a... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 315ms]
+
+Failed to animate shot shot_scene_0_1: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The camera jars violently as the front of the vehi... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 206ms]
+
+Failed to animate shot shot_scene_0_2: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: An extreme high-angle shot looking straight down a... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 195ms]
+
+Failed to animate shot shot_scene_0_3: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: From behind Leo’s shoulder, we see JAX pointing an... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 204ms]
+
+Failed to animate shot shot_scene_0_4: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: LEO stares back, his eyes darting between Jax and ... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 234ms]
+
+Failed to animate shot shot_scene_0_5: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: SAM stands between the two men, turning her back t... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 215ms]
+
+Failed to animate shot shot_scene_0_6: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: An extreme high-angle shot looking down at an endl... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 205ms]
+
+Failed to animate shot shot_scene_1_1: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: A side-profile tracking shot following the charact... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 219ms]
+
+Failed to animate shot shot_scene_1_2: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The camera is positioned low to the ground as Sam’... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 212ms]
+
+Failed to animate shot shot_scene_1_3: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The trio reaches the base of a massive, razor-shar... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 246ms]
+
+Failed to animate shot shot_scene_1_4: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: From Sam’s perspective, the camera pans across a d... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 230ms]
+
+Failed to animate shot shot_scene_1_5: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: A tight shot of Sam and Jax standing shoulder to s... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 222ms]
+
+Failed to animate shot shot_scene_1_6: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Sun-scorched, trembling hands cup crystal-clear wa... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 209ms]
+
+Failed to animate shot shot_scene_2_1: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Leo and Jax are small figures huddled by the pool ... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 235ms]
+
+Failed to animate shot shot_scene_2_2: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: A monolithic wall of brown dust—the Haboob—stretch... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 207ms]
+
+Failed to animate shot shot_scene_2_3: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The camera shakes as the first gust of wind hits. ... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 218ms]
+
+Failed to animate shot shot_scene_2_4: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Jax’s face is gritted with exertion, sweat and dus... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 215ms]
+
+Failed to animate shot shot_scene_2_5: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The camera pushes in on Leo and Jax as they should... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 226ms]
+
+Failed to animate shot shot_scene_2_6: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: A cinematic bird's-eye view tilting up from the sm... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 203ms]
+
+Failed to animate shot shot_scene_3_1: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Jax, caked in pale grey dust with sweat-streaked s... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 213ms]
+
+Failed to animate shot shot_scene_3_2: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Jax's perspective looking up into a vast, cloudles... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 222ms]
+
+Failed to animate shot shot_scene_3_3: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: Tight shot of Sam and Jax’s faces. Their hair is w... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 210ms]
+
+Failed to animate shot shot_scene_3_4: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: The camera pushes in aggressively on three filthy,... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 233ms]
+
+Failed to animate shot shot_scene_3_5: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[DeAPI] Generating video from text: 768x432, prompt: A stable side-profile shot of the three friends. T... deapiService.ts:257:11
+XHRPOST
+http://localhost:3000/api/deapi/txt2video
+[HTTP/1.1 422 Unprocessable Entity 221ms]
+
+Failed to animate shot shot_scene_3_6: Error: DeAPI: The guidance field must not be greater than 0.
+    generateVideoWithDeApi deapiService.ts:580
+    animateShots useStoryGeneration.ts:1573
+    onClick StoryWorkspace.tsx:646
+    React 8
+<anonymous code>:1:147461
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13
+[useStoryGeneration] No animations, will use static images for export Stack: 
+    button unknown:0
+<anonymous code>:1:147461
+[useStoryGeneration] Export stats: 
+Object { narrationSegments: 4, totalDuration: 151.60383333333334, shotlistLength: 24, segmentDurations: (4) […] }
+useStoryGeneration.ts:1229:15
+[useStoryGeneration] Combined 4 narration segments useStoryGeneration.ts:1241:17
+[useStoryGeneration] Shot timing: 
+Object { effectiveDuration: 151.60383333333334, shotDuration: 6.316826388888889, totalShots: 24 }
+useStoryGeneration.ts:1248:15
+[useStoryGeneration] First 3 prompt timestamps: 
+Array(3) [ {…}, {…}, {…} ]
+useStoryGeneration.ts:1260:15
+[useStoryGeneration] Generated images: 
+Object { total: 24, withUrl: 24, sample: (3) […] }
+useStoryGeneration.ts:1273:15
+[useStoryGeneration] SongData built: 
+Object { promptCount: 24, generatedImagesCount: 24, durationSeconds: 151.60383333333334, firstPromptTs: 0, lastPromptTs: 145.28700694444444 }
+useStoryGeneration.ts:1320:15
+OfflineAudioContext.suspend() is not supported in this environment. Skipping precise audio analysis. <anonymous code>:1:147461
+[AssetLoader] Prompt timestamps: 24 prompts, 24 unique times assetLoader.ts:186:11
+[AssetLoader] Time range: 0s - 145.28700694444444s assetLoader.ts:188:13
+[AssetLoader] Preloaded 24 assets (0 videos) assetLoader.ts:248:11
+[AssetLoader] Asset time distribution: 24 unique times, range: 0s - 145.28700694444444s assetLoader.ts:249:11
+[FFmpeg] Loaded 24 assets (0 videos, 24 images) exporters.ts:85:11
+[FFmpeg] Job job_1770877749968_kgwp6b54 queued, subscribing to SSE progress exporters.ts:203:13
+[SSE] Connecting to http://localhost:3001/api/export/events/job_1770877749968_kgwp6b54 sseClient.ts:12:13
+[SSE] Connected to job job_1770877749968_kgwp6b54 sseClient.ts:15:15
+[SSE] Disconnected from job job_1770877749968_kgwp6b54 sseClient.ts:54:15
+[SSE] Job job_1770877749968_kgwp6b54 reached terminal state: complete sseClient.ts:23:19
+[AssetLoader] Frame cache cleared assetLoader.ts:31:11
+[Autosave] Upload attempt 1/3 cloudStorageService.ts:42:15
+[Autosave] ✓ exports/export_2026-02-12T06-30-54-866Z.mp4 saved to cloud (public) cloudStorageService.ts:156:19
+[FFmpeg] ✓ Final video uploaded to cloud: /api/cloud/file?path=production_story_1770877202837%2Fexports%2Fexport_2026-02-12T06-30-54-866Z.mp4 exporters.ts:265:17
+[StorySync] Saved story story_1770877202837 to Firestore storySync.ts:112:13

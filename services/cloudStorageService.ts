@@ -19,6 +19,40 @@ const CLOUD_API_BASE = typeof window !== 'undefined'
   ? ''
   : 'http://localhost:3001';
 
+/**
+ * Convert a direct GCS URL to a proxy URL to avoid CORS issues.
+ * Handles both storage.googleapis.com and direct bucket URLs.
+ * 
+ * @param url - The GCS URL to convert
+ * @returns Proxy URL or original URL if not a GCS URL
+ */
+export function toProxyUrl(url: string): string {
+  if (!url) return url;
+  
+  // Match https://storage.googleapis.com/BUCKET_NAME/path
+  const gcsMatch = url.match(/^https?:\/\/storage\.googleapis\.com\/([^/]+)\/(.+)$/);
+  if (gcsMatch) {
+    const bucket = gcsMatch[1];
+    const path = gcsMatch[2];
+    if (bucket === BUCKET_NAME && path) {
+      return `/api/cloud/file?path=${encodeURIComponent(path)}`;
+    }
+  }
+  
+  // Match gs://BUCKET_NAME/path (GCS URI format)
+  const gsMatch = url.match(/^gs:\/\/([^/]+)\/(.+)$/);
+  if (gsMatch) {
+    const bucket = gsMatch[1];
+    const path = gsMatch[2];
+    if (bucket === BUCKET_NAME && path) {
+      return `/api/cloud/file?path=${encodeURIComponent(path)}`;
+    }
+  }
+  
+  // Return original if not a GCS URL or different bucket
+  return url;
+}
+
 // --- Upload Retry Configuration ---
 const UPLOAD_TIMEOUT_MS = 60000; // 60 second timeout for uploads
 const UPLOAD_MAX_RETRIES = 3;
@@ -597,7 +631,8 @@ export async function uploadFile(
     let publicUrl: string | undefined;
     if (makePublic) {
       await file.makePublic();
-      publicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${filePath}`;
+      // Use proxy URL to avoid CORS issues
+      publicUrl = `/api/cloud/file?path=${encodeURIComponent(filePath)}`;
     }
 
     console.log(`[CloudStorage] ✓ Uploaded ${fileName} (${Math.round(blob.size / 1024)}KB)`);

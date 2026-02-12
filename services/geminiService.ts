@@ -11,6 +11,7 @@
 // Re-export from transcriptionService
 export {
   fileToGenerativePart,
+  inferAudioMimeType,
   transcribeAudio,
   transcribeAudioWithWordTiming,
 } from "./transcriptionService";

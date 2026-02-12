@@ -48,12 +48,20 @@ export interface StorySyncDocument {
 }
 
 /**
- * Recursively strip `undefined` values from an object before writing to Firestore.
- * Firestore's setDoc() throws on undefined field values.
- * Uses JSON round-trip which converts undefined → null → stripped.
+ * Recursively strip `undefined` values and other Firestore-incompatible types
+ * from an object before writing to Firestore.
+ * Firestore rejects: undefined, custom classes, functions, Symbols.
+ * Uses JSON round-trip which drops undefined fields and converts Date → string.
  */
 function sanitizeForFirestore<T>(data: T): T {
-  return JSON.parse(JSON.stringify(data));
+  return JSON.parse(JSON.stringify(data, (_key, value) => {
+    // Convert undefined to null (JSON.stringify already drops undefined in objects,
+    // but this handles undefined inside arrays where it becomes null)
+    if (value === undefined) return null;
+    // Strip functions
+    if (typeof value === 'function') return undefined;
+    return value;
+  }));
 }
 
 /**
@@ -63,11 +71,33 @@ function sanitizeForFirestore<T>(data: T): T {
 function stripLocalMediaData(state: StoryState): StoryState {
   const stripped = { ...state };
 
+  // Helper: keep only https:// URLs, replace others with empty string
+  // Using empty string instead of undefined to avoid Firestore rejection
+  const keepCloudUrl = (url: string | undefined): string =>
+    url?.startsWith('https://') ? url : '';
+
+  // Strip character referenceImageUrls that are local (base64 data: or blob:)
+  // These can be very large (500KB+ each) and would exceed Firestore's field size limit.
+  if (stripped.characters) {
+    stripped.characters = stripped.characters.map((char) => ({
+      ...char,
+      referenceImageUrl: keepCloudUrl(char.referenceImageUrl) || undefined,
+    }));
+  }
+
   // Strip shotlist imageUrls that are local (blob: or data:)
   if (stripped.shotlist) {
     stripped.shotlist = stripped.shotlist.map((shot) => ({
       ...shot,
-      imageUrl: shot.imageUrl?.startsWith('https://') ? shot.imageUrl : undefined,
+      imageUrl: keepCloudUrl(shot.imageUrl) || undefined,
+    }));
+  }
+
+  // Strip shots[] imageUrls that are local (Storyboarder.ai-style workflow)
+  if (stripped.shots) {
+    stripped.shots = stripped.shots.map((shot) => ({
+      ...shot,
+      imageUrl: keepCloudUrl(shot.imageUrl) || undefined,
     }));
   }
 
@@ -75,7 +105,7 @@ function stripLocalMediaData(state: StoryState): StoryState {
   if (stripped.narrationSegments) {
     stripped.narrationSegments = stripped.narrationSegments.map((seg) => ({
       ...seg,
-      audioUrl: seg.audioUrl?.startsWith('https://') ? seg.audioUrl : '',
+      audioUrl: keepCloudUrl(seg.audioUrl),
     }));
   }
 
@@ -83,16 +113,25 @@ function stripLocalMediaData(state: StoryState): StoryState {
   if (stripped.animatedShots) {
     stripped.animatedShots = stripped.animatedShots.map((shot) => ({
       ...shot,
-      videoUrl: shot.videoUrl?.startsWith('https://') ? shot.videoUrl : '',
-      thumbnailUrl: shot.thumbnailUrl?.startsWith('https://')
-        ? shot.thumbnailUrl
-        : undefined,
+      videoUrl: keepCloudUrl(shot.videoUrl),
+      thumbnailUrl: keepCloudUrl(shot.thumbnailUrl) || undefined,
     }));
   }
 
   // Strip final video URL if local
   if (stripped.finalVideoUrl && !stripped.finalVideoUrl.startsWith('https://')) {
     stripped.finalVideoUrl = undefined;
+  }
+
+  // Strip stageErrors: replace null values with empty string for Firestore compatibility
+  if (stripped.stageErrors) {
+    const cleanErrors: Record<string, string> = {};
+    for (const [key, val] of Object.entries(stripped.stageErrors)) {
+      if (val != null) {
+        cleanErrors[key] = val;
+      }
+    }
+    stripped.stageErrors = cleanErrors as any;
   }
 
   return stripped;

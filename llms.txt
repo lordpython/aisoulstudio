@@ -1,0 +1,843 @@
+# deAPI — Complete AI Inference API Documentation
+
+> **What it is.** **deAPI** provides a single, unified REST API to run open-source AI models on a decentralized GPU cloud ("thousands of GPUs worldwide"). Current products cover **Text-to-Image**, **Image-to-Image**, **Text-to-Speech**, **Image-to-Text (OCR)**, **Video-to-Text (YouTube/X transcription & file upload)**, **Audio-to-Text (file upload & X Spaces)**, **Image-to-Video**, **Text-to-Video**, **Text-to-Embedding**, **Image Background Removal**, and **Video Background Removal**. Marketed benefits include **10–20× cheaper inference** vs. proprietary providers, a **free tier**, and **$5 free credits** for new accounts. Updated: 2026-01-26
+
+
+## Quick Start (30-second integration)
+
+1. **Get API key:** https://deapi.ai/dashboard → Settings → API Keys
+2. **Make first request:**
+```bash
+curl -X POST https://api.deapi.ai/api/v1/client/txt2img \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"a cat","model":"ZImageTurbo_INT8","width":512,"height":512,"guidance":3.5,"steps":4,"seed":-1}'
+```
+3. **Get result:** Use webhooks (recommended), WebSockets, or poll `GET /api/v1/client/request-status/{request_id}`
+
+## Base & Auth
+- **Base host:** `https://api.deapi.ai`
+- **Auth:** Bearer token in header: `Authorization: Bearer YOUR_API_KEY`
+
+---
+
+## Result Delivery Methods (Choose One)
+
+deAPI supports three methods to receive job results. **Webhooks are recommended** for production to minimize API requests.
+
+### Method 1: Webhooks (Recommended)
+
+Receive HTTP POST notifications when jobs complete. **Eliminates polling entirely.**
+
+**Setup:**
+1. Configure global webhook URL in [account settings](https://deapi.ai/dashboard/settings)
+2. Or override per-request with `webhook_url` parameter
+
+**Per-Request Example:**
+```json
+{
+  "prompt": "a beautiful sunset",
+  "model": "ZImageTurbo_INT8",
+  "width": 1024,
+  "height": 768,
+  "webhook_url": "https://your-server.com/webhooks/deapi"
+}
+```
+
+**Webhook Events:**
+
+| Event | Trigger | Description |
+|-------|---------|-------------|
+| `job.processing` | `pending → processing` | Job started |
+| `job.completed` | `processing → done` | Results ready |
+| `job.failed` | `processing → error` | Job failed |
+
+**Payload Example (job.completed):**
+```json
+{
+  "event": "job.completed",
+  "delivery_id": "550e8400-e29b-41d4-a716-446655440001",
+  "timestamp": "2024-01-15T10:30:45.000Z",
+  "data": {
+    "job_request_id": "123e4567-e89b-12d3-a456-426614174000",
+    "status": "done",
+    "job_type": "txt2img",
+    "result_url": "https://storage.deapi.ai/results/.../output.png",
+    "processing_time_ms": 45000
+  }
+}
+```
+
+**Security Headers:**
+- `X-DeAPI-Signature`: HMAC-SHA256 signature for verification
+- `X-DeAPI-Timestamp`: Unix timestamp
+- `X-DeAPI-Event`: Event type
+- `X-DeAPI-Delivery-Id`: Unique delivery ID
+
+**Signature Verification (Python):**
+```python
+import hmac, hashlib, time
+
+def verify_webhook(headers, body, secret):
+    signature = headers.get('X-DeAPI-Signature', '')
+    timestamp = headers.get('X-DeAPI-Timestamp', '')
+
+    # Reject old requests (>5 min)
+    if abs(time.time() - int(timestamp)) > 300:
+        return False
+
+    message = f"{timestamp}.{body}"
+    expected = 'sha256=' + hmac.new(
+        secret.encode(), message.encode(), hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected)
+```
+
+**Retry Policy:** Exponential backoff up to 10 retries over ~24 hours.
+
+Docs: https://docs.deapi.ai/webhooks
+
+---
+
+### Method 2: WebSockets (Real-time UI)
+
+Persistent connection for instant updates with live preview images. Best for interactive apps.
+
+**Connection Details:**
+- **Host:** `soketi.deapi.ai`
+- **Port:** `443` (WSS)
+- **App Key:** `depin-api-prod-key`
+- **Channel:** `private-client.{client_id}`
+- **Event:** `request.status.updated`
+
+**Quick Example (JavaScript):**
+```javascript
+import Pusher from 'pusher-js';
+
+const pusher = new Pusher('depin-api-prod-key', {
+    wsHost: 'soketi.deapi.ai',
+    wsPort: 443,
+    forceTLS: true,
+    cluster: 'mt1',
+    enabledTransports: ['ws', 'wss'],
+    authorizer: (channel) => ({
+        authorize: async (socketId, callback) => {
+            const res = await fetch('https://api.deapi.ai/broadcasting/auth', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_TOKEN}`
+                },
+                body: JSON.stringify({ socket_id: socketId, channel_name: channel.name })
+            });
+            callback(null, await res.json());
+        }
+    })
+});
+
+pusher.subscribe(`private-client.${CLIENT_ID}`)
+    .bind('request.status.updated', (data) => {
+        console.log(`Job ${data.request_id}: ${data.status} (${data.progress}%)`);
+        if (data.preview) console.log('Preview available');
+        if (data.result_url) console.log('Download:', data.result_url);
+    });
+```
+
+**Event Payload:**
+```json
+{
+  "request_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "in_progress",
+  "preview": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+  "result_url": null,
+  "progress": "45.50"
+}
+```
+
+**WebSockets vs Webhooks:**
+
+| Feature | WebSockets | Webhooks |
+|---------|------------|----------|
+| Latency | Instant (ms) | Near-instant (s) |
+| Progress updates | Yes + previews | No |
+| Server needs | WS client | HTTP endpoint |
+| Reliability | Needs active connection | Auto-retries |
+| Best for | Interactive UIs | Backend/serverless |
+
+Docs: https://docs.deapi.ai/websockets
+
+---
+
+### Method 3: Polling (Simple/Legacy)
+
+Poll status endpoint until job completes. Use if webhooks/websockets are unavailable.
+
+```python
+import requests, time
+
+def poll_job(request_id, api_key, max_wait=300, interval=2):
+    headers = {"Authorization": f"Bearer {api_key}"}
+    start = time.time()
+
+    while time.time() - start < max_wait:
+        resp = requests.get(
+            f"https://api.deapi.ai/api/v1/client/request-status/{request_id}",
+            headers=headers
+        )
+        data = resp.json().get("data", {})
+        status = data.get("status")
+
+        if status == "done":
+            return data  # Contains result_url or result
+        elif status == "error":
+            raise Exception(f"Job failed: {data.get('error')}")
+
+        time.sleep(interval)
+
+    raise TimeoutError(f"Job {request_id} timeout")
+```
+
+**Status values:** `pending`, `processing`, `done`, `error`
+
+---
+
+## API Overview
+
+| Category | Endpoints | Key Models |
+|----------|-----------|------------|
+| Generation | txt2img, txt2audio, txt2video, txt2embedding | ZImageTurbo_INT8, Flux1schnell, Flux_2_Klein_4B_BF16, Kokoro, LTX Video, BGE-M3 |
+| Analysis | img2txt, vid2txt, aud2txt, audiofile2txt, videofile2txt | Nanonets OCR, WhisperLargeV3 |
+| Transformation | img2img, img-rmbg, vid-rmbg | QwenImageEdit, Flux_2_Klein_4B_BF16, Ben2, RMBG-1.4 |
+| Utilities | balance, request-status, models | - |
+| Prompt Enhancement | prompt/image, prompt/video, prompt/speech, prompt/image2image | - |
+
+---
+
+## Core Endpoints
+
+### Text-to-Image
+`POST /api/v1/client/txt2img`
+
+**Request (application/json):**
+```json
+{
+  "prompt": "a sunset over mountains",
+  "negative_prompt": "blurry, low quality",
+  "model": "ZImageTurbo_INT8",
+  "width": 1024,
+  "height": 768,
+  "guidance": 3.5,
+  "steps": 4,
+  "seed": -1,
+  "webhook_url": "https://your-server.com/webhook"
+}
+```
+
+**Required:** `prompt`, `model`, `width`, `height`, `guidance`, `steps`, `seed`
+**Optional:** `negative_prompt`, `loras`, `webhook_url`
+
+**Price Calculation:** `POST /api/v1/client/txt2img/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/generation/text-to-image
+
+---
+
+### Image-to-Image
+`POST /api/v1/client/img2img` (multipart/form-data)
+
+**Parameters:**
+- `image` (required): Source image (JPG, JPEG, PNG, GIF, BMP, WebP, max 10MB)
+- `prompt` (required): Transformation description
+- `model` (required): e.g., "QwenImageEdit_Plus_NF4"
+- `guidance`, `steps`, `seed` (required)
+- `negative_prompt`, `loras`, `webhook_url` (optional)
+
+**Price Calculation:** `POST /api/v1/client/img2img/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/transformation/image-to-image
+
+---
+
+### Text-to-Speech (TTS)
+`POST /api/v1/client/txt2audio`
+
+```json
+{
+  "text": "Hello, this is a test.",
+  "model": "Kokoro",
+  "voice": "af_sky",
+  "lang": "en-us",
+  "speed": 1.0,
+  "format": "flac",
+  "sample_rate": 24000,
+  "webhook_url": "https://your-server.com/webhook"
+}
+```
+
+**Required:** `text`, `model`, `voice`, `lang`, `speed`, `format`, `sample_rate`
+**Optional:** `webhook_url`
+
+**Price Calculation:** `POST /api/v1/client/txt2audio/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/generation/text-to-speech
+
+---
+
+### Image-to-Text (OCR)
+`POST /api/v1/client/img2txt` (multipart/form-data)
+
+**Parameters:**
+- `image` (required): Image file (JPG, JPEG, PNG, GIF, BMP, WebP, max 10MB)
+- `model` (required): e.g., "Nanonets_Ocr_S_F16"
+- `language` (optional): e.g., "en"
+- `format` (optional): "text" or "json"
+- `return_result_in_response` (optional): Return result directly in response
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/img2txt/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/analysis/image-to-text
+
+---
+
+### Video-to-Text (URL Transcription)
+`POST /api/v1/client/vid2txt`
+
+```json
+{
+  "video_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "include_ts": true,
+  "model": "WhisperLargeV3",
+  "webhook_url": "https://your-server.com/webhook"
+}
+```
+
+**Required:** `video_url`, `include_ts`, `model`
+**Optional:** `return_result_in_response`, `webhook_url`
+
+**Supported platforms:** YouTube, X/Twitter, Twitch, Kick
+
+**Price Calculation:** `POST /api/v1/client/vid2txt/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/analysis/video-to-text
+
+---
+
+### Video-to-Text (File Upload)
+`POST /api/v1/client/videofile2txt` (multipart/form-data)
+
+**Parameters:**
+- `video` (required): Video file (MP4, MPEG, MOV, AVI, WMV, OGG, max 10MB)
+- `include_ts` (required): Include timestamps
+- `model` (optional): e.g., "WhisperLargeV3"
+- `return_result_in_response` (optional): Return result directly in response
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/videofile2txt/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/analysis/upload-video-file
+
+---
+
+### Audio-to-Text (File Upload)
+`POST /api/v1/client/audiofile2txt` (multipart/form-data)
+
+**Parameters:**
+- `audio` (required): Audio file (AAC, MP3, OGG, WAV, WebM, FLAC, max 10MB)
+- `include_ts` (required): Include timestamps
+- `model` (optional): e.g., "WhisperLargeV3"
+- `return_result_in_response` (optional): Return result directly in response
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/audiofile2txt/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/analysis/upload-audio-file
+
+---
+
+### Audio-to-Text (X Spaces)
+`POST /api/v1/client/aud2txt`
+
+```json
+{
+  "audio_url": "https://twitter.com/i/spaces/1nAKEERkeLbKL",
+  "include_ts": true,
+  "model": "WhisperLargeV3",
+  "webhook_url": "https://your-server.com/webhook"
+}
+```
+
+**Required:** `audio_url`, `include_ts`, `model`
+**Optional:** `return_result_in_response`, `webhook_url`
+
+**Price Calculation:** `POST /api/v1/client/aud2txt/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/analysis/audio-to-text-spaces
+
+---
+
+### Text-to-Video
+`POST /api/v1/client/txt2video` (multipart/form-data)
+
+**Parameters:**
+- `prompt` (required): Video description
+- `model` (required): e.g., "Ltxv_13B_0_9_8_Distilled_FP8"
+- `width`, `height`, `guidance`, `steps`, `frames`, `seed` (required)
+- `fps` (optional, default: 30)
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/txt2video/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/generation/text-to-video
+
+---
+
+### Image-to-Video
+`POST /api/v1/client/img2video` (multipart/form-data)
+
+**Parameters:**
+- `first_frame_image` (required): Starting frame image
+- `last_frame_image` (optional): Ending frame image
+- `prompt`, `model`, `width`, `height`, `guidance`, `steps`, `frames`, `seed` (required)
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/img2video/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/generation/image-to-video
+
+---
+
+### Text-to-Embedding
+`POST /api/v1/client/txt2embedding`
+
+```json
+{
+  "input": "Your text to embed",
+  "model": "Bge_M3_FP16",
+  "return_result_in_response": true
+}
+```
+
+**Required:** `input`, `model`
+**Optional:** `return_result_in_response` (default: false)
+
+**Note:** `input` can be string or array (max 2048 items, 8192 tokens each)
+
+**Price Calculation:** `POST /api/v1/client/txt2embedding/price-calculation`
+
+**Response Example (200 with return_result_in_response=true):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000",
+    "embedding": [0.0123, -0.0456, 0.0789, ...]
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/generation/text-to-embedding
+
+---
+
+### Image Background Removal
+`POST /api/v1/client/img-rmbg` (multipart/form-data)
+
+**Parameters:**
+- `image` (required): Image file (JPG, JPEG, PNG, GIF, BMP, WebP, max 10MB)
+- `model` (required): e.g., "Ben2"
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/img-rmbg/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/transformation/background-removal
+
+---
+
+### Video Background Removal
+`POST /api/v1/client/vid-rmbg` (multipart/form-data)
+
+**Parameters:**
+- `video` (required): Video file (MP4, MPEG, MOV, AVI, WMV, OGG, max 10MB)
+- `model` (required): e.g., "RMBG-1.4"
+- `webhook_url` (optional): HTTPS callback URL
+
+**Price Calculation:** `POST /api/v1/client/vid-rmbg/price-calculation`
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+---
+
+## Prompt Enhancement
+
+Automatically improve prompts before generation.
+
+| Task | Endpoint | Method | Price Calculation |
+|------|----------|--------|-------------------|
+| Image prompt | `/api/v1/client/prompt/image` | POST JSON | `/prompt/image/price-calculation` |
+| Video prompt | `/api/v1/client/prompt/video` | POST multipart | `/prompt/video/price-calculation` |
+| Image-to-image prompt | `/api/v1/client/prompt/image2image` | POST multipart | `/prompt/image2image/price-calculation` |
+| Speech prompt | `/api/v1/client/prompt/speech` | POST JSON | `/prompt/speech/price-calculation` |
+| Sample prompts | `/api/v1/client/prompts/samples` | GET | `/prompts/samples/price-calculation` |
+
+**Response Example (200):**
+```json
+{
+  "data": {
+    "enhanced_prompt": "A majestic golden retriever sitting in a sunlit meadow, detailed fur texture, warm afternoon light, shallow depth of field, professional photography"
+  }
+}
+```
+
+Docs: https://docs.deapi.ai/api/prompt-enhancement/overview
+
+---
+
+## Utility Endpoints
+
+### Check Balance
+`GET /api/v1/client/balance`
+
+```json
+{"data": {"balance": 15.75, "currency": "USD"}}
+```
+
+### Get Job Status
+`GET /api/v1/client/request-status/{request_id}`
+
+**Response Example (job completed):**
+```json
+{
+  "data": {
+    "request_id": "123e4567-e89b-12d3-a456-426614174000",
+    "status": "done",
+    "result_url": "https://storage.deapi.ai/results/abc123/output.png",
+    "processing_time_ms": 4500,
+    "created_at": "2024-01-15T10:30:00.000Z",
+    "completed_at": "2024-01-15T10:30:45.000Z"
+  }
+}
+```
+
+**Status values:** `pending`, `processing`, `done`, `error`
+
+### List Models
+`GET /api/v1/client/models`
+
+Query params: `per_page`, `page`, `filter[inference_types]`
+
+**Response Example:**
+```json
+{
+  "data": [
+    {
+      "slug": "ZImageTurbo_INT8",
+      "name": "ZImage Turbo INT8",
+      "inference_type": "txt2img",
+      "description": "Fast photorealistic image generation"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 25
+  }
+}
+```
+
+---
+
+## MCP Server (AI Assistant Integration)
+
+Native integration for Claude, Cursor, and ChatGPT.
+
+- **Server URL:** `https://mcp.deapi.ai/mcp`
+- **OAuth Client ID:** `deapi-mcp`
+- **Transport:** Streamed HTTP
+- **Status:** Alpha
+
+**Available Tools:** All generation, analysis, transformation endpoints.
+
+Setup guides: https://docs.deapi.ai/execution-modes-and-integrations/mcp-server
+
+---
+
+## n8n Integration
+
+Automate AI workflows with n8n HTTP Request nodes.
+
+- **Auth:** Bearer token
+- **Pattern:** Submit job → Webhook callback or poll → Process result
+
+Docs: https://docs.deapi.ai/execution-modes-and-integrations/n8n-integration
+
+---
+
+## Price Calculation Endpoints
+
+All endpoints support dynamic price calculation before execution:
+
+| Endpoint | Price Calculation |
+|----------|-------------------|
+| txt2img | `POST /api/v1/client/txt2img/price-calculation` |
+| img2img | `POST /api/v1/client/img2img/price-calculation` |
+| txt2audio | `POST /api/v1/client/txt2audio/price-calculation` |
+| img2txt | `POST /api/v1/client/img2txt/price-calculation` |
+| vid2txt | `POST /api/v1/client/vid2txt/price-calculation` |
+| videofile2txt | `POST /api/v1/client/videofile2txt/price-calculation` |
+| audiofile2txt | `POST /api/v1/client/audiofile2txt/price-calculation` |
+| aud2txt | `POST /api/v1/client/aud2txt/price-calculation` |
+| txt2video | `POST /api/v1/client/txt2video/price-calculation` |
+| img2video | `POST /api/v1/client/img2video/price-calculation` |
+| txt2embedding | `POST /api/v1/client/txt2embedding/price-calculation` |
+| img-rmbg | `POST /api/v1/client/img-rmbg/price-calculation` |
+| vid-rmbg | `POST /api/v1/client/vid-rmbg/price-calculation` |
+
+**Price Calculation Response Example:**
+```json
+{
+  "data": {
+    "price": 0.00136,
+    "currency": "USD"
+  }
+}
+```
+
+---
+
+## Rate Limits & Quotas
+
+| Tier | RPM | Daily Limit |
+|------|-----|-------------|
+| Basic (free $5) | 1-10 | 15-100/endpoint |
+| Premium (any payment) | 300 | Unlimited |
+
+**File Limits:**
+- Video (transcription): 10 MB (mp4, mpeg, mov, avi, wmv, ogg)
+- Video (background removal): 10 MB (mp4, mpeg, mov, avi, wmv, ogg)
+- Audio (file upload): 10 MB (aac, mp3, ogg, wav, webm, flac)
+- Images: 10 MB (jpg, jpeg, png, gif, bmp, webp)
+- Duration: 600 minutes max
+
+Docs: https://docs.deapi.ai/limits-and-quotas
+
+---
+
+## Error Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 200 | Success | Process response |
+| 401 | Unauthorized | Check API key |
+| 404 | Not found | Verify endpoint/request_id |
+| 422 | Validation error | Check `errors` array |
+| 429 | Rate limited | Wait 60s (RPM) or midnight UTC (RPD) |
+| 500 | Server error | Retry with backoff |
+
+**Webhook Error Codes:**
+- `WORKER_TIMEOUT`: Worker didn't respond
+- `PROCESSING_ERROR`: Inference failed
+- `AGE_RESTRICTED`: Content flagged
+- `CONTEXT_LENGTH_EXCEEDED`: Input too long
+- `INVALID_INPUT`: Invalid data
+
+Docs: https://docs.deapi.ai/api/errors
+
+---
+
+## Models & Capabilities
+
+| Task | Model Slug | Description |
+|------|-----------|-------------|
+| Text-to-Image | `ZImageTurbo_INT8` | Photorealistic, INT8 quantized, fast |
+| Text-to-Image | `Flux1schnell` | Fast iteration (1-10 steps) |
+| Text-to-Image / Image-to-Image | `Flux_2_Klein_4B_BF16` | Flux 2 Klein 4B, BF16 precision, txt2img & img2img |
+| TTS | `Kokoro` | Multi-language, multi-voice |
+| Transcription | `WhisperLargeV3` | 99 languages |
+| Video | `Ltxv_13B_0_9_8_Distilled_FP8` | Cinematic motion |
+| OCR | `Nanonets_Ocr_S_F16` | Text extraction |
+| Image Edit | `QwenImageEdit_Plus_NF4` | Style transfer |
+| Background (Image) | `Ben2` | Image background removal |
+| Background (Video) | `RMBG-1.4` | Video background removal |
+| Embeddings | `Bge_M3_FP16` | Semantic search, RAG |
+
+**Live model list:** `GET /api/v1/client/models`
+
+---
+
+## Pricing
+
+| Service | Price |
+|---------|-------|
+| Text-to-Image (Flux) | $0.00136/image (512×512, 4 steps) |
+| Text-to-Speech | $0.77/1M characters |
+| Video-to-Text | $0.021/hour |
+| Text-to-Video | $0.00174/2s (256×256) |
+| Text-to-Embedding | $0.000068/1K tokens |
+| OCR | $0.00928/1K output chars |
+
+**Dynamic pricing:** Use `/price-calculation` endpoints for exact costs.
+
+Docs: https://docs.deapi.ai/pricing
+
+---
+
+## Canonical Links
+
+### Main
+- Homepage: https://deapi.ai/
+- Docs: https://docs.deapi.ai/
+- Quickstart: https://docs.deapi.ai/quickstart
+- API Reference: https://docs.deapi.ai/api/overview
+- Models: https://deapi.ai/models
+- Pricing: https://deapi.ai/pricing
+- Status: https://status.deapi.ai/
+- GitHub: https://github.com/deapi-ai
+
+### Real-time & Integrations
+- Webhooks: https://docs.deapi.ai/webhooks
+- WebSockets: https://docs.deapi.ai/websockets
+- MCP Server: https://docs.deapi.ai/execution-modes-and-integrations/mcp-server
+- n8n: https://docs.deapi.ai/execution-modes-and-integrations/n8n-integration
+- Execution Modes: https://docs.deapi.ai/execution-modes-and-integrations/execution-modes-and-http-queue
+
+### Technical
+- Architecture & Security: https://docs.deapi.ai/architecture-and-security
+- Limits & Quotas: https://docs.deapi.ai/limits-and-quotas
+- Error Handling: https://docs.deapi.ai/api/errors
+- FAQ: https://docs.deapi.ai/other/faq-frequently-asked-questions
+
+### Playground
+- Text-to-Image: https://deapi.ai/playground/text-to-image
+- Text-to-Speech: https://deapi.ai/playground/text-to-speech
+- Image-to-Text: https://deapi.ai/playground/image-to-text
+- Video-to-Text: https://deapi.ai/playground/video-to-text
+- Image-to-Image: https://deapi.ai/playground/image-to-image
+- Image-to-Video: https://deapi.ai/playground/image-to-video
+
+### Use Cases & Case Studies
+- Text-to-Image: https://deapi.ai/use-cases/text-to-image
+- Text-to-Speech: https://deapi.ai/use-cases/text-to-speech
+- Image-to-Video: https://deapi.ai/use-cases/image-to-video
+- Video-to-Text: https://deapi.ai/use-cases/video-to-text
+- Case Study (Humain): https://deapi.ai/case-studies/humain
+
+### Support
+- Payment Methods: https://docs.deapi.ai/other/payment-methods
+- SDKs (Coming Soon): https://docs.deapi.ai/other/sdks-and-integrations-coming-soon
+- Contact: https://docs.deapi.ai/other/support-and-contact
+
+---
+
+## Safety & Compliance
+- No illegal/explicit content
+- Keep API keys server-side only
+- Review content policies before production use
+- HTTPS required for webhook URLs
+- Enterprise tier available for sensitive data (contact support@deapi.ai)

@@ -51,7 +51,7 @@ export const MODELS = {
   TEXT_EXP: "gemini-3-pro-preview", // Latest reasoning model
   TEXT_LEGACY: "gemini-3-pro-preview",
   IMAGE_STANDARD: "imagen-3.0-generate-001",
-  IMAGE_HD: "gemini-3-pro-image-preview", // Multimodal image understanding & generation
+  IMAGE_HD: "gemini-3-pro-preview", // Multimodal image understanding & generation
   VIDEO_STANDARD: "veo-3.1-generate-preview",
   VIDEO_FAST: "veo-3.1-fast-generate-preview",
   VIDEO_LEGACY: "veo-3.1-fast-generate-preview",
