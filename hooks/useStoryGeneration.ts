@@ -24,6 +24,7 @@ import { narrateScene, createAudioUrl, type NarratorConfig } from '@/services/na
 import { generateVideoFromPrompt } from '@/services/videoService';
 import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
+import { generateCharacterReference } from '@/services/characterService';
 import { cloudAutosave } from '@/services/cloudStorageService';
 import { createCombinedNarrationAudio } from '@/services/audioConcatService';
 import {
@@ -727,6 +728,46 @@ export function useStoryGeneration(projectId?: string | null) {
             setIsProcessing(false);
         }
     }, [sessionId]);
+
+    /**
+     * Generate (or regenerate) a single character's reference image via DeAPI.
+     */
+    const generateCharacterImage = useCallback(async (characterId: string) => {
+        if (!sessionId) return;
+
+        const char = state.characters.find(c => c.id === characterId);
+        if (!char) {
+            setError(`Character not found: ${characterId}`);
+            return;
+        }
+
+        setIsProcessing(true);
+        setError(null);
+        setProgress({ message: `Generating portrait for ${char.name}...`, percent: 50 });
+
+        try {
+            const referenceUrl = await generateCharacterReference(
+                char.name,
+                char.visualDescription,
+                sessionId,
+            );
+
+            setState(prev => ({
+                ...prev,
+                characters: prev.characters.map(c =>
+                    c.id === characterId
+                        ? { ...c, referenceImageUrl: referenceUrl }
+                        : c
+                ),
+            }));
+
+            setProgress({ message: `Portrait for ${char.name} ready!`, percent: 100 });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [sessionId, state.characters]);
 
     /**
      * Step 4: Generate Shotlist
@@ -1971,6 +2012,7 @@ export function useStoryGeneration(projectId?: string | null) {
         generateBreakdown,
         generateScreenplay,
         generateCharacters,
+        generateCharacterImage,
         generateShotlist,
         verifyConsistency,
         regenerateScene,

@@ -1068,6 +1068,7 @@ export default function StudioScreen() {
           onVerifyConsistency={storyHook.verifyConsistency}
           onGenerateScreenplay={storyHook.generateScreenplay}
           onGenerateCharacters={storyHook.generateCharacters}
+          onGenerateCharacterImage={storyHook.generateCharacterImage}
           onUndo={storyHook.undo}
           onRedo={storyHook.redo}
           canUndo={storyHook.canUndo}

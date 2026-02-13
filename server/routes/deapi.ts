@@ -107,7 +107,7 @@ router.post('/img2video', upload.single('first_frame_image'), async (req: Reques
         });
 
         if (!req.body.guidance) {
-            formData.append('guidance', '3');
+            formData.append('guidance', '0');
         }
 
         const response = await fetch('https://api.deapi.ai/api/v1/client/img2video', {
@@ -167,7 +167,7 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
                 model: model || 'Ltxv_13B_0_9_8_Distilled_FP8',
                 width: width || 768,
                 height: height || 432,
-                guidance: guidance || 3,
+                guidance: guidance ?? 0,
                 steps: steps || 1,
                 frames: frames || 120,
                 fps: 30,

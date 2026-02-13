@@ -495,7 +495,7 @@ export const generateVideoWithDeApi = async (
   const {
     prompt,
     model = DEFAULT_VIDEO_MODEL,
-    guidance = 3,
+    guidance = 0,
     steps = 1, // Distilled model requires max 1 step
     frames = 120, // 4 seconds at 30fps
     fps = 30,
@@ -690,7 +690,7 @@ export const animateImageWithDeApi = async (
   formData.append("height", height.toString());
   formData.append("fps", "30");
   formData.append("model", DEFAULT_VIDEO_MODEL);
-  formData.append("guidance", "3"); // Required parameter - guidance scale
+  formData.append("guidance", "0"); // Distilled model does not support CFG
   formData.append("steps", "1"); // Distilled model requires max 1 step
   formData.append("seed", "-1"); // Random seed
 
@@ -1250,7 +1250,7 @@ export const generateVideoFromText = async (
       model: DEFAULT_VIDEO_MODEL,
       width,
       height,
-      guidance: 3,
+      guidance: 0,
       steps: 1, // Distilled model
       frames: durationFrames,
       fps: 30,

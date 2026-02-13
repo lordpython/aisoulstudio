@@ -8,7 +8,8 @@
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GEMINI_API_KEY, MODELS } from "./shared/apiClient";
-import { generateImageFromPrompt } from "./imageService";
+import { generateImageWithDeApi } from "./deapiService";
+import { getCharacterSeed } from "./imageService";
 import { z } from "zod";
 import type { CharacterProfile } from "@/types";
 import { withAILogging } from "./aiLogService";
@@ -90,17 +91,19 @@ Clean muted color palette, professional character reference sheet style, consist
 High detail, sharp focus, 35mm lens, shallow depth of field on subject.
 No text, no watermarks, no logos.`;
 
-    console.log(`[CharacterService] Generating reference sheet for: ${charName}`);
+    const seed = getCharacterSeed(charName);
+    console.log(`[CharacterService] Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed})`);
 
-    return generateImageFromPrompt(
+    return generateImageWithDeApi({
         prompt,
-        "Character Sheet",
-        charName, // Use character name as global subject for seed consistency
-        "1:1",
-        false,
-        undefined,
-        sessionId
-    );
+        model: "Flux_2_Klein_4B_BF16",
+        width: 768,
+        height: 768,
+        guidance: 3.5,
+        steps: 4,
+        seed,
+        negative_prompt: "blur, darkness, noise, low quality, text, watermark",
+    });
 }
 
 /**

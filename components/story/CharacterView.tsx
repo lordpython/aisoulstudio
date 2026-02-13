@@ -153,18 +153,22 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                                 }
                                             </motion.button>
                                         )}
-                                        {onGenerateImage && !char.referenceImageUrl && (
+                                        {onGenerateImage && (
                                             <motion.button
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
                                                 onClick={() => onGenerateImage(char.id)}
+                                                disabled={isProcessing}
                                                 className="
                                                     p-3 rounded-full
                                                     btn-cinematic
                                                 "
-                                                title="Generate Portrait"
+                                                title={char.referenceImageUrl ? "Regenerate Portrait" : "Generate Portrait"}
                                             >
-                                                <ImagePlus className="w-5 h-5" />
+                                                {isProcessing
+                                                    ? <div className="w-5 h-5 rounded-full border-2 border-[var(--cinema-silver)]/30 border-t-[var(--cinema-spotlight)] animate-spin" />
+                                                    : <ImagePlus className="w-5 h-5" />
+                                                }
                                             </motion.button>
                                         )}
                                         {onEdit && (
