@@ -239,24 +239,35 @@ Professional character reference sheet style.`;
 }
 
 /**
+ * Build a compact visual anchor for a character (clothing/face tags only, not full bio).
+ * This keeps prompts focused on the action while maintaining character consistency.
+ */
+function buildVisualAnchor(char: CharacterProfile): string {
+    // Extract just the visual identifiers (first 2 sentences or 30 words max)
+    const desc = char.visualDescription || '';
+    const words = desc.split(/\s+/);
+    const compact = words.slice(0, 30).join(' ');
+    return `[${char.name}: ${compact}]`;
+}
+
+/**
  * Step 5: Generate scene visuals
- * Context: One scene at a time with character references
+ * Context: One scene at a time with character references and emotional context
  */
 async function generateSceneVisuals(
     scenes: ScreenplayScene[],
     characters: CharacterProfile[],
     sessionId: string,
     style: string = "Cinematic",
-    onProgress?: (current: number, total: number) => void
+    onProgress?: (current: number, total: number) => void,
+    emotionalHooks?: string[],
 ): Promise<{ sceneId: string; imageUrl: string }[]> {
     log.info(`Step 5: Generating ${scenes.length} scene visuals`);
 
-    // Build character reference map
-    const charRefMap = new Map<string, string>();
+    // Build character visual anchor map (compact, not full bios)
+    const charAnchorMap = new Map<string, string>();
     characters.forEach(c => {
-        if (c.referenceImageUrl) {
-            charRefMap.set(c.name.toLowerCase(), c.visualDescription);
-        }
+        charAnchorMap.set(c.name.toLowerCase(), buildVisualAnchor(c));
     });
 
     const results: { sceneId: string; imageUrl: string }[] = [];
@@ -269,16 +280,25 @@ async function generateSceneVisuals(
         log.info(`Generating visual ${i + 1}/${scenes.length}: ${scene.heading}`);
 
         try {
-            // Build prompt with character descriptions injected
-            let visualPrompt = `${scene.heading}. ${scene.action}`;
+            // Determine emotional context for this scene
+            const emotionalVibe = emotionalHooks?.[i] || emotionalHooks?.[0] || 'Cinematic';
 
-            // Inject character descriptions for consistency
-            scene.charactersPresent.forEach(charName => {
-                const desc = charRefMap.get(charName.toLowerCase());
-                if (desc) {
-                    visualPrompt += ` [${charName}: ${desc}]`;
-                }
-            });
+            // Build narrative-integrated prompt: character IN the action, not bio + description
+            const charAnchors = scene.charactersPresent
+                .map(charName => charAnchorMap.get(charName.toLowerCase()))
+                .filter(Boolean)
+                .join(' ');
+
+            // Compose: visual anchors + scene action + emotional vibe + cinematic polish
+            let visualPrompt = charAnchors
+                ? `${charAnchors} in a cinematic shot, ${scene.action}.`
+                : `${scene.heading}. ${scene.action}.`;
+
+            // Inject emotional context and cinematic direction
+            visualPrompt += ` ${emotionalVibe} mood, ${style} lighting, dynamic camera movement.`;
+
+            // Quality control: negative prompt suffix
+            visualPrompt += ` --no text, watermark, split screen, morphing, disfigured hands, blurry, static image`;
 
             const imageUrl = await generateImageFromPrompt(
                 visualPrompt,
@@ -406,6 +426,9 @@ export async function runStoryPipeline(
         storyModeStore.set(sessionId, state);
 
         // Step 5: Generate scene visuals (optional)
+        // Bridge: carry emotional hooks from breakdown acts to visual generation
+        const emotionalHooks = breakdown.acts.map(a => a.emotionalHook);
+
         let visualCount = 0;
         if (generateVisuals) {
             onProgress?.({
@@ -429,7 +452,8 @@ export async function runStoryPipeline(
                         currentStep: current,
                         totalSteps: total,
                     });
-                }
+                },
+                emotionalHooks,
             );
 
             visualCount = visuals.length;

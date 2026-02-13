@@ -101,8 +101,33 @@ export const SimplePreview: React.FC<SimplePreviewProps> = ({
         videoRef.current.pause();
         audioRef.current?.pause();
       } else {
-        videoRef.current.play();
-        audioRef.current?.play();
+        const playVideoSafe = async () => {
+          const el = videoRef.current;
+          if (!el) return;
+          try {
+            if (el.readyState >= 3) {
+              await el.play();
+            } else {
+              el.oncanplay = async () => {
+                try { await el.play(); } catch (err) {
+                  if (err instanceof Error && err.name !== 'AbortError') {
+                    console.error("[SimplePreview] Video play failed on canplay:", err);
+                  }
+                }
+              };
+            }
+          } catch (err) {
+            if (err instanceof Error && err.name !== 'AbortError') {
+              console.error("[SimplePreview] Video play failed:", err);
+            }
+          }
+        };
+        playVideoSafe();
+        audioRef.current?.play().catch(err => {
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.error("[SimplePreview] Audio play failed:", err);
+          }
+        });
       }
       setIsPlaying(!isPlaying);
     }
@@ -112,7 +137,9 @@ export const SimplePreview: React.FC<SimplePreviewProps> = ({
         audioRef.current.pause();
       } else {
         audioRef.current.play().catch(err => {
-          console.error("[SimplePreview] Audio play failed:", err);
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.error("[SimplePreview] Audio play failed:", err);
+          }
         });
       }
       setIsPlaying(!isPlaying);

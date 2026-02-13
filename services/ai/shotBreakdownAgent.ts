@@ -73,7 +73,7 @@ interface RawShotData {
     lightingStyle?: string;
 }
 
-const SHOT_BREAKDOWN_PROMPT = `You are a professional cinematographer. Break this scene into 4-6 camera shots.
+const SHOT_BREAKDOWN_PROMPT = `You are an expert film director and cinematographer. Your goal is to translate a screenplay scene into a series of dynamic, narrative-driven shots.
 
 SCENE:
 Heading: {heading}
@@ -81,41 +81,48 @@ Action: {action}
 Genre: {genre}
 Characters Present: {characters}
 Dialogue: {dialogue}
+Mood/Vibe: {mood}
+
+CRITICAL INSTRUCTION:
+- Do NOT just describe the set (e.g., "A market with spices").
+- YOU MUST describe the DRAMATIC ACTION (e.g., "The camera pushes in on Faisal's hand as he hesitates to touch the jar, his fingers trembling.").
+- Every shot must have a SUBJECT performing an ACTION with a specific EMOTION.
+- MANDATORY: Assign a camera movement to every shot. Never leave the camera static for emotional scenes.
 
 For EACH shot provide:
 1. Shot Type: Wide/Medium/Close-up/Extreme Close-up/POV/Over-the-shoulder
 2. Camera Angle: Eye-level/High/Low/Dutch/Bird's-eye/Worm's-eye
-3. Movement: Static/Pan/Tilt/Zoom/Dolly/Tracking/Handheld
+3. Movement: Pan/Tilt/Zoom/Dolly/Tracking/Handheld (use Static only for contemplative pauses)
 4. Duration: 3-8 seconds
-5. Visual Description: Detailed for AI image generation (lighting, composition, mood)
-6. Emotion: Emotional tone
-7. Lighting: Natural/Soft/Hard/Dramatic/Chiaroscuro/Neon/Warm/Cold/Silhouette
+5. Description: NARRATIVE-FOCUSED - describe what the character DOES, what the camera REVEALS, and what the viewer FEELS. Include lighting and atmosphere woven into the action.
+6. Emotion: Specific emotional beat (not just "tense" - say "mounting dread", "reluctant hope", "quiet defiance")
+7. Lighting: How light serves the emotion (e.g., "harsh overhead isolating the figure", "warm rim light suggesting hidden warmth")
 
 Consider:
 - {genre} genre conventions and visual style
-- Emotional arc of the scene
-- Character focus and relationships
-- Visual storytelling through composition
+- The emotional arc and vibe of the scene
+- Characters as ACTORS in a drama, not mannequins in a diorama
+- Camera as a storytelling tool that reveals character psychology
 
 Output as JSON array with exactly this format:
 \`\`\`json
 [
   {
-    "shotType": "Wide",
-    "cameraAngle": "Eye-level",
-    "movement": "Static",
+    "shotType": "Close-up",
+    "cameraAngle": "Dutch",
+    "movement": "Dolly",
     "duration": 5,
-    "description": "Detailed visual description...",
-    "emotion": "tense",
-    "lighting": "Dramatic"
+    "description": "The camera slowly pushes toward Faisal's face as recognition dawns in his eyes, the narrow alley walls seeming to close in around him, harsh sidelight cutting across his features",
+    "emotion": "dawning realization",
+    "lighting": "High contrast, claustrophobic sidelight"
   }
 ]
 \`\`\`
 
 IMPORTANT:
 - Generate 4-6 shots only
-- Each shot should serve a narrative purpose
-- Vary shot types for visual interest
+- Each shot must drive the narrative forward, not just establish a location
+- Vary shot types and camera movements for dynamic visual rhythm
 - Maintain 180-degree rule for dialogue scenes
 - Total duration should roughly match scene importance`;
 
@@ -197,6 +204,7 @@ export async function breakSceneIntoShots(
     genre: string,
     geminiModel?: ChatGoogleGenerativeAI,
     sessionId?: string,
+    emotionalContext?: string,
 ): Promise<Shot[]> {
     const model = geminiModel || getGeminiModel();
 
@@ -205,13 +213,15 @@ export async function breakSceneIntoShots(
         ? scene.dialogue.map(d => `${d.speaker}: "${d.text}"`).join('\n')
         : 'No dialogue';
 
-    // Build prompt
+    // Build prompt with emotional context
+    const mood = emotionalContext || 'Cinematic';
     const prompt = SHOT_BREAKDOWN_PROMPT
         .replace('{heading}', scene.heading)
         .replace('{action}', scene.action)
         .replace('{genre}', genre)
         .replace('{characters}', scene.charactersPresent.join(', ') || 'Unknown')
         .replace('{dialogue}', dialogueStr)
+        .replace('{mood}', mood)
         .replace('{genre}', genre); // Second occurrence
 
     log.info(`Breaking down scene ${scene.sceneNumber} into shots...`);
@@ -251,6 +261,7 @@ export async function breakAllScenesIntoShots(
     genre: string,
     onProgress?: (sceneIndex: number, totalScenes: number) => void,
     sessionId?: string,
+    emotionalContexts?: string[],
 ): Promise<Shot[]> {
     const model = getGeminiModel();
     const allShots: Shot[] = [];
@@ -265,7 +276,8 @@ export async function breakAllScenesIntoShots(
         onProgress?.(i, scenes.length);
 
         try {
-            const shots = await breakSceneIntoShots(scene, genre, model, sessionId);
+            const emotionalContext = emotionalContexts?.[i];
+            const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext);
             allShots.push(...shots);
         } catch (error) {
             log.error(`Failed to process scene ${i + 1}:`, error);

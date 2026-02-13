@@ -26,12 +26,32 @@ export function VideoPreview({
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
 
   useEffect(() => {
-    if (videoRef.current && video) {
-      if (isPlaying) {
-        videoRef.current.play();
-      } else {
-        videoRef.current.pause();
-      }
+    const el = videoRef.current;
+    if (!el || !video) return;
+
+    if (isPlaying) {
+      const playVideoSafe = async () => {
+        try {
+          if (el.readyState >= 3) {
+            await el.play();
+          } else {
+            el.oncanplay = async () => {
+              try { await el.play(); } catch (err) {
+                if (err instanceof Error && err.name !== 'AbortError') {
+                  console.error("Playback failed on canplay", err);
+                }
+              }
+            };
+          }
+        } catch (err) {
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.error("Playback failed", err);
+          }
+        }
+      };
+      playVideoSafe();
+    } else {
+      el.pause();
     }
   }, [isPlaying, video]);
 
