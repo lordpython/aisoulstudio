@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+/**
+ * StoryboardView.tsx
+ * Visual storyboard viewer with scene-grouped timeline strip.
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { ShotlistEntry, ScreenplayScene } from '@/types';
 import {
     Play, SkipBack, SkipForward, Clock,
-    Film, ChevronLeft, ChevronRight,
-    Wand2, Video, Loader2
+    ChevronLeft, ChevronRight,
+    Wand2, Video, Loader2, ImageIcon
 } from 'lucide-react';
 
 interface StoryboardViewProps {
@@ -17,6 +22,11 @@ interface StoryboardViewProps {
     isProcessing?: boolean;
 }
 
+interface SceneGroup {
+    scene: ScreenplayScene;
+    shots: ShotlistEntry[];
+}
+
 export const StoryboardView: React.FC<StoryboardViewProps> = ({
     shots,
     scenes = [],
@@ -27,16 +37,15 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
 }) => {
     const [selectedShotIndex, setSelectedShotIndex] = useState(0);
     const [localDuration, setLocalDuration] = useState<number>(0);
-    const [showNavArrows, setShowNavArrows] = useState(true);
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
     if (!shots || shots.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-                <Film className="w-20 h-20 text-[var(--cinema-silver)]/10" />
+                <ImageIcon className="w-16 h-16 text-zinc-800" />
                 <div className="text-center">
-                    <p className="font-display text-xl text-[var(--cinema-silver)]/60 mb-2">No Shots Available</p>
-                    <p className="font-script italic text-[var(--cinema-silver)]/40">
+                    <p className="font-sans text-lg text-zinc-400 mb-2">No Shots Available</p>
+                    <p className="text-zinc-600 text-sm">
                         Generate a shot list to begin storyboarding
                     </p>
                 </div>
@@ -47,25 +56,23 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     const currentShot = shots[selectedShotIndex];
     const currentScene = currentShot ? scenes.find(s => s.id === currentShot.sceneId) : undefined;
 
+    // Group shots by scene for the timeline strip
+    const sceneGroups = useMemo<SceneGroup[]>(() => {
+        if (scenes.length === 0) return [];
+        return scenes
+            .map(scene => ({
+                scene,
+                shots: shots.filter(s => s.sceneId === scene.id),
+            }))
+            .filter(g => g.shots.length > 0);
+    }, [scenes, shots]);
+
     useEffect(() => {
         if (currentShot) {
             setLocalDuration(currentShot.durationEst || 5);
-            setIsDescriptionExpanded(false); // Reset expansion when changing shots
+            setIsDescriptionExpanded(false);
         }
     }, [currentShot?.id, currentShot?.durationEst]);
-
-    // Auto-hide navigation arrows after initial display (Addresses Design Review Issue #11)
-    useEffect(() => {
-        if (shots.length <= 1) {
-            return;
-        }
-        
-        setShowNavArrows(true);
-        const timer = setTimeout(() => {
-            setShowNavArrows(false);
-        }, 2000);
-        return () => clearTimeout(timer);
-    }, [shots.length]);
 
     const handleNext = () => {
         if (selectedShotIndex < shots.length - 1) {
@@ -79,22 +86,17 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
         }
     };
 
-    // Keyboard navigation support (Addresses Design Review Issue #11)
+    // Keyboard navigation
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent): void => {
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 handlePrev();
-                return;
-            }
-            
-            if (e.key === 'ArrowRight') {
+            } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
                 handleNext();
-                return;
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedShotIndex, shots.length]);
@@ -113,52 +115,39 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-[var(--cinema-void)]">
+        <div className="flex flex-col h-full bg-black">
             {/* Main Preview Area */}
             <div className="flex-1 relative flex overflow-hidden group">
-                {/* Film Sprocket Decoration - Left */}
-                <div className="absolute left-0 top-0 bottom-0 w-8 bg-[var(--cinema-void)] z-20 flex flex-col justify-around py-4">
-                    {[...Array(8)].map((_, i) => (
-                        <div key={i} className="w-4 h-4 mx-auto rounded bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10" />
-                    ))}
-                </div>
-
                 {/* Image/Video Display */}
-                <div className="absolute inset-0 ml-8 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={currentShot?.id || selectedShotIndex}
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.02 }}
-                            transition={{ duration: 0.3 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
                             className="w-full h-full relative"
                         >
                             {currentShot?.imageUrl ? (
-                                <>
-                                    <img
-                                        src={currentShot.imageUrl}
-                                        alt={currentShot.description}
-                                        className="w-full h-full object-contain"
-                                    />
-                                    {/* Vignette */}
-                                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_60%,var(--cinema-void)_100%)] pointer-events-none" />
-                                </>
+                                <img
+                                    src={currentShot.imageUrl}
+                                    alt={currentShot.description}
+                                    className="w-full h-full object-contain"
+                                />
                             ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-6 bg-[var(--cinema-celluloid)]/30">
-                                    <Wand2 className="w-16 h-16 text-[var(--cinema-silver)]/20" />
-                                    <p className="font-mono text-sm text-[var(--cinema-silver)]/30 uppercase tracking-widest">
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-6 bg-zinc-950">
+                                    <Wand2 className="w-16 h-16 text-zinc-800" />
+                                    <p className="font-mono text-sm text-zinc-700 uppercase tracking-widest">
                                         No Visual Generated
                                     </p>
                                     {onGenerateVisuals && (
-                                        <motion.button
-                                            whileHover={{ scale: 1.02 }}
-                                            whileTap={{ scale: 0.98 }}
+                                        <button
                                             onClick={() => onGenerateVisuals()}
-                                            className="btn-cinematic px-6 py-3 rounded-lg font-display"
+                                            className="px-6 py-3 rounded-sm bg-blue-500 hover:bg-blue-600 text-white font-sans text-sm font-medium transition-colors duration-200"
                                         >
                                             Generate All Visuals
-                                        </motion.button>
+                                        </button>
                                     )}
                                 </div>
                             )}
@@ -167,28 +156,28 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                 </div>
 
                 {/* Overlay Controls */}
-                <div className="absolute inset-x-8 bottom-0 bg-gradient-to-t from-[var(--cinema-void)] via-[var(--cinema-void)]/90 to-transparent p-8 pt-24 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent p-8 pt-24 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                     <div className="max-w-4xl mx-auto flex items-end gap-8">
                         {/* Shot Info */}
                         <div className="flex-1 space-y-4">
                             {/* Badges */}
                             <div className="flex items-center gap-3">
-                                <span className="px-3 py-1.5 bg-[var(--cinema-celluloid)] backdrop-blur-md rounded text-xs font-mono text-[var(--cinema-spotlight)] border border-[var(--cinema-spotlight)]/30">
+                                <span className="px-3 py-1.5 bg-zinc-900 rounded-sm text-xs font-mono text-blue-400 border border-zinc-800">
                                     Scene {currentScene?.sceneNumber || '?'} | Shot {currentShot?.shotNumber || '?'}
                                 </span>
                                 {currentShot?.cameraAngle && (
-                                    <span className="px-3 py-1.5 bg-[var(--cinema-editorial)]/20 text-[var(--cinema-editorial)] rounded text-xs font-mono uppercase border border-[var(--cinema-editorial)]/30">
+                                    <span className="px-3 py-1.5 bg-zinc-900 text-orange-400 rounded-sm text-xs font-mono uppercase border border-zinc-800">
                                         {currentShot.cameraAngle}
                                     </span>
                                 )}
                             </div>
 
-                            {/* Description - Expandable for long content (Addresses Design Review Issue #22) */}
+                            {/* Description */}
                             <div className="relative">
-                                <h3 
-                                    className={`font-display text-2xl text-[var(--cinema-silver)] leading-snug transition-all duration-300 ${
-                                        !isDescriptionExpanded && currentShot?.description && currentShot.description.length > 150 
-                                            ? 'line-clamp-3' 
+                                <h3
+                                    className={`font-sans text-xl text-zinc-100 leading-snug transition-all duration-200 ${
+                                        !isDescriptionExpanded && currentShot?.description && currentShot.description.length > 150
+                                            ? 'line-clamp-3'
                                             : ''
                                     }`}
                                 >
@@ -197,23 +186,23 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                 {currentShot?.description && currentShot.description.length > 150 && (
                                     <button
                                         onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                                        className="mt-2 text-xs font-editorial text-[var(--cinema-spotlight)] hover:text-[var(--cinema-spotlight)]/80 transition-colors uppercase tracking-wide flex items-center gap-1"
+                                        className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-wide"
                                     >
                                         {isDescriptionExpanded ? '− Show Less' : '+ Show More'}
                                     </button>
                                 )}
                             </div>
 
-                            {/* Duration Control - Improved with visible label (Addresses Design Review Issue #9) */}
+                            {/* Duration Control */}
                             <div className="flex flex-col gap-2">
-                                <label 
-                                    htmlFor="shot-duration-input" 
-                                    className="font-editorial text-xs text-[var(--cinema-silver)]/70 uppercase tracking-wide"
+                                <label
+                                    htmlFor="shot-duration-input"
+                                    className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest"
                                 >
                                     Shot Duration
                                 </label>
-                                <div className="flex items-center gap-4 bg-[var(--cinema-celluloid)]/50 w-fit px-4 py-2 rounded-lg border border-[var(--cinema-silver)]/10">
-                                    <Clock className="w-4 h-4 text-[var(--cinema-silver)]/40" />
+                                <div className="flex items-center gap-4 bg-zinc-900 w-fit px-4 py-2 rounded-sm border border-zinc-800">
+                                    <Clock className="w-4 h-4 text-zinc-600" />
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => {
@@ -223,7 +212,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                                     onUpdateDuration(currentShot.id, newDuration);
                                                 }
                                             }}
-                                            className="w-6 h-6 flex items-center justify-center rounded bg-[var(--cinema-silver)]/10 hover:bg-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] transition-colors"
+                                            className="w-6 h-6 flex items-center justify-center rounded-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors duration-200"
                                             aria-label="Decrease duration"
                                         >
                                             -
@@ -234,7 +223,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                             value={localDuration}
                                             onChange={handleDurationChange}
                                             onBlur={handleSaveDuration}
-                                            className="w-16 bg-transparent border-b border-[var(--cinema-silver)]/30 text-[var(--cinema-silver)] text-center font-mono focus:outline-none focus:border-[var(--cinema-spotlight)]"
+                                            className="w-16 bg-transparent border-b border-zinc-700 text-zinc-100 text-center font-mono focus:outline-none focus:border-blue-500"
                                             min={1}
                                             max={60}
                                             aria-label="Shot duration in seconds"
@@ -247,51 +236,37 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                                     onUpdateDuration(currentShot.id, newDuration);
                                                 }
                                             }}
-                                            className="w-6 h-6 flex items-center justify-center rounded bg-[var(--cinema-silver)]/10 hover:bg-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] transition-colors"
+                                            className="w-6 h-6 flex items-center justify-center rounded-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors duration-200"
                                             aria-label="Increase duration"
                                         >
                                             +
                                         </button>
                                     </div>
-                                    <span className="font-mono text-xs text-[var(--cinema-silver)]/40">sec</span>
+                                    <span className="font-mono text-xs text-zinc-600">sec</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Generate Video Button */}
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                        <button
                             onClick={() => currentShot && onGenerateVideo?.(currentShot.id)}
                             disabled={isProcessing || !currentShot?.imageUrl}
-                            className="
-                                h-14 px-8 rounded-lg
-                                btn-cinematic
-                                flex items-center gap-3
-                                font-display text-lg
-                                disabled:opacity-40 disabled:cursor-not-allowed
-                                shadow-[0_0_30px_var(--glow-spotlight)]
-                            "
+                            className="h-14 px-8 rounded-sm bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-3 font-sans text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200"
                         >
                             {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Video className="w-5 h-5" />}
                             Generate Video
-                        </motion.button>
+                        </button>
                     </div>
                 </div>
 
-                {/* Left/Right Navigation - Improved discoverability (Addresses Design Review Issue #11) */}
+                {/* Left/Right Navigation */}
                 <button
                     onClick={handlePrev}
                     disabled={selectedShotIndex === 0}
-                    onMouseEnter={() => setShowNavArrows(true)}
-                    className={`
-                        absolute left-8 inset-y-0 w-24 bg-gradient-to-r from-[var(--cinema-void)]/80 to-transparent 
-                        flex items-center justify-start pl-4 transition-opacity duration-300 disabled:hidden z-10
-                        ${showNavArrows ? 'opacity-100' : 'opacity-0 hover:opacity-100'}
-                    `}
+                    className="absolute left-0 inset-y-0 w-24 bg-gradient-to-r from-black/80 to-transparent flex items-center justify-start pl-4 opacity-0 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-10"
                     aria-label="Previous shot (Left arrow key)"
                 >
-                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] hover:bg-[var(--cinema-silver)]/10 transition-colors">
+                    <div className="p-3 bg-zinc-900 rounded-sm border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors duration-200">
                         <ChevronLeft className="w-6 h-6" />
                     </div>
                 </button>
@@ -299,27 +274,21 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                 <button
                     onClick={handleNext}
                     disabled={selectedShotIndex === shots.length - 1}
-                    onMouseEnter={() => setShowNavArrows(true)}
-                    className={`
-                        absolute right-0 inset-y-0 w-24 bg-gradient-to-l from-[var(--cinema-void)]/80 to-transparent 
-                        flex items-center justify-end pr-4 transition-opacity duration-300 disabled:hidden z-10
-                        ${showNavArrows ? 'opacity-100' : 'opacity-0 hover:opacity-100'}
-                    `}
+                    className="absolute right-0 inset-y-0 w-24 bg-gradient-to-l from-black/80 to-transparent flex items-center justify-end pr-4 opacity-0 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-10"
                     aria-label="Next shot (Right arrow key)"
                 >
-                    <div className="p-3 bg-[var(--cinema-celluloid)] rounded-full border border-[var(--cinema-silver)]/20 text-[var(--cinema-silver)] hover:bg-[var(--cinema-silver)]/10 transition-colors">
+                    <div className="p-3 bg-zinc-900 rounded-sm border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors duration-200">
                         <ChevronRight className="w-6 h-6" />
                     </div>
                 </button>
             </div>
 
-            {/* Timeline Strip - Film Strip Style */}
-            <div className="h-52 border-t border-[var(--cinema-silver)]/5 bg-[var(--cinema-celluloid)] flex flex-col">
+            {/* Timeline Strip — Grouped by Scene */}
+            <div className="h-52 border-t border-zinc-800 bg-zinc-950 flex flex-col">
                 {/* Timeline Header */}
-                <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--cinema-silver)]/5">
+                <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800">
                     <div className="flex items-center gap-4">
-                        <Film className="w-4 h-4 text-[var(--cinema-spotlight)]" />
-                        <span className="font-mono text-xs text-[var(--cinema-silver)]/50">
+                        <span className="font-mono text-xs text-zinc-500">
                             {selectedShotIndex + 1} / {shots.length} FRAMES
                         </span>
                     </div>
@@ -329,88 +298,123 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                         <button
                             onClick={handlePrev}
                             disabled={selectedShotIndex === 0}
-                            className="p-2 hover:bg-[var(--cinema-void)]/50 rounded text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                            className="p-2 hover:bg-zinc-800 rounded-sm text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors duration-200"
                         >
                             <SkipBack className="w-4 h-4" />
                         </button>
-                        <button className="p-2 hover:bg-[var(--cinema-spotlight)]/20 text-[var(--cinema-spotlight)] rounded transition-colors">
+                        <button className="p-2 hover:bg-blue-500/20 text-blue-400 rounded-sm transition-colors duration-200">
                             <Play className="w-4 h-4 fill-current" />
                         </button>
                         <button
                             onClick={handleNext}
                             disabled={selectedShotIndex === shots.length - 1}
-                            className="p-2 hover:bg-[var(--cinema-void)]/50 rounded text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] disabled:opacity-20 transition-colors"
+                            className="p-2 hover:bg-zinc-800 rounded-sm text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors duration-200"
                         >
                             <SkipForward className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <div className="w-16" /> {/* Spacer for balance */}
+                    <div className="w-16" />
                 </div>
 
-                {/* Thumbnails with Sprocket Decoration */}
-                <div className="flex-1 flex">
-                    {/* Left Sprockets */}
-                    <div className="w-6 bg-[var(--cinema-void)] flex flex-col justify-around py-2">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className="w-3 h-3 mx-auto rounded-sm bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10" />
-                        ))}
-                    </div>
+                {/* Thumbnails — Scene Grouped */}
+                <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-3 flex gap-1 no-scrollbar">
+                    {sceneGroups.length > 0 ? (
+                        sceneGroups.map((group) => (
+                            <div key={group.scene.id} className="flex-none flex flex-col">
+                                {/* Scene label */}
+                                <div className="px-2 pb-1">
+                                    <span className="font-mono text-[9px] text-zinc-600 uppercase tracking-widest">
+                                        SC {String(group.scene.sceneNumber).padStart(2, '0')}
+                                    </span>
+                                </div>
+                                {/* Shot thumbnails for this scene */}
+                                <div className="flex gap-1.5">
+                                    {group.shots.map((shot) => {
+                                        const idx = shots.indexOf(shot);
+                                        const isSelected = idx === selectedShotIndex;
+                                        return (
+                                            <button
+                                                key={shot.id}
+                                                onClick={() => setSelectedShotIndex(idx)}
+                                                className={`
+                                                    relative flex-none w-40 h-24 rounded-sm overflow-hidden border-2 transition-all duration-200
+                                                    ${isSelected
+                                                        ? 'border-blue-500 ring-1 ring-blue-500/20 z-10'
+                                                        : 'border-zinc-800 opacity-60 hover:opacity-100'
+                                                    }
+                                                    touch-manipulation
+                                                `}
+                                            >
+                                                {shot.imageUrl ? (
+                                                    <img
+                                                        src={shot.imageUrl}
+                                                        alt=""
+                                                        className={`w-full h-full object-cover ${isSelected ? '' : 'grayscale-[30%]'} transition-all duration-200`}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                                                        <Wand2 className="w-5 h-5 text-zinc-800" />
+                                                    </div>
+                                                )}
 
-                    {/* Thumbnail Strip - Improved touch targets for mobile (Addresses Design Review Issue #4) */}
-                    <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-4 flex gap-2 no-scrollbar">
-                        {shots.map((shot, idx) => {
+                                                {/* Gradient overlay */}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+
+                                                {/* Duration Badge */}
+                                                <div className="absolute bottom-1 right-2 flex items-center gap-1 font-mono text-[10px] text-zinc-400">
+                                                    <Clock className="w-3 h-3" /> {shot.durationEst}s
+                                                </div>
+
+                                                {/* Shot Number */}
+                                                <div className="absolute top-1 left-2 px-1.5 py-0.5 bg-black/80 rounded-sm text-[9px] font-mono text-blue-400">
+                                                    #{shot.shotNumber}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        // Fallback: flat list if no scene grouping available
+                        shots.map((shot, idx) => {
                             const isSelected = idx === selectedShotIndex;
                             return (
-                                <motion.button
+                                <button
                                     key={shot.id}
-                                    whileHover={{ scale: 1.05 }}
                                     onClick={() => setSelectedShotIndex(idx)}
                                     className={`
-                                        relative flex-none w-44 h-28 rounded overflow-hidden border-2 transition-all
+                                        relative flex-none w-40 h-24 rounded-sm overflow-hidden border-2 transition-all duration-200
                                         ${isSelected
-                                            ? 'border-[var(--cinema-spotlight)] shadow-[0_0_20px_var(--glow-spotlight)] scale-105 z-10'
-                                            : 'border-[var(--cinema-silver)]/10 opacity-60 hover:opacity-100'
+                                            ? 'border-blue-500 ring-1 ring-blue-500/20 z-10'
+                                            : 'border-zinc-800 opacity-60 hover:opacity-100'
                                         }
-                                        /* Ensure minimum 44px touch target on mobile */
-                                        touch-manipulation min-h-[44px] sm:min-h-[112px]
+                                        touch-manipulation
                                     `}
                                 >
                                     {shot.imageUrl ? (
                                         <img
                                             src={shot.imageUrl}
                                             alt=""
-                                            className={`w-full h-full object-cover ${isSelected ? '' : 'grayscale-[30%]'} transition-all`}
+                                            className={`w-full h-full object-cover ${isSelected ? '' : 'grayscale-[30%]'} transition-all duration-200`}
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-[var(--cinema-void)] flex items-center justify-center">
-                                            <Wand2 className="w-6 h-6 text-[var(--cinema-silver)]/20" />
+                                        <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                                            <Wand2 className="w-5 h-5 text-zinc-800" />
                                         </div>
                                     )}
-
-                                    {/* Vignette overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--cinema-void)] via-transparent to-transparent opacity-80" />
-
-                                    {/* Duration Badge */}
-                                    <div className="absolute bottom-1 right-2 flex items-center gap-1 font-mono text-[10px] text-[var(--cinema-silver)]">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                                    <div className="absolute bottom-1 right-2 flex items-center gap-1 font-mono text-[10px] text-zinc-400">
                                         <Clock className="w-3 h-3" /> {shot.durationEst}s
                                     </div>
-
-                                    {/* Shot Number */}
-                                    <div className="absolute top-1 left-2 px-1.5 py-0.5 bg-[var(--cinema-void)]/80 backdrop-blur-sm rounded text-[9px] font-mono text-[var(--cinema-spotlight)]">
+                                    <div className="absolute top-1 left-2 px-1.5 py-0.5 bg-black/80 rounded-sm text-[9px] font-mono text-blue-400">
                                         #{shot.shotNumber}
                                     </div>
-                                </motion.button>
+                                </button>
                             );
-                        })}
-                    </div>
-
-                    {/* Right Sprockets */}
-                    <div className="w-6 bg-[var(--cinema-void)] flex flex-col justify-around py-2">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className="w-3 h-3 mx-auto rounded-sm bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10" />
-                        ))}
-                    </div>
+                        })
+                    )}
                 </div>
             </div>
         </div>

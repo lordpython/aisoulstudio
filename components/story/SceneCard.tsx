@@ -1,7 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { RefreshCcw } from 'lucide-react';
-import { staggerItem } from '@/lib/cinematicMotion';
 import { MarkdownContent } from '@/components/ui/MarkdownContent';
 import { cn } from '@/lib/utils';
 
@@ -33,22 +31,19 @@ export function SceneCard({
   };
 
   return (
-    <motion.div
-      variants={staggerItem}
-      className={cn('surface-card p-6', className)}
-    >
+    <div className={cn('bg-zinc-900 border border-zinc-800 rounded-sm p-5', className)}>
       {/* Scene header */}
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-caption-mono text-[var(--cinema-spotlight)]">
+          <span className="font-mono text-xs text-blue-400">
             SCENE {String(sceneNumber).padStart(2, '0')}
           </span>
-          <div className="w-8 h-px bg-[var(--cinema-velvet)]" />
+          <div className="w-6 h-px bg-zinc-700" />
         </div>
         {onRegenerate && (
           <button
             onClick={handleRegenerate}
-            className="p-2 text-[var(--cinema-silver)]/30 hover:text-[var(--cinema-spotlight)] rounded-lg transition-colors duration-200"
+            className="p-2 text-zinc-600 hover:text-blue-400 rounded-sm transition-colors duration-200 ease-out"
             disabled={isProcessing}
             aria-label={`Regenerate scene ${sceneNumber}`}
           >
@@ -58,16 +53,16 @@ export function SceneCard({
       </div>
 
       {/* Scene heading */}
-      <h3 className="heading-card mb-3" dir="auto">
+      <h3 className="font-sans text-base font-medium text-zinc-100 tracking-tight mb-3" dir="auto">
         {heading}
       </h3>
 
       {/* Scene content with markdown rendering */}
-      <MarkdownContent content={content} className="text-[var(--cinema-silver)]/70" />
+      <MarkdownContent content={content} className="text-zinc-400 text-sm" />
 
       {/* Slot for additional content (shots, audio, etc.) */}
-      {children && <div className="mt-4 pt-4 border-t border-white/[0.06]">{children}</div>}
-    </motion.div>
+      {children && <div className="mt-4 pt-4 border-t border-zinc-800">{children}</div>}
+    </div>
   );
 }
 

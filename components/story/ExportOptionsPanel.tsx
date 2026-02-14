@@ -1,5 +1,5 @@
 /**
- * ExportOptionsPanel - Comprehensive export options for Story Mode projects
+ * ExportOptionsPanel - Export options for Story Mode projects.
  */
 
 import React, { useState, useRef } from 'react';
@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
   FileVideo,
-  FileText,
   FileJson,
   Subtitles,
   Upload,
@@ -15,7 +14,6 @@ import {
   AlertCircle,
   Loader2,
   X,
-  Film,
   Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +24,6 @@ import {
   downloadProjectJSON,
   importProjectFromJSON,
   downloadAsWebM,
-  getExportFormats,
 } from '@/services/exportFormatsService';
 
 interface ExportOptionsPanelProps {
@@ -64,7 +61,6 @@ export function ExportOptionsPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasShots = (storyState.shots?.length ?? 0) > 0;
-  const hasScript = storyState.script !== null;
   const hasVideo = videoBlob !== null && videoBlob !== undefined;
 
   const setStatus = (id: string, status: ExportStatus) => {
@@ -77,7 +73,7 @@ export function ExportOptionsPanel({
       downloadSubtitles(storyState, 'srt', 'shots');
       setStatus('srt', 'success');
       setTimeout(() => setStatus('srt', 'idle'), 2000);
-    } catch (err) {
+    } catch {
       setStatus('srt', 'error');
       setError('Failed to export SRT subtitles');
     }
@@ -89,7 +85,7 @@ export function ExportOptionsPanel({
       downloadSubtitles(storyState, 'vtt', 'shots');
       setStatus('vtt', 'success');
       setTimeout(() => setStatus('vtt', 'idle'), 2000);
-    } catch (err) {
+    } catch {
       setStatus('vtt', 'error');
       setError('Failed to export VTT subtitles');
     }
@@ -101,7 +97,7 @@ export function ExportOptionsPanel({
       downloadProjectJSON(storyState);
       setStatus('json', 'success');
       setTimeout(() => setStatus('json', 'idle'), 2000);
-    } catch (err) {
+    } catch {
       setStatus('json', 'error');
       setError('Failed to export project');
     }
@@ -112,14 +108,13 @@ export function ExportOptionsPanel({
       setError('No video to export. Generate a video first.');
       return;
     }
-    
     setStatus('webm', 'loading');
     try {
       const filename = storyState.script?.title || 'story';
       await downloadAsWebM(videoBlob, filename);
       setStatus('webm', 'success');
       setTimeout(() => setStatus('webm', 'idle'), 2000);
-    } catch (err) {
+    } catch {
       setStatus('webm', 'error');
       setError('Failed to export WebM video');
     }
@@ -130,7 +125,6 @@ export function ExportOptionsPanel({
       setError('Video export not available');
       return;
     }
-    
     setStatus('mp4', 'loading');
     try {
       const blob = await onExportVideo();
@@ -174,8 +168,7 @@ export function ExportOptionsPanel({
       setStatus('import', 'error');
       setError(err instanceof Error ? err.message : 'Failed to import project');
     }
-    
-    // Reset file input
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -238,7 +231,7 @@ export function ExportOptionsPanel({
       case 'loading':
         return <Loader2 className="w-4 h-4 animate-spin" />;
       case 'success':
-        return <Check className="w-4 h-4 text-green-400" />;
+        return <Check className="w-4 h-4 text-emerald-400" />;
       case 'error':
         return <AlertCircle className="w-4 h-4 text-red-400" />;
       default:
@@ -250,17 +243,44 @@ export function ExportOptionsPanel({
   const subtitleOptions = exportOptions.filter(o => o.category === 'subtitle');
   const projectOptions = exportOptions.filter(o => o.category === 'project');
 
+  const renderOptionGrid = (options: ExportOption[], accentClass: string) => (
+    <div className="grid grid-cols-2 gap-2">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          onClick={() => option.action()}
+          disabled={option.disabled || exportStatus[option.id] === 'loading'}
+          className={cn(
+            'p-3 rounded-sm border text-left transition-all duration-200',
+            option.disabled
+              ? 'border-zinc-800/50 bg-zinc-900/50 opacity-50 cursor-not-allowed'
+              : 'border-zinc-800 bg-zinc-900 hover:border-blue-500/40 hover:bg-blue-500/5'
+          )}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className={accentClass}>{option.icon}</span>
+            {getStatusIcon(option.id)}
+          </div>
+          <p className="text-sm font-medium text-zinc-100">{option.name}</p>
+          <p className="text-xs text-zinc-600">
+            {option.disabled ? option.disabledReason : option.description}
+          </p>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className={cn('bg-black/40 rounded-xl border border-white/10 p-4', className)}>
+    <div className={cn('bg-zinc-950 rounded-sm border border-zinc-800 p-4', className)}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Download className="w-5 h-5 text-[var(--cinema-spotlight)]" />
-          <h3 className="font-medium text-white">{t('story.export_panel.exportOptions')}</h3>
+          <Download className="w-5 h-5 text-blue-400" />
+          <h3 className="font-sans font-medium text-zinc-100">{t('story.export_panel.exportOptions')}</h3>
         </div>
         {onImportProject && (
           <button
             onClick={() => setShowImportDialog(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 rounded-sm transition-colors duration-200"
           >
             <Upload className="w-4 h-4" />
             {t('common.import')}
@@ -275,16 +295,12 @@ export function ExportOptionsPanel({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2"
+            transition={{ duration: 0.15 }}
+            className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-sm flex items-start gap-2"
           >
             <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-            <button
-              onClick={() => setError(null)}
-              className="text-red-400 hover:text-red-300"
-            >
+            <p className="flex-1 text-sm text-red-300">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">
               <X className="w-4 h-4" />
             </button>
           </motion.div>
@@ -293,95 +309,26 @@ export function ExportOptionsPanel({
 
       {/* Video Exports */}
       <div className="mb-4">
-        <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+        <h4 className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">
           {t('story.export_panel.videoFormats')}
         </h4>
-        <div className="grid grid-cols-2 gap-2">
-          {videoOptions.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => option.action()}
-              disabled={option.disabled || exportStatus[option.id] === 'loading'}
-              className={cn(
-                'p-3 rounded-lg border text-left transition-all',
-                option.disabled
-                  ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[var(--cinema-spotlight)]">{option.icon}</span>
-                {getStatusIcon(option.id)}
-              </div>
-              <p className="text-sm font-medium text-white">{option.name}</p>
-              <p className="text-xs text-white/40">
-                {option.disabled ? option.disabledReason : option.description}
-              </p>
-            </button>
-          ))}
-        </div>
+        {renderOptionGrid(videoOptions, 'text-blue-400')}
       </div>
 
       {/* Subtitle Exports */}
       <div className="mb-4">
-        <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+        <h4 className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">
           {t('story.export_panel.subtitles')}
         </h4>
-        <div className="grid grid-cols-2 gap-2">
-          {subtitleOptions.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => option.action()}
-              disabled={option.disabled || exportStatus[option.id] === 'loading'}
-              className={cn(
-                'p-3 rounded-lg border text-left transition-all',
-                option.disabled
-                  ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-blue-400">{option.icon}</span>
-                {getStatusIcon(option.id)}
-              </div>
-              <p className="text-sm font-medium text-white">{option.name}</p>
-              <p className="text-xs text-white/40">
-                {option.disabled ? option.disabledReason : option.description}
-              </p>
-            </button>
-          ))}
-        </div>
+        {renderOptionGrid(subtitleOptions, 'text-blue-400')}
       </div>
 
       {/* Project Exports */}
       <div>
-        <h4 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+        <h4 className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">
           {t('story.export_panel.project')}
         </h4>
-        <div className="grid grid-cols-2 gap-2">
-          {projectOptions.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => option.action()}
-              disabled={option.disabled || exportStatus[option.id] === 'loading'}
-              className={cn(
-                'p-3 rounded-lg border text-left transition-all',
-                option.disabled
-                  ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'border-white/10 bg-white/5 hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/8'
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-amber-400">{option.icon}</span>
-                {getStatusIcon(option.id)}
-              </div>
-              <p className="text-sm font-medium text-white">{option.name}</p>
-              <p className="text-xs text-white/40">
-                {option.disabled ? option.disabledReason : option.description}
-              </p>
-            </button>
-          ))}
-        </div>
+        {renderOptionGrid(projectOptions, 'text-orange-400')}
       </div>
 
       {/* Import Dialog */}
@@ -391,18 +338,20 @@ export function ExportOptionsPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
             onClick={() => setShowImportDialog(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.97, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-[var(--cinema-celluloid)] rounded-xl border border-white/10 p-6"
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-md bg-zinc-900 rounded-sm border border-zinc-800 p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h4 className="text-lg font-medium text-white mb-2">{t('story.export_panel.importProject')}</h4>
-              <p className="text-sm text-white/60 mb-4">
+              <h4 className="font-sans text-lg font-medium text-zinc-100 mb-2">{t('story.export_panel.importProject')}</h4>
+              <p className="text-sm text-zinc-500 mb-4">
                 {t('story.export_panel.importProjectDesc')}
               </p>
 
@@ -416,17 +365,17 @@ export function ExportOptionsPanel({
 
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center cursor-pointer hover:border-[var(--cinema-spotlight)]/40 hover:bg-[var(--cinema-spotlight)]/5 transition-all"
+                className="border-2 border-dashed border-zinc-700 rounded-sm p-8 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all duration-200"
               >
-                <Upload className="w-10 h-10 mx-auto mb-3 text-white/40" />
-                <p className="text-white/60">{t('story.export_panel.clickToSelect')}</p>
-                <p className="text-xs text-white/30 mt-1">{t('story.export_panel.orDragDrop')}</p>
+                <Upload className="w-10 h-10 mx-auto mb-3 text-zinc-600" />
+                <p className="text-zinc-500">{t('story.export_panel.clickToSelect')}</p>
+                <p className="text-xs text-zinc-700 mt-1">{t('story.export_panel.orDragDrop')}</p>
               </div>
 
               <div className="flex items-center justify-end gap-3 mt-6">
                 <button
                   onClick={() => setShowImportDialog(false)}
-                  className="px-4 py-2 text-white/60 hover:text-white transition-colors"
+                  className="px-4 py-2 text-zinc-500 hover:text-zinc-100 transition-colors duration-200"
                 >
                   {t('common.cancel')}
                 </button>

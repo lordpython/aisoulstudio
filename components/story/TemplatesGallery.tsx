@@ -1,5 +1,5 @@
 /**
- * TemplatesGallery - Browse and apply project templates
+ * TemplatesGallery - Browse and apply project templates.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -27,7 +27,6 @@ import {
   getAllTemplates,
   getTemplatesByCategory,
   getTemplateCategories,
-  searchTemplates,
   applyTemplate,
   type ProjectTemplate,
 } from '@/services/projectTemplatesService';
@@ -46,10 +45,10 @@ const categoryIcons: Record<string, React.ReactNode> = {
   experimental: <Palette className="w-3.5 h-3.5" />,
 };
 
-const difficultyColors: Record<string, { color: string; bg: string }> = {
-  beginner: { color: '#34D399', bg: 'rgba(52, 211, 153, 0.1)' },
-  intermediate: { color: '#FBBF24', bg: 'rgba(251, 191, 36, 0.1)' },
-  advanced: { color: '#F87171', bg: 'rgba(248, 113, 113, 0.1)' },
+const difficultyColors: Record<string, { text: string; bg: string }> = {
+  beginner: { text: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  intermediate: { text: 'text-orange-400', bg: 'bg-orange-500/10' },
+  advanced: { text: 'text-red-400', bg: 'bg-red-500/10' },
 };
 
 /** Translate a template field, falling back to the original value */
@@ -87,55 +86,48 @@ function TemplateCard({
   onClick: () => void;
   isSelected: boolean;
 }) {
-  const colors = difficultyColors[template.difficulty] ?? { color: '#34D399', bg: 'rgba(52, 211, 153, 0.1)' };
+  const colors = difficultyColors[template.difficulty] ?? difficultyColors.beginner;
   const tt = useTemplateTranslation();
 
   return (
     <motion.div
       layout
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.99 }}
       onClick={onClick}
-      className="group relative cursor-pointer rounded-xl transition-all duration-200"
-      style={{
-        background: isSelected
-          ? 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))'
-          : 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
-        border: `1px solid ${isSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'}`,
-        boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.05)' : 'none',
-      }}
+      className={cn(
+        'group relative cursor-pointer rounded-sm border transition-all duration-200 hover:-translate-y-0.5',
+        isSelected
+          ? 'border-blue-500/50 bg-blue-500/5'
+          : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'
+      )}
     >
       <div className="p-4">
         {/* Top row: difficulty + genre */}
         <div className="flex items-center gap-2 mb-3">
-          <span
-            className="text-[10px] font-editorial font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md"
-            style={{ color: colors.color, background: colors.bg }}
-          >
+          <span className={cn('font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm', colors.text, colors.bg)}>
             {tt.tDifficulty(template.difficulty)}
           </span>
-          <span className="text-[10px] font-editorial font-medium tracking-wider uppercase px-2 py-0.5 rounded-md bg-white/5 text-white/40">
+          <span className="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm bg-zinc-800 text-zinc-500">
             {tt.tGenre(template.genre)}
           </span>
         </div>
 
         {/* Title */}
-        <h4 className="font-editorial text-[15px] font-semibold text-white/90 mb-1.5 leading-snug">
+        <h4 className="font-sans text-sm font-medium text-zinc-100 mb-1.5 leading-snug">
           {tt.tName(template)}
         </h4>
 
         {/* Description */}
-        <p className="font-editorial text-[12px] text-white/35 leading-relaxed line-clamp-2 mb-3">
+        <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2 mb-3">
           {tt.tDesc(template)}
         </p>
 
         {/* Meta row */}
-        <div className="flex items-center gap-4 text-white/25">
-          <span className="flex items-center gap-1.5 text-[11px] font-editorial">
+        <div className="flex items-center gap-4 text-zinc-700">
+          <span className="flex items-center gap-1.5 font-mono text-[10px]">
             <Layers className="w-3 h-3" />
             {template.templateScenes.length}
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] font-editorial">
+          <span className="flex items-center gap-1.5 font-mono text-[10px]">
             <Clock className="w-3 h-3" />
             {template.estimatedDuration}
           </span>
@@ -143,17 +135,17 @@ function TemplateCard({
 
         {/* Tags */}
         {template.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/5">
+          <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-zinc-800">
             {template.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="text-[10px] font-code text-white/25 px-1.5 py-0.5 rounded bg-white/[0.03]"
+                className="font-mono text-[9px] text-zinc-600 px-1.5 py-0.5 rounded-sm bg-zinc-950 border border-zinc-800"
               >
                 {tt.tTag(tag)}
               </span>
             ))}
             {template.tags.length > 3 && (
-              <span className="text-[10px] font-code text-white/15">
+              <span className="font-mono text-[9px] text-zinc-700">
                 +{template.tags.length - 3}
               </span>
             )}
@@ -163,7 +155,7 @@ function TemplateCard({
 
       {/* Hover arrow */}
       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <ChevronRight className="w-4 h-4 text-white/30" />
+        <ChevronRight className="w-4 h-4 text-zinc-600" />
       </div>
     </motion.div>
   );
@@ -180,34 +172,31 @@ function TemplatePreview({
 }) {
   const { t } = useLanguage();
   const tt = useTemplateTranslation();
-  const colors = difficultyColors[template.difficulty] ?? { color: '#34D399', bg: 'rgba(52, 211, 153, 0.1)' };
+  const colors = difficultyColors[template.difficulty] ?? difficultyColors.beginner;
 
   return (
     <motion.div
       initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 12 }}
-      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className="h-full flex flex-col"
     >
       {/* Preview header */}
       <div className="flex items-start justify-between p-5 pb-0">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <span
-              className="text-[10px] font-editorial font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md"
-              style={{ color: colors.color, background: colors.bg }}
-            >
+            <span className={cn('font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm', colors.text, colors.bg)}>
               {tt.tDifficulty(template.difficulty)}
             </span>
           </div>
-          <h3 className="font-editorial text-lg font-semibold text-white leading-snug">
+          <h3 className="font-sans text-lg font-medium text-zinc-100 leading-snug">
             {tt.tName(template)}
           </h3>
         </div>
         <button
           onClick={onClose}
-          className="p-1 -mr-1 text-white/25 hover:text-white/60 transition-colors"
+          className="p-1 -mr-1 text-zinc-700 hover:text-zinc-400 transition-colors duration-200"
         >
           <X className="w-4 h-4" />
         </button>
@@ -215,7 +204,7 @@ function TemplatePreview({
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-        <p className="font-editorial text-[13px] text-white/45 leading-relaxed">
+        <p className="text-sm text-zinc-500 leading-relaxed">
           {tt.tDesc(template)}
         </p>
 
@@ -229,54 +218,43 @@ function TemplatePreview({
           ].map(({ label, value, icon: Icon }) => (
             <div
               key={label}
-              className="p-3 rounded-lg"
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.04)',
-              }}
+              className="p-3 rounded-sm bg-zinc-950 border border-zinc-800"
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <Icon className="w-3 h-3 text-white/20" />
-                <span className="text-[10px] font-editorial font-medium tracking-wider uppercase text-white/25">
+                <Icon className="w-3 h-3 text-zinc-700" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600">
                   {label}
                 </span>
               </div>
-              <p className="font-editorial text-[13px] font-medium text-white/75">{value}</p>
+              <p className="text-sm font-medium text-zinc-300">{value}</p>
             </div>
           ))}
         </div>
 
         {/* Scene breakdown */}
         <div>
-          <span className="text-[10px] font-editorial font-medium tracking-[0.15em] uppercase text-white/25 block mb-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 block mb-2.5">
             {t('story.templates.scenes')}
           </span>
           <div className="space-y-1.5">
             {template.templateScenes.map((scene, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
-                style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.04)',
-                }}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-sm bg-zinc-950 border border-zinc-800"
               >
-                <span
-                  className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-editorial font-semibold flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
-                >
+                <span className="w-5 h-5 rounded-sm flex items-center justify-center font-mono text-[10px] bg-zinc-800 text-zinc-500 flex-shrink-0">
                   {scene.sceneNumber}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-code text-[11px] text-white/50 truncate">
+                  <p className="font-mono text-[11px] text-zinc-400 truncate">
                     {tt.tSceneHeading(template, scene.sceneNumber) || scene.heading}
                   </p>
-                  <p className="font-editorial text-[11px] text-white/25 line-clamp-1 mt-0.5">
+                  <p className="text-[11px] text-zinc-600 line-clamp-1 mt-0.5">
                     {tt.tSceneAction(template, scene.sceneNumber) || scene.action}
                   </p>
                 </div>
                 {scene.duration && (
-                  <span className="font-code text-[10px] text-white/20 flex-shrink-0">{scene.duration}s</span>
+                  <span className="font-mono text-[10px] text-zinc-700 flex-shrink-0">{scene.duration}s</span>
                 )}
               </div>
             ))}
@@ -286,18 +264,14 @@ function TemplatePreview({
         {/* Suggested styles */}
         {template.suggestedVisualStyles.length > 0 && (
           <div>
-            <span className="text-[10px] font-editorial font-medium tracking-[0.15em] uppercase text-white/25 block mb-2.5">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 block mb-2.5">
               {t('story.templates.visualStyles')}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {template.suggestedVisualStyles.map((style) => (
                 <span
                   key={style}
-                  className="text-[11px] font-editorial px-2.5 py-1 rounded-md text-white/40"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                  }}
+                  className="text-xs px-2.5 py-1 rounded-sm text-zinc-400 bg-zinc-950 border border-zinc-800"
                 >
                   {tt.tStyle(style)}
                 </span>
@@ -308,21 +282,14 @@ function TemplatePreview({
       </div>
 
       {/* Apply button */}
-      <div className="p-4 pt-3 border-t border-white/[0.04]">
-        <motion.button
+      <div className="p-4 pt-3 border-t border-zinc-800">
+        <button
           onClick={onApply}
-          whileHover={{ y: -1 }}
-          whileTap={{ scale: 0.99 }}
-          className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl font-editorial text-[13px] font-semibold transition-all duration-200"
-          style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
-            color: '#000',
-            boxShadow: '0 2px 12px rgba(255,255,255,0.08)',
-          }}
+          className="w-full flex items-center justify-center gap-2.5 py-3 rounded-sm bg-white text-black font-sans text-sm font-medium hover:bg-zinc-200 transition-colors duration-200"
         >
           <span>{t('story.templates.useTemplate')}</span>
           <ArrowRight className="w-3.5 h-3.5" />
-        </motion.button>
+        </button>
       </div>
     </motion.div>
   );
@@ -344,7 +311,6 @@ export function TemplatesGallery({
   const templates = useMemo(() => {
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
-      // Search both original English and translated content
       return getAllTemplates().filter((tmpl) => {
         const name = tt.tName(tmpl).toLowerCase();
         const desc = tt.tDesc(tmpl).toLowerCase();
@@ -355,7 +321,6 @@ export function TemplatesGallery({
           desc.includes(lowerQuery) ||
           genre.includes(lowerQuery) ||
           tags.some((tag) => tag.includes(lowerQuery)) ||
-          // Also search original English values
           tmpl.name.toLowerCase().includes(lowerQuery) ||
           tmpl.description.toLowerCase().includes(lowerQuery) ||
           tmpl.genre.toLowerCase().includes(lowerQuery) ||
@@ -379,29 +344,21 @@ export function TemplatesGallery({
 
   return (
     <div
-      className={cn('flex flex-col h-full rounded-2xl overflow-hidden', className)}
-      style={{
-        background: 'linear-gradient(180deg, rgba(18,18,20,0.98), rgba(10,10,12,0.99))',
-        border: '1px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
-      }}
+      className={cn('flex flex-col h-full rounded-sm overflow-hidden bg-zinc-950 border border-zinc-800', className)}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
         <div className="flex items-center gap-3">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)' }}
-          >
-            <Layout className="w-3.5 h-3.5 text-white/50" />
+          <div className="w-7 h-7 rounded-sm flex items-center justify-center bg-zinc-900 border border-zinc-800">
+            <Layout className="w-3.5 h-3.5 text-zinc-500" />
           </div>
-          <h3 className="font-editorial text-[15px] font-semibold text-white/90">{t('story.templates.title')}</h3>
-          <span className="font-code text-[11px] text-white/20">{templates.length}</span>
+          <h3 className="font-sans text-sm font-medium text-zinc-100">{t('story.templates.title')}</h3>
+          <span className="font-mono text-[10px] text-zinc-600">{templates.length}</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/5 transition-all"
+            className="p-1.5 rounded-sm text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-all duration-200"
           >
             <X className="w-4 h-4" />
           </button>
@@ -409,10 +366,10 @@ export function TemplatesGallery({
       </div>
 
       {/* Search + Filters */}
-      <div className="px-5 py-3 space-y-3 border-b border-white/[0.04]">
+      <div className="px-5 py-3 space-y-3 border-b border-zinc-800">
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-700" />
           <input
             type="text"
             value={searchQuery}
@@ -421,16 +378,12 @@ export function TemplatesGallery({
               setSelectedCategory(null);
             }}
             placeholder={t('story.templates.searchPlaceholder')}
-            className="w-full pl-9 pr-8 py-2 rounded-lg font-editorial text-[13px] text-white/80 placeholder:text-white/20 focus:outline-none transition-all duration-200"
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
+            className="w-full pl-9 pr-8 py-2 rounded-sm font-sans text-sm text-zinc-200 bg-zinc-900 border border-zinc-800 placeholder:text-zinc-700 focus:outline-none focus:border-blue-500 transition-colors duration-200"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-300 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -444,12 +397,12 @@ export function TemplatesGallery({
               setSelectedCategory(null);
               setSearchQuery('');
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-editorial font-medium whitespace-nowrap transition-all duration-200"
-            style={{
-              background: !selectedCategory && !searchQuery ? 'rgba(255,255,255,0.1)' : 'transparent',
-              color: !selectedCategory && !searchQuery ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)',
-              border: `1px solid ${!selectedCategory && !searchQuery ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)'}`,
-            }}
+            className={cn(
+              'px-3 py-1.5 rounded-sm text-xs font-sans whitespace-nowrap transition-all duration-200 border',
+              !selectedCategory && !searchQuery
+                ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+            )}
           >
             {t('common.all')}
           </button>
@@ -460,12 +413,12 @@ export function TemplatesGallery({
                 setSelectedCategory(cat.id);
                 setSearchQuery('');
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-editorial font-medium whitespace-nowrap transition-all duration-200"
-              style={{
-                background: selectedCategory === cat.id ? 'rgba(255,255,255,0.1)' : 'transparent',
-                color: selectedCategory === cat.id ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)',
-                border: `1px solid ${selectedCategory === cat.id ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)'}`,
-              }}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-sans whitespace-nowrap transition-all duration-200 border',
+                selectedCategory === cat.id
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                  : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+              )}
             >
               {categoryIcons[cat.id]}
               {tt.tCategory(cat.id)}
@@ -480,17 +433,14 @@ export function TemplatesGallery({
         <div className="flex-1 overflow-y-auto p-4">
           {templates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: 'rgba(255,255,255,0.04)' }}
-              >
-                <Search className="w-5 h-5 text-white/15" />
+              <div className="w-12 h-12 rounded-sm flex items-center justify-center bg-zinc-900 border border-zinc-800 mb-4">
+                <Search className="w-5 h-5 text-zinc-700" />
               </div>
-              <p className="font-editorial text-[13px] text-white/30 mb-1">{t('story.templates.noTemplatesFound')}</p>
+              <p className="text-sm text-zinc-500 mb-1">{t('story.templates.noTemplatesFound')}</p>
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="font-editorial text-[12px] text-white/40 hover:text-white/60 transition-colors mt-1"
+                  className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors mt-1"
                 >
                   {t('story.templates.clearSearch')}
                 </button>
@@ -519,8 +469,8 @@ export function TemplatesGallery({
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 320, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="border-l border-white/[0.06] overflow-hidden flex-shrink-0"
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="border-l border-zinc-800 overflow-hidden flex-shrink-0"
             >
               <div className="w-80 h-full">
                 <TemplatePreview

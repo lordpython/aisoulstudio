@@ -1,7 +1,7 @@
 /**
- * Cinematic Motion Library
- * Framer Motion variants for the Story Mode UI redesign
- * Film noir vibes, dramatic lighting, theatrical presentation
+ * Motion Library — "Precision Protocol"
+ * Fast, snappy Framer Motion variants.
+ * duration-200 ease-out — no slow, dramatic fades.
  */
 
 import type { Variants, Transition } from "framer-motion";
@@ -11,9 +11,13 @@ import type { Variants, Transition } from "framer-motion";
 // ==========================================
 
 export const cinematicEasing = {
-  cinematic: [0.22, 1, 0.36, 1] as const,
-  dramatic: [0.16, 1, 0.3, 1] as const,
-  curtain: [0.65, 0, 0.35, 1] as const,
+  /** Default snappy ease-out */
+  cinematic: [0.0, 0.0, 0.2, 1] as const,
+  /** Quick deceleration */
+  dramatic: [0.0, 0.0, 0.2, 1] as const,
+  /** Sharp curtain */
+  curtain: [0.4, 0, 0.2, 1] as const,
+  /** Smooth utility */
   smooth: [0.4, 0, 0.2, 1] as const,
 };
 
@@ -21,73 +25,61 @@ export const cinematicEasing = {
 // PAGE & SECTION TRANSITIONS
 // ==========================================
 
-/** Fade in from darkness - like a film reel starting */
+/** Quick fade-in */
 export const fadeFromBlack: Variants = {
   initial: { opacity: 0 },
   animate: {
     opacity: 1,
-    transition: { duration: 0.8, ease: cinematicEasing.cinematic },
+    transition: { duration: 0.2, ease: cinematicEasing.cinematic },
   },
   exit: {
     opacity: 0,
-    transition: { duration: 0.4 },
+    transition: { duration: 0.15 },
   },
 };
 
-/** Curtain rise effect - theatrical reveal */
+/** Curtain rise — fast vertical reveal */
 export const curtainRise: Variants = {
-  initial: { y: 60, opacity: 0 },
+  initial: { y: 24, opacity: 0 },
   animate: {
     y: 0,
     opacity: 1,
-    transition: { duration: 0.6, ease: cinematicEasing.curtain },
+    transition: { duration: 0.2, ease: cinematicEasing.curtain },
   },
   exit: {
-    y: -30,
+    y: -12,
     opacity: 0,
-    transition: { duration: 0.3 },
+    transition: { duration: 0.15 },
   },
 };
 
-/** Spotlight reveal - scale up with blur */
+/** Spotlight reveal — fast scale */
 export const spotlightReveal: Variants = {
-  initial: {
-    scale: 0.95,
-    opacity: 0,
-    filter: "blur(10px)",
-  },
+  initial: { scale: 0.98, opacity: 0 },
   animate: {
     scale: 1,
     opacity: 1,
-    filter: "blur(0px)",
-    transition: { duration: 0.5, ease: cinematicEasing.dramatic },
+    transition: { duration: 0.2, ease: cinematicEasing.dramatic },
   },
   exit: {
-    scale: 1.02,
+    scale: 1.01,
     opacity: 0,
-    filter: "blur(4px)",
-    transition: { duration: 0.3 },
+    transition: { duration: 0.15 },
   },
 };
 
-/** Step transition for workflow navigation */
+/** Step transition — horizontal slide */
 export const stepTransition: Variants = {
-  initial: {
-    opacity: 0,
-    x: 80,
-    filter: "blur(4px)",
-  },
+  initial: { opacity: 0, x: 32 },
   animate: {
     opacity: 1,
     x: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.6, ease: cinematicEasing.cinematic },
+    transition: { duration: 0.2, ease: cinematicEasing.cinematic },
   },
   exit: {
     opacity: 0,
-    x: -80,
-    filter: "blur(4px)",
-    transition: { duration: 0.4 },
+    x: -32,
+    transition: { duration: 0.15 },
   },
 };
 
@@ -95,54 +87,50 @@ export const stepTransition: Variants = {
 // LIST & GRID ANIMATIONS
 // ==========================================
 
-/** Stagger container for lists/grids */
+/** Stagger container */
 export const staggerContainer: Variants = {
   initial: {},
   animate: {
     transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.15,
+      staggerChildren: 0.04,
+      delayChildren: 0.05,
     },
   },
   exit: {
     transition: {
-      staggerChildren: 0.05,
+      staggerChildren: 0.03,
       staggerDirection: -1,
     },
   },
 };
 
-/** Stagger item - pairs with staggerContainer */
+/** Stagger item */
 export const staggerItem: Variants = {
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: cinematicEasing.dramatic },
+    transition: { duration: 0.2, ease: cinematicEasing.dramatic },
   },
   exit: {
     opacity: 0,
-    y: -10,
-    transition: { duration: 0.2 },
+    y: -4,
+    transition: { duration: 0.1 },
   },
 };
 
-/** Card flip animation for reveals */
+/** Card flip animation */
 export const cardFlip: Variants = {
-  initial: {
-    rotateY: -90,
-    opacity: 0,
-    transformPerspective: 1200,
-  },
+  initial: { rotateY: -90, opacity: 0, transformPerspective: 1200 },
   animate: {
     rotateY: 0,
     opacity: 1,
-    transition: { duration: 0.6, ease: cinematicEasing.dramatic },
+    transition: { duration: 0.25, ease: cinematicEasing.dramatic },
   },
   exit: {
     rotateY: 90,
     opacity: 0,
-    transition: { duration: 0.3 },
+    transition: { duration: 0.15 },
   },
 };
 
@@ -150,24 +138,18 @@ export const cardFlip: Variants = {
 // ROUTE & PAGE TRANSITIONS
 // ==========================================
 
-/** Route transition - for page-level navigation */
+/** Route transition */
 export const routeTransition: Variants = {
-  initial: {
-    opacity: 0,
-    y: 20,
-    filter: "blur(4px)",
-  },
+  initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
     y: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.5, ease: cinematicEasing.cinematic },
+    transition: { duration: 0.2, ease: cinematicEasing.cinematic },
   },
   exit: {
     opacity: 0,
-    y: -10,
-    filter: "blur(2px)",
-    transition: { duration: 0.3 },
+    y: -4,
+    transition: { duration: 0.15 },
   },
 };
 
@@ -175,49 +157,32 @@ export const routeTransition: Variants = {
 // INTERACTIVE ELEMENTS
 // ==========================================
 
-/** Scale on hover/tap for cards */
 export const cardHover = {
   whileHover: {
-    scale: 1.02,
-    y: -4,
-    transition: { duration: 0.3, ease: cinematicEasing.smooth },
+    scale: 1.01,
+    y: -2,
+    transition: { duration: 0.15, ease: cinematicEasing.smooth },
   },
-  whileTap: {
-    scale: 0.98,
-    transition: { duration: 0.1 },
-  },
+  whileTap: { scale: 0.99, transition: { duration: 0.05 } },
 };
 
-/** Card lift - cinematic hover with shadow depth */
 export const cardLift = {
   whileHover: {
-    y: -6,
-    boxShadow: "0 20px 40px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(0.75 0.15 80 / 0.08)",
-    transition: { duration: 0.3, ease: cinematicEasing.smooth },
+    y: -3,
+    transition: { duration: 0.15, ease: cinematicEasing.smooth },
   },
-  whileTap: {
-    scale: 0.99,
-    transition: { duration: 0.1 },
-  },
+  whileTap: { scale: 0.99, transition: { duration: 0.05 } },
 };
 
-/** Button press animation */
 export const buttonPress = {
-  whileHover: {
-    scale: 1.02,
-    transition: { duration: 0.2 },
-  },
-  whileTap: {
-    scale: 0.96,
-    transition: { duration: 0.1 },
-  },
+  whileHover: { scale: 1.01, transition: { duration: 0.1 } },
+  whileTap: { scale: 0.98, transition: { duration: 0.05 } },
 };
 
-/** Glow pulse on hover */
 export const glowHover = {
   whileHover: {
-    boxShadow: "0 0 30px oklch(0.75 0.15 80 / 0.5)",
-    transition: { duration: 0.3 },
+    boxShadow: "0 0 16px rgba(59,130,246,0.3)",
+    transition: { duration: 0.15 },
   },
 };
 
@@ -225,74 +190,49 @@ export const glowHover = {
 // LOADING ANIMATIONS
 // ==========================================
 
-/** Film reel spinner - continuous rotation */
 export const filmReelSpin: Variants = {
   animate: {
     rotate: 360,
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      ease: "linear",
-    },
+    transition: { duration: 1.5, repeat: Infinity, ease: "linear" },
   },
 };
 
-/** Dual film reels - for loading states */
 export const dualReelSpin = {
   left: {
     animate: {
       rotate: 360,
-      transition: { duration: 3, repeat: Infinity, ease: "linear" },
+      transition: { duration: 2, repeat: Infinity, ease: "linear" },
     },
   },
   right: {
     animate: {
       rotate: -360,
-      transition: { duration: 2.5, repeat: Infinity, ease: "linear" },
+      transition: { duration: 1.5, repeat: Infinity, ease: "linear" },
     },
   },
 };
 
-/** Progress stage animation */
 export const progressStage: Variants = {
-  pending: {
-    opacity: 0.4,
-    x: -10,
-  },
+  pending: { opacity: 0.4, x: -4 },
   active: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.3, ease: cinematicEasing.dramatic },
+    transition: { duration: 0.15, ease: cinematicEasing.dramatic },
   },
-  complete: {
-    opacity: 1,
-    x: 0,
-    scale: 1,
-  },
+  complete: { opacity: 1, x: 0, scale: 1 },
 };
 
-/** Shimmer effect for skeleton loading */
 export const shimmerEffect: Variants = {
   animate: {
     x: ["0%", "100%"],
-    transition: {
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "linear",
-    },
+    transition: { duration: 1.2, repeat: Infinity, ease: "linear" },
   },
 };
 
-/** Pulse glow for processing states */
 export const pulseGlow: Variants = {
   animate: {
-    opacity: [0.5, 1, 0.5],
-    scale: [1, 1.02, 1],
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      ease: "easeInOut",
-    },
+    opacity: [0.6, 1, 0.6],
+    transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
   },
 };
 
@@ -300,37 +240,25 @@ export const pulseGlow: Variants = {
 // MODAL & OVERLAY ANIMATIONS
 // ==========================================
 
-/** Backdrop fade */
 export const backdropFade: Variants = {
   initial: { opacity: 0 },
-  animate: {
-    opacity: 1,
-    transition: { duration: 0.3 },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: 0.2 },
-  },
+  animate: { opacity: 1, transition: { duration: 0.15 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
 };
 
-/** Modal scale entrance */
 export const modalScale: Variants = {
-  initial: {
-    opacity: 0,
-    scale: 0.95,
-    y: 10,
-  },
+  initial: { opacity: 0, scale: 0.97, y: 4 },
   animate: {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.3, ease: cinematicEasing.dramatic },
+    transition: { duration: 0.2, ease: cinematicEasing.dramatic },
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
-    y: 10,
-    transition: { duration: 0.2 },
+    scale: 0.97,
+    y: 4,
+    transition: { duration: 0.15 },
   },
 };
 
@@ -338,29 +266,23 @@ export const modalScale: Variants = {
 // TIMELINE ANIMATIONS
 // ==========================================
 
-/** Timeline thumbnail selection */
 export const thumbnailSelect: Variants = {
   selected: {
-    scale: 1.05,
-    boxShadow: "0 0 20px oklch(0.75 0.15 80 / 0.5)",
-    transition: { duration: 0.3 },
+    scale: 1.03,
+    boxShadow: "0 0 12px rgba(59,130,246,0.4)",
+    transition: { duration: 0.15 },
   },
   unselected: {
     scale: 1,
     boxShadow: "none",
-    transition: { duration: 0.2 },
+    transition: { duration: 0.1 },
   },
 };
 
-/** Playhead animation */
 export const playhead: Variants = {
   animate: {
-    scaleY: [1, 1.2, 1],
-    transition: {
-      duration: 0.5,
-      repeat: Infinity,
-      ease: "easeInOut",
-    },
+    scaleY: [1, 1.1, 1],
+    transition: { duration: 0.4, repeat: Infinity, ease: "easeInOut" },
   },
 };
 
@@ -368,28 +290,19 @@ export const playhead: Variants = {
 // UTILITY FUNCTIONS
 // ==========================================
 
-/**
- * Creates a stagger delay based on index
- */
-export const getStaggerDelay = (index: number, baseDelay = 0.1): Transition => ({
+export const getStaggerDelay = (index: number, baseDelay = 0.04): Transition => ({
   delay: index * baseDelay,
-  duration: 0.4,
+  duration: 0.2,
   ease: cinematicEasing.dramatic,
 });
 
-/**
- * Creates cinematic wipe transition
- */
 export const cinematicWipe = (progress: number): Variants => ({
   animate: {
     scaleX: progress / 100,
-    transition: { duration: 0.3, ease: cinematicEasing.cinematic },
+    transition: { duration: 0.15, ease: cinematicEasing.cinematic },
   },
 });
 
-/**
- * Reduced motion variants - respects user preferences
- */
 export const reducedMotion: Variants = {
   initial: { opacity: 0 },
   animate: { opacity: 1, transition: { duration: 0.01 } },

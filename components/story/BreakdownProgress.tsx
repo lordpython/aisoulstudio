@@ -1,12 +1,11 @@
 /**
  * BreakdownProgress.tsx
- * Cinematic loading screen with film reel animation and director's notes style stages.
+ * Loading screen for story breakdown generation with stage tracking.
  */
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Circle, Film } from 'lucide-react';
-import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/i18n/useLanguage';
 
 export type BreakdownStage =
@@ -71,61 +70,44 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="w-full max-w-lg"
             >
-                {/* Cinematic Header with Film Reel */}
+                {/* Header */}
                 <div className="text-center mb-12">
-                    {/* Dual Film Reel Spinner */}
-                    <div className="relative w-20 h-20 mx-auto mb-6">
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                            className="absolute inset-0 border-4 border-[var(--cinema-spotlight)]/30 border-t-[var(--cinema-spotlight)] rounded-full"
-                        />
-                        <motion.div
-                            animate={{ rotate: -360 }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                            className="absolute inset-2 border-4 border-[var(--cinema-silver)]/20 border-b-[var(--cinema-silver)]/60 rounded-full"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <Film className="w-6 h-6 text-[var(--cinema-spotlight)]" />
-                        </div>
+                    <div className="flex items-center justify-center mb-6">
+                        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                     </div>
-
-                    <h2 className="font-display text-3xl text-[var(--cinema-silver)] tracking-tight mb-3">
+                    <h2 className="font-sans text-2xl font-medium tracking-tight text-zinc-100 mb-3">
                         {t('story.breakdown_progress.developing')}
                     </h2>
-                    <p className="font-script italic text-lg text-[var(--cinema-silver)]/80">
+                    <p className="text-zinc-500 text-sm">
                         {t('story.breakdown_progress.craftedFrameByFrame')}
                     </p>
                 </div>
 
-                {/* Director's Notes Style Stage List */}
-                <motion.div
-                    variants={staggerContainer}
-                    initial="initial"
-                    animate="animate"
-                    className="space-y-4"
-                >
+                {/* Stage List */}
+                <div className="space-y-0">
                     {STAGES.map((stage, index) => {
                         const status = getStageStatus(index);
                         return (
                             <motion.div
                                 key={stage.id}
-                                variants={staggerItem}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.2, ease: 'easeOut', delay: index * 0.08 }}
                                 className={`
-                                    relative pl-8 py-4 border-l-2 transition-all duration-500
+                                    relative pl-8 py-4 border-l transition-all duration-200 ease-out
                                     ${status === 'complete'
-                                        ? 'border-[var(--cinema-spotlight)]'
+                                        ? 'border-blue-500'
                                         : status === 'processing'
-                                            ? 'border-[var(--cinema-silver)]'
-                                            : 'border-[var(--cinema-silver)]/40'
+                                            ? 'border-zinc-400'
+                                            : 'border-zinc-800'
                                     }
                                 `}
                             >
                                 {/* Frame Number */}
-                                <span className="absolute left-3 top-4 font-mono text-[10px] text-[var(--cinema-silver)]/60">
+                                <span className="absolute left-3 top-4 font-mono text-[10px] text-zinc-700">
                                     {String(index + 1).padStart(2, '0')}
                                 </span>
 
@@ -133,28 +115,20 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         {status === 'complete' && (
-                                            <CheckCircle2 className="w-5 h-5 text-[var(--cinema-spotlight)]" />
+                                            <CheckCircle2 className="w-5 h-5 text-blue-400" />
                                         )}
                                         {status === 'processing' && (
-                                            <motion.div
-                                                animate={{ scale: [1, 1.2, 1] }}
-                                                transition={{ duration: 1.5, repeat: Infinity }}
-                                                className="w-5 h-5 rounded-full bg-[var(--cinema-silver)] flex items-center justify-center"
-                                            >
-                                                <div className="w-2 h-2 rounded-full bg-[var(--cinema-void)]" />
-                                            </motion.div>
+                                            <Loader2 className="w-5 h-5 text-zinc-400 animate-spin" />
                                         )}
                                         {status === 'pending' && (
-                                            <Circle className="w-5 h-5 text-[var(--cinema-silver)]/60" />
+                                            <Circle className="w-5 h-5 text-zinc-700" />
                                         )}
 
                                         <span className={`
-                                            font-display text-lg transition-colors duration-300
-                                            ${status === 'complete'
-                                                ? 'text-[var(--cinema-spotlight)]'
-                                                : status === 'processing'
-                                                    ? 'text-[var(--cinema-silver)]'
-                                                    : 'text-[var(--cinema-silver)]/70'
+                                            font-sans text-sm transition-colors duration-200 ease-out
+                                            ${status === 'complete' || status === 'processing'
+                                                ? 'text-zinc-300'
+                                                : 'text-zinc-600'
                                             }
                                         `}>
                                             {getStageLabel(stage)}
@@ -165,7 +139,7 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                                         <motion.span
                                             animate={{ opacity: [0.3, 1, 0.3] }}
                                             transition={{ duration: 1.5, repeat: Infinity }}
-                                            className="font-mono text-[10px] text-[var(--cinema-silver)]/60 uppercase tracking-widest"
+                                            className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest"
                                         >
                                             {t('story.breakdown_progress.processing')}
                                         </motion.span>
@@ -174,22 +148,18 @@ export const BreakdownProgress: React.FC<BreakdownProgressProps> = ({
                             </motion.div>
                         );
                     })}
-                </motion.div>
+                </div>
 
-                {/* Footer Note */}
+                {/* Footer */}
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 0.8 }}
+                    transition={{ delay: 0.4 }}
                     className="mt-12 text-center"
                 >
-                    <div className="flex items-center justify-center gap-4">
-                        <div className="w-8 h-px bg-[var(--cinema-silver)]/10" />
-                        <span className="font-mono text-[10px] text-[var(--cinema-silver)]/20 tracking-widest">
-                            LYRICLENS STUDIOS
-                        </span>
-                        <div className="w-8 h-px bg-[var(--cinema-silver)]/10" />
-                    </div>
+                    <span className="font-mono text-[10px] text-zinc-700 tracking-widest">
+                        PROCESSING
+                    </span>
                 </motion.div>
             </motion.div>
         </div>

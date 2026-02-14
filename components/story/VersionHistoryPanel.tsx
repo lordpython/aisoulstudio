@@ -1,5 +1,5 @@
 /**
- * VersionHistoryPanel - UI for browsing and restoring project snapshots
+ * VersionHistoryPanel - Browse and restore project snapshots.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,11 +10,8 @@ import {
   Save,
   RotateCcw,
   Trash2,
-  ChevronRight,
-  Calendar,
   Tag,
   X,
-  AlertCircle,
   Check,
   Edit3,
 } from 'lucide-react';
@@ -26,7 +23,6 @@ import {
   deleteSnapshot,
   renameSnapshot,
   getHistoryStats,
-  formatSnapshotDate,
   type VersionSnapshot,
   type VersionHistoryStats,
 } from '@/services/versionHistoryService';
@@ -81,7 +77,6 @@ export function VersionHistoryPanel({
 
   const handleSaveSnapshot = async () => {
     if (!saveName.trim()) return;
-
     try {
       await createSnapshot(projectId, currentState, saveName, saveDescription, 'manual');
       setShowSaveDialog(false);
@@ -113,7 +108,6 @@ export function VersionHistoryPanel({
 
   const handleRename = async (snapshotId: string) => {
     if (!editName.trim()) return;
-
     try {
       await renameSnapshot(snapshotId, editName);
       setSnapshots(prev =>
@@ -140,25 +134,25 @@ export function VersionHistoryPanel({
   const getTypeColor = (type: VersionSnapshot['type']) => {
     switch (type) {
       case 'manual':
-        return 'text-violet-400 bg-violet-500/20';
-      case 'auto':
         return 'text-blue-400 bg-blue-500/20';
+      case 'auto':
+        return 'text-zinc-400 bg-zinc-500/20';
       case 'checkpoint':
-        return 'text-amber-400 bg-amber-500/20';
+        return 'text-orange-400 bg-orange-500/20';
     }
   };
 
   return (
-    <div className={cn('flex flex-col h-full bg-black/40 rounded-xl border border-white/10', className)}>
+    <div className={cn('flex flex-col h-full bg-zinc-950 rounded-sm border border-zinc-800', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
+      <div className="flex items-center justify-between p-4 border-b border-zinc-800">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-violet-400" />
-          <h3 className="font-medium text-white">Version History</h3>
+          <History className="w-5 h-5 text-blue-400" />
+          <h3 className="font-sans font-medium text-zinc-100">Version History</h3>
         </div>
         <button
           onClick={() => setShowSaveDialog(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-sm transition-colors duration-200"
         >
           <Save className="w-4 h-4" />
           Save Version
@@ -167,7 +161,7 @@ export function VersionHistoryPanel({
 
       {/* Stats */}
       {stats && (
-        <div className="px-4 py-2 border-b border-white/5 text-xs text-white/50 flex items-center gap-4">
+        <div className="px-4 py-2 border-b border-zinc-800/50 font-mono text-[10px] text-zinc-600 flex items-center gap-4">
           <span>{stats.totalSnapshots} versions</span>
           <span>{stats.manualSnapshots} saved</span>
           <span>{stats.autoSnapshots} auto</span>
@@ -178,16 +172,16 @@ export function VersionHistoryPanel({
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 p-2 border-b border-white/5">
+      <div className="flex items-center gap-1 p-2 border-b border-zinc-800/50">
         {(['all', 'manual', 'auto'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={cn(
-              'px-3 py-1 text-xs rounded-full transition-colors capitalize',
+              'px-3 py-1 text-xs rounded-sm transition-colors duration-200 capitalize',
               filter === f
-                ? 'bg-violet-600 text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/10'
+                ? 'bg-blue-500 text-white'
+                : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800'
             )}
           >
             {f}
@@ -199,13 +193,13 @@ export function VersionHistoryPanel({
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full" />
+            <div className="animate-spin w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full" />
           </div>
         ) : snapshots.length === 0 ? (
-          <div className="text-center py-8 text-white/40">
+          <div className="text-center py-8 text-zinc-600">
             <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No versions saved yet</p>
-            <p className="text-xs mt-1">Click "Save Version" to create a snapshot</p>
+            <p className="text-xs mt-1 text-zinc-700">Click "Save Version" to create a snapshot</p>
           </div>
         ) : (
           <AnimatePresence>
@@ -215,11 +209,12 @@ export function VersionHistoryPanel({
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.15 }}
                 className={cn(
-                  'p-3 rounded-lg border transition-colors cursor-pointer',
+                  'group p-3 rounded-sm border transition-colors duration-200 cursor-pointer',
                   selectedSnapshot?.id === snapshot.id
-                    ? 'border-violet-500/50 bg-violet-500/10'
-                    : 'border-white/5 hover:border-white/20 bg-white/5'
+                    ? 'border-blue-500/50 bg-blue-500/10'
+                    : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900'
                 )}
                 onClick={() => setSelectedSnapshot(snapshot)}
               >
@@ -235,7 +230,7 @@ export function VersionHistoryPanel({
                             if (e.key === 'Enter') handleRename(snapshot.id);
                             if (e.key === 'Escape') setEditingId(null);
                           }}
-                          className="flex-1 px-2 py-1 text-sm bg-black/30 border border-white/20 rounded text-white"
+                          className="flex-1 px-2 py-1 text-sm bg-zinc-950 border border-zinc-700 rounded-sm text-zinc-100 focus:outline-none focus:border-blue-500"
                           autoFocus
                         />
                         <button
@@ -243,22 +238,17 @@ export function VersionHistoryPanel({
                             e.stopPropagation();
                             handleRename(snapshot.id);
                           }}
-                          className="p-1 text-green-400 hover:bg-green-500/20 rounded"
+                          className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-sm"
                         >
                           <Check className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'p-1 rounded',
-                            getTypeColor(snapshot.type)
-                          )}
-                        >
+                        <span className={cn('p-1 rounded-sm', getTypeColor(snapshot.type))}>
                           {getTypeIcon(snapshot.type)}
                         </span>
-                        <span className="font-medium text-white text-sm truncate">
+                        <span className="font-sans font-medium text-zinc-100 text-sm truncate">
                           {snapshot.name}
                         </span>
                         <button
@@ -267,17 +257,16 @@ export function VersionHistoryPanel({
                             setEditingId(snapshot.id);
                             setEditName(snapshot.name);
                           }}
-                          className="p-1 text-white/40 hover:text-white/70 opacity-0 group-hover:opacity-100"
+                          className="p-1 text-zinc-700 hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         >
                           <Edit3 className="w-3 h-3" />
                         </button>
                       </div>
                     )}
-                    {/* Relative time with absolute tooltip (Addresses Design Review Issue #28) */}
                     <TooltipProvider>
                       <Tooltip delayDuration={200}>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-white/40 cursor-help">
+                          <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600 cursor-help">
                             <Clock className="w-3 h-3" />
                             <span>{formatRelativeTime(snapshot.timestamp)}</span>
                           </div>
@@ -288,24 +277,24 @@ export function VersionHistoryPanel({
                       </Tooltip>
                     </TooltipProvider>
                     {snapshot.metadata && (
-                      <div className="flex items-center gap-2 mt-1 text-xs text-white/30">
+                      <div className="flex items-center gap-2 mt-1 font-mono text-[10px] text-zinc-700">
                         <span>{snapshot.metadata.sceneCount} scenes</span>
-                        <span>•</span>
+                        <span>·</span>
                         <span>{snapshot.metadata.shotCount} shots</span>
-                        <span>•</span>
+                        <span>·</span>
                         <span>{snapshot.metadata.step}</span>
                       </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     {confirmRestore === snapshot.id ? (
-                      <div className="flex items-center gap-1 bg-amber-500/20 rounded-lg p-1">
+                      <div className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 rounded-sm p-1">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRestore(snapshot);
                           }}
-                          className="p-1.5 text-green-400 hover:bg-green-500/20 rounded"
+                          className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-sm"
                           title="Confirm restore"
                         >
                           <Check className="w-4 h-4" />
@@ -315,7 +304,7 @@ export function VersionHistoryPanel({
                             e.stopPropagation();
                             setConfirmRestore(null);
                           }}
-                          className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"
+                          className="p-1.5 text-red-400 hover:bg-red-500/20 rounded-sm"
                           title="Cancel"
                         >
                           <X className="w-4 h-4" />
@@ -328,7 +317,7 @@ export function VersionHistoryPanel({
                             e.stopPropagation();
                             setConfirmRestore(snapshot.id);
                           }}
-                          className="p-1.5 text-white/40 hover:text-violet-400 hover:bg-violet-500/20 rounded transition-colors"
+                          className="p-1.5 text-zinc-700 hover:text-blue-400 hover:bg-blue-500/20 rounded-sm transition-colors duration-200"
                           title="Restore this version"
                         >
                           <RotateCcw className="w-4 h-4" />
@@ -338,7 +327,7 @@ export function VersionHistoryPanel({
                             e.stopPropagation();
                             handleDelete(snapshot.id);
                           }}
-                          className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
+                          className="p-1.5 text-zinc-700 hover:text-red-400 hover:bg-red-500/20 rounded-sm transition-colors duration-200"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -360,37 +349,39 @@ export function VersionHistoryPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
             onClick={() => setShowSaveDialog(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.97, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-gray-900 rounded-xl border border-white/10 p-6"
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-md bg-zinc-900 rounded-sm border border-zinc-800 p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h4 className="text-lg font-medium text-white mb-4">Save Version</h4>
-              
+              <h4 className="font-sans text-lg font-medium text-zinc-100 mb-4">Save Version</h4>
+
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-white/60 mb-1">Version Name</label>
+                  <label className="block text-sm text-zinc-500 mb-1">Version Name</label>
                   <input
                     type="text"
                     value={saveName}
                     onChange={(e) => setSaveName(e.target.value)}
                     placeholder="e.g., Before major changes"
-                    className="w-full px-3 py-2 bg-black/30 border border-white/20 rounded-lg text-white placeholder:text-white/30"
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-blue-500"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-white/60 mb-1">Description (optional)</label>
+                  <label className="block text-sm text-zinc-500 mb-1">Description (optional)</label>
                   <textarea
                     value={saveDescription}
                     onChange={(e) => setSaveDescription(e.target.value)}
                     placeholder="Notes about this version..."
-                    className="w-full px-3 py-2 bg-black/30 border border-white/20 rounded-lg text-white placeholder:text-white/30 resize-none h-20"
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-sm text-zinc-100 placeholder:text-zinc-700 resize-none h-20 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -398,14 +389,14 @@ export function VersionHistoryPanel({
               <div className="flex items-center justify-end gap-3 mt-6">
                 <button
                   onClick={() => setShowSaveDialog(false)}
-                  className="px-4 py-2 text-white/60 hover:text-white transition-colors"
+                  className="px-4 py-2 text-zinc-500 hover:text-zinc-100 transition-colors duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveSnapshot}
                   disabled={!saveName.trim()}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-sm transition-colors duration-200"
                 >
                   Save Version
                 </button>

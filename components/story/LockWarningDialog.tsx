@@ -1,13 +1,11 @@
 /**
  * LockWarningDialog.tsx
- * Cinematic warning dialog for screenplay locking.
- * Velvet-red border, dramatic presentation.
+ * Warning dialog for screenplay locking with cost breakdown.
  */
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Film, X, Info } from 'lucide-react';
-import { backdropFade, modalScale } from '@/lib/cinematicMotion';
 import { useLanguage } from '@/i18n/useLanguage';
 
 interface LockWarningDialogProps {
@@ -33,34 +31,28 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
-                    {/* Backdrop with vignette */}
+                    {/* Backdrop */}
                     <motion.div
-                        variants={backdropFade}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                        className="absolute inset-0 bg-[var(--cinema-void)]/90 backdrop-blur-xl"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
                         onClick={onClose}
-                    >
-                        {/* Vignette */}
-                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,var(--cinema-void)_100%)]" />
-                    </motion.div>
+                    />
 
                     {/* Modal */}
                     <motion.div
-                        variants={modalScale}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                        className="relative w-full max-w-md mx-4 bg-[var(--cinema-celluloid)] border-2 border-[var(--cinema-velvet)] rounded-lg shadow-cinematic overflow-hidden"
+                        initial={{ opacity: 0, scale: 0.97 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.97 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="relative w-full max-w-md mx-4 bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden"
                     >
-                        {/* Film grain overlay */}
-                        <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20200%20200%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter%20id%3D%22noise%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.85%22%20numOctaves%3D%224%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url(%23noise)%22%2F%3E%3C%2Fsvg%3E')] pointer-events-none" />
-
                         {/* Close button */}
                         <button
                             onClick={onClose}
-                            className="absolute top-4 right-4 p-2 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)] hover:bg-[var(--cinema-void)]/50 rounded-lg transition-all z-10"
+                            className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-zinc-300 transition-colors duration-200 z-10"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -69,53 +61,52 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                             {/* Icon */}
                             <div className="flex justify-center mb-6">
                                 <div className="relative">
-                                    <div className="w-20 h-20 rounded-full bg-[var(--cinema-velvet)]/20 border-2 border-[var(--cinema-velvet)]/40 flex items-center justify-center">
-                                        <Film className="w-10 h-10 text-[var(--cinema-velvet)]" />
+                                    <div className="w-16 h-16 rounded-sm bg-orange-500/10 border border-orange-500/30 flex items-center justify-center">
+                                        <Film className="w-8 h-8 text-orange-400" />
                                     </div>
                                     {/* Lock badge */}
-                                    <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[var(--cinema-spotlight)] flex items-center justify-center shadow-lg">
-                                        <Lock className="w-4 h-4 text-[var(--cinema-void)]" />
+                                    <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-sm bg-blue-500 flex items-center justify-center">
+                                        <Lock className="w-3.5 h-3.5 text-white" />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Title */}
-                            <h2 className="font-display text-3xl text-[var(--cinema-silver)] text-center mb-3 tracking-tight">
+                            <h2 className="font-sans text-2xl font-medium tracking-tight text-zinc-100 text-center mb-3">
                                 {t('story.lock_dialog.lockTheScript')}
                             </h2>
 
                             {/* Warning Message */}
-                            <p className="font-script italic text-[var(--cinema-silver)]/60 text-center text-lg mb-8">
+                            <p className="text-zinc-500 text-sm text-center mb-8">
                                 {t('story.lock_dialog.scriptFinalized')}
                             </p>
 
-                            {/* Cost Breakdown - Cinematic Style */}
-                            <div className="bg-[var(--cinema-void)]/50 border border-[var(--cinema-silver)]/10 rounded-lg p-5 mb-6">
+                            {/* Cost Breakdown */}
+                            <div className="bg-zinc-950 border border-zinc-800 rounded-sm p-5 mb-6">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-8 h-px bg-[var(--cinema-spotlight)]/30" />
-                                    <span className="font-mono text-[10px] text-[var(--cinema-silver)]/40 uppercase tracking-[0.2em]">
+                                    <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
                                         {t('story.lock_dialog.productionEstimate')}
                                     </span>
-                                    <div className="flex-1 h-px bg-[var(--cinema-spotlight)]/30" />
+                                    <div className="flex-1 h-px bg-zinc-800" />
                                 </div>
 
                                 <div className="space-y-3">
                                     {sceneCount > 0 && (
                                         <div className="flex justify-between items-center">
-                                            <span className="font-script italic text-[var(--cinema-silver)]/60">{t('story.scenes')}</span>
-                                            <span className="font-mono text-[var(--cinema-silver)]">{sceneCount}</span>
+                                            <span className="text-zinc-500 text-sm">{t('story.scenes')}</span>
+                                            <span className="font-mono text-zinc-200">{sceneCount}</span>
                                         </div>
                                     )}
                                     {estimatedShots > 0 && (
                                         <div className="flex justify-between items-center">
-                                            <span className="font-script italic text-[var(--cinema-silver)]/60">{t('story.lock_dialog.estimatedShots')}</span>
-                                            <span className="font-mono text-[var(--cinema-silver)]">~{estimatedShots}</span>
+                                            <span className="text-zinc-500 text-sm">{t('story.lock_dialog.estimatedShots')}</span>
+                                            <span className="font-mono text-zinc-200">~{estimatedShots}</span>
                                         </div>
                                     )}
-                                    <div className="h-px bg-[var(--cinema-silver)]/10 my-3" />
+                                    <div className="h-px bg-zinc-800 my-3" />
                                     <div className="flex justify-between items-center">
-                                        <span className="font-display text-[var(--cinema-silver)]">{t('story.lock_dialog.totalBudget')}</span>
-                                        <span className="font-display text-2xl text-[var(--cinema-spotlight)]">
+                                        <span className="text-zinc-500 text-sm">{t('story.lock_dialog.totalBudget')}</span>
+                                        <span className="font-sans text-xl text-blue-400">
                                             ${estimatedCost.toFixed(2)}
                                         </span>
                                     </div>
@@ -123,32 +114,28 @@ export const LockWarningDialog: React.FC<LockWarningDialogProps> = ({
                             </div>
 
                             {/* Info Note */}
-                            <div className="flex items-start gap-3 mb-8 p-4 bg-[var(--cinema-spotlight)]/5 border border-[var(--cinema-spotlight)]/20 rounded-lg">
-                                <Info className="w-4 h-4 text-[var(--cinema-spotlight)] mt-0.5 shrink-0" />
-                                <p className="font-script italic text-sm text-[var(--cinema-silver)]/60">
+                            <div className="flex items-start gap-3 mb-8 p-4 bg-blue-500/5 border border-blue-500/20 rounded-sm">
+                                <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                                <p className="text-zinc-500 text-sm">
                                     {t('story.lock_dialog.shotBreakdownInfo')}
                                 </p>
                             </div>
 
                             {/* Action Buttons */}
                             <div className="flex gap-4">
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                <button
                                     onClick={onClose}
-                                    className="flex-1 px-6 py-3.5 rounded-lg font-display text-[var(--cinema-silver)] bg-[var(--cinema-void)] border border-[var(--cinema-silver)]/20 hover:border-[var(--cinema-silver)]/40 transition-all"
+                                    className="flex-1 px-6 py-3.5 rounded-sm text-zinc-300 bg-zinc-950 border border-zinc-800 hover:border-zinc-600 transition-colors duration-200"
                                 >
                                     {t('story.lock_dialog.backToEdit')}
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                </button>
+                                <button
                                     onClick={onConfirmLock}
-                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg btn-cinematic font-display"
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-sm bg-blue-500 hover:bg-blue-600 text-white font-mono text-sm font-medium transition-colors duration-200"
                                 >
                                     <Lock className="w-4 h-4" />
                                     {t('story.lock_dialog.lockAndBegin')}
-                                </motion.button>
+                                </button>
                             </div>
                         </div>
                     </motion.div>

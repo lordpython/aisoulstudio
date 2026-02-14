@@ -1,8 +1,6 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import type { ScreenplayScene } from '@/types';
-import { staggerContainer, staggerItem } from '@/lib/cinematicMotion';
-import { FileText } from 'lucide-react';
+import { FileText, GripVertical } from 'lucide-react';
 
 interface ScriptViewProps {
     script: { title: string; scenes: ScreenplayScene[] } | null;
@@ -13,8 +11,8 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
     if (!script) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] p-12">
-                <FileText className="w-12 h-12 text-[var(--cinema-silver)]/20 mb-4" />
-                <p className="font-script italic text-[var(--cinema-silver)]/40 text-lg">
+                <FileText className="w-12 h-12 text-zinc-700 mb-4" />
+                <p className="text-zinc-500 text-sm">
                     No script generated yet. Proceed to create your screenplay.
                 </p>
             </div>
@@ -30,32 +28,22 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
 
     return (
         <div className="py-8 px-4">
-            {/* Screenplay Container - Paper-like */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                className="
-                    max-w-3xl mx-auto
-                    bg-[var(--cinema-celluloid)]/50
-                    border border-[var(--cinema-silver)]/5
-                    rounded-lg
-                    shadow-editorial
-                    overflow-hidden
-                "
+            {/* Screenplay Container */}
+            <div
+                className="max-w-3xl mx-auto bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden"
                 dir={isRTL ? 'rtl' : 'ltr'}
             >
                 {/* Title Page Header */}
-                <div className="p-8 border-b border-[var(--cinema-silver)]/10 text-center">
+                <div className="p-8 border-b border-zinc-800 text-center">
                     <div className="flex items-center justify-center gap-3 mb-4">
-                        <div className="w-12 h-px bg-[var(--cinema-spotlight)]/30" />
-                        <span className="font-mono text-[10px] text-[var(--cinema-silver)]/40 tracking-[0.3em]">
+                        <div className="w-12 h-px bg-zinc-800" />
+                        <span className="font-mono text-[10px] text-zinc-600 tracking-[0.3em]">
                             SCREENPLAY
                         </span>
-                        <div className="w-12 h-px bg-[var(--cinema-spotlight)]/30" />
+                        <div className="w-12 h-px bg-zinc-800" />
                     </div>
                     <h1
-                        className="font-display text-4xl text-[var(--cinema-silver)] tracking-tight"
+                        className="font-sans text-3xl font-medium tracking-tight text-zinc-100"
                         dir="auto"
                     >
                         {script.title}
@@ -63,50 +51,51 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
                 </div>
 
                 {/* Screenplay Content */}
-                <motion.div
-                    variants={staggerContainer}
-                    initial="initial"
-                    animate="animate"
-                    className="p-8 space-y-8"
-                >
+                <div className="p-8 space-y-8">
                     {script.scenes.map((scene, sceneIdx) => (
-                        <motion.div
+                        <div
                             key={scene.id}
-                            variants={staggerItem}
-                            className="relative"
+                            className="group relative"
+                            data-scene-id={scene.id}
+                            data-scene-index={sceneIdx}
                         >
-                            {/* Scene Heading - Industry Format */}
+                            {/* Scene Heading */}
                             <div
                                 className={`
-                                    relative mb-4 py-2
+                                    relative mb-4 py-2 flex items-start gap-2
                                     ${isRTL
-                                        ? 'border-r-4 pr-4 border-[var(--cinema-velvet)]'
-                                        : 'border-l-4 pl-4 border-[var(--cinema-velvet)]'
+                                        ? 'border-r-2 pr-4 border-blue-500'
+                                        : 'border-l-2 pl-4 border-blue-500'
                                     }
                                 `}
                             >
-                                {/* Scene Number Badge */}
-                                <span className="font-mono text-xs text-[var(--cinema-spotlight)] tracking-widest mb-1 block">
-                                    SCENE {String(scene.sceneNumber).padStart(2, '0')}
-                                </span>
-                                {/* Heading - Slug Line */}
-                                <h2
-                                    className="font-display text-xl text-[var(--cinema-silver)] uppercase tracking-wide"
-                                    dir="auto"
-                                >
-                                    {scene.heading}
-                                </h2>
+                                {/* Drag Handle */}
+                                <div className="text-zinc-700 hover:text-zinc-400 cursor-grab active:cursor-grabbing transition-colors duration-200 mt-0.5 shrink-0 opacity-0 group-hover:opacity-100">
+                                    <GripVertical className="w-4 h-4" />
+                                </div>
+
+                                <div>
+                                    <span className="font-mono text-xs text-blue-400 tracking-widest mb-1 block">
+                                        SCENE {String(scene.sceneNumber).padStart(2, '0')}
+                                    </span>
+                                    <h2
+                                        className="font-sans text-lg font-medium text-zinc-100 uppercase tracking-wide"
+                                        dir="auto"
+                                    >
+                                        {scene.heading}
+                                    </h2>
+                                </div>
                             </div>
 
                             {/* Action / Description */}
                             <div
-                                className="font-script text-[var(--cinema-silver)]/70 text-lg italic leading-relaxed mb-6 px-4"
+                                className="text-zinc-400 text-sm leading-relaxed mb-6 px-4"
                                 dir="auto"
                             >
                                 {scene.action}
                             </div>
 
-                            {/* Dialogue Block - Centered Industry Format */}
+                            {/* Dialogue Block */}
                             {scene.dialogue.length > 0 && (
                                 <div className="space-y-6 my-6">
                                     {scene.dialogue.map((line, idx) => (
@@ -114,39 +103,37 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
                                             key={`${scene.id}-dialogue-${idx}`}
                                             className="flex flex-col items-center"
                                         >
-                                            {/* Character Name */}
                                             <div
-                                                className="font-sans text-sm text-[var(--cinema-spotlight)] uppercase tracking-[0.2em] mb-2"
+                                                className="font-mono text-xs text-blue-400 uppercase tracking-widest mb-2"
                                                 dir="auto"
                                             >
                                                 {line.speaker}
                                             </div>
-                                            {/* Dialogue Text */}
                                             <div
-                                                className="font-script text-[var(--cinema-silver)] text-center max-w-md leading-relaxed text-lg"
+                                                className="text-zinc-300 text-sm text-center max-w-md leading-relaxed"
                                                 dir="auto"
                                             >
-                                                "{line.text}"
+                                                &ldquo;{line.text}&rdquo;
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
 
-                            {/* Characters Present Tag */}
+                            {/* Characters Present Tags */}
                             {scene.charactersPresent.length > 0 && (
                                 <div
                                     className="flex items-center gap-2 mt-6 px-4"
                                     dir="ltr"
                                 >
-                                    <span className="font-mono text-[10px] text-[var(--cinema-silver)]/30 uppercase tracking-wider">
+                                    <span className="font-mono text-[10px] text-zinc-700 uppercase tracking-wider">
                                         Present:
                                     </span>
                                     <div className="flex flex-wrap gap-1">
                                         {scene.charactersPresent.map((char, i) => (
                                             <span
                                                 key={i}
-                                                className="px-2 py-0.5 text-[10px] font-mono text-[var(--cinema-silver)]/50 bg-[var(--cinema-void)]/50 rounded"
+                                                className="bg-zinc-950 rounded-sm px-2 py-0.5 text-[10px] font-mono text-zinc-600 border border-zinc-800"
                                             >
                                                 {char}
                                             </span>
@@ -157,21 +144,19 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
 
                             {/* Scene Divider */}
                             {sceneIdx < script.scenes.length - 1 && (
-                                <div className="flex items-center justify-center gap-4 mt-8 pt-8 border-t border-[var(--cinema-silver)]/5">
-                                    <div className="w-2 h-2 rounded-full bg-[var(--cinema-silver)]/10" />
-                                </div>
+                                <div className="mt-8 pt-8 border-t border-zinc-800" />
                             )}
-                        </motion.div>
+                        </div>
                     ))}
-                </motion.div>
+                </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-[var(--cinema-silver)]/5 text-center">
-                    <span className="font-mono text-[10px] text-[var(--cinema-silver)]/20 tracking-widest">
+                <div className="p-6 border-t border-zinc-800 text-center">
+                    <span className="font-mono text-[10px] text-zinc-700 tracking-widest">
                         {script.scenes.length} SCENE{script.scenes.length !== 1 ? 'S' : ''}
                     </span>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };

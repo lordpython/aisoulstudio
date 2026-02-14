@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Ghost, Crown, Baby, BookOpen, Lightbulb, Wand2, ChevronRight, Layout, ArrowRight, Zap } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Ghost, Crown, Baby, BookOpen, Lightbulb, Wand2, ChevronRight, Layout, ArrowRight } from 'lucide-react';
 import { TemplatesGallery } from './TemplatesGallery';
 import type { StoryState } from '@/types';
 import { useLanguage } from '@/i18n/useLanguage';
@@ -13,18 +13,18 @@ interface IdeaViewProps {
 }
 
 const GENRES = [
-    { id: 'Drama', icon: Heart, color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.08)' },
-    { id: 'Comedy', icon: Laugh, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.08)' },
-    { id: 'Thriller', icon: Skull, color: '#64748B', bg: 'rgba(100, 116, 139, 0.08)' },
-    { id: 'Sci-Fi', icon: Rocket, color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.08)' },
-    { id: 'Mystery', icon: Search, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.08)' },
-    { id: 'Action', icon: Sword, color: '#F97316', bg: 'rgba(249, 115, 22, 0.08)' },
-    { id: 'Horror', icon: Ghost, color: '#6B7280', bg: 'rgba(107, 114, 128, 0.08)' },
-    { id: 'Fantasy', icon: Wand2, color: '#A855F7', bg: 'rgba(168, 85, 247, 0.08)' },
-    { id: 'Romance', icon: Heart, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.08)' },
-    { id: 'Historical', icon: Crown, color: '#D97706', bg: 'rgba(217, 119, 6, 0.08)' },
-    { id: 'Documentary', icon: BookOpen, color: '#10B981', bg: 'rgba(16, 185, 129, 0.08)' },
-    { id: 'Animation', icon: Baby, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.08)' },
+    { id: 'Drama', icon: Heart },
+    { id: 'Comedy', icon: Laugh },
+    { id: 'Thriller', icon: Skull },
+    { id: 'Sci-Fi', icon: Rocket },
+    { id: 'Mystery', icon: Search },
+    { id: 'Action', icon: Sword },
+    { id: 'Horror', icon: Ghost },
+    { id: 'Fantasy', icon: Wand2 },
+    { id: 'Romance', icon: Heart },
+    { id: 'Historical', icon: Crown },
+    { id: 'Documentary', icon: BookOpen },
+    { id: 'Animation', icon: Baby },
 ];
 
 const STORY_TEMPLATES = [
@@ -53,17 +53,32 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
     const [genre, setGenre] = useState('Drama');
     const [showAllGenres, setShowAllGenres] = useState(false);
     const [showTemplatesGallery, setShowTemplatesGallery] = useState(false);
-    const [textareaFocused, setTextareaFocused] = useState(false);
+    const [expandMessage, setExpandMessage] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const currentTemplate = STORY_TEMPLATES.find(t => t.genre === genre);
-    const selectedGenre = GENRES.find(g => g.id === genre);
     const visibleGenres = showAllGenres ? GENRES : GENRES.slice(0, 6);
 
     const handleUseTemplate = () => {
         if (currentTemplate) {
             setTopic(currentTemplate.prompt);
             textareaRef.current?.focus();
+        }
+    };
+
+    /** Smart Expand: enrich short prompts with narrative scaffolding */
+    const handleSmartExpand = () => {
+        if (!topic.trim()) return;
+        if (topic.length < 50) {
+            setTopic(
+                'Expand this idea into a rich narrative: ' +
+                topic +
+                '... (include vivid settings, character motivations, and a surprising twist)'
+            );
+            textareaRef.current?.focus();
+        } else {
+            setExpandMessage('Prompt is already detailed enough');
+            setTimeout(() => setExpandMessage(null), 2000);
         }
     };
 
@@ -83,71 +98,33 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
     }, [topic]);
 
     return (
-        <div className="flex flex-col items-center min-h-[70vh] px-6 py-12">
-            <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full max-w-2xl"
-            >
-                {/* Minimal Header */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1, duration: 0.5 }}
-                    className="mb-10"
-                >
-                    <div className="flex items-center gap-3 mb-3">
-                        <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center"
-                            style={{ background: 'linear-gradient(135deg, #fff2, #fff1)' }}
-                        >
-                            <Zap className="w-3.5 h-3.5 text-white/70" />
-                        </div>
-                        <span className="font-editorial text-[11px] font-medium tracking-[0.2em] uppercase text-white/60">
-                            {t('story.storyIdea')}
-                        </span>
-                    </div>
-                    <h1 className="font-editorial text-3xl font-semibold text-white tracking-tight leading-tight">
+        <div className="flex flex-col items-center min-h-[70vh] px-6 py-12 bg-black">
+            <div className="w-full max-w-2xl">
+                {/* Header */}
+                <div className="mb-10">
+                    <h1 className="font-sans text-3xl font-medium tracking-tight text-zinc-100">
                         {t('story.whatsYourStory')}
                     </h1>
-                    <p className="font-editorial text-[15px] text-white/60 mt-2 leading-relaxed">
+                    <p className="text-zinc-500 text-sm mt-2 leading-relaxed">
                         {t('story.describeYourConcept')}
                     </p>
-                </motion.div>
+                </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Textarea */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.4 }}
-                    >
-                        <div
-                            className="relative rounded-xl transition-all duration-300"
-                            style={{
-                                background: textareaFocused
-                                    ? 'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
-                                    : 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))',
-                                border: `1px solid ${textareaFocused ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}`,
-                                boxShadow: textareaFocused
-                                    ? '0 0 0 3px rgba(255,255,255,0.03), 0 8px 32px rgba(0,0,0,0.3)'
-                                    : 'none',
-                            }}
-                        >
+                    <div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-sm focus-within:border-blue-500/50 transition-colors duration-200">
                             <textarea
                                 ref={textareaRef}
                                 id="topic-input"
                                 value={topic}
                                 onChange={(e) => setTopic(e.target.value)}
-                                onFocus={() => setTextareaFocused(true)}
-                                onBlur={() => setTextareaFocused(false)}
                                 placeholder={t('story.placeholderStory')}
                                 className="
                                     w-full min-h-[120px] px-5 py-4
                                     bg-transparent
-                                    font-editorial text-[15px] text-white/90 leading-relaxed
-                                    placeholder:text-white/40
+                                    text-[15px] text-zinc-100 leading-relaxed
+                                    placeholder:text-zinc-600
                                     focus:outline-none
                                     resize-none
                                 "
@@ -162,19 +139,19 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                         type="button"
                                         onClick={handleUseTemplate}
                                         disabled={isProcessing || !currentTemplate}
-                                        className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors disabled:opacity-30 disabled:hover:text-white/50"
+                                        className="flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors duration-200 disabled:opacity-30 disabled:hover:text-zinc-500"
                                     >
                                         <Lightbulb className="w-3.5 h-3.5" />
                                         <span>{t('story.tryTemplate')}</span>
                                     </button>
                                     {onApplyTemplate && (
                                         <>
-                                            <div className="w-px h-3 bg-white/10" />
+                                            <div className="w-px h-3 bg-zinc-800" />
                                             <button
                                                 type="button"
                                                 onClick={() => setShowTemplatesGallery(true)}
                                                 disabled={isProcessing}
-                                                className="flex items-center gap-1.5 text-[12px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors disabled:opacity-30"
+                                                className="flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors duration-200 disabled:opacity-30"
                                             >
                                                 <Layout className="w-3.5 h-3.5" />
                                                 <span>{t('story.browseAll')}</span>
@@ -182,28 +159,42 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                                         </>
                                     )}
                                 </div>
-                                <span className="font-code text-[11px] text-white/40 tabular-nums">
+                                <span className="font-mono text-[10px] text-zinc-600 tabular-nums">
                                     {topic.length}
                                 </span>
                             </div>
                         </div>
-                    </motion.div>
+                    </div>
+
+                    {/* Smart Expand Button */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={handleSmartExpand}
+                            disabled={isProcessing || !topic.trim()}
+                            className="bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-400 hover:text-blue-400 hover:border-blue-500/50 transition-colors duration-200 px-3 py-1.5 text-xs font-mono flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Smart Expand</span>
+                        </button>
+                        {expandMessage && (
+                            <span className="absolute left-0 top-full mt-1.5 text-xs font-mono text-zinc-500 animate-pulse">
+                                {expandMessage}
+                            </span>
+                        )}
+                    </div>
 
                     {/* Genre Selection */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.4 }}
-                    >
+                    <div>
                         <div className="flex items-center justify-between mb-3">
-                            <span className="font-editorial text-[11px] font-medium tracking-[0.15em] uppercase text-white/60">
+                            <span className="font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-zinc-500">
                                 {t('story.genre')}
                             </span>
                             {!showAllGenres && GENRES.length > 6 && (
                                 <button
                                     type="button"
                                     onClick={() => setShowAllGenres(true)}
-                                    className="flex items-center gap-1 text-[11px] font-editorial font-medium text-white/50 hover:text-white/70 transition-colors"
+                                    className="flex items-center gap-1 text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors duration-200"
                                 >
                                     <span>{t('story.allCount', { count: GENRES.length })}</span>
                                     <ChevronRight className="w-3 h-3" />
@@ -212,103 +203,74 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                            <AnimatePresence mode="popLayout">
-                                {visibleGenres.map((g, i) => {
-                                    const Icon = g.icon;
-                                    const isSelected = genre === g.id;
-                                    return (
-                                        <motion.button
-                                            key={g.id}
-                                            type="button"
-                                            layout
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.9 }}
-                                            transition={{ delay: i * 0.03, duration: 0.25 }}
-                                            onClick={() => setGenre(g.id)}
-                                            disabled={isProcessing}
-                                            className="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                                            style={{
-                                                background: isSelected ? g.bg : 'transparent',
-                                                border: `1px solid ${isSelected ? g.color + '30' : 'rgba(255,255,255,0.06)'}`,
-                                                boxShadow: isSelected ? `0 0 20px ${g.color}10` : 'none',
-                                            }}
-                                            whileHover={!isProcessing ? { scale: 1.03 } : {}}
-                                            whileTap={!isProcessing ? { scale: 0.97 } : {}}
+                            {visibleGenres.map((g) => {
+                                const Icon = g.icon;
+                                const isSelected = genre === g.id;
+                                return (
+                                    <button
+                                        key={g.id}
+                                        type="button"
+                                        onClick={() => setGenre(g.id)}
+                                        disabled={isProcessing}
+                                        className={`
+                                            flex items-center gap-2 px-3 py-1.5 rounded-sm
+                                            border transition-colors duration-200
+                                            disabled:opacity-40 disabled:cursor-not-allowed
+                                            ${isSelected
+                                                ? 'bg-blue-500/10 border-blue-500/50'
+                                                : 'border-zinc-800 hover:border-zinc-600'
+                                            }
+                                        `}
+                                    >
+                                        <Icon
+                                            className={`w-3.5 h-3.5 transition-colors duration-200 ${
+                                                isSelected ? 'text-blue-400' : 'text-zinc-600'
+                                            }`}
+                                        />
+                                        <span
+                                            className={`text-[13px] font-medium transition-colors duration-200 ${
+                                                isSelected ? 'text-blue-400' : 'text-zinc-500'
+                                            }`}
                                         >
-                                            <Icon
-                                                className="w-3.5 h-3.5 transition-colors duration-200"
-                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.5)' }}
-                                            />
-                                            <span
-                                                className="font-editorial text-[13px] font-medium transition-colors duration-200"
-                                                style={{ color: isSelected ? g.color : 'rgba(255,255,255,0.5)' }}
-                                            >
-                                                {t(`story.genres.${g.id}`)}
-                                            </span>
-
-                                            {isSelected && (
-                                                <motion.div
-                                                    layoutId="genre-dot"
-                                                    className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-                                                    style={{ background: g.color }}
-                                                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                                                />
-                                            )}
-                                        </motion.button>
-                                    );
-                                })}
-                            </AnimatePresence>
+                                            {t(`story.genres.${g.id}`)}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
-                    </motion.div>
+                    </div>
 
                     {/* Submit */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.4 }}
-                    >
-                        <motion.button
+                    <div>
+                        <button
                             type="submit"
                             disabled={!topic.trim() || isProcessing}
-                            whileHover={!isProcessing && topic.trim() ? { y: -1 } : {}}
-                            whileTap={!isProcessing && topic.trim() ? { scale: 0.99 } : {}}
-                            className="
-                                group w-full flex items-center justify-center gap-3
-                                px-8 py-3.5 rounded-xl
-                                font-editorial text-[14px] font-semibold tracking-wide
-                                transition-all duration-300
-                                disabled:opacity-30 disabled:cursor-not-allowed
-                            "
-                            style={{
-                                background: topic.trim() && !isProcessing
-                                    ? `linear-gradient(135deg, ${selectedGenre?.color || '#fff'}, ${selectedGenre?.color || '#fff'}cc)`
-                                    : 'rgba(255,255,255,0.06)',
-                                color: topic.trim() && !isProcessing ? '#000' : 'rgba(255,255,255,0.5)',
-                                boxShadow: topic.trim() && !isProcessing
-                                    ? `0 4px 24px ${selectedGenre?.color || '#fff'}30, 0 1px 3px rgba(0,0,0,0.3)`
-                                    : 'none',
-                            }}
+                            className={`
+                                w-full flex items-center justify-center gap-3
+                                px-8 py-3 rounded-sm
+                                font-mono text-sm font-medium
+                                transition-colors duration-200
+                                ${topic.trim() && !isProcessing
+                                    ? 'bg-white text-black hover:bg-zinc-200'
+                                    : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                                }
+                            `}
                         >
                             {isProcessing ? (
                                 <>
-                                    <motion.div
-                                        className="w-4 h-4 rounded-full border-2 border-current border-t-transparent"
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                                    />
+                                    <div className="w-4 h-4 rounded-sm border-2 border-current border-t-transparent animate-spin" />
                                     <span>{t('story.buildingStory')}</span>
                                 </>
                             ) : (
                                 <>
                                     <span>{t('story.beginStory')}</span>
-                                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                                    <ArrowRight className="w-4 h-4" />
                                 </>
                             )}
-                        </motion.button>
-                    </motion.div>
+                        </button>
+                    </div>
                 </form>
-            </motion.div>
+            </div>
 
             {/* Templates Gallery Modal */}
             <AnimatePresence>
@@ -317,13 +279,15 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
                         className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
                         onClick={() => setShowTemplatesGallery(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
+                            initial={{ scale: 0.97, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
+                            exit={{ scale: 0.97, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
                             className="w-full max-w-5xl h-[80vh]"
                             onClick={(e) => e.stopPropagation()}
                         >
