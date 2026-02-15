@@ -8,6 +8,7 @@ import { ImagePrompt } from "../types";
 import { parseSRTTimestamp } from "../utils/srtParser";
 import { ai, MODELS, withRetry } from "./shared/apiClient";
 import { CAMERA_ANGLES, LIGHTING_MOODS, VideoPurpose } from "../constants";
+import type { ImageStyleGuide } from "./prompt/imageStyleGuide";
 
 // --- NEW STYLE INJECTOR ---
 
@@ -814,6 +815,137 @@ export const refineImagePrompt = async (params: {
   });
 
   return { refinedPrompt, issues };
+};
+
+/**
+ * Refine an image prompt and return a partial ImageStyleGuide via AI.
+ * The AI fills in structured fields (mood, lighting, background, composition, etc.)
+ * based on the raw prompt text + style + subject context.
+ *
+ * Existing `refineImagePrompt()` callers are unaffected — only `imageService.ts`
+ * uses this guide variant.
+ */
+export const refineImagePromptAsGuide = async (params: {
+  promptText: string;
+  style?: string;
+  globalSubject?: string;
+  aspectRatio?: string;
+  intent?: PromptRefinementIntent;
+  previousPrompts?: string[];
+}): Promise<{
+  guide: Partial<ImageStyleGuide>;
+  issues: PromptLintIssue[];
+}> => {
+  const {
+    promptText,
+    style = "Cinematic",
+    globalSubject = "",
+    aspectRatio = "16:9",
+    intent = "auto",
+    previousPrompts = [],
+  } = params;
+
+  const issues = lintPrompt({ promptText, globalSubject, previousPrompts });
+
+  const shouldRefine =
+    intent !== "auto" ||
+    issues.some(
+      (i) =>
+        i.code === "too_short" ||
+        i.code === "repetitive" ||
+        i.code === "missing_subject",
+    );
+
+  if (!shouldRefine) {
+    // Return a minimal guide with just the scene text populated
+    return { guide: { scene: promptText.trim() }, issues };
+  }
+
+  const issueSummary =
+    issues.length > 0
+      ? issues.map((i) => `- (${i.code}) ${i.message}`).join("\n")
+      : "- (none)";
+
+  const guide = await withRetry(async () => {
+    const response = await ai.models.generateContent({
+      model: MODELS.TEXT,
+      contents: `You are a prompt engineer for high-quality image generation.
+Refine the user's prompt into structured fields for a JSON style guide.
+
+Global Subject: ${globalSubject || "(none)"}
+Style Preset: ${style}
+Aspect Ratio: ${aspectRatio}
+User Intent: ${intent}
+Detected Issues:
+${issueSummary}
+
+Requirements:
+- Output a JSON object with these optional fields:
+  scene (string), mood (string), background (string),
+  lighting (object with source, quality, direction),
+  composition (object with shot_type, camera_angle, framing),
+  camera (object with lens, depth_of_field, focus),
+  color_palette (array of strings),
+  textures (array of strings),
+  effects (array of strings).
+- Only include fields where you can meaningfully improve the prompt.
+- The "scene" field should be a vivid, specific rewrite of the user's prompt (70-130 words).
+- If Global Subject is provided, ensure it is the primary focus in the scene.
+- Be specific with visual descriptors.
+
+User Prompt:
+${promptText}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            scene: { type: Type.STRING },
+            mood: { type: Type.STRING },
+            background: { type: Type.STRING },
+            lighting: {
+              type: Type.OBJECT,
+              properties: {
+                source: { type: Type.STRING },
+                quality: { type: Type.STRING },
+                direction: { type: Type.STRING },
+              },
+            },
+            composition: {
+              type: Type.OBJECT,
+              properties: {
+                shot_type: { type: Type.STRING },
+                camera_angle: { type: Type.STRING },
+                framing: { type: Type.STRING },
+              },
+            },
+            camera: {
+              type: Type.OBJECT,
+              properties: {
+                lens: { type: Type.STRING },
+                depth_of_field: { type: Type.STRING },
+                focus: { type: Type.STRING },
+              },
+            },
+            color_palette: { type: Type.ARRAY, items: { type: Type.STRING } },
+            textures: { type: Type.ARRAY, items: { type: Type.STRING } },
+            effects: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+        },
+      },
+    });
+
+    const jsonStr = response.text;
+    if (!jsonStr) return { scene: promptText.trim() } as Partial<ImageStyleGuide>;
+
+    try {
+      return JSON.parse(jsonStr) as Partial<ImageStyleGuide>;
+    } catch {
+      return { scene: promptText.trim() } as Partial<ImageStyleGuide>;
+    }
+  });
+
+  return { guide, issues };
 };
 
 /**

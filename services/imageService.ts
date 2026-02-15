@@ -9,8 +9,12 @@
  */
 
 import { ai, MODELS, withRetry } from "./shared/apiClient";
-import { IMAGE_STYLE_MODIFIERS, DEFAULT_NEGATIVE_CONSTRAINTS } from "../constants";
 import { refineImagePrompt } from "./promptService";
+import {
+  buildImageStyleGuide,
+  serializeStyleGuideAsText,
+  type ImageStyleGuide,
+} from "./prompt/imageStyleGuide";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
 import { withAILogging } from "./aiLogService";
@@ -193,14 +197,16 @@ export const sketchToImage = async (
 ): Promise<string> => {
   console.log(`[ImageService] Sketch-to-image transformation with style: ${style}`);
 
-  // Build prompt that instructs the model to use the sketch as composition reference
+  // Build a style guide for consistency, then prepend sketch-specific instructions
+  const guide = buildImageStyleGuide({ scene: promptText, style });
+  const guideText = serializeStyleGuideAsText(guide);
+
   const transformPrompt = `Transform this rough sketch into a detailed, polished ${style} image.
 Maintain the exact composition, subject positions, and framing from the sketch.
 Add professional lighting, textures, and details while preserving the sketch's layout.
 
-Scene description: ${promptText}
+${guideText}
 
-Style: ${style}, professional quality, detailed textures, cinematic lighting.
 Important: Keep the same composition and subject placement as the sketch.`;
 
   try {
@@ -254,16 +260,19 @@ export const generateWithStyleReference = async (
 ): Promise<string> => {
   console.log(`[ImageService] Generating with custom style reference`);
 
+  // Build a style guide for the scene description portion
+  const guide = buildImageStyleGuide({ scene: promptText });
+  const guideText = serializeStyleGuideAsText(guide);
+
   const stylePrompt = `Generate a new image matching the artistic style, color palette, and visual aesthetic of the reference image.
 
-Scene to create: ${promptText}
+${guideText}
 
 Important instructions:
 - Match the art style, brushwork, and texture of the reference
 - Use the same color palette and lighting mood
 - Apply the same level of detail and rendering style
-- Create a NEW scene (not a copy of the reference)
-- Professional quality output`;
+- Create a NEW scene (not a copy of the reference)`;
 
   try {
     const response = await ai.models.generateContent({
@@ -311,6 +320,7 @@ Important instructions:
  * @param seed - Optional seed for reproducibility. If globalSubject is provided, a consistent seed is auto-generated.
  * @param sessionId - Optional session ID for cloud autosave
  * @param sceneIndex - Optional scene index for cloud autosave filename
+ * @param prebuiltGuide - Optional pre-built ImageStyleGuide. When provided, skips both refinement and guide building to avoid double-wrapping.
  */
 export const generateImageFromPrompt = traceAsync(
   async function generateImageFromPromptImpl(
@@ -322,54 +332,46 @@ export const generateImageFromPrompt = traceAsync(
     seed?: number,
     sessionId?: string,
     sceneIndex?: number,
+    prebuiltGuide?: ImageStyleGuide,
   ): Promise<string> {
     return withRetry(async () => {
-      const modifier = IMAGE_STYLE_MODIFIERS[style] || IMAGE_STYLE_MODIFIERS["Cinematic"];
+      let finalPrompt: string;
 
-      // Run a lightweight lint + (optional) AI refinement before image generation.
-      // Skip if already refined upstream (e.g., during bulk generation with cross-scene context).
-      let refinedPrompt = promptText;
+      if (prebuiltGuide) {
+        // Caller already built a guide — serialize directly (no refinement, no re-wrapping)
+        finalPrompt = serializeStyleGuideAsText(prebuiltGuide);
+      } else {
+        // Run a lightweight lint + (optional) AI refinement before image generation.
+        // Skip if already refined upstream (e.g., during bulk generation with cross-scene context).
+        let refinedPrompt = promptText;
 
-      if (!skipRefine) {
-        const result = await refineImagePrompt({
-          promptText,
+        if (!skipRefine) {
+          const result = await refineImagePrompt({
+            promptText,
+            style,
+            globalSubject,
+            aspectRatio,
+            intent: "auto",
+            previousPrompts: [],
+          });
+
+          refinedPrompt = result.refinedPrompt;
+
+          if (result.issues.length > 0) {
+            console.log(
+              `[prompt-lint] ${result.issues.map((i) => i.code).join(", ")} | style=${style} | aspectRatio=${aspectRatio}`,
+            );
+          }
+        }
+
+        // Build structured style guide and serialize as natural-language prompt
+        const guide = buildImageStyleGuide({
+          promptText: refinedPrompt,
           style,
           globalSubject,
-          aspectRatio,
-          intent: "auto",
-          previousPrompts: [],
         });
-
-        refinedPrompt = result.refinedPrompt;
-
-        if (result.issues.length > 0) {
-          console.log(
-            `[prompt-lint] ${result.issues.map((i) => i.code).join(", ")} | style=${style} | aspectRatio=${aspectRatio}`,
-          );
-        }
+        finalPrompt = serializeStyleGuideAsText(guide);
       }
-
-      const subjectBlock = globalSubject
-        ? `Global Subject (keep consistent across scenes): ${globalSubject}`
-        : "";
-
-      const negative = DEFAULT_NEGATIVE_CONSTRAINTS.map((s) => `- ${s}`).join(
-        "\n",
-      );
-
-      // Build the final prompt
-      const finalPrompt = `
-${modifier}
-
-${subjectBlock}
-
-${refinedPrompt}
-
-Style: ${style.toLowerCase() === 'cinematic' ? 'Raw photo style' : style + ' style'}, 35mm film grain, high dynamic range, professional cinematography.
-Focus on clean visual composition without any text elements.
-
-${negative}
-      `.trim();
 
       // Determine seed: use provided seed, or auto-generate from globalSubject for consistency
       let effectiveSeed = seed;

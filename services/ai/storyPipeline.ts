@@ -19,6 +19,7 @@ import { storyModeStore } from "./production/store";
 import type { StoryModeState } from "./production/types";
 import type { ScreenplayScene, CharacterProfile } from "@/types";
 import { generateImageFromPrompt } from "../imageService";
+import { buildImageStyleGuide } from "../prompt/imageStyleGuide";
 import { cloudAutosave } from "../cloudStorageService";
 
 const log = agentLogger.child('StoryPipeline');
@@ -195,9 +196,10 @@ Focus on characters with significant presence.`;
 async function generateCharacterReferences(
     characters: CharacterProfile[],
     sessionId: string,
+    style: string = "Cinematic",
     onProgress?: (current: number, total: number) => void
 ): Promise<CharacterProfile[]> {
-    log.info(`Step 4: Generating ${characters.length} character references`);
+    log.info(`Step 4: Generating ${characters.length} character references in "${style}" style`);
 
     const results: CharacterProfile[] = [];
 
@@ -209,20 +211,30 @@ async function generateCharacterReferences(
         log.info(`Generating reference ${i + 1}/${characters.length}: ${char.name}`);
 
         try {
-            const prompt = `Character Design Sheet for "${char.name}".
-${char.visualDescription}
-White background, neutral lighting, clean studio setting.
-Front view and three-quarter view, full body visible.
-Professional character reference sheet style.`;
+            // Use the project's visual style for the character reference so it
+            // matches the art direction of the scene visuals, while keeping
+            // character-sheet-specific composition (front + three-quarter view,
+            // neutral background, studio lighting).
+            const charGuide = buildImageStyleGuide({
+                scene: `Character Design Sheet for "${char.name}"`,
+                subjects: [{ type: "person", description: char.visualDescription, pose: "front view and three-quarter view, full body" }],
+                style,
+                background: "neutral white background",
+                lighting: { source: "studio softbox", quality: "soft diffused", direction: "rim light accent" },
+                composition: { shot_type: "medium shot", camera_angle: "eye-level", framing: "center framing" },
+                avoid: ["blur", "darkness", "noise", "low quality", "text", "watermark"],
+            });
 
             const referenceUrl = await generateImageFromPrompt(
-                prompt,
-                "Character Sheet",
+                char.visualDescription,  // fallback text (unused when prebuiltGuide is set)
+                style,
                 char.name,
                 "1:1",
-                false,
+                true,       // skipRefine — guide is already complete
                 undefined,
-                sessionId
+                sessionId,
+                undefined,
+                charGuide,  // prebuiltGuide — avoids double-wrapping
             );
 
             results.push({
@@ -283,32 +295,33 @@ async function generateSceneVisuals(
             // Determine emotional context for this scene
             const emotionalVibe = emotionalHooks?.[i] || emotionalHooks?.[0] || 'Cinematic';
 
-            // Build narrative-integrated prompt: character IN the action, not bio + description
-            const charAnchors = scene.charactersPresent
-                .map(charName => charAnchorMap.get(charName.toLowerCase()))
-                .filter(Boolean)
-                .join(' ');
+            // Build character subject entries from visual anchors
+            const charSubjects = scene.charactersPresent
+                .map(charName => {
+                    const anchor = charAnchorMap.get(charName.toLowerCase());
+                    return anchor ? { type: "person" as const, description: anchor } : null;
+                })
+                .filter((s): s is { type: "person"; description: string } => s !== null);
 
-            // Compose: visual anchors + scene action + emotional vibe + cinematic polish
-            let visualPrompt = charAnchors
-                ? `${charAnchors} in a cinematic shot, ${scene.action}.`
-                : `${scene.heading}. ${scene.action}.`;
-
-            // Inject emotional context and cinematic direction
-            visualPrompt += ` ${emotionalVibe} mood, ${style} lighting, dynamic camera movement.`;
-
-            // Quality control: negative prompt suffix
-            visualPrompt += ` --no text, watermark, split screen, morphing, disfigured hands, blurry, static image`;
+            // Build structured style guide for the scene
+            const sceneGuide = buildImageStyleGuide({
+                scene: scene.action,
+                subjects: charSubjects.length > 0 ? charSubjects : undefined,
+                mood: emotionalVibe,
+                style,
+                background: scene.heading,
+            });
 
             const imageUrl = await generateImageFromPrompt(
-                visualPrompt,
+                scene.action,    // fallback text (unused when prebuiltGuide is set)
                 style,
                 "",
                 "16:9",
-                false,
+                true,            // skipRefine — guide is already complete
                 undefined,
                 sessionId,
-                i
+                i,
+                sceneGuide,      // prebuiltGuide — avoids double-wrapping
             );
 
             results.push({ sceneId: scene.id, imageUrl });
@@ -391,41 +404,39 @@ export async function runStoryPipeline(
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        // Step 3: Screenplay → Characters
-        onProgress?.({ stage: 'characters', message: 'Extracting characters...', progress: 50 });
+        // Step 3: Screenplay → Characters (text extraction only, no images yet)
+        onProgress?.({ stage: 'characters', message: 'Extracting characters...', progress: 45 });
         let characters = await extractCharactersFromScreenplay(screenplay);
-
-        // Step 4: Generate character references (optional)
-        if (generateCharacterRefs && characters.length > 0) {
-            onProgress?.({
-                stage: 'characters',
-                message: 'Generating character reference sheets...',
-                progress: 60,
-                currentStep: 0,
-                totalSteps: characters.length,
-            });
-
-            characters = await generateCharacterReferences(
-                characters,
-                sessionId,
-                (current, total) => {
-                    onProgress?.({
-                        stage: 'characters',
-                        message: `Generating reference ${current}/${total}...`,
-                        progress: 60 + (current / total) * 15,
-                        currentStep: current,
-                        totalSteps: total,
-                    });
-                }
-            );
-        }
 
         state.characters = characters;
         state.currentStep = 'characters';
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        // Step 5: Generate scene visuals (optional)
+        // Populate charactersPresent on each scene by matching character names
+        // against dialogue speakers and action text.
+        const charNames = characters.map(c => c.name);
+        for (const scene of screenplay) {
+            const matched = new Set<string>();
+            for (const name of charNames) {
+                const nameLower = name.toLowerCase();
+                // Check dialogue speakers
+                if (scene.dialogue.some(d => d.speaker.toLowerCase() === nameLower)) {
+                    matched.add(name);
+                    continue;
+                }
+                // Check action text
+                if (scene.action.toLowerCase().includes(nameLower)) {
+                    matched.add(name);
+                }
+            }
+            scene.charactersPresent = Array.from(matched);
+        }
+        state.screenplay = screenplay;
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        // Step 4: Generate scene visuals (art step — establishes the visual style)
         // Bridge: carry emotional hooks from breakdown acts to visual generation
         const emotionalHooks = breakdown.acts.map(a => a.emotionalHook);
 
@@ -434,7 +445,7 @@ export async function runStoryPipeline(
             onProgress?.({
                 stage: 'visuals',
                 message: 'Generating scene visuals...',
-                progress: 75,
+                progress: 55,
                 currentStep: 0,
                 totalSteps: screenplay.length,
             });
@@ -448,7 +459,7 @@ export async function runStoryPipeline(
                     onProgress?.({
                         stage: 'visuals',
                         message: `Generating visual ${current}/${total}...`,
-                        progress: 75 + (current / total) * 20,
+                        progress: 55 + (current / total) * 20,
                         currentStep: current,
                         totalSteps: total,
                     });
@@ -470,6 +481,36 @@ export async function runStoryPipeline(
                 dialogue: screenplay[i]?.dialogue[0]?.text || '',
                 imageUrl: v.imageUrl,
             }));
+        }
+
+        // Step 5: Generate character references (after art step — uses the same visual style)
+        if (generateCharacterRefs && characters.length > 0) {
+            onProgress?.({
+                stage: 'characters',
+                message: 'Generating character reference sheets...',
+                progress: 80,
+                currentStep: 0,
+                totalSteps: characters.length,
+            });
+
+            characters = await generateCharacterReferences(
+                characters,
+                sessionId,
+                visualStyle,
+                (current, total) => {
+                    onProgress?.({
+                        stage: 'characters',
+                        message: `Generating reference ${current}/${total}...`,
+                        progress: 80 + (current / total) * 15,
+                        currentStep: current,
+                        totalSteps: total,
+                    });
+                }
+            );
+
+            state.characters = characters;
+            state.updatedAt = Date.now();
+            storyModeStore.set(sessionId, state);
         }
 
         state.currentStep = 'shotlist';

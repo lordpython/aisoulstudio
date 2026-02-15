@@ -6,3 +6,11 @@
 
 export { getSystemPersona, type Persona, type PersonaType } from './personaData';
 export { getStyleEnhancement, type StyleEnhancement } from './styleEnhancements';
+export {
+  buildImageStyleGuide,
+  serializeStyleGuide,
+  serializeStyleGuideAsText,
+  type ImageStyleGuide,
+  type ImageStyleGuideSubject,
+  type BuildImageStyleGuideParams,
+} from './imageStyleGuide';

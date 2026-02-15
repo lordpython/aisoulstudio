@@ -10,6 +10,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GEMINI_API_KEY, MODELS } from "./shared/apiClient";
 import { generateImageWithDeApi } from "./deapiService";
 import { getCharacterSeed } from "./imageService";
+import { buildImageStyleGuide, serializeStyleGuideAsText } from "./prompt/imageStyleGuide";
 import { z } from "zod";
 import type { CharacterProfile } from "@/types";
 import { withAILogging } from "./aiLogService";
@@ -80,19 +81,28 @@ ${scriptText}`;
 export async function generateCharacterReference(
     charName: string,
     description: string,
-    sessionId: string
+    sessionId: string,
+    style: string = "Cinematic",
 ): Promise<string> {
-    // Prompt includes explicit camera angle, lighting quality, and color palette keywords
-    // to satisfy the prompt linter's visual specificity checks and improve Imagen output quality.
-    const prompt = `${charName}, ${description}.
-Medium shot, eye-level camera angle, front view and three-quarter view, full body visible.
-Soft diffused studio lighting with rim light accent, neutral white background.
-Clean muted color palette, professional character reference sheet style, consistent proportions.
-High detail, sharp focus, 35mm lens, shallow depth of field on subject.
-No text, no watermarks, no logos.`;
+    // Build a structured JSON style guide using the project's visual style
+    // so the character reference matches the art direction, while keeping
+    // character-sheet composition (front + three-quarter view, neutral bg).
+    const guide = buildImageStyleGuide({
+      scene: `Character Design Sheet for "${charName}"`,
+      subjects: [{ type: "person", description, pose: "front view and three-quarter view, full body" }],
+      style,
+      background: "neutral white background",
+      lighting: { source: "studio softbox", quality: "soft diffused", direction: "rim light accent" },
+      composition: { shot_type: "medium shot", camera_angle: "eye-level", framing: "center framing" },
+      avoid: ["blur", "darkness", "noise", "low quality", "text", "watermark"],
+    });
+    const prompt = serializeStyleGuideAsText(guide);
+
+    // Derive negative_prompt from the guide's avoid array
+    const negativePrompt = guide.avoid.map(item => `no ${item}`).join(", ");
 
     const seed = getCharacterSeed(charName);
-    console.log(`[CharacterService] Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed})`);
+    console.log(`[CharacterService] Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed}, style=${style})`);
 
     return generateImageWithDeApi({
         prompt,
@@ -102,7 +112,7 @@ No text, no watermarks, no logos.`;
         guidance: 3.5,
         steps: 4,
         seed,
-        negative_prompt: "blur, darkness, noise, low quality, text, watermark",
+        negative_prompt: negativePrompt,
     });
 }
 
@@ -115,7 +125,8 @@ No text, no watermarks, no logos.`;
  */
 export async function generateAllCharacterReferences(
     characters: CharacterProfile[],
-    sessionId: string
+    sessionId: string,
+    style: string = "Cinematic",
 ): Promise<CharacterProfile[]> {
     const results: CharacterProfile[] = [];
 
@@ -129,7 +140,8 @@ export async function generateAllCharacterReferences(
             const referenceUrl = await generateCharacterReference(
                 char.name,
                 char.visualDescription,
-                sessionId
+                sessionId,
+                style,
             );
 
             results.push({

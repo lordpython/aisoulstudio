@@ -312,6 +312,19 @@ const STYLE_ENHANCEMENTS: Record<string, StyleEnhancement> = {
         ],
         mediumDescription: "hand-drawn sketch with visible paper texture, smudged charcoal gradients, and natural media characteristics",
     },
+    character_sheet: {
+        keywords: [
+            "studio softbox lighting",
+            "neutral white background",
+            "consistent proportions",
+            "sharp focus on subject",
+            "professional reference sheet",
+            "clean rim light accent",
+            "85mm portrait lens",
+            "front and three-quarter view",
+        ],
+        mediumDescription: "professional character reference sheet with neutral studio lighting, clean background, and consistent proportions",
+    },
 };
 
 // Default fallback style

@@ -750,6 +750,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 char.name,
                 char.visualDescription,
                 sessionId,
+                state.visualStyle || 'Cinematic',
             );
 
             setState(prev => ({
@@ -1318,28 +1319,39 @@ export function useStoryGeneration(projectId?: string | null) {
             const lighting = shot?.lighting || existingEntry?.lighting || 'Natural';
             const emotion = shot?.emotion || 'neutral';
 
-            const prompt = customPrompt
-                ? `${customPrompt}. ${style} style.`
-                : `${baseDescription}. ${shotType} shot, ${cameraAngle} angle, ${lighting} lighting. ${emotion} mood. ${style} style.`;
-
             setProgress({ message: 'Generating new image...', percent: 50 });
+
+            // Build a structured style guide for consistent prompts across providers
+            const { buildImageStyleGuide, serializeStyleGuideAsText } = await import('@/services/prompt/imageStyleGuide');
+            const guide = buildImageStyleGuide({
+                scene: customPrompt || baseDescription,
+                style,
+                mood: emotion,
+                composition: { shot_type: shotType, camera_angle: cameraAngle, framing: 'rule of thirds' },
+                lighting: { source: lighting, quality: 'natural' },
+            });
 
             let imageUrl: string;
             if (state.imageProvider === 'deapi') {
+                const guidePrompt = serializeStyleGuideAsText(guide);
+                const negativePrompt = guide.avoid.map(item => `no ${item}`).join(', ');
                 imageUrl = await generateImageWithAspectRatio(
-                    prompt,
+                    guidePrompt,
                     (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
                     'Flux_2_Klein_4B_BF16',
+                    negativePrompt,
                 );
             } else {
                 imageUrl = await generateImageFromPrompt(
-                    prompt,
+                    baseDescription,
                     style,
                     '',
                     state.aspectRatio || '16:9',
-                    false,
-                    undefined, // New seed for variation
-                    sessionId || undefined
+                    true,            // skipRefine — guide is already complete
+                    undefined,       // New seed for variation
+                    sessionId || undefined,
+                    undefined,
+                    guide,           // prebuiltGuide
                 );
             }
 
