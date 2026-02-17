@@ -332,6 +332,160 @@ export function buildImageStyleGuide(params: BuildImageStyleGuideParams = {}): I
 /**
  * Serialize an `ImageStyleGuide` to a JSON string suitable as an image-model prompt.
  */
+// ---------------------------------------------------------------------------
+// Shot Breakdown Factory (Story Mode)
+// ---------------------------------------------------------------------------
+
+export interface ShotBreakdownInput {
+  description: string;
+  shotType: string;
+  cameraAngle: string;
+  movement: string;
+  lighting: string;
+  emotion: string;
+}
+
+export interface CharacterInput {
+  name: string;
+  visualDescription: string;
+  facialTags?: string;
+}
+
+/**
+ * Build a complete `BuildImageStyleGuideParams` from shot breakdown + character data.
+ * Centralizes the mapping from story pipeline types to the style guide system.
+ */
+export function fromShotBreakdown(
+  shot: ShotBreakdownInput,
+  characters: CharacterInput[],
+  style: string,
+  extractedStyle?: ExtractedStyleOverride,
+): ImageStyleGuide {
+  // Build subjects from characters mentioned in the shot description
+  const shotDescLower = shot.description.toLowerCase();
+  const subjects: ImageStyleGuideSubject[] = characters
+    .filter(c => shotDescLower.includes(c.name.toLowerCase()))
+    .map(c => ({
+      type: "person",
+      description: c.facialTags
+        ? c.facialTags
+        : c.visualDescription.length > 150
+          ? c.visualDescription.substring(0, 147) + "..."
+          : c.visualDescription,
+      position: "center",
+      expression: shot.emotion || undefined,
+      pose: inferPoseFromDescription(shot.description),
+      interaction: inferInteractionFromDescription(shot.description, characters.length),
+    }));
+
+  // Map shot fields to style guide params
+  const params: BuildImageStyleGuideParams = {
+    scene: shot.description,
+    subjects,
+    style,
+    mood: shot.emotion,
+    lighting: {
+      source: shot.lighting || "natural",
+      quality: "cinematic",
+      direction: inferLightingDirection(shot.lighting),
+    },
+    composition: {
+      shot_type: mapShotType(shot.shotType),
+      camera_angle: mapCameraAngle(shot.cameraAngle),
+      framing: "rule of thirds",
+    },
+  };
+
+  // Apply extracted style overrides for cross-shot consistency
+  if (extractedStyle) {
+    if (extractedStyle.colorPalette?.length) {
+      params.color_palette = extractedStyle.colorPalette;
+    }
+    if (extractedStyle.lighting) {
+      params.lighting = {
+        source: extractedStyle.lighting,
+        quality: "consistent",
+      };
+    }
+    if (extractedStyle.texture) {
+      params.textures = [extractedStyle.texture];
+    }
+    if (extractedStyle.moodKeywords?.length) {
+      params.mood = extractedStyle.moodKeywords.join(", ");
+    }
+    if (extractedStyle.negativePrompts?.length) {
+      params.avoid = extractedStyle.negativePrompts;
+    }
+  }
+
+  return buildImageStyleGuide(params);
+}
+
+/** Extracted style from visualConsistencyService, used for cross-shot consistency */
+export interface ExtractedStyleOverride {
+  colorPalette?: string[];
+  lighting?: string;
+  texture?: string;
+  moodKeywords?: string[];
+  negativePrompts?: string[];
+}
+
+function inferPoseFromDescription(description: string): string | undefined {
+  const lower = description.toLowerCase();
+  if (/\b(sitting|seated|sits)\b/.test(lower)) return "sitting";
+  if (/\b(standing|stands)\b/.test(lower)) return "standing";
+  if (/\b(walking|walks)\b/.test(lower)) return "walking";
+  if (/\b(running|runs)\b/.test(lower)) return "running";
+  if (/\b(lying|lies|reclining)\b/.test(lower)) return "reclining";
+  return undefined;
+}
+
+function inferInteractionFromDescription(description: string, charCount: number): string | undefined {
+  if (charCount < 2) return undefined;
+  const lower = description.toLowerCase();
+  if (/\b(talking|speaking|conversation)\b/.test(lower)) return "in conversation";
+  if (/\b(fighting|struggling)\b/.test(lower)) return "in conflict";
+  if (/\b(embracing|hugging)\b/.test(lower)) return "embracing";
+  if (/\b(looking at|facing)\b/.test(lower)) return "facing each other";
+  return undefined;
+}
+
+function inferLightingDirection(lighting: string): string | undefined {
+  const lower = (lighting || "").toLowerCase();
+  if (/\b(back|rim|silhouette)\b/.test(lower)) return "backlit";
+  if (/\b(side|dramatic)\b/.test(lower)) return "side-lit";
+  if (/\b(top|overhead)\b/.test(lower)) return "top-lit";
+  return undefined;
+}
+
+function mapShotType(shotType: string): string {
+  const map: Record<string, string> = {
+    "Wide": "wide shot",
+    "Medium": "medium shot",
+    "Close-up": "close-up",
+    "Extreme Close-up": "extreme close-up",
+    "POV": "POV shot",
+    "Over-the-shoulder": "over-the-shoulder shot",
+  };
+  return map[shotType] || shotType.toLowerCase();
+}
+
+function mapCameraAngle(angle: string): string {
+  const map: Record<string, string> = {
+    "Eye-level": "eye-level",
+    "High": "high angle",
+    "Low": "low angle",
+    "Dutch": "dutch angle",
+    "Bird's-eye": "bird's eye view",
+    "Worm's-eye": "worm's eye view",
+  };
+  return map[angle] || angle.toLowerCase();
+}
+
+// ---------------------------------------------------------------------------
+// Serializer
+// ---------------------------------------------------------------------------
+
 export function serializeStyleGuide(guide: ImageStyleGuide): string {
   return JSON.stringify(guide, null, 2);
 }

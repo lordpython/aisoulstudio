@@ -45,6 +45,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   experimental: <Palette className="w-3.5 h-3.5" />,
 };
 
+const defaultDifficultyColor = { text: 'text-zinc-400', bg: 'bg-zinc-500/10' };
 const difficultyColors: Record<string, { text: string; bg: string }> = {
   beginner: { text: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   intermediate: { text: 'text-orange-400', bg: 'bg-orange-500/10' },
@@ -86,7 +87,7 @@ function TemplateCard({
   onClick: () => void;
   isSelected: boolean;
 }) {
-  const colors = difficultyColors[template.difficulty] ?? difficultyColors.beginner;
+  const colors = difficultyColors[template.difficulty] ?? defaultDifficultyColor;
   const tt = useTemplateTranslation();
 
   return (
@@ -172,7 +173,7 @@ function TemplatePreview({
 }) {
   const { t } = useLanguage();
   const tt = useTemplateTranslation();
-  const colors = difficultyColors[template.difficulty] ?? difficultyColors.beginner;
+  const colors = difficultyColors[template.difficulty] ?? defaultDifficultyColor;
 
   return (
     <motion.div

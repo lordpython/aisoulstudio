@@ -13,7 +13,6 @@ import {
 // Mock the crypto.subtle API if not available in test environment
 beforeAll(() => {
   if (typeof globalThis.crypto === 'undefined') {
-    // @ts-ignore
     globalThis.crypto = {
       subtle: {
         digest: vi.fn().mockImplementation(async (algorithm: string, data: ArrayBuffer) => {
@@ -26,8 +25,8 @@ beforeAll(() => {
           }
           return result;
         }),
-      },
-    };
+      } as unknown as SubtleCrypto,
+    } as unknown as Crypto;
   }
 });
 

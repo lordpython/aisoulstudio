@@ -22,7 +22,7 @@ import {
 } from "../utils";
 import { generateContentPlan, ContentPlannerConfig } from "../../../contentPlannerService";
 import { narrateAllScenes, NarratorConfig } from "../../../narratorService";
-import { generateImageFromPrompt } from "../../../imageService";
+import { generateImageFromPrompt, getCharacterSeed } from "../../../imageService";
 import { generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "../../../sfxService";
 import { validateContentPlan, syncDurationsToNarration } from "../../../editorService";
 import {
@@ -30,8 +30,14 @@ import {
     injectStyleIntoPrompt,
     type VisualStyle
 } from "../../../visualConsistencyService";
+import {
+    fromShotBreakdown,
+    serializeStyleGuideAsText,
+    type CharacterInput,
+    type ExtractedStyleOverride,
+} from "../../../prompt/imageStyleGuide";
 import { type VideoPurpose } from "../../../../constants";
-import { type GeneratedImage } from "../../../../types";
+import { type GeneratedImage, type Scene } from "../../../../types";
 import { cloudAutosave } from "../../../cloudStorageService";
 import { getEffectiveLegacyTone } from "../../../tripletUtils";
 import { type ProductionProgress, createInitialState } from "../types";
@@ -221,6 +227,51 @@ export const generateVisualsTool = tool(
                 });
             }
 
+            // Build CharacterInput array from the content plan's Character Bible
+            const charInputs: CharacterInput[] = (state.contentPlan.characters ?? []).map(c => ({
+                name: c.name,
+                visualDescription: [c.appearance, c.clothing, c.distinguishingFeatures]
+                    .filter(Boolean).join('. '),
+                facialTags: c.consistencyKey,
+            }));
+
+            // Helper: build an anchored image prompt using character identity data when available
+            function buildScenePrompt(scene: Scene, extractedStyle: VisualStyle | null): { prompt: string; seed?: number } {
+                const sceneDescLower = scene.visualDescription.toLowerCase();
+                const presentChars = charInputs.filter(c => sceneDescLower.includes(c.name.toLowerCase()));
+
+                if (presentChars.length === 0) {
+                    // No characters matched — use existing style-injection path
+                    const prompt = extractedStyle
+                        ? injectStyleIntoPrompt(scene.visualDescription, extractedStyle)
+                        : scene.visualDescription;
+                    return { prompt };
+                }
+
+                // Characters present — use fromShotBreakdown for full identity anchoring
+                const styleOverride: ExtractedStyleOverride | undefined = extractedStyle
+                    ? { colorPalette: extractedStyle.colorPalette, moodKeywords: extractedStyle.moodKeywords }
+                    : undefined;
+
+                const guide = fromShotBreakdown(
+                    {
+                        description: scene.visualDescription,
+                        shotType: scene.shotType ?? 'medium',
+                        cameraAngle: 'Eye-level',
+                        movement: scene.cameraMovement ?? 'static',
+                        lighting: scene.lighting ?? 'Natural',
+                        emotion: getEffectiveLegacyTone(scene),
+                    },
+                    presentChars,
+                    style ?? 'Cinematic',
+                    styleOverride,
+                );
+
+                const seed = getCharacterSeed(presentChars[0]!.visualDescription);
+                log.info(` Reusing seed ${seed} for character: ${presentChars[0]!.name}`);
+                return { prompt: serializeStyleGuideAsText(guide), seed };
+            }
+
             // Check if already generated
             if (state.visuals && state.visuals.length >= state.contentPlan.scenes.length && state.visuals.every(v => v.imageUrl)) {
                 log.info(` Visuals already generated for ${contentPlanId}, skipping`);
@@ -237,6 +288,10 @@ export const generateVisualsTool = tool(
                 const BATCH_SIZE = 3;
 
                 const effectiveVeoCount = Math.min(Math.max(0, veoVideoCount), 5, totalScenes);
+
+                // Declare extractedStyle early so Veo fallback can use buildScenePrompt(scene, extractedStyle)
+                // It will be null during Veo generation and populated afterwards for remaining scenes
+                let extractedStyle: VisualStyle | null = null;
 
                 // --- Veo Scenes: Use Veo 3.1 for first N scenes ---
                 if (effectiveVeoCount > 0) {
@@ -268,12 +323,13 @@ export const generateVisualsTool = tool(
                             log.info(` Veo 3.1 video generated for scene ${sceneIdx + 1}`);
                         } catch (veoError) {
                             log.warn(` Veo 3.1 failed for scene ${sceneIdx + 1}, falling back to Imagen:`, veoError);
+                            const { prompt: fallbackPrompt, seed: fallbackSeed } = buildScenePrompt(scene, extractedStyle);
                             imageUrl = await generateImageFromPrompt(
-                                scene.visualDescription,
+                                fallbackPrompt,
                                 style || "Cinematic",
                                 "", aspectRatio || "16:9",
                                 false,
-                                undefined,
+                                fallbackSeed,
                                 contentPlanId,
                                 sceneIdx
                             );
@@ -292,7 +348,6 @@ export const generateVisualsTool = tool(
                 }
 
                 // --- Extract Visual Style from first scene for consistency ---
-                let extractedStyle: VisualStyle | null = null;
                 if (visuals[0]?.imageUrl) {
                     try {
                         log.info(` Extracting visual style from first scene for consistency`);
@@ -326,16 +381,14 @@ export const generateVisualsTool = tool(
                             return null;
                         }
 
-                        const enhancedPrompt = extractedStyle
-                            ? injectStyleIntoPrompt(scene.visualDescription, extractedStyle)
-                            : scene.visualDescription;
+                        const { prompt: anchoredPrompt, seed: anchoredSeed } = buildScenePrompt(scene, extractedStyle);
 
                         const imageUrl = await generateImageFromPrompt(
-                            enhancedPrompt,
+                            anchoredPrompt,
                             style || "Cinematic",
                             "", aspectRatio || "16:9",
                             false,
-                            undefined,
+                            anchoredSeed,
                             contentPlanId,
                             globalIndex
                         );

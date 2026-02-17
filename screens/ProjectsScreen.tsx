@@ -26,6 +26,7 @@ import {
   SortDesc,
   Loader2,
   FolderOpen,
+  Sparkles,
 } from 'lucide-react';
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
@@ -65,25 +66,29 @@ const CREATE_OPTIONS: Array<{
   type: ProjectType;
   icon: typeof Video;
   titleKey: string;
-  color: string;
+  gradient: string;
+  iconColor: string;
 }> = [
   {
     type: 'production',
     icon: Video,
     titleKey: 'projects.createVideo',
-    color: 'from-violet-500 to-purple-600',
+    gradient: 'from-primary/80 to-primary/40',
+    iconColor: 'text-primary',
   },
   {
     type: 'story',
     icon: Film,
     titleKey: 'projects.createStory',
-    color: 'from-amber-500 to-orange-600',
+    gradient: 'from-accent/80 to-accent/40',
+    iconColor: 'text-accent',
   },
   {
     type: 'visualizer',
     icon: AudioWaveform,
     titleKey: 'projects.createVisualizer',
-    color: 'from-cyan-500 to-blue-600',
+    gradient: 'from-ring/80 to-ring/40',
+    iconColor: 'text-ring',
   },
 ];
 
@@ -261,21 +266,27 @@ export default function ProjectsScreen() {
   // Render loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
-          <p className="text-white/60">{t('projects.loading') || 'Loading projects...'}</p>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground font-editorial">{t('projects.loading') || 'Loading projects...'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden flex flex-col">
-      {/* Background gradient */}
+    <div className="min-h-screen bg-background text-foreground overflow-hidden flex flex-col">
+      {/* Background ambient glow */}
       <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-[128px]" />
+        <div
+          className="absolute top-[-10%] left-[10%] w-[50%] h-[50%] rounded-full blur-[160px] mix-blend-screen"
+          style={{ backgroundColor: 'oklch(0.70 0.15 190 / 0.08)' }}
+        />
+        <div
+          className="absolute bottom-[-10%] right-[10%] w-[40%] h-[40%] rounded-full blur-[140px] mix-blend-screen"
+          style={{ backgroundColor: 'oklch(0.65 0.25 30 / 0.05)' }}
+        />
       </div>
 
       {/* Content */}
@@ -295,18 +306,23 @@ export default function ProjectsScreen() {
         >
           <div className="max-w-7xl mx-auto">
             {/* Page Title & Create Button */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6',
+                'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8',
                 isRTL && 'sm:flex-row-reverse'
               )}
             >
               <div className={cn(isRTL && 'text-right')}>
-                <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                  <Folder className="w-8 h-8 text-violet-400" />
+                <h1 className="text-2xl md:text-3xl font-display font-bold flex items-center gap-3 text-foreground">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/10 border border-border flex items-center justify-center">
+                    <Folder className="w-5 h-5 text-primary" />
+                  </div>
                   {t('projects.title') || 'My Projects'}
                 </h1>
-                <p className="text-white/60 mt-1">
+                <p className="text-muted-foreground mt-1.5 font-editorial text-sm">
                   {projects.length} {projects.length === 1 ? 'project' : 'projects'}
                 </p>
               </div>
@@ -316,7 +332,7 @@ export default function ProjectsScreen() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     disabled={isCreating}
-                    className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
                   >
                     {isCreating ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -339,7 +355,7 @@ export default function ProjectsScreen() {
                           className={cn(
                             'w-8 h-8 rounded-lg flex items-center justify-center mr-3',
                             'bg-gradient-to-br',
-                            option.color
+                            option.gradient
                           )}
                         >
                           <Icon className="w-4 h-4 text-white" />
@@ -350,11 +366,11 @@ export default function ProjectsScreen() {
                   })}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </motion.div>
 
             {/* Error Display */}
             {error && (
-              <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+              <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
                 {error}
               </div>
             )}
@@ -364,14 +380,19 @@ export default function ProjectsScreen() {
               <>
                 {/* Favorites Section */}
                 {favoriteProjects.length > 0 && (
-                  <section className="mb-8">
+                  <motion.section
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                    className="mb-10"
+                  >
                     <h2
                       className={cn(
-                        'text-lg font-semibold mb-4 flex items-center gap-2',
+                        'text-sm font-editorial font-semibold mb-4 flex items-center gap-2 text-muted-foreground uppercase tracking-wider',
                         isRTL && 'flex-row-reverse'
                       )}
                     >
-                      <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                      <Star className="w-4 h-4 text-accent fill-accent" />
                       {t('projects.favorites') || 'Favorites'}
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -386,19 +407,24 @@ export default function ProjectsScreen() {
                         ))}
                       </AnimatePresence>
                     </div>
-                  </section>
+                  </motion.section>
                 )}
 
                 {/* Recent Section */}
                 {recentProjects.length > 0 && (
-                  <section className="mb-8">
+                  <motion.section
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.15 }}
+                    className="mb-10"
+                  >
                     <h2
                       className={cn(
-                        'text-lg font-semibold mb-4 flex items-center gap-2',
+                        'text-sm font-editorial font-semibold mb-4 flex items-center gap-2 text-muted-foreground uppercase tracking-wider',
                         isRTL && 'flex-row-reverse'
                       )}
                     >
-                      <Clock className="w-5 h-5 text-blue-400" />
+                      <Clock className="w-4 h-4 text-primary" />
                       {t('projects.recent') || 'Recent'}
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -413,13 +439,17 @@ export default function ProjectsScreen() {
                         ))}
                       </AnimatePresence>
                     </div>
-                  </section>
+                  </motion.section>
                 )}
               </>
             )}
 
             {/* All Projects Section */}
-            <section>
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               <div
                 className={cn(
                   'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4',
@@ -428,11 +458,11 @@ export default function ProjectsScreen() {
               >
                 <h2
                   className={cn(
-                    'text-lg font-semibold flex items-center gap-2',
+                    'text-sm font-editorial font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider',
                     isRTL && 'flex-row-reverse'
                   )}
                 >
-                  <FolderOpen className="w-5 h-5 text-white/60" />
+                  <FolderOpen className="w-4 h-4" />
                   {t('projects.allProjects') || 'All Projects'}
                 </h2>
 
@@ -445,13 +475,13 @@ export default function ProjectsScreen() {
                 >
                   {/* Search */}
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       type="text"
                       placeholder={t('projects.search') || 'Search...'}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 w-48 bg-white/5 border-white/10"
+                      className="pl-9 w-48 bg-secondary border-border"
                     />
                   </div>
 
@@ -460,7 +490,7 @@ export default function ProjectsScreen() {
                     value={filterType}
                     onValueChange={(value) => setFilterType(value as FilterType)}
                   >
-                    <SelectTrigger className="w-32 bg-white/5 border-white/10">
+                    <SelectTrigger className="w-32 bg-secondary border-border">
                       <SelectValue placeholder="All types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -476,7 +506,7 @@ export default function ProjectsScreen() {
                     value={sortField}
                     onValueChange={(value) => setSortField(value as SortField)}
                   >
-                    <SelectTrigger className="w-32 bg-white/5 border-white/10">
+                    <SelectTrigger className="w-32 bg-secondary border-border">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
@@ -491,7 +521,7 @@ export default function ProjectsScreen() {
                     variant="outline"
                     size="icon"
                     onClick={toggleSortOrder}
-                    className="bg-white/5 border-white/10"
+                    className="bg-secondary border-border"
                   >
                     {sortOrder === 'desc' ? (
                       <SortDesc className="w-4 h-4" />
@@ -501,14 +531,14 @@ export default function ProjectsScreen() {
                   </Button>
 
                   {/* View Mode */}
-                  <div className="flex rounded-lg border border-white/10 overflow-hidden">
+                  <div className="flex rounded-lg border border-border overflow-hidden">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => setViewMode('grid')}
                       className={cn(
                         'rounded-none',
-                        viewMode === 'grid' && 'bg-white/10'
+                        viewMode === 'grid' && 'bg-secondary'
                       )}
                     >
                       <Grid3X3 className="w-4 h-4" />
@@ -519,7 +549,7 @@ export default function ProjectsScreen() {
                       onClick={() => setViewMode('list')}
                       className={cn(
                         'rounded-none',
-                        viewMode === 'list' && 'bg-white/10'
+                        viewMode === 'list' && 'bg-secondary'
                       )}
                     >
                       <List className="w-4 h-4" />
@@ -552,26 +582,30 @@ export default function ProjectsScreen() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="py-16 text-center"
+                  className="py-20 text-center"
                 >
                   {searchQuery || filterType !== 'all' ? (
                     <>
-                      <Search className="w-12 h-12 mx-auto text-white/20 mb-4" />
-                      <p className="text-white/60">
+                      <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-secondary border border-border flex items-center justify-center">
+                        <Search className="w-7 h-7 text-muted-foreground" />
+                      </div>
+                      <p className="text-foreground/70 font-editorial">
                         {t('projects.noResults') || 'No projects found'}
                       </p>
-                      <p className="text-white/40 text-sm mt-1">
+                      <p className="text-muted-foreground text-sm mt-1.5">
                         {t('projects.tryDifferentSearch') ||
                           'Try a different search or filter'}
                       </p>
                     </>
                   ) : (
                     <>
-                      <Folder className="w-16 h-16 mx-auto text-white/20 mb-4" />
-                      <p className="text-white/60 text-lg mb-2">
+                      <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-border flex items-center justify-center">
+                        <Sparkles className="w-9 h-9 text-primary/60" />
+                      </div>
+                      <p className="text-foreground/80 text-lg mb-2 font-display">
                         {t('projects.empty') || 'No projects yet'}
                       </p>
-                      <p className="text-white/40 text-sm mb-6">
+                      <p className="text-muted-foreground text-sm mb-8 max-w-sm mx-auto">
                         {t('projects.emptyHint') ||
                           'Create your first project to get started'}
                       </p>
@@ -583,9 +617,9 @@ export default function ProjectsScreen() {
                               key={option.type}
                               variant="outline"
                               onClick={() => handleCreateProject(option.type)}
-                              className="bg-white/5 border-white/10 hover:bg-white/10"
+                              className="bg-secondary border-border hover:bg-muted hover:border-primary/30 transition-all"
                             >
-                              <Icon className="w-4 h-4 mr-2" />
+                              <Icon className={cn("w-4 h-4 mr-2", option.iconColor)} />
                               {t(option.titleKey) || option.type}
                             </Button>
                           );
@@ -595,7 +629,7 @@ export default function ProjectsScreen() {
                   )}
                 </motion.div>
               )}
-            </section>
+            </motion.section>
           </div>
         </main>
       </div>

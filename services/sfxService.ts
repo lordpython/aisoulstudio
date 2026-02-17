@@ -336,6 +336,60 @@ const PURPOSE_SFX_PREFERENCES: Record<VideoPurpose, {
     useBackgroundMusic: false,
     masterVolume: 0.15,
   },
+  story_drama: {
+    preferredCategories: ["ambient", "musical"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.35,
+  },
+  story_comedy: {
+    preferredCategories: ["musical", "action"],
+    transitionStyle: "soft",
+    useBackgroundMusic: true,
+    masterVolume: 0.25,
+  },
+  story_thriller: {
+    preferredCategories: ["supernatural", "weather", "ambient"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.4,
+  },
+  story_scifi: {
+    preferredCategories: ["ambient", "musical"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.3,
+  },
+  story_action: {
+    preferredCategories: ["action", "transition", "ambient"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.4,
+  },
+  story_fantasy: {
+    preferredCategories: ["musical", "nature", "supernatural"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.35,
+  },
+  story_romance: {
+    preferredCategories: ["musical", "ambient", "nature"],
+    transitionStyle: "soft",
+    useBackgroundMusic: true,
+    masterVolume: 0.25,
+  },
+  story_historical: {
+    preferredCategories: ["ambient", "musical"],
+    transitionStyle: "soft",
+    useBackgroundMusic: true,
+    masterVolume: 0.3,
+  },
+  story_animation: {
+    preferredCategories: ["musical", "action", "transition"],
+    transitionStyle: "dramatic",
+    useBackgroundMusic: true,
+    masterVolume: 0.3,
+  },
 };
 
 // --- Core Functions ---

@@ -643,6 +643,7 @@ export const animateImageWithDeApi = async (
   options?: {
     last_frame_image?: string;  // Optional: Ending frame image (base64)
     webhook_url?: string;       // Optional: Webhook for async completion
+    motionStrength?: 'subtle' | 'moderate' | 'dynamic'; // Controls frame count and motion intensity
   },
 ): Promise<string> => {
   let base64Image = base64ImageInput;
@@ -683,9 +684,14 @@ export const animateImageWithDeApi = async (
   const formData = new FormData();
   const imageBlob = await base64ToBlob(base64Image);
 
+  // Determine frames from motion strength (Issue 4: reduce morphing artifacts)
+  const motionFrameMap = { subtle: 60, moderate: 90, dynamic: 120 } as const;
+  const motionStrength = options?.motionStrength || 'moderate';
+  const frames = motionFrameMap[motionStrength] || 90;
+
   formData.append("first_frame_image", imageBlob, "frame0.png");
   formData.append("prompt", prompt);
-  formData.append("frames", "120"); // 4 seconds at 30fps
+  formData.append("frames", frames.toString());
   formData.append("width", width.toString());
   formData.append("height", height.toString());
   formData.append("fps", "30");
@@ -865,7 +871,7 @@ export const generateImageWithDeApi = async (
     guidance = 7.5,
     steps = 4,  // FLUX models work best with 1-4 steps, max 10
     seed = -1,
-    negative_prompt = "blur, darkness, noise, low quality",
+    negative_prompt = "blur, darkness, noise, low quality, watermark, text overlay, UI elements, blurry, low resolution",
     loras,
     webhook_url,
   } = params;

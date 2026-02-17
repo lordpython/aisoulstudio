@@ -90,13 +90,19 @@ export async function drawAsset(
     if (asset.type === "video") {
         const vid = element as HTMLVideoElement;
         if (vid.duration && isFinite(vid.duration)) {
-            // Loop logic: absolute time relative to slide start
-            // offsetTime allows "peeking" into next slide for crossfade
             const relativeTime = currentTime + offsetTime - asset.time;
-            // Ensure positive modulo for loop
-            const targetTime = ((relativeTime % vid.duration) + vid.duration) % vid.duration;
 
-            // Use reliable seeking with proper event handling
+            // If asset has a nativeDuration and relative time exceeds it,
+            // freeze on the last frame instead of looping (Issue 6: desync fix)
+            let targetTime: number;
+            if (asset.nativeDuration && relativeTime > asset.nativeDuration) {
+                // Freeze on last frame (slightly before end to avoid black frame)
+                targetTime = Math.max(0, asset.nativeDuration - 0.05);
+            } else {
+                // Normal loop behavior for music mode / short clips
+                targetTime = ((relativeTime % vid.duration) + vid.duration) % vid.duration;
+            }
+
             await seekVideoToTime(vid, targetTime);
         }
     }

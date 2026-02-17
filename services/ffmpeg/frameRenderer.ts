@@ -261,12 +261,12 @@ function renderSubtitles(
     const totalDuration = activeSub.endTime - activeSub.startTime;
     const lineProgress = Math.max(0, Math.min(1, (adjustedTime - activeSub.startTime) / totalDuration));
 
-    // Smaller font for story mode (narration text is longer than lyrics)
+    // Story mode: smaller font, outline-only style (Issue 7)
     const isStory = config.contentMode === "story";
     const fontSize = isStory
-        ? (config.orientation === "portrait" ? 28 : 34)
+        ? (config.orientation === "portrait" ? 22 : 28)
         : (config.orientation === "portrait" ? 36 : 42);
-    const fontWeight = config.useModernEffects ? "600" : "bold";
+    const fontWeight = isStory ? "500" : (config.useModernEffects ? "600" : "bold");
     ctx.font = `${fontWeight} ${fontSize}px "Inter", "Segoe UI", "Arial", sans-serif`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -302,34 +302,50 @@ function renderSubtitles(
         wrappedLines.push({ words: currentLine, wordIndices: currentLineIndices });
     }
 
+    // Story mode: enforce 2-line max, truncate with ellipsis (Issue 7)
+    if (isStory && wrappedLines.length > 2) {
+        wrappedLines.length = 2;
+        // Add ellipsis to last word of second line
+        const lastLine = wrappedLines[1]!;
+        if (lastLine.words.length > 0) {
+            lastLine.words[lastLine.words.length - 1] += "…";
+        }
+    }
+
     const lineHeight = fontSize * 1.3;
     const totalTextHeight = wrappedLines.length * lineHeight;
-    const baseY = zones.text.y + zones.text.height / 2 - totalTextHeight / 2;
 
-    // Background bar
-    const bgPadding = { x: 20, y: 10 };
-    const maxLineWidth = Math.max(...wrappedLines.map(line => ctx.measureText(line.words.join(" ")).width));
-    const bgWidth = maxLineWidth + bgPadding.x * 2;
-    const bgHeight = totalTextHeight + bgPadding.y * 2;
-    const bgX = zones.text.x + (zones.text.width - bgWidth) / 2;
-    const bgY = baseY - bgPadding.y;
+    // Story mode: bottom safe zone at 82% (Issue 7), regular mode uses zone center
+    const baseY = isStory
+        ? height * 0.82 - totalTextHeight / 2
+        : zones.text.y + zones.text.height / 2 - totalTextHeight / 2;
 
-    ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, 0.70)";
-    ctx.beginPath();
-    const radius = 8;
-    ctx.moveTo(bgX + radius, bgY);
-    ctx.lineTo(bgX + bgWidth - radius, bgY);
-    ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + radius);
-    ctx.lineTo(bgX + bgWidth, bgY + bgHeight - radius);
-    ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - radius, bgY + bgHeight);
-    ctx.lineTo(bgX + radius, bgY + bgHeight);
-    ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - radius);
-    ctx.lineTo(bgX, bgY + radius);
-    ctx.quadraticCurveTo(bgX, bgY, bgX + radius, bgY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    // Background: outline + shadow for story mode (Netflix-style), opaque box for music mode
+    if (!isStory) {
+        const bgPadding = { x: 20, y: 10 };
+        const maxLineWidth = Math.max(...wrappedLines.map(line => ctx.measureText(line.words.join(" ")).width));
+        const bgWidth = maxLineWidth + bgPadding.x * 2;
+        const bgHeight = totalTextHeight + bgPadding.y * 2;
+        const bgX = zones.text.x + (zones.text.width - bgWidth) / 2;
+        const bgY2 = baseY - bgPadding.y;
+
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.70)";
+        ctx.beginPath();
+        const radius = 8;
+        ctx.moveTo(bgX + radius, bgY2);
+        ctx.lineTo(bgX + bgWidth - radius, bgY2);
+        ctx.quadraticCurveTo(bgX + bgWidth, bgY2, bgX + bgWidth, bgY2 + radius);
+        ctx.lineTo(bgX + bgWidth, bgY2 + bgHeight - radius);
+        ctx.quadraticCurveTo(bgX + bgWidth, bgY2 + bgHeight, bgX + bgWidth - radius, bgY2 + bgHeight);
+        ctx.lineTo(bgX + radius, bgY2 + bgHeight);
+        ctx.quadraticCurveTo(bgX, bgY2 + bgHeight, bgX, bgY2 + bgHeight - radius);
+        ctx.lineTo(bgX, bgY2 + radius);
+        ctx.quadraticCurveTo(bgX, bgY2, bgX + radius, bgY2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
 
     // Render words
     wrappedLines.forEach((lineData, lineIdx) => {
@@ -389,7 +405,10 @@ function renderSubtitles(
             }
 
             // Render word
-            if (config.textAnimationConfig) {
+            if (isStory) {
+                // Netflix-style: outline + shadow, no background box (Issue 7)
+                renderStoryWord(ctx, word, xPos, yPos);
+            } else if (config.textAnimationConfig) {
                 renderTextWithWipe(
                     ctx,
                     word,
@@ -518,6 +537,38 @@ function renderSimpleWord(
         ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
     }
     ctx.fillText(word, xPos, yPos);
+    ctx.restore();
+}
+
+/**
+ * Render word with Netflix-style outline + shadow for story mode (Issue 7).
+ * No background box — just clean white text with dark outline and soft shadow.
+ */
+function renderStoryWord(
+    ctx: CanvasRenderingContext2D,
+    word: string,
+    xPos: number,
+    yPos: number,
+): void {
+    ctx.save();
+    ctx.textAlign = "left";
+
+    // Dark outline for readability on any background
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.9)";
+    ctx.lineWidth = 6;
+    ctx.lineJoin = "round";
+    ctx.strokeText(word, xPos, yPos);
+
+    // Soft shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+
+    // White fill
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(word, xPos, yPos);
+
     ctx.restore();
 }
 

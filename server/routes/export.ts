@@ -336,7 +336,7 @@ async function handleSyncFinalize(
  * Returns current status of a job.
  */
 router.get('/status/:jobId', (req: Request, res: Response) => {
-  const { jobId } = req.params;
+  const jobId = req.params.jobId as string;
   const job = jobQueue.getJob(jobId);
 
   if (!job) {
@@ -362,7 +362,7 @@ router.get('/status/:jobId', (req: Request, res: Response) => {
  * Streams progress updates for a job.
  */
 router.get('/events/:jobId', (req: Request, res: Response) => {
-  const { jobId } = req.params;
+  const jobId = req.params.jobId as string;
   const job = jobQueue.getJob(jobId);
 
   if (!job) {
@@ -413,7 +413,7 @@ router.get('/events/:jobId', (req: Request, res: Response) => {
  * Download completed video
  */
 router.get('/download/:jobId', (req: Request, res: Response) => {
-  const { jobId } = req.params;
+  const jobId = req.params.jobId as string;
   const job = jobQueue.getJob(jobId);
 
   if (!job) {
@@ -459,7 +459,7 @@ router.get('/download/:jobId', (req: Request, res: Response) => {
  * Cancel a job
  */
 router.post('/cancel/:jobId', async (req: Request, res: Response) => {
-  const { jobId } = req.params;
+  const jobId = req.params.jobId as string;
   const job = jobQueue.getJob(jobId);
 
   if (!job) {

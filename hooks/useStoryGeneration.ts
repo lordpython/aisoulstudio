@@ -35,6 +35,81 @@ import {
     getCurrentUser,
     onAuthChange,
 } from '@/services/firebase';
+import {
+    fromShotBreakdown,
+    serializeStyleGuideAsText,
+    type ExtractedStyleOverride,
+} from '@/services/prompt/imageStyleGuide';
+import {
+    extractVisualStyle,
+    type VisualStyle,
+} from '@/services/visualConsistencyService';
+import { getCharacterSeed } from '@/services/imageService';
+import { cleanForTTS, cleanForSubtitles } from '@/services/textSanitizer';
+
+/**
+ * Generate anti-style negative prompts based on chosen visual style.
+ * Prevents style contamination (e.g., cinematic shots appearing as 3D renders).
+ */
+function generateNegativePromptsForStyle(style: string): string[] {
+    const lower = style.toLowerCase();
+    const base = ["watermark", "text overlay", "UI elements", "blurry", "low resolution"];
+
+    const styleNegatives: Record<string, string[]> = {
+        cinematic: ["3D render", "stock photo", "cartoon", "flat lighting", "anime", "pixel art"],
+        "anime / manga": ["photorealistic", "3D render", "stock photo", "film grain"],
+        cyberpunk: ["pastoral", "bright daylight", "cartoon", "watercolor"],
+        watercolor: ["photorealistic", "3D render", "sharp edges", "neon"],
+        "oil painting": ["photorealistic", "digital art", "flat colors", "anime"],
+        "pixel art": ["photorealistic", "smooth gradients", "film grain"],
+        photorealistic: ["cartoon", "anime", "pixel art", "painting", "illustration"],
+        "dark fantasy": ["bright colors", "cartoon", "modern setting", "clean"],
+        "comic book": ["photorealistic", "film grain", "watercolor", "muted colors"],
+    };
+
+    return [...base, ...(styleNegatives[lower] || styleNegatives["cinematic"]!)];
+}
+
+/** Motion strength configuration for DeAPI animation (Issue 4) */
+type MotionStrength = 'subtle' | 'moderate' | 'dynamic';
+
+const MOTION_CONFIGS: Record<MotionStrength, { frames: number; promptPrefix: string }> = {
+    subtle: { frames: 60, promptPrefix: "Slow gentle camera movement. Minimal subject motion." },
+    moderate: { frames: 90, promptPrefix: "Smooth camera movement. Subtle subject motion." },
+    dynamic: { frames: 120, promptPrefix: "Dynamic camera movement." },
+};
+
+/** Auto-select motion strength based on shot type and camera movement (Issue 4) */
+function selectMotionStrength(shotType: string, movement: string): MotionStrength {
+    const type = shotType.toLowerCase();
+    const mov = movement.toLowerCase();
+
+    // Close-ups use subtle to prevent face distortion
+    if (type.includes('close-up') || type.includes('extreme close')) return 'subtle';
+    // Static shots use subtle
+    if (mov === 'static') return 'subtle';
+    // Tracking/handheld use dynamic
+    if (mov === 'tracking' || mov === 'handheld') return 'dynamic';
+    // Pan/tilt/dolly/zoom use moderate
+    return 'moderate';
+}
+
+/** Build camera-focused animation prompt instead of raw narrative description (Issue 4) */
+function buildAnimationPrompt(movement: string, description: string): string {
+    const movLower = movement.toLowerCase();
+    let cameraDirection = '';
+    if (movLower === 'pan') cameraDirection = 'slow horizontal pan';
+    else if (movLower === 'tilt') cameraDirection = 'gentle vertical tilt';
+    else if (movLower === 'zoom') cameraDirection = 'slow zoom in';
+    else if (movLower === 'dolly') cameraDirection = 'smooth dolly forward';
+    else if (movLower === 'tracking') cameraDirection = 'tracking camera movement';
+    else if (movLower === 'handheld') cameraDirection = 'subtle handheld sway';
+    else cameraDirection = 'slow gentle camera drift';
+
+    // Truncate description to 200 chars to leave room for camera instruction
+    const shortDesc = description.length > 200 ? description.substring(0, 197) + '...' : description;
+    return `${cameraDirection}. ${shortDesc}. Atmospheric, minimal character motion.`;
+}
 
 const STORAGE_KEY = 'ai_soul_studio_story_state';
 const SESSION_KEY = 'ai_soul_studio_story_session';
@@ -43,20 +118,10 @@ const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
 
 /**
  * Strip markdown and metadata artifacts from narration text.
- * Prevents dirty text from reaching TTS and subtitles.
+ * Delegates to the extracted textSanitizer service for comprehensive cleaning.
  */
 function cleanNarrationText(text: string): string {
-    return text
-        .replace(/\*\*[^*]*?\*\*:?\s*/g, '')  // Remove **Label:** patterns
-        .replace(/\*\*/g, '')                   // Remove remaining ** markers
-        .replace(/\*([^*]*?)\*/g, '$1')         // *italic* → content
-        .replace(/#{1,6}\s+/g, '')              // # headings
-        .replace(/`([^`]*?)`/g, '$1')           // `code` → content
-        .replace(/^\s*[-–—*+]\s+/gm, '')        // bullets/dashes
-        .replace(/\s*[0-9\u0660-\u0669\u06F0-\u06F9]+\.\s*\*{0,2}\s*$/, '') // Trailing "٢. **" artifacts
-        .replace(/\n+/g, ' ')                   // newlines → spaces
-        .replace(/\s{2,}/g, ' ')                // collapse whitespace
-        .trim();
+    return cleanForTTS(text);
 }
 
 /**
@@ -1139,39 +1204,42 @@ export function useStoryGeneration(projectId?: string | null) {
             const updatedShotlist: ShotlistEntry[] = [...state.shotlist];
             const style = state.visualStyle || 'Cinematic';
 
-            // Build character reference map: name → visual description
-            const charRefMap = new Map<string, string>();
-            for (const char of state.characters) {
-                if (char.visualDescription) {
-                    charRefMap.set(char.name.toLowerCase(), char.visualDescription);
-                }
-            }
+            // Build character input list for structured prompt builder
+            const characterInputs = state.characters
+                .filter(c => c.visualDescription)
+                .map(c => ({ name: c.name, visualDescription: c.visualDescription, facialTags: c.facialTags }));
 
-            // Helper: build prompt for a shot
-            const MAX_PROMPT_LENGTH = 500;
+            // Extract visual style from first generated shot for consistency (Issue 3)
+            let extractedStyleOverride: ExtractedStyleOverride | undefined;
+
+            // Helper: build structured prompt for a shot (Issues 1, 2, 3)
             const buildShotPrompt = (shot: NonNullable<typeof shotsToProcess[0]>) => {
-                const parentScene = state.breakdown.find(s => s.id === shot.sceneId);
-                const sceneCharacters = parentScene?.charactersPresent || [];
+                const guide = fromShotBreakdown(
+                    {
+                        description: shot.description,
+                        shotType: shot.shotType,
+                        cameraAngle: shot.cameraAngle,
+                        movement: shot.movement,
+                        lighting: shot.lighting,
+                        emotion: shot.emotion,
+                    },
+                    characterInputs,
+                    style,
+                    extractedStyleOverride,
+                );
+                return serializeStyleGuideAsText(guide);
+            };
+
+            // Helper: get seed for the primary character in a shot (Issue 1)
+            const getShotSeed = (shot: NonNullable<typeof shotsToProcess[0]>): number | undefined => {
                 const shotDescLower = shot.description.toLowerCase();
-                const mentionedChars = [...charRefMap.entries()]
-                    .filter(([name]) => shotDescLower.includes(name))
-                    .map(([name]) => name);
-                const allCharNames = [...new Set([
-                    ...sceneCharacters.map(c => c.toLowerCase()),
-                    ...mentionedChars,
-                ])];
-                let charPrefix = '';
-                for (const name of allCharNames) {
-                    const desc = charRefMap.get(name);
-                    if (desc) {
-                        const truncated = desc.length > 120 ? desc.substring(0, 117) + '...' : desc;
-                        charPrefix += `[${name}: ${truncated}] `;
-                    }
+                const primaryChar = characterInputs.find(c =>
+                    shotDescLower.includes(c.name.toLowerCase())
+                );
+                if (primaryChar) {
+                    return getCharacterSeed(primaryChar.visualDescription);
                 }
-                const basePrompt = `${shot.description}. ${shot.shotType} shot, ${shot.cameraAngle} angle, ${shot.lighting} lighting. ${shot.emotion} mood. ${style} style.`;
-                return charPrefix
-                    ? `${charPrefix}${basePrompt}`.substring(0, MAX_PROMPT_LENGTH)
-                    : basePrompt;
+                return undefined;
             };
 
             // Helper: upload to cloud and create shotlist entry
@@ -1204,35 +1272,70 @@ export function useStoryGeneration(projectId?: string | null) {
             };
 
             if (state.imageProvider === 'deapi') {
-                // Parallel generation via DeAPI batch
+                // Sequential-first for shot #1 (extract style), then parallel for rest
                 const validShots = shotsToProcess.filter((s): s is NonNullable<typeof s> => s != null);
-                const batchItems = validShots.map((shot) => ({
-                    id: shot.id,
-                    prompt: buildShotPrompt(shot),
-                    aspectRatio: (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                    model: 'Flux_2_Klein_4B_BF16' as const,
-                }));
 
-                const batchResults = await generateImageBatch(
-                    batchItems,
-                    5, // concurrency
-                    (prog) => {
-                        const percent = 10 + (prog.completed / prog.total) * 80;
-                        setProgress({
-                            message: `Generating visuals ${prog.completed}/${prog.total} (parallel)...`,
-                            percent,
-                        });
-                    },
-                );
+                // Generate shot #1 first to extract visual style (Issue 3)
+                if (validShots.length > 0) {
+                    const firstShot = validShots[0]!;
+                    setProgress({ message: 'Generating reference image (shot 1)...', percent: 12 });
+                    const firstSeed = getShotSeed(firstShot);
+                    const firstResult = await generateImageWithAspectRatio(
+                        buildShotPrompt(firstShot),
+                        (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
+                        'Flux_2_Klein_4B_BF16',
+                        undefined, // negativePrompt — style guide handles avoid
+                    );
+                    await processShotResult(firstShot, firstResult);
 
-                // Process results
-                for (const result of batchResults) {
-                    const shot = validShots.find(s => s.id === result.id);
-                    if (!shot) continue;
-                    if (result.success && result.imageUrl) {
-                        await processShotResult(shot, result.imageUrl);
-                    } else {
-                        console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, result.error);
+                    // Extract visual DNA from first image for consistency
+                    try {
+                        const visualStyle = await extractVisualStyle(firstResult, sessionId || undefined);
+                        extractedStyleOverride = {
+                            colorPalette: visualStyle.colorPalette,
+                            lighting: visualStyle.lighting,
+                            texture: visualStyle.texture,
+                            moodKeywords: visualStyle.moodKeywords,
+                            negativePrompts: generateNegativePromptsForStyle(style),
+                        };
+                        // Store master style on state for persistence
+                        console.log('[useStoryGeneration] Extracted master style:', extractedStyleOverride.colorPalette?.join(', '));
+                    } catch (styleErr) {
+                        console.warn('[useStoryGeneration] Style extraction failed, continuing without:', styleErr);
+                    }
+                }
+
+                // Generate remaining shots in parallel with extracted style
+                const remainingShots = validShots.slice(1);
+                if (remainingShots.length > 0) {
+                    const batchItems = remainingShots.map((shot) => ({
+                        id: shot.id,
+                        prompt: buildShotPrompt(shot), // Now includes extractedStyleOverride
+                        aspectRatio: (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
+                        model: 'Flux_2_Klein_4B_BF16' as const,
+                        seed: getShotSeed(shot),
+                    }));
+
+                    const batchResults = await generateImageBatch(
+                        batchItems,
+                        5, // concurrency
+                        (prog) => {
+                            const percent = 20 + (prog.completed / prog.total) * 70;
+                            setProgress({
+                                message: `Generating visuals ${prog.completed + 1}/${validShots.length} (parallel)...`,
+                                percent,
+                            });
+                        },
+                    );
+
+                    for (const result of batchResults) {
+                        const shot = remainingShots.find(s => s.id === result.id);
+                        if (!shot) continue;
+                        if (result.success && result.imageUrl) {
+                            await processShotResult(shot, result.imageUrl);
+                        } else {
+                            console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, result.error);
+                        }
                     }
                 }
             } else {
@@ -1260,6 +1363,22 @@ export function useStoryGeneration(projectId?: string | null) {
                             i
                         );
                         await processShotResult(shot, imageUrl);
+
+                        // Extract visual style from first shot for consistency (Issue 3)
+                        if (i === 0 && !extractedStyleOverride) {
+                            try {
+                                const visualStyle = await extractVisualStyle(imageUrl, sessionId || undefined);
+                                extractedStyleOverride = {
+                                    colorPalette: visualStyle.colorPalette,
+                                    lighting: visualStyle.lighting,
+                                    texture: visualStyle.texture,
+                                    moodKeywords: visualStyle.moodKeywords,
+                                    negativePrompts: generateNegativePromptsForStyle(style),
+                                };
+                            } catch (styleErr) {
+                                console.warn('[useStoryGeneration] Style extraction failed:', styleErr);
+                            }
+                        }
                     } catch (err) {
                         console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, err);
                     }
@@ -1512,9 +1631,14 @@ export function useStoryGeneration(projectId?: string | null) {
                 };
             });
 
-            // Detect language from scene content instead of hardcoding
-            const sampleText = state.breakdown[0]?.action || '';
-            const isArabicContent = /[\u0600-\u06FF]/.test(sampleText);
+            // Detect language from multiple sources for robust Arabic detection
+            const sampleSources = [
+                state.breakdown[0]?.action || '',
+                state.breakdown[0]?.heading || '',
+                screenplayScenes[0]?.action || '',
+                screenplayScenes[0]?.heading || '',
+            ].join(' ');
+            const isArabicContent = /[\u0600-\u06FF]/.test(sampleSources);
             const narratorConfig: NarratorConfig = {
                 videoPurpose: 'storytelling',
                 ...(isArabicContent ? { language: 'ar' as const } : {}),
@@ -1624,6 +1748,21 @@ export function useStoryGeneration(projectId?: string | null) {
 
             const useDeApi = isDeApiConfigured();
 
+            // Pre-compute per-shot target durations from narration (Issue 6)
+            const shotTargetDurations = new Map<string, number>();
+            if (state.narrationSegments && state.narrationSegments.length > 0) {
+                const sceneIds = [...new Set(state.shotlist.map(s => s.sceneId))];
+                for (const sceneId of sceneIds) {
+                    const sceneShotIds = state.shotlist.filter(s => s.sceneId === sceneId).map(s => s.id);
+                    const sceneNarration = state.narrationSegments.find(n => n.sceneId === sceneId);
+                    const sceneDur = sceneNarration?.duration || 5;
+                    const perShot = sceneDur / Math.max(sceneShotIds.length, 1);
+                    for (const sid of sceneShotIds) {
+                        shotTargetDurations.set(sid, perShot);
+                    }
+                }
+            }
+
             for (let i = 0; i < shotsToAnimate.length; i++) {
                 const shot = shotsToAnimate[i];
                 if (!shot || !shot.imageUrl) continue;
@@ -1641,55 +1780,88 @@ export function useStoryGeneration(projectId?: string | null) {
                     const aspectRatio = (state.aspectRatio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
                     const deapiAspectRatio = (state.aspectRatio === '9:16' ? '9:16' : state.aspectRatio === '1:1' ? '1:1' : '16:9') as '16:9' | '9:16' | '1:1';
 
-                    if (useDeApi && shot.imageUrl.startsWith('data:')) {
-                        // Use DeAPI img2video to animate the existing image
-                        // Pass the full data URL — animateImageWithDeApi uses fetch() to convert to Blob
-                        videoUrl = await animateImageWithDeApi(
-                            shot.imageUrl,
-                            shot.description,
-                            deapiAspectRatio,
-                            sessionId || undefined,
-                            i
-                        );
-                    } else if (useDeApi && !shot.imageUrl.startsWith('data:')) {
-                        // Use DeAPI txt2video when no base64 image is available
-                        const videoPrompt = `${shot.description}. ${shot.cameraAngle} shot, ${shot.movement} camera movement, ${shot.lighting} lighting. ${state.visualStyle || 'Cinematic'} style.`;
-                        videoUrl = await generateVideoWithDeApi(
-                            { prompt: videoPrompt },
-                            deapiAspectRatio,
-                            sessionId || undefined,
-                            i
-                        );
+                    // Get the StoryShot data for motion strength selection (Issue 4)
+                    const storyShot = state.shots?.find(s => s.id === shot.id);
+                    const shotType = storyShot?.shotType || '';
+                    const movement = storyShot?.movement || shot.movement || 'Static';
+
+                    // Auto-select motion strength based on shot type (Issue 4)
+                    const motionStrength = selectMotionStrength(shotType, movement);
+                    const motionConfig = MOTION_CONFIGS[motionStrength];
+
+                    // Build camera-focused animation prompt (Issue 4)
+                    const animationPrompt = buildAnimationPrompt(movement, shot.description);
+
+                    if (useDeApi && shot.imageUrl) {
+                        // img2video requires a data: URL — convert remote URLs
+                        let imageDataUrl = shot.imageUrl;
+                        if (!imageDataUrl.startsWith('data:')) {
+                            try {
+                                const resp = await fetch(imageDataUrl);
+                                const blob = await resp.blob();
+                                imageDataUrl = await new Promise<string>((resolve, reject) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result as string);
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(blob);
+                                });
+                            } catch (fetchErr) {
+                                console.warn(`[useStoryGeneration] Failed to fetch image for img2video, falling back to txt2video:`, fetchErr);
+                                imageDataUrl = '';
+                            }
+                        }
+
+                        if (imageDataUrl.startsWith('data:')) {
+                            videoUrl = await animateImageWithDeApi(
+                                imageDataUrl,
+                                animationPrompt,
+                                deapiAspectRatio,
+                                sessionId || undefined,
+                                i,
+                                { motionStrength },
+                            );
+                        } else {
+                            // Fallback to txt2video only if image conversion failed
+                            videoUrl = await generateVideoWithDeApi(
+                                {
+                                    prompt: animationPrompt,
+                                    frames: motionConfig.frames,
+                                },
+                                deapiAspectRatio,
+                                sessionId || undefined,
+                                i
+                            );
+                        }
                     } else {
-                        // Fallback to Google Veo for video generation
                         videoUrl = await generateVideoFromPrompt(
-                            `${shot.description}. ${shot.cameraAngle} shot, ${shot.movement} camera movement, ${shot.lighting} lighting.`,
+                            animationPrompt,
                             state.visualStyle || 'Cinematic',
                             '',
                             aspectRatio,
-                            6, // 6 second clips
-                            true, // Use fast model
+                            6,
+                            true,
                             undefined,
                             sessionId || undefined,
                             i
                         );
                     }
 
-                    // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
+                    // Upload to cloud storage for persistence
                     if (sessionId && videoUrl && (videoUrl.startsWith('data:') || videoUrl.startsWith('blob:'))) {
                         const cloudUrl = await cloudAutosave.saveAnimatedVideoWithUrl(sessionId, videoUrl, shot.id);
                         if (cloudUrl) {
                             console.log(`[useStoryGeneration] Animated video uploaded to cloud: ${shot.id}`);
-                            videoUrl = cloudUrl; // Use cloud URL for persistence
+                            videoUrl = cloudUrl;
                         }
                     }
 
-                    // Find existing or add new
+                    // Store with target duration from narration (Issue 6)
+                    const targetDuration = shotTargetDurations.get(shot.id) || motionConfig.frames / 30;
                     const existingIdx = animatedShots.findIndex(a => a.shotId === shot.id);
                     const animatedShot = {
                         shotId: shot.id,
                         videoUrl,
-                        duration: 6,
+                        duration: targetDuration,
                     };
 
                     if (existingIdx >= 0) {
@@ -1767,28 +1939,49 @@ export function useStoryGeneration(projectId?: string | null) {
                 combinedAudioUrl = narrationSegs[0]?.audioUrl || '';
             }
 
-            // Calculate timestamps for each shot based on narration duration
-            // Ensure we have a valid duration (fallback to 5 seconds per shot if no audio)
+            // Narration-aware timestamps: distribute shots proportionally across scenes
+            // Each scene's narration duration determines its shots' time slots
             const effectiveDuration = totalDuration > 0 ? totalDuration : state.shotlist.length * 5;
-            const shotDuration = effectiveDuration / Math.max(state.shotlist.length, 1);
 
-            console.log('[useStoryGeneration] Shot timing:', {
+            // Build scene → shots mapping and scene → narration duration mapping
+            const sceneIds = [...new Set(state.shotlist.map(s => s.sceneId))];
+            const prompts: Array<{
+                id: string;
+                text: string;
+                mood: string;
+                timestamp: string;
+                timestampSeconds: number;
+            }> = [];
+            let accumulatedTime = 0;
+
+            for (const sceneId of sceneIds) {
+                const sceneShotlist = state.shotlist.filter(s => s.sceneId === sceneId);
+                // Find narration segment for this scene
+                const sceneNarration = narrationSegs.find(n => n.sceneId === sceneId);
+                const sceneDuration = sceneNarration?.duration || (effectiveDuration / sceneIds.length);
+                const perShotDuration = sceneDuration / Math.max(sceneShotlist.length, 1);
+
+                for (let i = 0; i < sceneShotlist.length; i++) {
+                    const shot = sceneShotlist[i]!;
+                    const shotTimestamp = accumulatedTime + i * perShotDuration;
+                    prompts.push({
+                        id: shot.id,
+                        text: shot.description,
+                        mood: 'cinematic',
+                        timestamp: `${Math.floor(shotTimestamp / 60)}:${Math.floor(shotTimestamp % 60).toString().padStart(2, '0')}`,
+                        timestampSeconds: shotTimestamp,
+                    });
+                }
+                accumulatedTime += sceneDuration;
+            }
+
+            console.log('[useStoryGeneration] Narration-aware shot timing:', {
                 effectiveDuration,
-                shotDuration,
+                sceneCount: sceneIds.length,
                 totalShots: state.shotlist.length,
+                firstTs: prompts[0]?.timestampSeconds,
+                lastTs: prompts[prompts.length - 1]?.timestampSeconds,
             });
-
-            // Build prompts array with timestamps
-            const prompts = state.shotlist.map((shot, idx) => ({
-                id: shot.id,
-                text: shot.description,
-                mood: 'cinematic',
-                timestamp: `${Math.floor((idx * shotDuration) / 60)}:${Math.floor((idx * shotDuration) % 60).toString().padStart(2, '0')}`,
-                timestampSeconds: idx * shotDuration,
-            }));
-
-            console.log('[useStoryGeneration] First 3 prompt timestamps:',
-                prompts.slice(0, 3).map(p => ({ id: p.id, ts: p.timestampSeconds })));
 
             // Build generatedImages array
             const generatedImages = state.shotlist.map((shot) => {
@@ -1808,9 +2001,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 sample: generatedImages.slice(0, 3).map(g => ({ id: g.promptId, hasUrl: !!g.imageUrl, type: g.type })),
             });
 
-            // Build subtitle items from narration (with safe duration access)
-            // 1. Strip markdown metadata tags (e.g. **Emotional Hook:**, **Key Narrative Beat:**)
-            // 2. Split long narration blocks into sentence-level subtitles for readability
+            // Build subtitle items from narration using textSanitizer service
             const parsedSubtitles: { id: string; text: string; startTime: number; endTime: number }[] = [];
 
             for (let idx = 0; idx < narrationSegs.length; idx++) {
@@ -1818,36 +2009,12 @@ export function useStoryGeneration(projectId?: string | null) {
                 const segStart = narrationSegs.slice(0, idx).reduce((sum, s) => sum + (s.duration || 0), 0);
                 const segDuration = seg.duration || 0;
 
-                // Clean the narration text: strip markdown bold tags and metadata labels
-                let cleanText = (seg.text || '')
-                    .replace(/\*\*[^*]*?\*\*:?\s*/g, '')  // Remove **Label:** patterns
-                    .replace(/\*\*/g, '')                   // Remove any remaining ** markers
-                    .replace(/^\s*[-–—]\s*/gm, '')          // Remove leading dashes/bullets
-                    .replace(/\n+/g, ' ')                   // Collapse newlines to spaces
-                    .replace(/\s{2,}/g, ' ')                // Collapse multiple spaces
-                    .trim();
+                const { chunks, minDisplayTime } = cleanForSubtitles(seg.text || '', 80);
+                if (chunks.length === 0) continue;
 
-                if (!cleanText) continue;
-
-                // Split into sentences for pagination (max ~2 sentences per subtitle)
-                const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
-                const chunks: string[] = [];
-                let current = '';
-
-                for (const sentence of sentences) {
-                    const trimmed = sentence.trim();
-                    if (!trimmed) continue;
-                    if (current && (current + ' ' + trimmed).length > 120) {
-                        chunks.push(current);
-                        current = trimmed;
-                    } else {
-                        current = current ? current + ' ' + trimmed : trimmed;
-                    }
-                }
-                if (current) chunks.push(current);
-
-                // Distribute segment duration evenly across chunks
-                const chunkDuration = chunks.length > 0 ? segDuration / chunks.length : segDuration;
+                // Distribute segment duration across chunks, respecting minimum display time
+                const rawChunkDuration = chunks.length > 0 ? segDuration / chunks.length : segDuration;
+                const chunkDuration = Math.max(rawChunkDuration, minDisplayTime);
 
                 for (let c = 0; c < chunks.length; c++) {
                     parsedSubtitles.push({

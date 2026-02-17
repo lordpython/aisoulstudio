@@ -426,12 +426,15 @@ export async function preloadAssets(
 
                 if (isVideo) {
                     const element = await loadVideoAsset(assetUrl);
+                    // Capture native duration for freeze-frame support (Issue 6)
+                    const nativeDuration = element.duration && isFinite(element.duration) ? element.duration : undefined;
                     assets.push({
                         time: prompt.timestampSeconds || 0,
                         type: "video",
                         element,
+                        nativeDuration,
                     });
-                    console.log(`[AssetLoader] ✓ Video asset loaded for scene ${prompt.id}${generated.cachedBlobUrl ? ' (from cache)' : ''}`);
+                    console.log(`[AssetLoader] ✓ Video asset loaded for scene ${prompt.id} (native duration: ${nativeDuration?.toFixed(1) || 'unknown'}s)${generated.cachedBlobUrl ? ' (from cache)' : ''}`);
                 } else {
                     const element = await loadImageAsset(assetUrl);
                     assets.push({

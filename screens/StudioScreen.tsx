@@ -844,25 +844,15 @@ export default function StudioScreen() {
 
   const headerActions = (
     <div className="flex items-center gap-2" role="toolbar" aria-label="Studio actions">
-      {/* TEST BUTTON - Remove after testing */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={loadTestMedia}
-        className="h-7 px-3 text-[10px] uppercase font-bold bg-yellow-600 hover:bg-yellow-500 text-black border-yellow-500"
-      >
-        Load Test Media
-      </Button>
-
       {/* Mode Toggle Selection */}
-      <div className="flex items-center bg-zinc-900 border border-zinc-700/50 rounded-lg p-0.5 me-4">
+      <div className="flex items-center bg-secondary border border-border rounded-lg p-0.5 me-4">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setStudioMode('chat')}
           className={cn(
             "h-7 px-3 text-[10px] uppercase font-bold transition-all",
-            studioMode === 'chat' ? "bg-violet-600 text-white shadow-lg" : "text-zinc-500 hover:text-white"
+            studioMode === 'chat' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
           )}
         >
           Chat Mode
@@ -873,7 +863,7 @@ export default function StudioScreen() {
           onClick={() => setStudioMode('story')}
           className={cn(
             "h-7 px-3 text-[10px] uppercase font-bold transition-all",
-            studioMode === 'story' ? "bg-blue-600 text-white shadow-lg" : "text-zinc-500 hover:text-white"
+            studioMode === 'story' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
           )}
         >
           Story Mode
@@ -881,14 +871,14 @@ export default function StudioScreen() {
       </div>
 
       {/* Simple/Advanced toggle */}
-      <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1" role="group" aria-label="View mode">
+      <div className="flex items-center gap-1 bg-secondary rounded-lg p-1" role="group" aria-label="View mode">
         <button
           onClick={() => setViewMode('simple')}
           className={cn(
             'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
             viewMode === 'simple'
-              ? 'bg-violet-600 text-white'
-              : 'text-white/60 hover:text-white'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
           )}
           aria-pressed={viewMode === 'simple'}
         >
@@ -899,8 +889,8 @@ export default function StudioScreen() {
           className={cn(
             'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
             viewMode === 'advanced'
-              ? 'bg-violet-600 text-white'
-              : 'text-white/60 hover:text-white'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
           )}
           aria-pressed={viewMode === 'advanced'}
         >
@@ -912,7 +902,7 @@ export default function StudioScreen() {
         variant="ghost"
         size="sm"
         onClick={() => setShowSettings(true)}
-        className="text-white/50 hover:text-white hover:bg-white/5"
+        className="text-muted-foreground hover:text-foreground hover:bg-secondary"
       >
         <Settings className="w-4 h-4 me-2" />
         {t('studio.settings')}
@@ -924,7 +914,7 @@ export default function StudioScreen() {
           variant="ghost"
           size="sm"
           onClick={handleReset}
-          className="text-white/50 hover:text-white hover:bg-white/5"
+          className="text-muted-foreground hover:text-foreground hover:bg-secondary"
         >
           <RotateCcw className="w-4 h-4 me-2" aria-hidden="true" />
           {t('studio.newProject')}
@@ -939,8 +929,8 @@ export default function StudioScreen() {
             className={cn(
               'gap-2',
               showSceneEditor
-                ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
-                : 'text-white/50 hover:text-white hover:bg-white/5'
+                ? 'bg-primary/20 text-primary border border-primary/30'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
             )}
             aria-pressed={showSceneEditor}
           >
@@ -952,7 +942,7 @@ export default function StudioScreen() {
               variant="ghost"
               size="sm"
               onClick={() => setShowQuality(true)}
-              className="text-white/50 hover:text-white hover:bg-white/5 gap-2"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-2"
             >
               <BarChart3 className="w-4 h-4" />
               {t('studio.quality')}
@@ -965,8 +955,8 @@ export default function StudioScreen() {
             className={cn(
               'gap-2',
               showTimeline
-                ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
-                : 'text-white/50 hover:text-white hover:bg-white/5'
+                ? 'bg-primary/20 text-primary border border-primary/30'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
             )}
           >
             <Layers className="w-4 h-4" />
@@ -975,7 +965,7 @@ export default function StudioScreen() {
           <Button
             onClick={() => setShowExport(true)}
             size="sm"
-            className="bg-violet-600 hover:bg-violet-500 text-white gap-2"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20"
           >
             <Download className="w-4 h-4" />
             {t('studio.export')}
@@ -995,7 +985,7 @@ export default function StudioScreen() {
       >
         <div className="flex items-center justify-center h-full min-h-[50vh]">
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-white/60">{t('studio.loadingProject') || 'Loading project...'}</p>
           </div>
         </div>
@@ -1029,7 +1019,8 @@ export default function StudioScreen() {
       showBackButton
       onBack={() => navigate('/')}
       headerActions={headerActions}
-      contentClassName={cn("py-8", studioMode === 'story' && "p-0")}
+      contentClassName={cn("py-8", studioMode === 'story' && "p-0 h-full")}
+      maxWidth={studioMode === 'story' ? 'full' : '3xl'}
       footer={
         studioMode === 'chat' ? (
           <ChatInput
@@ -1137,8 +1128,8 @@ export default function StudioScreen() {
           {/* Welcome State */}
           {messages.length === 1 && !contentPlan && (
             <div className="text-center mb-12 pt-12">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-violet-600/20 to-fuchsia-600/20 border border-white/10 flex items-center justify-center" aria-hidden="true">
-                <Wand2 className="w-8 h-8 text-violet-400" />
+              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-primary/20 to-accent/20 border border-border flex items-center justify-center" aria-hidden="true">
+                <Wand2 className="w-8 h-8 text-primary" />
               </div>
               <h1 className="text-3xl font-light text-white mb-3">{t('studio.placeholder')}</h1>
             </div>
@@ -1229,7 +1220,7 @@ export default function StudioScreen() {
                   }}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition-all"
                 >
-                  <Upload className="w-4 h-4 text-violet-400" />
+                  <Upload className="w-4 h-4 text-primary" />
                   {t('common.upload')}
                 </button>
               </div>

@@ -125,10 +125,11 @@ export function ScreenLayout({
         tabIndex={-1}
         aria-label={ariaLabel || title}
       >
-        <div className="flex-1 overflow-y-auto">
+        <div className={cn("flex-1 overflow-y-auto", contentClassName?.includes('h-full') && 'flex flex-col')}>
           <div
             className={cn(
-              'mx-auto px-4',
+              'mx-auto',
+              maxWidth !== 'full' && 'px-4',
               maxWidthClasses[maxWidth],
               contentClassName
             )}

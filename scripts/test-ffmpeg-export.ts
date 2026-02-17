@@ -140,10 +140,10 @@ async function testExport() {
 
     for (let i = 0; i < totalFrames; i++) {
         const sceneIdx = Math.min(Math.floor(i / framesPerScene), sceneFrames.length - 1);
-        const sceneData = sceneFrames[sceneIdx];
+        const sceneData = sceneFrames[sceneIdx]!;
         const localFrame = (i - sceneIdx * framesPerScene) % sceneData.length;
         allFrames.push({
-            buffer: sceneData[localFrame],
+            buffer: sceneData[localFrame]!,
             name: `frame${i.toString().padStart(6, '0')}.jpg`,
         });
     }
@@ -177,8 +177,8 @@ async function testExport() {
         const end = Math.min(start + BATCH_SIZE, totalFrames);
 
         for (let i = start; i < end; i++) {
-            const f = allFrames[i];
-            chunk.append('frames', new Blob([f.buffer], { type: 'image/jpeg' }), f.name);
+            const f = allFrames[i]!;
+            chunk.append('frames', new Blob([new Uint8Array(f.buffer)], { type: 'image/jpeg' }), f.name);
         }
 
         const res = await fetch(`${SERVER_URL}/api/export/chunk?sessionId=${sessionId}`, {
@@ -225,7 +225,7 @@ async function testExport() {
     }
 
     const header = new Uint8Array(videoBlob.slice(0, 12));
-    const ftyp = String.fromCharCode(header[4], header[5], header[6], header[7]);
+    const ftyp = String.fromCharCode(header[4]!, header[5]!, header[6]!, header[7]!);
     if (ftyp !== 'ftyp') {
         errors.push(`Invalid MP4 header: expected 'ftyp', got '${ftyp}'`);
     }

@@ -10,6 +10,7 @@ import { MODELS } from "../shared/apiClient";
 import { agentLogger } from "../logger";
 import type { ScreenplayScene } from "@/types";
 import { withAILogging } from "../aiLogService";
+import { type CharacterInput } from "../prompt/imageStyleGuide";
 
 const log = agentLogger.child('ShotBreakdown');
 
@@ -55,6 +56,7 @@ export interface Shot {
     description: string;
     emotion: string;
     lighting: string;
+    scriptSegment?: string;
 }
 
 /**
@@ -71,6 +73,7 @@ interface RawShotData {
     emotionalTone?: string;
     lighting?: string;
     lightingStyle?: string;
+    scriptSegment?: string;
 }
 
 const SHOT_BREAKDOWN_PROMPT = `You are an expert film director and cinematographer. Your goal is to translate a screenplay scene into a series of dynamic, narrative-driven shots.
@@ -78,10 +81,18 @@ const SHOT_BREAKDOWN_PROMPT = `You are an expert film director and cinematograph
 SCENE:
 Heading: {heading}
 Action: {action}
+Scene Narration: {sceneNarration}
 Genre: {genre}
 Characters Present: {characters}
+Character Appearance Reference:
+{characterAnchors}
 Dialogue: {dialogue}
 Mood/Vibe: {mood}
+
+CHARACTER CONSISTENCY RULE:
+If any character from "Character Appearance Reference" appears in a shot, you MUST include
+their specific physical traits (from the reference above) in the shot description.
+NEVER just say "the protagonist" — name them and describe their appearance.
 
 CRITICAL INSTRUCTION:
 - Do NOT just describe the set (e.g., "A market with spices").
@@ -97,6 +108,7 @@ For EACH shot provide:
 5. Description: NARRATIVE-FOCUSED - describe what the character DOES, what the camera REVEALS, and what the viewer FEELS. Include lighting and atmosphere woven into the action.
 6. Emotion: Specific emotional beat (not just "tense" - say "mounting dread", "reluctant hope", "quiet defiance")
 7. Lighting: How light serves the emotion (e.g., "harsh overhead isolating the figure", "warm rim light suggesting hidden warmth")
+8. Script Segment: 1-3 sentences of narration text for this shot, drawn from the Scene Narration above. This will be used as voiceover.
 
 Consider:
 - {genre} genre conventions and visual style
@@ -114,7 +126,8 @@ Output as JSON array with exactly this format:
     "duration": 5,
     "description": "The camera slowly pushes toward Faisal's face as recognition dawns in his eyes, the narrow alley walls seeming to close in around him, harsh sidelight cutting across his features",
     "emotion": "dawning realization",
-    "lighting": "High contrast, claustrophobic sidelight"
+    "lighting": "High contrast, claustrophobic sidelight",
+    "scriptSegment": "Recognition dawns on Faisal's face as the narrow alley walls close in around him."
   }
 ]
 \`\`\`
@@ -193,6 +206,7 @@ function normalizeShot(raw: RawShotData, index: number, sceneId: string): Shot {
         description: raw.description || raw.visualDescription || 'Scene establishing shot',
         emotion: raw.emotion || raw.emotionalTone || 'neutral',
         lighting: raw.lighting || raw.lightingStyle || 'Natural',
+        scriptSegment: raw.scriptSegment || undefined,
     };
 }
 
@@ -205,6 +219,7 @@ export async function breakSceneIntoShots(
     geminiModel?: ChatGoogleGenerativeAI,
     sessionId?: string,
     emotionalContext?: string,
+    characters?: CharacterInput[],
 ): Promise<Shot[]> {
     const model = geminiModel || getGeminiModel();
 
@@ -213,13 +228,23 @@ export async function breakSceneIntoShots(
         ? scene.dialogue.map(d => `${d.speaker}: "${d.text}"`).join('\n')
         : 'No dialogue';
 
+    // Format character anchors for prompt
+    const characterAnchors = characters?.length
+        ? characters.map(c =>
+            `  - ${c.name}: ${c.facialTags ?? c.visualDescription.substring(0, 100)}`
+          ).join('\n')
+        : '  No specific character descriptions provided.';
+
     // Build prompt with emotional context
     const mood = emotionalContext || 'Cinematic';
+    const sceneNarration = scene.action || 'No narration text available';
     const prompt = SHOT_BREAKDOWN_PROMPT
         .replace('{heading}', scene.heading)
         .replace('{action}', scene.action)
+        .replace('{sceneNarration}', sceneNarration)
         .replace('{genre}', genre)
         .replace('{characters}', scene.charactersPresent.join(', ') || 'Unknown')
+        .replace('{characterAnchors}', characterAnchors)
         .replace('{dialogue}', dialogueStr)
         .replace('{mood}', mood)
         .replace('{genre}', genre); // Second occurrence
@@ -262,6 +287,7 @@ export async function breakAllScenesIntoShots(
     onProgress?: (sceneIndex: number, totalScenes: number) => void,
     sessionId?: string,
     emotionalContexts?: string[],
+    characters?: CharacterInput[],
 ): Promise<Shot[]> {
     const model = getGeminiModel();
     const allShots: Shot[] = [];
@@ -277,7 +303,7 @@ export async function breakAllScenesIntoShots(
 
         try {
             const emotionalContext = emotionalContexts?.[i];
-            const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext);
+            const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext, characters);
             allShots.push(...shots);
         } catch (error) {
             log.error(`Failed to process scene ${i + 1}:`, error);

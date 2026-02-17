@@ -131,7 +131,7 @@ async function uploadWithRetry(
 /**
  * Type for asset categories in cloud storage
  */
-export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sfx' | 'subtitles' | 'ai_logs';
+export type CloudAssetType = 'visuals' | 'audio' | 'music' | 'video_clips' | 'sfx' | 'subtitles' | 'ai_logs' | 'exports';
 
 /**
  * Cloud autosave state tracker

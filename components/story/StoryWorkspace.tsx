@@ -326,7 +326,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
             return (
                 <motion.div key="storyboard" {...quickFade} className="flex flex-col h-full">
                     {renderSubNav(storyboardTabs)}
-                    <div className="flex-1 overflow-y-auto bg-black">
+                    <div className={`flex-1 bg-black ${subTab === 'storyboard' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                         <AnimatePresence mode="wait">
                             {subTab === 'shots' && (
                                 <motion.div key="shots" {...quickFade} className="p-6">
@@ -425,7 +425,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 </motion.div>
                             )}
                             {subTab === 'storyboard' && (
-                                <motion.div key="storyboard-view" {...quickFade}>
+                                <motion.div key="storyboard-view" {...quickFade} className="h-full">
                                     <StoryboardView
                                         shots={storyState.shotlist}
                                         scenes={storyState.breakdown}
@@ -687,7 +687,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     `}
                                 >
                                     <span className={`
-                                        w-5 h-5 rounded-sm flex items-center justify-center text-[10px] font-mono font-bold flex-shrink-0 transition-all duration-200
+                                        w-5 h-5 rounded-sm flex items-center justify-center text-[10px] font-mono font-bold shrink-0 transition-all duration-200
                                         ${isActive ? 'bg-white text-black' : isCompleted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400'}
                                     `}>
                                         {isCompleted ? <Check className="w-3 h-3" /> : tab.number}
@@ -701,7 +701,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 </button>
 
                                 {index < mainTabs.length - 1 && (
-                                    <div className={`w-6 h-px mx-0.5 flex-shrink-0 ${isCompleted ? 'bg-emerald-500/30' : 'bg-zinc-800'}`} />
+                                    <div className={`w-6 h-px mx-0.5 shrink-0 ${isCompleted ? 'bg-emerald-500/30' : 'bg-zinc-800'}`} />
                                 )}
                             </React.Fragment>
                         );

@@ -131,7 +131,7 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   let offset = 44;
   for (let i = 0; i < buffer.length; i++) {
     for (let channel = 0; channel < numChannels; channel++) {
-      const sample = buffer.getChannelData(channel)[i];
+      const sample = buffer.getChannelData(channel)[i] ?? 0;
       // Clamp and convert to 16-bit integer
       const intSample = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
       view.setInt16(offset, intSample, true);
@@ -164,7 +164,7 @@ export async function createCombinedNarrationAudio(
   }
 
   if (validSegments.length === 1) {
-    return validSegments[0].url;
+    return validSegments[0]!.url;
   }
 
   onProgress?.('Combining narration audio...', 10);

@@ -21,6 +21,7 @@ import { type VideoPurpose, type LanguageCode, getLanguageName } from "../consta
 import { traceAsync } from "./tracing";
 import { getEffectiveLegacyTone } from "./tripletUtils";
 import { getVibeTerms, SCENARIO_TEMPLATES } from "./prompt/vibeLibrary";
+import { cleanForTTS } from "./textSanitizer";
 
 // --- Zod Schemas ---
 
@@ -67,13 +68,17 @@ export const ContentPlanSchema = z.object({
         appearance: z.string().describe("Detailed physical description: age, skin, hair, eyes, build"),
         clothing: z.string().describe("Specific clothing and accessories"),
         distinguishingFeatures: z.string().optional().describe("Scars, tattoos, jewelry, glasses, etc."),
+        consistencyKey: z.string().optional().describe(
+            "EXACTLY 5 comma-separated visual keywords capturing face+clothing essence. " +
+            "E.g.: '10yo wiry boy, messy black hair'. Used as prompt anchor for every shot."
+        ),
     })).optional().describe("Character definitions for visual consistency"),
     scenes: z.array(z.object({
         id: z.string().describe("Unique scene identifier"),
         name: z.string().describe("Scene name/title"),
         duration: z.number().describe("Scene duration in seconds"),
         visualDescription: z.string().max(200).describe("Detailed visual description for image/video generation (max 200 chars)"),
-        narrationScript: z.string().describe("Narration script to be spoken"),
+        narrationScript: z.string().describe("Pure spoken narration text ONLY. NEVER include labels like 'Emotional Hook:', 'Narrative Beat:', 'الخطاف العاطفي:', 'النقطة السردية:' or any markdown/stage-direction syntax. Only the words the narrator will say aloud."),
         emotionalTone: z.enum(["professional", "dramatic", "friendly", "urgent", "calm"]).optional().describe("Legacy emotional tone (fallback)"),
         // Instruction Triplet — preferred over emotionalTone
         instructionTriplet: z.object({
@@ -240,6 +245,26 @@ Write narration scripts optimized for text-to-speech delivery:
 - NEVER end a narration with a generic summary sentence
 - Think documentary-mystery style: revelations, not explanations`;
 
+    // Hard prohibition on metadata labels bleeding into narration output
+    const narrationPurityRules = `
+=== NARRATION SCRIPT PURITY (MANDATORY — VIOLATIONS BREAK THE PRODUCT) ===
+The "narrationScript" JSON field must contain ONLY the spoken words the narrator will say aloud.
+
+FORBIDDEN in narrationScript (these break subtitles and TTS):
+- Structural labels: "Emotional Hook:", "Narrative Beat:", "Key Beat:", "Hook:", "Beat:"
+- Arabic labels: "الخطاف العاطفي:", "النقطة السردية:", "الراوي:", "المشهد:", "وصف المشهد:"
+- Markdown: ** bold **, * italic *, # headings, \`code\`, - bullets, > blockquotes
+- Screenplay directions: [Direction:], (Note:), (SFX:), (Pause), INT., EXT.
+- Multi-section structure: DO NOT split the field into labelled sub-sections
+
+CORRECT ✅ (pure spoken narration):
+"رمل الصحراء يغطي كل شيء. ريح هادئة تحمل أصوات الماضي البعيد."
+
+WRONG ❌ (labels leaked in):
+"الخطاف العاطفي: رمل الصحراء يغطي كل شيء. **النقطة السردية:** ريح هادئة."
+
+If you feel the urge to write a label, STOP — write only the narration text itself.`;
+
     // Language hybridization rules
     const hybridLanguageNote = `
 === LANGUAGE HYBRIDIZATION ===
@@ -260,6 +285,7 @@ ${styleGuidance}
 ${tripletGuidance}
 ${scenarioHint}
 ${ttsStyleGuidance}
+${narrationPurityRules}
 ${hybridLanguageNote}
 
 CREATIVITY GUIDELINES:
@@ -328,6 +354,10 @@ If your story features recurring characters:
 2. In EVERY scene featuring that character, include their KEY identifiers
 3. Use the EXACT SAME descriptors - "young woman with curly auburn hair and emerald eyes wearing a vintage blue dress" - not just "the woman"
 4. Character descriptions should be 15-20 words minimum in each visualDescription
+5. For each character, generate a "consistencyKey": exactly 5 comma-separated keywords
+   capturing their most visually distinctive face and clothing traits.
+   Example: "10yo wiry boy, messy black hair, worn school uniform, bright eyes"
+   This key will be prepended to EVERY image prompt where this character appears.
 
 === CINEMATOGRAPHY VOCABULARY (USE IN visualDescription) ===
 SHOT TYPES (Vary these):
@@ -536,6 +566,8 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
                                 visualDescription: scene.visualDescription?.length > 200
                                     ? scene.visualDescription.substring(0, 197) + "..."
                                     : scene.visualDescription,
+                                // Strip any metadata labels/markdown that leaked into narration (defensive sanitization)
+                                narrationScript: cleanForTTS(scene.narrationScript ?? ''),
                                 emotionalTone: normalizedTone,
                                 instructionTriplet,
                                 // Intelligent transition selection based on emotional tone
@@ -683,6 +715,13 @@ export const generateContentPlan = traceAsync(
                 totalDuration: result.totalDuration,
                 targetAudience: result.targetAudience,
                 overallTone: result.overallTone,
+                characters: result.characters?.map(c => ({
+                    name: c.name,
+                    appearance: c.appearance,
+                    clothing: c.clothing,
+                    distinguishingFeatures: c.distinguishingFeatures,
+                    consistencyKey: c.consistencyKey,
+                })),
                 scenes: result.scenes.map((scene): Scene => ({
                     id: scene.id,
                     name: scene.name,

@@ -122,6 +122,8 @@ export interface CharacterDefinition {
   appearance: string; // Detailed physical description
   clothing: string; // Specific garments and colors
   distinguishingFeatures?: string; // Scars, tattoos, jewelry, etc.
+  /** Compact 5-word visual anchor for image prompts, e.g. "10yo wiry boy, messy black hair" */
+  consistencyKey?: string;
 }
 
 /**
@@ -449,6 +451,7 @@ export interface CharacterProfile {
   name: string;
   role: string;
   visualDescription: string; // The "Golden Prompt" for consistency
+  facialTags?: string; // 5-keyword compact face/clothing tags for prompt anchoring
   referenceImageUrl?: string; // Generated "Sheet" for the character
 }
 
@@ -476,6 +479,7 @@ export interface ShotlistEntry {
   movement: string; // "Pan", "Static"
   lighting?: string; // "Cinematic", "Natural", etc.
   dialogue?: string; // Associated dialogue for the shot
+  scriptSegment?: string; // 1-3 sentences of narration mapped to this shot
   imageUrl?: string; // The final generated image
   durationEst?: number; // Estimated duration in seconds
 }
@@ -506,6 +510,7 @@ export interface StoryShot {
   description: string;
   emotion: string;
   lighting: string;
+  scriptSegment?: string; // 1-3 sentences of narration mapped to this shot
   imageUrl?: string; // Generated image for this shot
 }
 
@@ -562,6 +567,14 @@ export interface StoryState {
     duration: number;
   }>;
   shotsWithAnimation?: string[]; // shot IDs that have animation generated
+
+  // Visual style DNA extracted from first generated shot (Issue 3)
+  masterStyle?: {
+    colorPalette: string[];
+    lighting: string;
+    texture: string;
+    moodKeywords: string[];
+  };
 
   // Final export state
   finalVideoUrl?: string;

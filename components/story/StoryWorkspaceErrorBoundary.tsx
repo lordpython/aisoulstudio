@@ -39,7 +39,7 @@ export class StoryWorkspaceErrorBoundary extends React.Component<
     console.error("[StoryWorkspaceError] Component stack:", errorInfo.componentStack);
     console.error("[StoryWorkspaceError] Story State at error:", {
       step: this.props.storyState.currentStep,
-      hasIdea: !!this.props.storyState.idea,
+      hasBreakdownSteps: this.props.storyState.breakdown?.length || 0,
       hasBreakdown: !!this.props.storyState.breakdown,
       hasScript: !!this.props.storyState.script,
       charactersCount: this.props.storyState.characters?.length || 0,

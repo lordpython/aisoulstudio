@@ -414,9 +414,11 @@ export const exportFinalVideoTool = tool(
       let videoBlob: Blob;
 
       if (useServerSide) {
-        videoBlob = await exportVideoWithFFmpeg(songData, onProgress, exportConfig);
+        const exportResult = await exportVideoWithFFmpeg(songData, onProgress, exportConfig);
+        videoBlob = exportResult.blob;
       } else {
-        videoBlob = await exportVideoClientSide(songData, onProgress, exportConfig);
+        const exportResult = await exportVideoClientSide(songData, onProgress, exportConfig);
+        videoBlob = exportResult.blob;
       }
 
       // Create download URL

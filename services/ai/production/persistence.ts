@@ -19,7 +19,7 @@ const log = agentLogger.child('Persistence');
 const DB_NAME = 'lyriclens-production';
 const DB_VERSION = 2;
 
-interface SessionMetadata {
+export interface SessionMetadata {
     sessionId: string;
     createdAt: number;
     updatedAt: number;
@@ -126,7 +126,7 @@ function createMetadata(sessionId: string, state: ProductionState, existingMeta?
         sessionId,
         createdAt: existingMeta?.createdAt ?? now,
         updatedAt: now,
-        topic: state.contentPlan?.topic,
+        topic: state.contentPlan?.title,
         sceneCount: state.contentPlan?.scenes?.length ?? 0,
         isComplete: state.isComplete,
     };

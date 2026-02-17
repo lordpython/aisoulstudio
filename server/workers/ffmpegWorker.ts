@@ -107,8 +107,8 @@ function parseFFmpegProgress(
 
   if (frameMatch) {
     return {
-      frame: parseInt(frameMatch[1], 10),
-      speed: speedMatch ? speedMatch[1] + 'x' : 'N/A',
+      frame: parseInt(frameMatch[1] ?? '0', 10),
+      speed: speedMatch ? (speedMatch[1] ?? '0') + 'x' : 'N/A',
     };
   }
 

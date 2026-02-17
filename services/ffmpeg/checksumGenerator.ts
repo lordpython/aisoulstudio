@@ -100,7 +100,7 @@ export function generateSimpleChecksum(data: ArrayBuffer): string {
   let hash = 0x811c9dc5; // FNV-1a offset basis
 
   for (let i = 0; i < view.length; i++) {
-    hash ^= view[i];
+    hash ^= view[i]!;
     hash = Math.imul(hash, 0x01000193); // FNV prime
   }
 

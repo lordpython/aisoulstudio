@@ -389,7 +389,7 @@ export async function exportVideoWithFFmpeg(
                         aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                         cloudUrl,
                         fileSize: videoBlob.size,
-                        duration: songData.durationSeconds,
+                        duration,
                     });
                     console.log('[FFmpeg] ✓ Export record saved to Firestore');
                 }
@@ -668,7 +668,7 @@ export async function exportVideoClientSide(
                         aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                         cloudUrl,
                         fileSize: videoBlob.size,
-                        duration: songData.durationSeconds,
+                        duration,
                     });
                     console.log('[FFmpeg WASM] ✓ Export record saved to Firestore');
                 }

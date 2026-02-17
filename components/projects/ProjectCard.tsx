@@ -2,7 +2,7 @@
  * Project Card Component
  *
  * Displays a project with thumbnail, title, metadata, and quick actions.
- * Used in the ProjectsScreen dashboard grid.
+ * Uses the cinematic design system tokens for consistent visual language.
  */
 
 import React from 'react';
@@ -47,11 +47,18 @@ const TYPE_ICONS: Record<ProjectType, typeof Video> = {
   visualizer: AudioWaveform,
 };
 
-// Type-to-color mapping
-const TYPE_COLORS: Record<ProjectType, string> = {
-  production: 'from-violet-500 to-purple-600',
-  story: 'from-amber-500 to-orange-600',
-  visualizer: 'from-cyan-500 to-blue-600',
+// Type-to-gradient mapping using design tokens
+const TYPE_GRADIENTS: Record<ProjectType, string> = {
+  production: 'from-primary/60 to-primary/20',
+  story: 'from-accent/60 to-accent/20',
+  visualizer: 'from-ring/60 to-ring/20',
+};
+
+// Type-to-accent color for badges
+const TYPE_ACCENT: Record<ProjectType, string> = {
+  production: 'text-primary bg-primary/10 border-primary/20',
+  story: 'text-accent bg-accent/10 border-accent/20',
+  visualizer: 'text-ring bg-ring/10 border-ring/20',
 };
 
 // Type-to-route mapping
@@ -102,7 +109,8 @@ export function ProjectCard({
   const { t, isRTL } = useLanguage();
 
   const Icon = TYPE_ICONS[project.type];
-  const colorClass = TYPE_COLORS[project.type];
+  const gradientClass = TYPE_GRADIENTS[project.type];
+  const accentClass = TYPE_ACCENT[project.type];
 
   const handleOpen = () => {
     const route = TYPE_ROUTES[project.type];
@@ -139,14 +147,25 @@ export function ProjectCard({
       onClick={handleOpen}
       className={cn(
         'group relative cursor-pointer rounded-xl overflow-hidden',
-        'bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20',
+        'bg-card hover:bg-card/80 border border-border hover:border-primary/30',
         'transition-all duration-300',
-        'focus-within:ring-2 focus-within:ring-violet-500/50',
+        'focus-within:ring-2 focus-within:ring-primary/50',
+        'shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-primary/5',
         isRTL && 'text-right'
       )}
     >
+      {/* Hover glow effect */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[1px]"
+          style={{
+            background: 'linear-gradient(90deg, transparent, oklch(0.70 0.15 190 / 0.4), transparent)',
+          }}
+        />
+      </div>
+
       {/* Thumbnail Area */}
-      <div className="relative aspect-video bg-gradient-to-br from-white/5 to-white/10">
+      <div className="relative aspect-video bg-gradient-to-br from-secondary to-muted overflow-hidden">
         {project.thumbnailUrl ? (
           <img
             src={project.thumbnailUrl}
@@ -157,16 +176,16 @@ export function ProjectCard({
           <div
             className={cn(
               'w-full h-full flex items-center justify-center bg-gradient-to-br',
-              colorClass
+              gradientClass
             )}
           >
-            <Icon className="w-12 h-12 text-white/50" />
+            <Icon className="w-12 h-12 text-foreground/30" />
           </div>
         )}
 
         {/* Duration Badge */}
         {project.duration && (
-          <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-xs text-white">
+          <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm text-xs text-foreground font-code">
             {formatDuration(project.duration)}
           </div>
         )}
@@ -174,15 +193,16 @@ export function ProjectCard({
         {/* Favorite Star */}
         {project.isFavorite && (
           <div className="absolute top-2 right-2">
-            <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+            <Star className="w-5 h-5 text-accent fill-accent drop-shadow-lg" />
           </div>
         )}
 
         {/* Type Badge */}
         <div
           className={cn(
-            'absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium',
-            'bg-black/50 backdrop-blur-sm text-white/90 capitalize'
+            'absolute top-2 left-2 px-2.5 py-1 rounded-full text-[10px] font-code font-medium uppercase tracking-wider',
+            'border backdrop-blur-sm capitalize',
+            accentClass
           )}
         >
           {project.type}
@@ -192,22 +212,22 @@ export function ProjectCard({
       {/* Content Area */}
       <div className="p-4">
         {/* Title */}
-        <h3 className="font-semibold text-white truncate mb-1">{project.title}</h3>
+        <h3 className="font-editorial font-semibold text-foreground truncate mb-1">{project.title}</h3>
 
         {/* Topic/Description */}
         {project.topic && (
-          <p className="text-sm text-white/60 truncate mb-2">{project.topic}</p>
+          <p className="text-sm text-muted-foreground truncate mb-2.5">{project.topic}</p>
         )}
 
         {/* Metadata Row */}
         <div
           className={cn(
-            'flex items-center gap-3 text-xs text-white/50',
+            'flex items-center gap-3 text-xs text-muted-foreground',
             isRTL && 'flex-row-reverse'
           )}
         >
           {/* Last Updated */}
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 font-code">
             <Clock className="w-3 h-3" />
             {formatDate(project.updatedAt)}
           </span>
@@ -215,29 +235,29 @@ export function ProjectCard({
           {/* Progress Indicators */}
           <div className="flex items-center gap-1.5">
             {project.hasVisuals && (
-              <ImageIcon className="w-3 h-3 text-green-400" title="Has visuals" />
+              <span title="Has visuals"><ImageIcon className="w-3 h-3 text-primary/70" /></span>
             )}
             {project.hasNarration && (
-              <Mic className="w-3 h-3 text-blue-400" title="Has narration" />
+              <span title="Has narration"><Mic className="w-3 h-3 text-ring/70" /></span>
             )}
             {project.hasMusic && (
-              <Music className="w-3 h-3 text-pink-400" title="Has music" />
+              <span title="Has music"><Music className="w-3 h-3 text-accent/70" /></span>
             )}
             {project.hasExport && (
-              <Download className="w-3 h-3 text-violet-400" title="Has export" />
+              <span title="Has export"><Download className="w-3 h-3 text-primary/70" /></span>
             )}
           </div>
         </div>
 
         {/* Status Badge */}
         {project.status !== 'draft' && (
-          <div className="mt-2">
+          <div className="mt-2.5">
             <span
               className={cn(
-                'px-2 py-0.5 rounded-full text-xs',
-                project.status === 'completed' && 'bg-green-500/20 text-green-400',
-                project.status === 'in_progress' && 'bg-blue-500/20 text-blue-400',
-                project.status === 'archived' && 'bg-gray-500/20 text-gray-400'
+                'px-2 py-0.5 rounded-full text-xs font-code',
+                project.status === 'completed' && 'bg-primary/15 text-primary',
+                project.status === 'in_progress' && 'bg-ring/15 text-ring',
+                project.status === 'archived' && 'bg-muted text-muted-foreground'
               )}
             >
               {project.status.replace('_', ' ')}
@@ -261,7 +281,7 @@ export function ProjectCard({
               className="p-1.5 rounded-lg bg-black/50 hover:bg-black/70 backdrop-blur-sm transition-colors"
               aria-label="Project actions"
             >
-              <MoreVertical className="w-4 h-4 text-white/70" />
+              <MoreVertical className="w-4 h-4 text-foreground/70" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
@@ -273,7 +293,7 @@ export function ProjectCard({
               <Star
                 className={cn(
                   'w-4 h-4 mr-2',
-                  project.isFavorite && 'fill-yellow-400 text-yellow-400'
+                  project.isFavorite && 'fill-accent text-accent'
                 )}
               />
               {project.isFavorite
@@ -289,7 +309,7 @@ export function ProjectCard({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleDelete}
-              className="text-red-400 focus:text-red-400"
+              className="text-destructive focus:text-destructive"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               {t('projects.delete') || 'Delete'}

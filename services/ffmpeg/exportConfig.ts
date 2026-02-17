@@ -80,6 +80,8 @@ export type RenderAsset = {
     time: number;
     type: "image" | "video";
     element: HTMLImageElement | HTMLVideoElement;
+    /** Native duration of the video asset in seconds (for freeze-frame on short clips) */
+    nativeDuration?: number;
 };
 
 /**

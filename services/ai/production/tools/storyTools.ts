@@ -32,6 +32,38 @@ function stripMarkdown(text: string): string {
         .trim();
 }
 
+/**
+ * Detect if a string looks like a scene heading (INT./EXT.) rather than a character name.
+ * LLMs sometimes put scene headings in the speaker field.
+ */
+function isSceneHeading(text: string): boolean {
+    const trimmed = text.trim();
+    // Scene headings start with INT./EXT., or the field has more than 4 words (it's a description, not a name)
+    return /^(INT\.|EXT\.)/i.test(trimmed)
+        || trimmed.length > 30
+        || trimmed.split(/\s+/).length > 4;
+}
+
+/**
+ * Filter out invalid dialogue entries where the LLM confused speaker/description fields.
+ * Keeps only entries with short, valid speaker names and non-empty text.
+ */
+function sanitizeDialogue(
+    entries: Array<{ speaker: string; text: string }>
+): Array<{ speaker: string; text: string }> {
+    return entries
+        .map(d => {
+            if (!d.speaker || !d.text) return null;
+            if (isSceneHeading(d.speaker)) {
+                // Recover: treat the misplaced content as Narrator text
+                const rescuedText = d.text && d.text.trim().length > 5 ? d.text : d.speaker;
+                return { speaker: 'Narrator', text: stripMarkdown(rescuedText) };
+            }
+            return d;
+        })
+        .filter((d): d is { speaker: string; text: string } => d !== null && d.text.trim().length > 0);
+}
+
 // --- Generate Breakdown Tool ---
 
 export const generateBreakdownTool = tool(
@@ -62,15 +94,13 @@ export const generateBreakdownTool = tool(
             ? `أنشئ تفصيلًا سرديًا لقصة فيديو عن: "${topic}".
 قسّمها إلى 3-5 فصول أو مشاهد متميزة. لكل فصل، قدّم:
 1. العنوان (بعد كلمة "مشهد" ورقمه، مثال: مشهد ١: العنوان)
-2. الخطاف العاطفي
-3. النقطة السردية الرئيسية
+2. السرد: جملتان تصفان ما يحدث بصريًا (لا تستخدم عناوين مثل "الخطاف العاطفي" أو "النقطة السردية" — اكتب السرد مباشرة)
 
 نسّق كقائمة مرقّمة باستخدام الأرقام العربية (١، ٢، ٣...).`
             : `Create a narrative breakdown for a video story about: "${topic}".
 Divide it into 3-5 distinct acts or chapters. For each act, provide:
 1. Title
-2. Emotional Hook
-3. Key narrative beat
+2. NARRATIVE: 2-3 sentences describing what happens visually (do NOT include labels like "Emotional Hook:" or "Key Beat:" — write the narrative directly)
 
 Format as a structured list.`;
 
@@ -238,15 +268,17 @@ Limit to 3-5 scenes.`;
                 .filter(s => s && s.length > 0 && s.length < 50);
             const uniqueCharacters = [...new Set(speakers)];
 
+            const rawDialogue = dialogueLines.map(l => {
+                const [speaker, ...text] = l.split(':');
+                return { speaker: (speaker || "").trim(), text: text.join(':').trim() };
+            });
+
             scenes.push({
                 id: `scene_${i}`,
                 sceneNumber: i + 1,
                 heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE|الحدث|الحوار)(\*{0,2})\s*:/gi, '').trim(),
                 action: actionText,
-                dialogue: dialogueLines.map(l => {
-                    const [speaker, ...text] = l.split(':');
-                    return { speaker: (speaker || "").trim(), text: text.join(':').trim() };
-                }),
+                dialogue: sanitizeDialogue(rawDialogue),
                 charactersPresent: uniqueCharacters,
             });
         });

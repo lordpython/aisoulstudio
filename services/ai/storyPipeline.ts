@@ -14,6 +14,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
+import { cleanForTTS } from "../textSanitizer";
 import { agentLogger } from "../logger";
 import { storyModeStore } from "./production/store";
 import type { StoryModeState } from "./production/types";
@@ -39,8 +40,18 @@ const ScreenplaySchema = z.object({
         heading: z.string(),
         action: z.string(),
         dialogue: z.array(z.object({
-            speaker: z.string(),
-            text: z.string(),
+            // Hard cap: a character name is never more than 4 words / 30 chars.
+            // This rejects paragraphs mistakenly placed in the speaker field.
+            speaker: z.string().max(30).describe(
+                "Character name ONLY (1-4 words, e.g. 'Faisal', 'Maya', 'Narrator'). " +
+                "NEVER put scene descriptions, emotions, or visual directions here."
+            ).refine(
+                val => val.trim().split(/\s+/).length <= 4,
+                { message: "Speaker must be a character name (≤4 words), not a description" }
+            ),
+            text: z.string().min(1).describe(
+                "The spoken dialogue line. Must not be empty."
+            ),
         })),
     })).min(3).max(8),
 });
@@ -50,6 +61,7 @@ const CharacterSchema = z.object({
         name: z.string(),
         role: z.string(),
         visualDescription: z.string(),
+        facialTags: z.string().optional(),
     })),
 });
 
@@ -122,6 +134,19 @@ Create 3-8 scenes. For each scene:
 2. Action - Visual description of what happens
 3. Dialogue - Character lines (if any)
 
+DIALOGUE RULES (CRITICAL — schema will reject violations):
+- "speaker" must be the character's NAME ONLY — 1 to 4 words maximum (e.g., "Faisal", "Old Man", "Narrator").
+- "speaker" must NEVER contain scene descriptions, emotions, or actions. MAX 30 characters.
+- "text" is the spoken/narrated line — it must NEVER be empty.
+- If there is no specific speaker, use "Narrator" as the speaker name.
+- NEVER put visual descriptions or action text in the "speaker" field.
+
+VALID example:
+{"speaker": "Faisal", "text": "What happened to this place?"}
+
+INVALID example (will break the system):
+{"speaker": "Faisal walks through the crumbling market, eyes wide with disbelief", "text": ""}
+
 Keep action descriptions vivid but concise.`;
 
     const result = await model.invoke(prompt);
@@ -132,7 +157,25 @@ Keep action descriptions vivid but concise.`;
         sceneNumber: i + 1,
         heading: s.heading,
         action: s.action,
-        dialogue: s.dialogue,
+        dialogue: s.dialogue
+            .map(d => {
+                // Repair: detect when the LLM put a visual description in the speaker field.
+                // A character name is 1-4 words at most. If it's longer, the fields are swapped.
+                const speakerWords = d.speaker.trim().split(/\s+/).length;
+                const speakerTooLong = speakerWords > 4 || d.speaker.length > 30;
+
+                if (speakerTooLong) {
+                    log.warn(`[generateScreenplay] Misaligned speaker field detected ("${d.speaker.substring(0, 50)}...") — recovering as Narrator`);
+                    // If text is also empty/short, rescue the description as the spoken text
+                    const rescuedText = d.text && d.text.trim().length > 5
+                        ? d.text
+                        : d.speaker; // fall back to the misplaced content
+                    return { speaker: 'Narrator', text: cleanForTTS(rescuedText) };
+                }
+
+                return { speaker: d.speaker, text: cleanForTTS(d.text) };
+            })
+            .filter(d => d.text.trim().length > 0), // drop empty-text entries
         charactersPresent: [],
     }));
 
@@ -173,6 +216,7 @@ For each character provide:
 1. Name
 2. Role (protagonist, antagonist, supporting)
 3. Visual Description - Detailed appearance for image generation (age, gender, ethnicity, hair, clothing, distinguishing features)
+4. Facial Tags - Exactly 5 comma-separated keywords capturing face and clothing (e.g., "sharp jawline, dark curly hair, olive skin, worn leather jacket, silver ring")
 
 Focus on characters with significant presence.`;
 
@@ -183,6 +227,7 @@ Focus on characters with significant presence.`;
         name: c.name,
         role: c.role,
         visualDescription: c.visualDescription,
+        facialTags: c.facialTags,
     }));
 
     log.info(`Characters extracted: ${characters.length}`);
@@ -255,10 +300,13 @@ async function generateCharacterReferences(
  * This keeps prompts focused on the action while maintaining character consistency.
  */
 function buildVisualAnchor(char: CharacterProfile): string {
-    // Extract just the visual identifiers (first 2 sentences or 30 words max)
+    // Prefer compact facial tags when available; fall back to truncated description
+    if (char.facialTags) {
+        return `[${char.name}: ${char.facialTags}]`;
+    }
     const desc = char.visualDescription || '';
     const words = desc.split(/\s+/);
-    const compact = words.slice(0, 30).join(' ');
+    const compact = words.slice(0, 20).join(' ');
     return `[${char.name}: ${compact}]`;
 }
 

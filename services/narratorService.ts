@@ -381,6 +381,51 @@ const PURPOSE_STYLE_MAP: Record<VideoPurpose, StylePrompt> = {
         emotion: "objective, clear, and authoritative",
         pacing: "crisp and well-articulated"
     },
+    story_drama: {
+        persona: "A dramatic storyteller with emotional depth",
+        emotion: "intense, moving, and deeply felt",
+        pacing: "measured with emotional crescendos"
+    },
+    story_comedy: {
+        persona: "A witty comedic narrator",
+        emotion: "light-hearted, playful, and humorous",
+        pacing: "upbeat with well-timed comedic beats"
+    },
+    story_thriller: {
+        persona: "A tense thriller narrator",
+        emotion: "suspenseful, gripping, and urgent",
+        pacing: "tight and relentless with sudden shifts"
+    },
+    story_scifi: {
+        persona: "A futuristic sci-fi narrator",
+        emotion: "awe-inspiring, cerebral, and visionary",
+        pacing: "steady with moments of wonder"
+    },
+    story_action: {
+        persona: "A high-energy action narrator",
+        emotion: "thrilling, explosive, and adrenaline-fueled",
+        pacing: "fast and intense with punchy delivery"
+    },
+    story_fantasy: {
+        persona: "An enchanting fantasy storyteller",
+        emotion: "magical, wondrous, and mythical",
+        pacing: "flowing and grand with epic moments"
+    },
+    story_romance: {
+        persona: "A tender romantic narrator",
+        emotion: "warm, passionate, and intimate",
+        pacing: "gentle and heartfelt"
+    },
+    story_historical: {
+        persona: "A distinguished historical narrator",
+        emotion: "reverent, authoritative, and evocative",
+        pacing: "stately and deliberate"
+    },
+    story_animation: {
+        persona: "A lively animated story narrator",
+        emotion: "colorful, expressive, and fun",
+        pacing: "dynamic and energetic"
+    },
 };
 
 // --- Error Types ---
