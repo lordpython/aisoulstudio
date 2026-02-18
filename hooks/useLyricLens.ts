@@ -327,7 +327,7 @@ export function useLyricLens() {
             baseImageUrl = imgBase64;
 
             // 2. Generate motion-optimized prompt for animation
-            const motionPrompt = await generateMotionPrompt(
+            const motionResult = await generateMotionPrompt(
               refinedPrompt,
               prompt.mood || "cinematic",
               globalSubject,
@@ -336,7 +336,7 @@ export function useLyricLens() {
             // 3. Animate with motion-focused prompt (DeAPI)
             base64 = await animateImageWithDeApi(
               imgBase64,
-              motionPrompt,
+              motionResult.combined,
               selectedAspectRatio as "16:9" | "9:16" | "1:1",
             );
             resultType = "video";

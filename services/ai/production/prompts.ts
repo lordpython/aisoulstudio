@@ -106,13 +106,8 @@ NOTE: Music generation is NOT available in video production mode. Use the "Gener
 - Does user want style transfer?
   → YES: Call restyle_image with the specified style
 
-### Step 7: Quality Control (Always Execute - Requirement 7)
-- Call validate_plan to check content quality
-- If score < 80 AND iterations < 2:
-  - Call adjust_timing to fix timing mismatches
-  - Call validate_plan again
-  - Repeat until score >= 80 OR iterations >= 2
-- Report final score and best score achieved
+### Step 7: Quality Control (Always Execute)
+Follow the mandatory QUALITY CONTROL LOOP workflow described below.
 
 ### Step 8: Final Steps (Always Execute)
 - If multiple audio sources exist: Call mix_audio_tracks

@@ -65,10 +65,22 @@ const CharacterSchema = z.object({
     })),
 });
 
+const VoiceoverSchema = z.object({
+    voiceovers: z.array(z.object({
+        sceneId: z.string(),
+        script: z.string().describe(
+            "The voiceover narration rewritten for spoken delivery. " +
+            "Include delivery markers: [pause: short|medium|long|beat], " +
+            "[emphasis]word[/emphasis], [whisper]text[/whisper], " +
+            "[rising-tension]text[/rising-tension], [slow]text[/slow], [breath]."
+        ),
+    })),
+});
+
 // --- Progress callback type ---
 
 export interface StoryProgress {
-    stage: 'breakdown' | 'screenplay' | 'characters' | 'visuals' | 'complete' | 'error';
+    stage: 'breakdown' | 'screenplay' | 'characters' | 'voiceover' | 'visuals' | 'complete' | 'error';
     message: string;
     progress?: number; // 0-100
     currentStep?: number;
@@ -90,15 +102,23 @@ async function generateBreakdown(topic: string): Promise<{ acts: { title: string
         temperature: 0.7,
     }).withStructuredOutput(BreakdownSchema);
 
-    const prompt = `Create a narrative breakdown for a short video story about:
+    const prompt = `You are a story development expert.
+
+Before writing, silently identify:
+- Protagonist and their central desire or goal
+- Core conflict they face (internal or external)
+- Emotional arc: how does the protagonist change from start to finish?
+- One key turning point per act
+
+Then create a narrative breakdown for a short video story about:
 "${topic}"
 
 Divide into 3-5 acts. For each act provide:
-1. Title - A compelling act title
-2. Emotional Hook - The emotional core of this act
-3. Narrative Beat - Key story event or revelation
+1. Title - A compelling act title referencing a specific story moment (not generic like "Introduction")
+2. Emotional Hook - The dominant emotion the audience should feel in this act (grief, awe, tension, triumph...)
+3. Narrative Beat - The specific story event or revelation that drives this act forward (name characters, describe the action)
 
-Keep each field concise (1-2 sentences max).`;
+Keep each field concise (1-2 sentences max). Be specific — avoid vague labels like "conflict begins" or "things get harder".`;
 
     const result = await model.invoke(prompt);
     log.info(`Breakdown complete: ${result.acts.length} acts`);
@@ -198,27 +218,36 @@ async function extractCharactersFromScreenplay(
         temperature: 0.3,
     }).withStructuredOutput(CharacterSchema);
 
-    // Minimal screenplay summary for character extraction
+    // Build extended scene context (300 chars) and per-speaker dialogue samples
     const scenesSummary = scenes.map(s =>
-        `${s.heading}: ${s.action.slice(0, 200)}${s.action.length > 200 ? '...' : ''}`
+        `${s.heading}: ${s.action.slice(0, 300)}${s.action.length > 300 ? '...' : ''}`
     ).join('\n');
 
-    const dialogueSpeakers = new Set<string>();
-    scenes.forEach(s => s.dialogue.forEach(d => dialogueSpeakers.add(d.speaker)));
+    // Collect up to 2 sample lines per speaker to give the model voice/personality context
+    const dialogueSampleMap = new Map<string, string[]>();
+    scenes.forEach(s => s.dialogue.forEach(d => {
+        if (!dialogueSampleMap.has(d.speaker)) dialogueSampleMap.set(d.speaker, []);
+        const samples = dialogueSampleMap.get(d.speaker)!;
+        if (samples.length < 2) samples.push(d.text.slice(0, 80));
+    }));
+    const dialogueContext = Array.from(dialogueSampleMap.entries())
+        .map(([speaker, lines]) => `  ${speaker}: "${lines.join('" / "')}"`)
+        .join('\n');
 
     const prompt = `Extract main characters from this screenplay:
 
 ${scenesSummary}
 
-Characters mentioned in dialogue: ${Array.from(dialogueSpeakers).join(', ')}
+Character dialogue samples:
+${dialogueContext}
 
 For each character provide:
 1. Name
 2. Role (protagonist, antagonist, supporting)
-3. Visual Description - Detailed appearance for image generation (age, gender, ethnicity, hair, clothing, distinguishing features)
-4. Facial Tags - Exactly 5 comma-separated keywords capturing face and clothing (e.g., "sharp jawline, dark curly hair, olive skin, worn leather jacket, silver ring")
+3. Visual Description - Detailed appearance for image generation (age, gender, ethnicity, hair, clothing, distinguishing features). Be specific about: age range, build, skin tone, hair style/color, and 1-2 distinctive outfit items.
+4. Facial Tags - REQUIRED: Exactly 5 comma-separated visual keywords that uniquely identify this character (e.g., "sharp jawline, dark curly hair, olive skin, worn leather jacket, silver earring"). These will be embedded in every image prompt to maintain consistency.
 
-Focus on characters with significant presence.`;
+Focus on characters with significant presence. Each character must have all 4 fields.`;
 
     const result = await model.invoke(prompt);
 
@@ -232,6 +261,83 @@ Focus on characters with significant presence.`;
 
     log.info(`Characters extracted: ${characters.length}`);
     return characters;
+}
+
+/**
+ * Generate voiceover scripts from screenplay action text.
+ * Rewrites camera-facing action descriptions into spoken narration
+ * optimized for TTS delivery, with inline delivery markers.
+ *
+ * @param scenes - Screenplay scenes with action text
+ * @param emotionalHooks - Per-act emotional hooks from breakdown
+ * @returns Map of sceneId → voiceover script string (with delivery markers)
+ */
+export async function generateVoiceoverScripts(
+    scenes: ScreenplayScene[],
+    emotionalHooks?: string[],
+): Promise<Map<string, string>> {
+    log.info(`Generating voiceover scripts for ${scenes.length} scenes`);
+
+    const model = new ChatGoogleGenerativeAI({
+        model: MODELS.TEXT,
+        apiKey: GEMINI_API_KEY,
+        temperature: 0.6,
+    }).withStructuredOutput(VoiceoverSchema);
+
+    // Build scene context for the LLM
+    const sceneDescriptions = scenes.map((s, i) => {
+        const emotion = emotionalHooks?.[i] || emotionalHooks?.[0] || '';
+        const dialogueText = s.dialogue.length > 0
+            ? `\nDialogue: ${s.dialogue.map(d => `${d.speaker}: "${d.text}"`).join(' | ')}`
+            : '';
+        return `Scene ${i + 1} [id: ${s.id}]${emotion ? ` (mood: ${emotion})` : ''}:\n` +
+            `Location: ${s.heading}\n` +
+            `Action: ${s.action}${dialogueText}`;
+    }).join('\n\n');
+
+    const prompt = `You are a voiceover scriptwriter. Rewrite these screenplay action descriptions into narration scripts optimized for spoken delivery.
+
+SCREENPLAY SCENES:
+${sceneDescriptions}
+
+RULES:
+1. Convert visual/camera directions into evocative spoken narration (what a narrator would SAY, not what a camera would SEE)
+2. Use sensory language: sounds, textures, temperature, movement
+3. Keep roughly the same length as the original action text (±20%)
+4. Do NOT include character dialogue — only the narrator's voiceover
+5. Do NOT include scene headings, metadata labels, or markdown formatting
+6. Write in the same language as the original (if Arabic, write Arabic voiceover)
+
+DELIVERY MARKERS — Insert these where appropriate for natural spoken pacing:
+- [pause: beat] — After a dramatic reveal or scene transition
+- [pause: long] — Before a climactic moment
+- [emphasis]key phrase[/emphasis] — On emotionally charged words or character names on first appearance
+- [rising-tension]text[/rising-tension] — When intensity builds (chase, confrontation, countdown)
+- [slow]text[/slow] — For solemn, reflective, or awe-inspiring moments
+- [whisper]text[/whisper] — For secrets, danger, or intimacy
+- [breath] — Before a long emotional passage
+
+EXAMPLE:
+Action: "Sami hurls a dodgeball with wild intensity, but it misses the target by a wide margin. Rajih stands with crossed arms, his eyes sharp and unyielding."
+Voiceover: "[breath] With every fiber of his being, [emphasis]Sami[/emphasis] hurls the ball forward [pause: beat] but it sails wide, kicking up dust where the target once stood. [slow]Rajih watches, arms crossed, his gaze cutting deeper than any throw.[/slow]"
+
+Return one voiceover script per scene, preserving the scene IDs exactly.`;
+
+    try {
+        const result = await model.invoke(prompt);
+
+        const voiceoverMap = new Map<string, string>();
+        for (const vo of result.voiceovers) {
+            voiceoverMap.set(vo.sceneId, vo.script);
+        }
+
+        log.info(`Voiceover scripts generated: ${voiceoverMap.size}/${scenes.length}`);
+        return voiceoverMap;
+    } catch (error) {
+        log.error('Voiceover generation failed, falling back to raw action text:', error);
+        // Non-fatal: return empty map, caller uses original action text
+        return new Map();
+    }
 }
 
 /**

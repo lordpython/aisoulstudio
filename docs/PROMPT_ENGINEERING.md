@@ -1,7 +1,7 @@
 # Prompt Engineering — AI Soul Studio
 
-> **Document Version:** 1.0  
-> **Last Updated:** February 2026  
+> **Document Version:** 1.1  
+> **Last Updated:** 18 February 2026  
 > **Scope:** All AI prompt construction, refinement, and orchestration patterns used across the video production pipeline.
 
 ---
@@ -26,8 +26,10 @@
 16. [Narrator — TTS Director's Notes](#16-narrator--tts-directors-notes)
 17. [Production Agent System Prompt](#17-production-agent-system-prompt)
 18. [NLP Intent Parsing](#18-nlp-intent-parsing)
-19. [Anti-Patterns & Lessons Learned](#19-anti-patterns--lessons-learned)
-20. [Quick Reference — File Map](#20-quick-reference--file-map)
+19. [Story Pipeline — Context Chaining](#19-story-pipeline--context-chaining)
+20. [Storyboard Workflow Comparison](#20-storyboard-workflow-comparison)
+21. [Anti-Patterns & Lessons Learned](#21-anti-patterns--lessons-learned)
+22. [Quick Reference — File Map](#22-quick-reference--file-map)
 
 ---
 
@@ -48,6 +50,10 @@ This document catalogs every prompt engineering technique used in the codebase, 
 | **Image Style Guide** | A structured JSON object that encodes every visual dimension of a shot. |
 | **Master Style** | A "glue" suffix appended to all image prompts for cross-shot visual coherence. |
 | **Director's Notes** | Natural-language delivery instructions for the TTS voice actor. |
+| **Persona Negatives** | Genre-specific avoid constraints injected from personas into image style guides. |
+| **Split Motion Prompt** | Decomposing animation direction into separate camera motion and subject physics channels. |
+| **Character Roster** | A pre-built roster of named characters and techniques injected into prompts for narrative fidelity. |
+| **Context Chaining** | Passing structured output from one pipeline step as input context to the next step. |
 
 ---
 
@@ -250,7 +256,37 @@ AVOID:
 
 **Source:** `services/prompt/personaData.ts`
 
-### 4.4 Design Rationale
+### 4.4 Persona Negative Constraints (Feature 1)
+
+Beyond the `avoidList` in persona definitions, the system supports **genre-specific negative constraints** that are injected into the `avoid` field of the `ImageStyleGuide`. These prevent the image model from generating visuals that conflict with the genre's energy and tone.
+
+**Example: `story_action` persona negatives:**
+
+```typescript
+const STORY_ACTION_NEGATIVES = [
+    "static symmetrical portrait compositions",
+    "slow meditative camera movement",
+    "muted desaturated low-energy color palettes",
+    "ambiguous spatial geography hiding action",
+    "emotionally quiet contemplative scenes without kinetic energy",
+];
+```
+
+These are **merged** with the default negative list at build time:
+
+```typescript
+const DEFAULT_NEGATIVES = [
+    "text", "watermark", "blurry", "low quality", "distorted", "noisy",
+    "overexposed", "underexposed", "duplicate subjects", "cloned faces",
+];
+
+// Deduplicated merge
+const resolvedAvoid = [...new Set([...DEFAULT_NEGATIVES, ...personaNegatives])];
+```
+
+This ensures an action scene never generates a static, low-energy image, while a drama scene won't accidentally produce hyperkinetic visuals.
+
+### 4.5 Design Rationale
 
 The persona system solves the "one-size-fits-all" problem. A documentary should not be shot like a horror film, and a commercial should not look like a music video. By assigning a distinct creative identity to each purpose, the system produces purpose-appropriate results without purpose-specific fine-tuning.
 
@@ -849,7 +885,39 @@ Typical elements:
 - Subtle subject motion (breathing, blinking, swaying)
 - Atmospheric effects (fog, light shifts)
 
-**Source:** `services/promptService.ts` → `generateMotionPrompt()`
+### 15.2 Split Motion Prompt (Feature 2)
+
+For action-heavy or complex scenes, the system splits the motion prompt into **two independent channels** to give the animation model clearer, non-conflicting instructions:
+
+```typescript
+interface SplitMotionPrompt {
+    camera_motion: string;      // Camera ONLY: movement, direction, speed
+    subject_physics: string;    // Environment/subject ONLY: dust, blur, cloth, particles
+}
+```
+
+**Example output:**
+
+| Channel | Prompt |
+|---|---|
+| `camera_motion` | "Rapid dolly-in tracking the ball's trajectory, slight dutch tilt increasing intensity" |
+| `subject_physics` | "Dust particles exploding from impact point, jersey fabric rippling with forward momentum, crowd blur in background" |
+
+**Why two channels?** When camera motion and subject physics are combined in a single prompt, models often conflate the two — producing either camera shake that looks like subject motion or environmental effects that override the intended camera move. Splitting them forces clarity.
+
+The two channels are recombined for models that expect a single prompt:
+
+```typescript
+const combined = `${motionResult.camera_motion}. ${motionResult.subject_physics}`;
+```
+
+**Implementation Notes:**
+- Uses lower temperature (0.4 vs 0.7) for more deterministic motion descriptions
+- Each channel is constrained to ≤25 words to stay focused
+- Uses present continuous tense ("tracking", "exploding") for temporal immediacy
+- Validated via `MotionSchema` (Zod) to enforce the two-field structure
+
+**Source:** `services/promptService.ts` → `generateMotionPrompt()`, `scripts/test-story-pipeline.ts` (Step 5)
 
 ---
 
@@ -1021,7 +1089,163 @@ Intent: create_video (missing topic, duration, style)
 
 ---
 
-## 19. Anti-Patterns & Lessons Learned
+## 19. Story Pipeline — Context Chaining
+
+The Story Pipeline demonstrates the most complex prompt engineering pattern in the system: **multi-step context chaining**, where each step's structured output becomes the input context for the next step.
+
+### 19.1 The 6-Step Pipeline
+
+```
+Story Idea (free text)
+    │
+    ▼
+┌─── STEP 1: Story Breakdown ───────────────────────────────────┐
+│  Input:  Full story context (Arabic/English)                   │
+│  Prompt: "Create a narrative breakdown for a short video"      │
+│  Schema: BreakdownSchema { acts[].title, emotionalHook, beat } │
+│  Output: 3–5 acts with emotional hooks                         │
+└────────────────────────────────────────────────────────────────┘
+    │ acts passed as breakdownText
+    ▼
+┌─── STEP 2: Screenplay ────────────────────────────────────────┐
+│  Input:  Acts + CHARACTER ROSTER (names, techniques, traits)   │
+│  Prompt: "Write a short screenplay using NAMED CHARACTERS"     │
+│  Schema: ScreenplaySchema { scenes[].heading, action, dialogue }│
+│  Output: 3–8 screenplay scenes                                │
+└────────────────────────────────────────────────────────────────┘
+    │ scenes + dialogue speakers
+    ▼
+┌─── STEP 3: Character Extraction ──────────────────────────────┐
+│  Input:  Scenes summary + speaker names + known character data │
+│  Prompt: "Extract main characters with visual descriptions"    │
+│  Schema: CharacterSchema { name, role, visualDescription, tags }│
+│  Output: Character profiles with facial tags                   │
+└────────────────────────────────────────────────────────────────┘
+    │ first scene action
+    ▼
+┌─── STEP 4: Shot Breakdown ────────────────────────────────────┐
+│  Input:  Scene heading + action + genre + style reference      │
+│  Prompt: "Break into 2-5 camera shots, anime-style"            │
+│  Schema: ShotSchema { shotType, cameraAngle, movement, etc. }  │
+│  Output: Individual camera shots per scene                     │
+└────────────────────────────────────────────────────────────────┘
+    │ first shot description
+    ▼
+┌─── STEP 5: Split Motion Prompt ───────────────────────────────┐
+│  Input:  Shot description + mood                               │
+│  Prompt: "Generate TWO separate motion descriptions"           │
+│  Schema: MotionSchema { camera_motion, subject_physics }       │
+│  Output: Dual-channel animation instructions                   │
+└────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─── STEP 6: Persona Negatives ─────────────────────────────────┐
+│  Input:  Genre → Persona mapping                               │
+│  Logic:  Merge DEFAULT_NEGATIVES + persona-specific negatives  │
+│  Output: Resolved avoid list for ImageStyleGuide               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### 19.2 Character Roster Injection
+
+A key prompt engineering technique in the pipeline is **Character Roster Injection** — providing a pre-built roster of named characters and named techniques directly in the screenplay prompt. This prevents the AI from:
+
+- Inventing new characters that don't exist in the story
+- Renaming or misspelling established characters
+- Ignoring supporting characters (e.g., Safwan, Rajih)
+- Describing techniques incorrectly
+
+**Example roster (from الرمية الملتهبة / FlamingThrow):**
+
+```
+Known characters:
+- Sami (سامي): protagonist, energetic boy, son of the Blazing Throw legend
+- Safwan (صفوان): best friend, smart playmaker with precise passing vision
+- Rajih (راجح): strict team captain who teaches discipline and teamwork
+- Wael (وائل): aristocratic rival, master of the Thunderbolt Throw
+- Essam (عصام): rival with the Flying Star Throw
+
+Named techniques:
+- Blazing Throw (الرمية الملتهبة): finger flame-grip, spiritual focus, full-body leap
+- Thunderbolt Throw (رمية الصاعقة): ultra-fast, nearly invisible
+- Flying Star Throw (رمية النجم الطائر): deceptive curved trajectory 
+- Claw Block (صد المخلب): defensive two-handed catch
+```
+
+The roster is injected **after** the breakdown but **before** the task instructions, ensuring the model has the full context when generating scenes.
+
+### 19.3 Bilingual Entity Anchoring
+
+When working with Arabic content, the pipeline uses **bilingual entity anchoring** — providing both Arabic and English names side by side:
+
+```
+Sami/سامي, Safwan/صفوان, Rajih/راجح, Wael/وائل, Essam/عصام
+```
+
+This ensures the AI:
+- Can match entities from Arabic source text to English prompts
+- Maintains correct transliteration across all pipeline steps
+- Doesn't create duplicate characters due to transliteration variations
+
+### 19.4 Schema-Driven Structured Output
+
+Every pipeline step uses LangChain's `withStructuredOutput()` with Zod schemas to enforce typed JSON output:
+
+```typescript
+const breakdownModel = llm.withStructuredOutput(BreakdownSchema);
+const breakdown = await breakdownModel.invoke(prompt);
+// breakdown is fully typed: { acts: Array<{ title, emotionalHook, narrativeBeat }> }
+```
+
+This is preferred over post-hoc JSON parsing because:
+1. The schema is communicated to the model at request time
+2. The model generates valid JSON that matches the schema
+3. TypeScript provides full type safety on the response
+4. No manual `JSON.parse()` + validation needed
+
+### 19.5 Genre-Indexed Style References
+
+The shot breakdown step includes **genre-specific style references** to anchor the AI's visual imagination:
+
+```
+Style reference: Dodge Danpei / sports anime — dynamic angles, 
+speed lines, dramatic close-ups during special moves.
+```
+
+By naming a specific existing work, the model activates relevant knowledge about visual conventions (speed lines, impact frames, reaction shots) without needing to describe each convention individually.
+
+**Source:** `scripts/test-story-pipeline.ts`, `services/contentPlannerService.ts`
+
+---
+
+## 20. Storyboard Workflow Comparison
+
+The project includes a detailed [Workflow Comparison](../WORKFLOW_COMPARISON.md) between AI Soul Studio (LyricLens) and Storyboarder.ai. Key prompt engineering implications:
+
+### 20.1 LyricLens vs Storyboarder.ai
+
+| Aspect | Storyboarder.ai | LyricLens |
+|---|---|---|
+| Pipeline steps | 5 (idea → breakdown → style → storyboard → export) | 10+ (idea → breakdown → script → characters → shots → style → storyboard → narration → animation → export) |
+| Prompt control | Scene-level | Shot-level with per-shot metadata |
+| Character management | Implicit | Explicit Character Bible + consistency verification |
+| Visual consistency | Style selection only | Style selection + Master Style + Visual Consistency Engine |
+| Output | Static storyboard | Full video with narration, animation, subtitles |
+
+### 20.2 Storyboard Viewer Design
+
+The `StoryboardView.tsx` component was redesigned from an "animatic player" (video playback paradigm with seek bar and timeline) to a **cinematic storyboard viewer** (full-bleed preview with floating info panel). This design choice reflects the prompt engineering philosophy:
+
+- **Full-bleed images** — lets the user evaluate visual prompt quality at full resolution
+- **Floating info panel** — shows shot metadata (description, dialogue, duration) as an overlay, connecting prompt intent to visual result
+- **Thumbnail strip** — scene-grouped navigation reinforces the scene → shot hierarchy that the prompt pipeline produces
+- **ERT (Estimated Run Time) editor** — allows manual duration adjustment that feeds back into the Smart Duration Calculator
+
+**Source:** `components/story/StoryboardView.tsx`, `WORKFLOW_COMPARISON.md`
+
+---
+
+## 21. Anti-Patterns & Lessons Learned
 
 ### 19.1 Style Soup
 
@@ -1074,7 +1298,7 @@ Intent: create_video (missing topic, duration, style)
 
 ---
 
-## 20. Quick Reference — File Map
+## 22. Quick Reference — File Map
 
 | File | Role | Key Exports |
 |---|---|---|
@@ -1091,6 +1315,9 @@ Intent: create_video (missing topic, duration, style)
 | `services/ai/production/prompts.ts` | Production Agent system instructions | `PRODUCTION_AGENT_PROMPT` |
 | `services/ai/nlpIntentParser.ts` | Regex-based intent + entity extraction | `parseIntent()`, `handleAmbiguousInput()` |
 | `services/promptFormatService.ts` | JSON format specs + format correction | `getFormatSpec()`, `correctFormat()` |
+| `scripts/test-story-pipeline.ts` | End-to-end pipeline test with context chaining | `main()` (6-step pipeline: breakdown → screenplay → characters → shots → motion → persona negatives) |
+| `components/story/StoryboardView.tsx` | Cinematic storyboard viewer with floating info panel | `StoryboardView` |
+| `WORKFLOW_COMPARISON.md` | LyricLens vs Storyboarder.ai workflow analysis | — |
 
 ---
 
@@ -1181,6 +1408,42 @@ my_new_purpose: {
 
 5. Optionally add to `IMAGE_STYLE_MODIFIERS` in `constants.ts` for supplemental keywords
 
+## Appendix D: Running the Pipeline Test
+
+The project includes an end-to-end test script that exercises the complete story pipeline and verifies both Feature 1 (Persona Negatives) and Feature 2 (Split Motion Prompt).
+
+### Prerequisites
+
+1. A `.env` file with `VITE_GEMINI_API_KEY` or `GEMINI_API_KEY` set
+2. A `StoryIdea.txt` file in the project root with the story context
+
+### Running
+
+```bash
+npx tsx --env-file=.env scripts/test-story-pipeline.ts
+```
+
+### What It Tests
+
+| Step | What | Schema | Verifies |
+|---|---|---|---|
+| 1 | Story Breakdown | `BreakdownSchema` | Acts with emotional hooks and narrative beats |
+| 2 | Screenplay | `ScreenplaySchema` | Scenes with heading, action, dialogue + Character Roster Injection |
+| 3 | Character Extraction | `CharacterSchema` | Visual descriptions + facial tags for image generation |
+| 4 | Shot Breakdown | `ShotSchema` | Camera shots with type, angle, movement, lighting, emotion |
+| 5 | Split Motion Prompt | `MotionSchema` | **Feature 2**: Dual-channel `camera_motion` + `subject_physics` |
+| 6 | Persona Negatives | — (static) | **Feature 1**: Genre-specific avoid list merged with defaults |
+
+### Output
+
+Results are written to both console and `story-pipeline-output.md` in the project root.
+
 ---
 
 *This document is auto-maintained alongside the codebase. For contributions or corrections, update the source files and regenerate.*
+
+---
+
+**Changelog:**
+- **v1.1 (18 Feb 2026):** Added Feature 1 (Persona Negative Constraints §4.4), Feature 2 (Split Motion Prompt §15.2), Story Pipeline Context Chaining (§19), Storyboard Workflow Comparison (§20), Character Roster Injection (§19.2), Bilingual Entity Anchoring (§19.3), Pipeline Test appendix (Appendix D). Updated file map with `test-story-pipeline.ts`, `StoryboardView.tsx`, `WORKFLOW_COMPARISON.md`.
+- **v1.0 (Feb 2026):** Initial release — 20 sections, 3 appendices, covering all prompt engineering patterns.

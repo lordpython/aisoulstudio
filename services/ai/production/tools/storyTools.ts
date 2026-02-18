@@ -91,18 +91,30 @@ export const generateBreakdownTool = tool(
         const isArabicTopic = /[\u0600-\u06FF]/.test(topic);
 
         const prompt = isArabicTopic
-            ? `أنشئ تفصيلًا سرديًا لقصة فيديو عن: "${topic}".
+            ? `أنت خبير تطوير قصص. قبل الكتابة، حدّد:
+- البطل وهدفه الرئيسي
+- الصراع الأساسي الذي يواجهه
+- القوس العاطفي: كيف يتغير البطل من البداية إلى النهاية؟
+
+ثم أنشئ تفصيلًا سرديًا لقصة فيديو عن: "${topic}".
 قسّمها إلى 3-5 فصول أو مشاهد متميزة. لكل فصل، قدّم:
-1. العنوان (بعد كلمة "مشهد" ورقمه، مثال: مشهد ١: العنوان)
-2. السرد: جملتان تصفان ما يحدث بصريًا (لا تستخدم عناوين مثل "الخطاف العاطفي" أو "النقطة السردية" — اكتب السرد مباشرة)
+1. العنوان (بعد كلمة "مشهد" ورقمه، مثال: مشهد ١: العنوان) — اجعله محددًا ومرتبطًا بحدث فعلي
+2. السرد: جملتان تصفان ما يحدث بصريًا بدقة — اذكر الشخصيات والأحداث الملموسة (لا تستخدم عناوين مثل "الخطاف العاطفي" أو "النقطة السردية" — اكتب السرد مباشرة)
 
-نسّق كقائمة مرقّمة باستخدام الأرقام العربية (١، ٢، ٣...).`
-            : `Create a narrative breakdown for a video story about: "${topic}".
+نسّق كقائمة مرقّمة باستخدام الأرقام العربية (١، ٢، ٣...). تجنب العناوين المبهمة مثل "البداية" أو "الصراع".`
+            : `You are a story development expert.
+
+Before writing, identify:
+- The protagonist and their central desire or goal
+- The core conflict they face
+- The emotional arc from opening to resolution
+
+Then create a narrative breakdown for a video story about: "${topic}".
 Divide it into 3-5 distinct acts or chapters. For each act, provide:
-1. Title
-2. NARRATIVE: 2-3 sentences describing what happens visually (do NOT include labels like "Emotional Hook:" or "Key Beat:" — write the narrative directly)
+1. Title — Specific to a story moment (avoid generic labels like "Introduction" or "Conflict")
+2. NARRATIVE: 2-3 sentences describing what happens visually — name characters, describe specific events and locations (do NOT include labels like "Emotional Hook:" or "Key Beat:" — write the narrative directly)
 
-Format as a structured list.`;
+Format as a structured numbered list. Be specific — avoid vague phrases like "things escalate" or "challenges arise".`;
 
         let breakdown: string;
         try {
@@ -177,6 +189,18 @@ export const createScreenplayTool = tool(
         // Detect Arabic content to use appropriate scene markers
         const isArabicContent = /[\u0600-\u06FF]/.test(state.breakdown);
 
+        // Count the actual number of acts in the breakdown so the screenplay
+        // LLM generates exactly one scene per act (prevents count mismatch).
+        const actMarkers = state.breakdown.match(
+            /(?:^|\n)\s*(?:مشهد|المشهد|SCENE|Act|Chapter|الفصل)\s*[0-9\u0660-\u0669\u06F0-\u06F9]+/gi
+        );
+        // Fallback: count numbered list items (١. / 1. / ١- etc.)
+        const listMarkers = !actMarkers?.length
+            ? state.breakdown.match(/(?:^|\n)\s*[0-9\u0660-\u0669\u06F0-\u06F9]+[.\-)]/gm)
+            : null;
+        const actCount = Math.min(Math.max((actMarkers?.length || listMarkers?.length || 3), 3), 8);
+        log.info(` Breakdown has ${actCount} acts → requesting ${actCount} screenplay scenes`);
+
         const prompt = isArabicContent
             ? `اكتب سيناريو سينمائي قصير بناءً على هذا التفصيل:
 ${state.breakdown}
@@ -192,7 +216,7 @@ ${state.breakdown}
 - صِف التفاصيل الحسية: الأصوات، الملمس، الحركة، الضوء، اللون.
 - لا تستخدم تنسيق markdown (بدون ** أو * أو # أو backticks).
 
-حدّد 3-5 مشاهد.`
+حدّد ${actCount} مشاهد بالضبط — مشهد واحد لكل فصل من الفصول أعلاه.`
             : `Write a short cinematic screenplay based on this breakdown:
 ${state.breakdown}
 
@@ -209,7 +233,14 @@ IMPORTANT — ACTION LINE RULES:
 - Describe sensory details: sounds, textures, movement, light, color.
 - NEVER use markdown formatting (no **, *, #, or backticks).
 
-Limit to 3-5 scenes.`;
+DIALOGUE RULES (CRITICAL):
+- DIALOGUE format: [Character Name]: [Spoken line]
+- Character Name must be 1-4 words ONLY — a person's name, nothing else.
+- VALID: "Faisal: What happened here?" / "Old Man: Listen carefully."
+- INVALID: "Faisal walks forward: ..." / "The hero, overwhelmed: ..." — these will corrupt the scene.
+- If there is no specific speaker, use "Narrator" as the name.
+
+Write exactly ${actCount} scenes — one scene per act above.`;
 
         let scriptText: string;
         try {
@@ -314,7 +345,7 @@ export const generateCharactersTool = tool(
         log.info(` Extracting characters for: ${sessionId}`);
         const { extractCharacters, generateAllCharacterReferences } = await import("../../../characterService");
 
-        const scriptText = state.screenplay.map(s => 
+        const scriptText = state.screenplay.map(s =>
             `${s.heading}\n${s.action}\n${s.dialogue.map(d => `${d.speaker}: ${d.text}`).join('\n')}`
         ).join('\n\n');
 
@@ -446,9 +477,9 @@ export const verifyCharacterConsistencyTool = tool(
         }
 
         if (imageUrls.length === 0) {
-            return JSON.stringify({ 
-                success: false, 
-                error: "No generated images found for verification. Generate visuals first." 
+            return JSON.stringify({
+                success: false,
+                error: "No generated images found for verification. Generate visuals first."
             });
         }
 

@@ -59,6 +59,22 @@ export function injectMasterStyle(basePrompt: string, stylePreset: string = "cin
 export { getSystemPersona, type Persona, type PersonaType } from './prompt/personaData';
 export { getStyleEnhancement, type StyleEnhancement } from './prompt/styleEnhancements';
 
+// --- Motion Prompt Result ---
+
+/**
+ * Structured result from generateMotionPrompt().
+ * Separates camera movement from subject/environment physics to avoid
+ * instruction dilution in video models that conflate the two.
+ */
+export interface MotionPromptResult {
+  /** Camera only: movement type, direction, speed (≤25 words). */
+  camera_motion: string;
+  /** Environment/subject: wind, particles, flame, cloth, water (≤25 words). */
+  subject_physics: string;
+  /** Combined string for single-string video APIs: "{camera_motion}. {subject_physics}" */
+  combined: string;
+}
+
 // --- Types ---
 
 export type PromptRefinementIntent =
@@ -1076,12 +1092,15 @@ Return JSON: { "videoPrompt": "your detailed prompt here" }`,
  * Generate a motion-optimized prompt for video animation.
  * Transforms a static image description into an animation-focused prompt
  * that specifies camera movements, environmental effects, and subtle animations.
+ *
+ * Returns a `MotionPromptResult` with separate `camera_motion` and `subject_physics`
+ * fields plus a pre-joined `combined` string for single-string APIs.
  */
 export const generateMotionPrompt = async (
   imagePrompt: string,
   mood: string = "cinematic",
   globalSubject: string = "",
-): Promise<string> => {
+): Promise<MotionPromptResult> => {
   return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: MODELS.TEXT,
@@ -1094,43 +1113,86 @@ MOOD: ${mood}
 
 ${globalSubject ? `MAIN SUBJECT (keep stationary/subtle movement only): ${globalSubject}` : ""}
 
-TASK: Generate a SHORT motion prompt (2-3 sentences max) describing:
-1. Camera movement (slow zoom, pan, dolly, static with parallax)
-2. Environmental motion (wind, particles, light rays, clouds, water ripples)
-3. Atmospheric effects (fog drift, light flicker, dust motes)
+TASK: Generate TWO separate motion descriptions (≤25 words each):
+1. camera_motion — Camera ONLY: movement type, direction, speed (e.g. "slow push-in", "gentle pan left", "static with parallax depth")
+2. subject_physics — Environment/subject ONLY: wind, particles, light, cloth, water (e.g. "leaves gently swaying", "candle flame flickering", "fog drifting")
 
 RULES:
 - Keep the main subject relatively static (subtle breathing, blinking, hair movement only)
-- Focus on ENVIRONMENT and CAMERA movement, not subject action
+- camera_motion must describe ONLY camera behaviour — no environment or subject action
+- subject_physics must describe ONLY environment/subject physical motion — no camera references
 - The animation is only 1-2 seconds, so describe subtle, looping motion
 - NO scene changes, NO new elements, NO action sequences
-- Use present continuous tense ("camera slowly zooms", "leaves are gently swaying")
-- Keep it under 50 words
+- Use present continuous tense
 
-OUTPUT: Return JSON with single field "motion"`,
+OUTPUT: Return JSON with fields "camera_motion" and "subject_physics"`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            motion: { type: Type.STRING },
+            camera_motion: { type: Type.STRING },
+            subject_physics: { type: Type.STRING },
           },
-          required: ["motion"],
+          required: ["camera_motion", "subject_physics"],
         },
       },
     });
 
     const jsonStr = response.text;
     if (!jsonStr) {
-      // Fallback: generate a generic motion prompt
-      return `Slow cinematic camera push-in with subtle atmospheric movement. ${mood} lighting with gentle environmental motion.`;
+      const camera_motion = `slow cinematic push-in`;
+      const subject_physics = `gentle ${mood} atmospheric movement`;
+      return { camera_motion, subject_physics, combined: `${camera_motion}. ${subject_physics}` };
     }
 
     try {
-      const parsed = JSON.parse(jsonStr) as { motion: string };
-      return parsed.motion || `Slow camera movement with subtle ${mood} atmosphere.`;
+      const parsed = JSON.parse(jsonStr) as { camera_motion: string; subject_physics: string };
+      const camera_motion = parsed.camera_motion || `slow camera movement`;
+      const subject_physics = parsed.subject_physics || `subtle ${mood} atmosphere`;
+      return { camera_motion, subject_physics, combined: `${camera_motion}. ${subject_physics}` };
     } catch {
-      return `Slow cinematic camera movement with ${mood} ambiance.`;
+      const camera_motion = `slow cinematic camera movement`;
+      const subject_physics = `${mood} ambiance with gentle environmental motion`;
+      return { camera_motion, subject_physics, combined: `${camera_motion}. ${subject_physics}` };
     }
   });
+};
+
+/**
+ * Compress a long image generation prompt into a concise keyword-first form.
+ *
+ * Story-mode shots can exceed 200 words after persona + style + character injection.
+ * Long prompts cause "instruction dilution" where models ignore later details.
+ * This compressor front-loads the critical visual elements (subject → action →
+ * lighting → mood → style) and trims to ≤80 words.
+ *
+ * Short prompts (≤100 words) are returned unchanged to avoid unnecessary API calls.
+ * All errors fall back to the original prompt — this is a non-fatal enhancement.
+ */
+export const compressPromptForGeneration = async (prompt: string): Promise<string> => {
+  if (countWords(prompt) <= 100) return prompt;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODELS.TEXT,
+      contents: `Rewrite the following image generation prompt into comma-separated visual keywords.
+Max 80 words. Front-load: subject → action/pose → lighting → mood → style keyword.
+Preserve: main subject, key action, lighting quality, mood, one style keyword.
+Drop: filler, repeated adjectives, verbose background descriptions.
+Output ONLY the rewritten prompt as a single comma-separated line.
+
+PROMPT:
+${prompt}`,
+      config: { temperature: 0.1 },
+    });
+
+    const compressed = response.text?.trim();
+    if (!compressed || compressed.length < 20) return prompt;
+    if (countWords(compressed) >= countWords(prompt)) return prompt;
+
+    return compressed;
+  } catch {
+    return prompt;
+  }
 };

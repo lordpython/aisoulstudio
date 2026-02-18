@@ -16,6 +16,7 @@ export interface Persona {
     coreRule: string;
     visualPrinciples: string[];
     avoidList: string[];
+    negative_constraints: string[];
 }
 
 /**
@@ -40,6 +41,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Dark or moody lighting that hides details",
             "Busy backgrounds that distract from subject",
         ],
+        negative_constraints: [
+            "unflattering product angles",
+            "dirty or grimy surfaces",
+            "competitor branding or logos",
+            "cluttered distracting backgrounds",
+            "harsh shadows obscuring product details",
+        ],
     },
     music_video: {
         type: "visual_poet",
@@ -59,6 +67,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Abstract interpretations that ignore specific imagery",
             "Generic couple scenes for emotional content",
         ],
+        negative_constraints: [
+            "flat even lighting with no mood",
+            "stock photo poses and expressions",
+            "literal illustration of lyrics without emotional depth",
+            "oversaturated neon without narrative purpose",
+            "busy text overlays competing with visuals",
+        ],
     },
     documentary: {
         type: "historian",
@@ -77,6 +92,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Emotional manipulation through unrealistic imagery",
             "Artistic license that distorts facts",
             "Dramatic embellishments",
+        ],
+        negative_constraints: [
+            "fantastical or impossible imagery",
+            "oversaturated HDR color grading",
+            "fictional or invented characters",
+            "Hollywood cinematic color science",
+            "CGI or computer-generated environments",
         ],
     },
     social_short: {
@@ -102,6 +124,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Complex compositions that don't read on small screens",
             "Muted color palettes",
         ],
+        negative_constraints: [
+            "low resolution or blurry details",
+            "bland neutral color palettes",
+            "static symmetrical compositions without energy",
+            "outdated or retro aesthetics (unless intentionally trending)",
+            "small unreadable elements on mobile screens",
+        ],
     },
     podcast_visual: {
         type: "visual_poet",
@@ -120,6 +149,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Fast movement or dramatic action",
             "Strong narrative elements",
             "Visuals that demand interpretation",
+        ],
+        negative_constraints: [
+            "jarring high-contrast scene changes",
+            "faces or figures requiring emotional interpretation",
+            "text or informational overlays",
+            "busy patterned backgrounds",
+            "strobing or rapid light changes",
         ],
     },
     lyric_video: {
@@ -140,6 +176,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Dramatic lighting changes that affect readability",
             "Visuals that compete with lyrics for attention",
         ],
+        negative_constraints: [
+            "complex detailed patterns in text placement zones",
+            "low-contrast backgrounds against likely text colors",
+            "bright white or pure black fields that flatten readability",
+            "multiple focal points competing for center attention",
+            "rapid unpredictable lighting shifts",
+        ],
     },
     storytelling: {
         type: "visual_poet",
@@ -158,6 +201,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Flat, uninspired compositions",
             "Culturally insensitive representations",
             "Visuals that break story immersion",
+        ],
+        negative_constraints: [
+            "modern contemporary settings without narrative context",
+            "generic stock photo expressions",
+            "flat even studio lighting without mood",
+            "anachronistic costume or prop details",
+            "shallow shallow backgrounds with no world-building depth",
         ],
     },
     educational: {
@@ -178,6 +228,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Distracting backgrounds",
             "Imagery that doesn't support learning",
         ],
+        negative_constraints: [
+            "decorative clutter with no informational value",
+            "emotionally manipulative or biased imagery",
+            "dark moody lighting reducing clarity",
+            "abstract metaphors requiring interpretation",
+            "stylistic flourishes competing with the learning objective",
+        ],
     },
     horror_mystery: {
         type: "visual_poet",
@@ -196,6 +253,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Explicit gore or violence",
             "Jump-scare focused imagery",
             "Generic horror clichés",
+        ],
+        negative_constraints: [
+            "bright cheerful daylight scenes",
+            "explicit gore or gratuitous violence",
+            "comedic or ironic visual tone",
+            "safe warm color palettes without tension",
+            "clean unambiguous well-lit compositions",
         ],
     },
     travel: {
@@ -216,6 +280,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Crowded, busy scenes",
             "Inauthentic representations",
         ],
+        negative_constraints: [
+            "overprocessed HDR or tone-mapped skies",
+            "clichéd postcard framing of famous landmarks",
+            "crowds of tourists breaking scene authenticity",
+            "studio-lit artificial environments",
+            "culturally stereotyped representations of local people",
+        ],
     },
     motivational: {
         type: "brand_specialist",
@@ -235,6 +306,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Clichéd motivational stock photos",
             "Unrealistic perfection",
         ],
+        negative_constraints: [
+            "dark pessimistic or hopeless imagery",
+            "downward compositional movement",
+            "failure or defeat-themed visual metaphors",
+            "exhausted or defeated expressions",
+            "cluttered chaotic environments without resolution",
+        ],
     },
     news_report: {
         type: "historian",
@@ -253,6 +331,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Biased or leading visuals",
             "Emotional manipulation",
             "Inaccurate representations",
+        ],
+        negative_constraints: [
+            "sensationalized dramatic color grading",
+            "emotionally manipulative facial close-ups",
+            "biased framing favoring one perspective",
+            "inaccurate or invented visual representations",
+            "stylized artistic effects undermining credibility",
         ],
     },
     // Story Mode Genre-Specific Personas
@@ -274,6 +359,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Cold, sterile environments",
             "Generic establishing shots",
         ],
+        negative_constraints: [
+            "explosive action or physical spectacle",
+            "cold sterile clinical environments",
+            "exaggerated cartoon expressions",
+            "genre-breaking comedic tones",
+            "hyperactive camera movement undermining emotional stillness",
+        ],
     },
     story_comedy: {
         type: "viral_creator",
@@ -292,6 +384,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Overly serious compositions",
             "Cluttered frames that hide reactions",
             "Slow, contemplative pacing",
+        ],
+        negative_constraints: [
+            "dark moody lighting removing comedic energy",
+            "tragic or grief-stricken emotional tones",
+            "gritty desaturated color grading",
+            "claustrophobic tight framing hiding physical comedy",
+            "slow ponderous camera work dampening comedic timing",
         ],
     },
     story_thriller: {
@@ -312,6 +411,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Predictable framing",
             "Explicit violence over implied threat",
         ],
+        negative_constraints: [
+            "bright cheerful well-lit open spaces",
+            "soft flattering portrait lighting",
+            "wide safe reassuring compositions",
+            "warm cozy color palettes",
+            "clear unambiguous staging without hidden elements",
+        ],
     },
     story_scifi: {
         type: "visual_poet",
@@ -330,6 +436,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Cluttered, chaotic technology",
             "Inconsistent tech levels",
             "Generic spaceship interiors",
+        ],
+        negative_constraints: [
+            "contemporary or historical settings breaking sci-fi immersion",
+            "organic natural environments without technological integration",
+            "warm earthy tones inconsistent with futuristic aesthetic",
+            "anachronistic non-futuristic props or costumes",
+            "retro-futurist 1950s aesthetics (unless story-mandated)",
         ],
     },
     story_action: {
@@ -350,6 +463,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Muted, desaturated colors",
             "Slow, contemplative framing",
         ],
+        negative_constraints: [
+            "static symmetrical portrait compositions",
+            "slow meditative camera movement",
+            "muted desaturated low-energy color palettes",
+            "ambiguous spatial geography hiding action",
+            "emotionally quiet contemplative scenes without kinetic energy",
+        ],
     },
     story_fantasy: {
         type: "visual_poet",
@@ -368,6 +488,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Inconsistent magical rules",
             "Modern elements breaking immersion",
             "Flat, uninspired landscapes",
+        ],
+        negative_constraints: [
+            "modern technology or contemporary objects breaking world immersion",
+            "photorealistic documentary-style photography aesthetics",
+            "mundane urban or suburban environments without fantasy elements",
+            "flat overcast natural lighting without magical quality",
+            "inconsistent visual rules mixing incompatible fantasy systems",
         ],
     },
     story_romance: {
@@ -388,6 +515,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Distant, disconnected framing",
             "Overly sexualized imagery",
         ],
+        negative_constraints: [
+            "harsh unflattering overhead or side lighting",
+            "cold sterile clinical environments",
+            "distant isolated single-subject framing",
+            "gritty desaturated color palettes",
+            "aggressive confrontational body language between subjects",
+        ],
     },
     story_historical: {
         type: "historian",
@@ -406,6 +540,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Modern sensibilities in framing",
             "Inaccurate cultural representations",
             "Over-stylized period aesthetics",
+        ],
+        negative_constraints: [
+            "anachronistic modern objects or technology",
+            "contemporary fashion or hairstyles",
+            "modern architecture or urban infrastructure",
+            "period-breaking synthetic color grading",
+            "contemporary casual body language inconsistent with the era",
         ],
     },
     story_animation: {
@@ -426,6 +567,13 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
             "Muddy, unclear compositions",
             "Generic, template-based designs",
         ],
+        negative_constraints: [
+            "photorealistic rendering undermining stylized aesthetic",
+            "stiff anatomically rigid poses without cartoon exaggeration",
+            "muddy muted colors reducing visual clarity",
+            "complex unreadable silhouettes",
+            "generic uncanny valley human faces",
+        ],
     },
 };
 
@@ -434,4 +582,12 @@ const PERSONA_DEFINITIONS: Record<VideoPurpose, Persona> = {
  */
 export function getSystemPersona(purpose: VideoPurpose): Persona {
     return PERSONA_DEFINITIONS[purpose] || PERSONA_DEFINITIONS.music_video;
+}
+
+/**
+ * Get purpose-specific negative constraints for image generation.
+ * Used to inject persona-aware negatives into the image style guide avoid list.
+ */
+export function getPersonaNegatives(purpose: VideoPurpose): string[] {
+    return getSystemPersona(purpose).negative_constraints;
 }

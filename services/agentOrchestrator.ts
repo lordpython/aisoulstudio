@@ -452,7 +452,7 @@ export const runProductionPipeline = traceAsync(
                         log.info(`Generating motion prompt for: ${scene.name}`);
 
                         // Generate AI-powered motion prompt with timeout
-                        const motionPrompt = await withTimeout(
+                        const motionResult = await withTimeout(
                             generateMotionPrompt(
                                 scene.visualDescription,
                                 getEffectiveLegacyTone(scene),
@@ -462,14 +462,14 @@ export const runProductionPipeline = traceAsync(
                             `Motion prompt generation for "${scene.name}" timed out`
                         );
 
-                        log.info(`Animating with prompt: ${motionPrompt.substring(0, 80)}...`);
+                        log.info(`Animating with prompt: ${motionResult.combined.substring(0, 80)}...`);
 
                         // Animate the image with timeout and retry
                         const videoUrl = await withRetryBackoff(
                             async () => withTimeout(
                                 animateImageWithDeApi(
                                     visual.imageUrl,
-                                    motionPrompt,
+                                    motionResult.combined,
                                     (mergedConfig.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9"
                                 ),
                                 STAGE_TIMEOUTS.ANIMATION_PER_VIDEO,

@@ -9,7 +9,7 @@
  */
 
 import { ai, MODELS, withRetry } from "./shared/apiClient";
-import { refineImagePrompt } from "./promptService";
+import { refineImagePrompt, compressPromptForGeneration } from "./promptService";
 import {
   buildImageStyleGuide,
   serializeStyleGuideAsText,
@@ -372,6 +372,9 @@ export const generateImageFromPrompt = traceAsync(
         });
         finalPrompt = serializeStyleGuideAsText(guide);
       }
+
+      // Compress long prompts to reduce instruction dilution (story-mode shots can exceed 200 words)
+      finalPrompt = await compressPromptForGeneration(finalPrompt);
 
       // Determine seed: use provided seed, or auto-generate from globalSubject for consistency
       let effectiveSeed = seed;

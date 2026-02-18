@@ -158,7 +158,7 @@ export const ImageGenerator = React.memo<ImageGeneratorProps>(({
 
         // Generate motion-optimized prompt
         setGenerationProgress("Step 2/3: Creating motion prompt...");
-        const motionPrompt = await generateMotionPrompt(
+        const motionResult = await generateMotionPrompt(
           currentPromptText,
           prompt.mood || "cinematic",
           globalSubject,
@@ -169,7 +169,7 @@ export const ImageGenerator = React.memo<ImageGeneratorProps>(({
 
         resultBase64 = await animateImageWithDeApi(
           sourceImage,
-          motionPrompt,
+          motionResult.combined,
           aspectRatio as "16:9" | "9:16" | "1:1",
         );
         resultType = "video";

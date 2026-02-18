@@ -8,6 +8,7 @@
  */
 
 import { getStyleEnhancement } from "./styleEnhancements";
+import { type Persona } from "./personaData";
 import {
   IMAGE_STYLE_MODIFIERS,
   DEFAULT_NEGATIVE_CONSTRAINTS,
@@ -233,6 +234,8 @@ export interface BuildImageStyleGuideParams {
   color_palette?: string[];
   /** Extra avoid items (merged with DEFAULT_NEGATIVE_CONSTRAINTS). */
   avoid?: string[];
+  /** Persona-specific negative constraints injected between defaults and call-site avoid. */
+  personaNegatives?: string[];
   /** Textures override. */
   textures?: string[];
   /** Effects override. */
@@ -263,6 +266,7 @@ export function buildImageStyleGuide(params: BuildImageStyleGuideParams = {}): I
     camera,
     color_palette,
     avoid,
+    personaNegatives,
     textures,
     effects,
   } = params;
@@ -303,7 +307,7 @@ export function buildImageStyleGuide(params: BuildImageStyleGuideParams = {}): I
   const negativeItems = DEFAULT_NEGATIVE_CONSTRAINTS.map((c) =>
     c.replace(/^no\s+/i, "").trim(),
   );
-  const resolvedAvoid = [...new Set([...negativeItems, ...(avoid ?? [])])];
+  const resolvedAvoid = [...new Set([...negativeItems, ...(personaNegatives ?? []), ...(avoid ?? [])])];
 
   return {
     scene: resolvedScene,
@@ -360,6 +364,7 @@ export function fromShotBreakdown(
   characters: CharacterInput[],
   style: string,
   extractedStyle?: ExtractedStyleOverride,
+  persona?: Persona,
 ): ImageStyleGuide {
   // Build subjects from characters mentioned in the shot description
   const shotDescLower = shot.description.toLowerCase();
@@ -416,6 +421,11 @@ export function fromShotBreakdown(
     if (extractedStyle.negativePrompts?.length) {
       params.avoid = extractedStyle.negativePrompts;
     }
+  }
+
+  // Inject persona-specific negative constraints
+  if (persona?.negative_constraints?.length) {
+    params.personaNegatives = persona.negative_constraints;
   }
 
   return buildImageStyleGuide(params);

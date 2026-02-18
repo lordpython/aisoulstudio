@@ -40,12 +40,15 @@ import {
     serializeStyleGuideAsText,
     type ExtractedStyleOverride,
 } from '@/services/prompt/imageStyleGuide';
+import { getSystemPersona } from '@/services/prompt/personaData';
+import type { VideoPurpose } from '@/constants';
 import {
     extractVisualStyle,
     type VisualStyle,
 } from '@/services/visualConsistencyService';
 import { getCharacterSeed } from '@/services/imageService';
 import { cleanForTTS, cleanForSubtitles } from '@/services/textSanitizer';
+import { generateVoiceoverScripts } from '@/services/ai/storyPipeline';
 
 /**
  * Generate anti-style negative prompts based on chosen visual style.
@@ -1212,6 +1215,21 @@ export function useStoryGeneration(projectId?: string | null) {
             // Extract visual style from first generated shot for consistency (Issue 3)
             let extractedStyleOverride: ExtractedStyleOverride | undefined;
 
+            // Resolve persona from story genre for persona-aware negative injection
+            const genreToPurpose: Record<string, VideoPurpose> = {
+                'Drama': 'story_drama',
+                'Comedy': 'story_comedy',
+                'Thriller': 'story_thriller',
+                'Sci-Fi': 'story_scifi',
+                'Action': 'story_action',
+                'Fantasy': 'story_fantasy',
+                'Romance': 'story_romance',
+                'Historical': 'story_historical',
+                'Animation': 'story_animation',
+            };
+            const storyPurpose: VideoPurpose = genreToPurpose[state.genre || ''] ?? 'storytelling';
+            const storyPersona = getSystemPersona(storyPurpose);
+
             // Helper: build structured prompt for a shot (Issues 1, 2, 3)
             const buildShotPrompt = (shot: NonNullable<typeof shotsToProcess[0]>) => {
                 const guide = fromShotBreakdown(
@@ -1226,6 +1244,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     characterInputs,
                     style,
                     extractedStyleOverride,
+                    storyPersona,
                 );
                 return serializeStyleGuideAsText(guide);
             };
@@ -1442,12 +1461,26 @@ export function useStoryGeneration(projectId?: string | null) {
 
             // Build a structured style guide for consistent prompts across providers
             const { buildImageStyleGuide, serializeStyleGuideAsText } = await import('@/services/prompt/imageStyleGuide');
+            const regenGenreToPurpose: Record<string, VideoPurpose> = {
+                'Drama': 'story_drama',
+                'Comedy': 'story_comedy',
+                'Thriller': 'story_thriller',
+                'Sci-Fi': 'story_scifi',
+                'Action': 'story_action',
+                'Fantasy': 'story_fantasy',
+                'Romance': 'story_romance',
+                'Historical': 'story_historical',
+                'Animation': 'story_animation',
+            };
+            const regenPurpose: VideoPurpose = regenGenreToPurpose[state.genre || ''] ?? 'storytelling';
+            const regenPersona = getSystemPersona(regenPurpose);
             const guide = buildImageStyleGuide({
                 scene: customPrompt || baseDescription,
                 style,
                 mood: emotion,
                 composition: { shot_type: shotType, camera_angle: cameraAngle, framing: 'rule of thirds' },
                 lighting: { source: lighting, quality: 'natural' },
+                personaNegatives: regenPersona.negative_constraints,
             });
 
             let imageUrl: string;
@@ -1616,9 +1649,22 @@ export function useStoryGeneration(projectId?: string | null) {
             // notes (emotional hooks, narrative beats) which should NOT be narrated.
             const screenplayScenes = state.script?.scenes || [];
             const totalScenes = state.breakdown.length;
+
+            // Step A: Generate voiceover scripts from screenplay action text.
+            // This rewrites camera directions into spoken narration with delivery markers.
+            setProgress({ message: 'Rewriting scripts for voiceover...', percent: 12 });
+            const breakdownHooks = state.breakdown.map(s => {
+                // Extract emotional hook from breakdown metadata if available
+                const action = s.action || '';
+                return action.length > 100 ? action.slice(0, 100) : action;
+            });
+            const voiceoverMap = await generateVoiceoverScripts(screenplayScenes, breakdownHooks);
+
             const scenesForNarration: Scene[] = state.breakdown.map((scene, idx) => {
                 const screenplayScene = screenplayScenes.find(s => s.id === scene.id) || screenplayScenes[idx];
-                const narrationText = screenplayScene?.action || scene.action;
+                const rawAction = screenplayScene?.action || scene.action;
+                // Use voiceover script if available (has delivery markers), else fall back to cleaned action
+                const narrationText = voiceoverMap.get(scene.id) || rawAction;
                 const { emotionalTone, instructionTriplet } = inferSceneEmotion(scene, idx, totalScenes);
                 return {
                     id: scene.id,

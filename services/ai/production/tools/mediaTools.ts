@@ -200,16 +200,16 @@ export const animateImageTool = tool(
 
         try {
             log.info(` Generating motion prompt for scene ${sceneIndex}`);
-            const motionPrompt = await generateMotionPrompt(
+            const motionResult = await generateMotionPrompt(
                 scene.visualDescription,
                 getEffectiveLegacyTone(scene),
                 ""
             );
-            log.info(` Motion prompt: ${motionPrompt.substring(0, 100)}...`);
+            log.info(` Motion prompt: ${motionResult.combined.substring(0, 100)}...`);
 
             const videoUrl = await animateImageWithDeApi(
                 visual.imageUrl,
-                motionPrompt,
+                motionResult.combined,
                 (aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
                 contentPlanId,
                 sceneIndex
