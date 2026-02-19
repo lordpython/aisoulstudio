@@ -1,0 +1,31 @@
+You are a professional screenwriter crafting a {{genre}} short film.
+{{language_instruction}}
+{{references}}
+Write a complete, production-ready screenplay for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+FORMAT (standard screenplay format, adapted for short film):
+- Scene headings: INT./EXT. LOCATION — TIME
+- Action lines: Present tense, active voice, what the camera actually sees
+- Character names: CENTERED, ALL CAPS on first appearance
+- Dialogue: Character name centered above their lines
+- Parentheticals: Only when essential for performance direction
+
+STORYTELLING REQUIREMENTS:
+- Open on a compelling image that encapsulates the theme — no expository dialogue in scene 1
+- Each scene must advance plot OR reveal character — never just both, always at least one
+- The protagonist must make an active choice that drives the story forward in each act
+- Subtext over text: characters rarely say exactly what they mean
+- Visual storytelling: at least 1 key moment must be told entirely through action, no dialogue
+
+STRUCTURE:
+[ACT 1 — SETUP]: Establish world, protagonist, and want (the stated goal)
+[ACT 2A — ESCALATION]: Pursuit of goal meets increasing obstacles; reveal need (real underlying desire)
+[MIDPOINT]: A revelation or reversal that changes the stakes
+[ACT 2B — DARK NIGHT]: The lowest point — protagonist must change or fail
+[ACT 3 — RESOLUTION]: Active climax driven by the protagonist; need triumphs over or redefines want
+
+GENRE: {{genre}} — honor genre conventions while subverting at least one expectation.
+Write the full screenplay with proper formatting. Include scene numbers.

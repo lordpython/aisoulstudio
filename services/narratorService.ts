@@ -11,7 +11,7 @@
  */
 
 import { ai, API_KEY, MODELS, withRetry } from "./shared/apiClient";
-import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet } from "../types";
+import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet, VideoFormat } from "../types";
 import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
@@ -1071,3 +1071,178 @@ export const STYLE_PRESETS: Record<string, StylePrompt> = {
         pacing: "very slow with long, restful pauses"
     },
 };
+
+// --- Format-Specific Voice Profiles (Task 9.1) ---
+
+/**
+ * Voice profile configuration for a specific video format.
+ * Combines a base voice, style prompt, and optional speaking rate adjustments.
+ *
+ * Requirements: 3.4, 4.4, 9.6, 14.1
+ */
+export interface FormatVoiceProfile {
+    /** Human-readable profile label (e.g., "Conversational", "Energetic") */
+    label: string;
+    /** Base voice configuration */
+    voice: ExtendedVoiceConfig;
+    /** Corresponding VideoPurpose for legacy integration */
+    videoPurpose: VideoPurpose;
+}
+
+/**
+ * Maps each VideoFormat to a recommended voice profile.
+ *
+ * Requirements: 3.4 (YouTube conversational), 4.4 (Ad energetic),
+ * 9.6 (News neutral), 14.1 (format-specific voice profiles)
+ */
+export const FORMAT_VOICE_PROFILE_MAP: Record<VideoFormat, FormatVoiceProfile> = {
+    'youtube-narrator': {
+        label: 'Conversational',
+        voice: {
+            voiceName: TTS_VOICES.KORE,
+            pitch: 1,
+            speakingRate: 1.1,
+            stylePrompt: {
+                persona: "A popular YouTube host sharing fascinating insights",
+                emotion: "warm, engaging, and conversational",
+                pacing: "natural and flowing with well-placed pauses for emphasis",
+            },
+        },
+        videoPurpose: 'documentary',
+    },
+    'advertisement': {
+        label: 'Energetic',
+        voice: {
+            voiceName: TTS_VOICES.PUCK,
+            pitch: 2,
+            speakingRate: 1.25,
+            stylePrompt: {
+                persona: "A high-energy commercial voice-over artist",
+                emotion: "confident, persuasive, and attention-grabbing",
+                pacing: "punchy and dynamic with crisp delivery",
+            },
+        },
+        videoPurpose: 'commercial',
+    },
+    'movie-animation': {
+        label: 'Dramatic',
+        voice: {
+            voiceName: TTS_VOICES.FENRIR,
+            pitch: -2,
+            speakingRate: 0.95,
+            stylePrompt: {
+                persona: "A legendary storyteller narrating an epic tale",
+                emotion: "dramatic, immersive, and emotionally charged",
+                pacing: "deliberate with dramatic pauses at key revelations",
+            },
+        },
+        videoPurpose: 'storytelling',
+    },
+    'educational': {
+        label: 'Professional',
+        voice: {
+            voiceName: TTS_VOICES.LEDA,
+            pitch: 0,
+            speakingRate: 1.0,
+            stylePrompt: {
+                persona: "A friendly and knowledgeable teacher",
+                emotion: "clear, encouraging, patient, and authoritative",
+                pacing: "steady and easy to follow with pauses between concepts",
+            },
+        },
+        videoPurpose: 'educational',
+    },
+    'shorts': {
+        label: 'Energetic',
+        voice: {
+            voiceName: TTS_VOICES.PUCK,
+            pitch: 3,
+            speakingRate: 1.3,
+            stylePrompt: {
+                persona: "A trendy social media content creator",
+                emotion: "energetic, punchy, and scroll-stopping",
+                pacing: "fast and dynamic with rapid-fire delivery",
+            },
+        },
+        videoPurpose: 'social_short',
+    },
+    'documentary': {
+        label: 'Professional',
+        voice: {
+            voiceName: TTS_VOICES.CHARON,
+            pitch: -1,
+            speakingRate: 0.95,
+            stylePrompt: {
+                persona: "A distinguished documentary narrator",
+                emotion: "informative, measured, and authoritative",
+                pacing: "thoughtful and deliberate with gravitas",
+            },
+        },
+        videoPurpose: 'documentary',
+    },
+    'music-video': {
+        label: 'Dramatic',
+        voice: {
+            voiceName: TTS_VOICES.AOEDE,
+            pitch: -1,
+            speakingRate: 0.9,
+            stylePrompt: {
+                persona: "A cinematic music video narrator",
+                emotion: "evocative, artistic, and emotionally rich",
+                pacing: "rhythmic and flowing, matching musical energy",
+            },
+        },
+        videoPurpose: 'music_video',
+    },
+    'news-politics': {
+        label: 'Neutral',
+        voice: {
+            voiceName: TTS_VOICES.ORUS,
+            pitch: 0,
+            speakingRate: 1.1,
+            stylePrompt: {
+                persona: "A professional news anchor delivering a report",
+                emotion: "objective, clear, balanced, and authoritative",
+                pacing: "crisp and well-articulated with neutral delivery",
+            },
+        },
+        videoPurpose: 'news_report',
+    },
+};
+
+/**
+ * Get the recommended voice profile for a video format.
+ * Falls back to 'movie-animation' profile for unknown formats.
+ *
+ * @param formatId - Video format identifier
+ * @returns Format-specific voice profile
+ */
+export function getVoiceProfileForFormat(formatId: VideoFormat): FormatVoiceProfile {
+    return FORMAT_VOICE_PROFILE_MAP[formatId] ?? FORMAT_VOICE_PROFILE_MAP['movie-animation'];
+}
+
+/**
+ * Get language-aware voice config for a format.
+ * Applies the format's voice profile, then overrides with a language-specific
+ * voice if the content language differs from English.
+ *
+ * Requirements: 14.3, 19.3
+ *
+ * @param formatId - Video format identifier
+ * @param language - Content language code
+ * @returns Extended voice config with language-appropriate voice
+ */
+export function getFormatVoiceForLanguage(
+    formatId: VideoFormat,
+    language: LanguageCode | 'ar' | 'en'
+): ExtendedVoiceConfig {
+    const profile = getVoiceProfileForFormat(formatId);
+    const langVoice = language !== 'en' && language !== 'auto'
+        ? LANGUAGE_VOICE_MAP[language]
+        : undefined;
+
+    return {
+        ...profile.voice,
+        ...(langVoice && { voiceName: langVoice }),
+    };
+}

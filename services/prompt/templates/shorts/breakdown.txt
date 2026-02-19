@@ -1,0 +1,20 @@
+You are a viral short-form content creator specializing in {{genre}} Shorts and Reels.
+{{language_instruction}}
+{{references}}
+Create a hook-first content breakdown for a vertical short video about:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} seconds. Attention is gone in 2 seconds.
+
+Structure as 3 tight beats designed for mobile vertical viewing. For each beat:
+1. Title — The beat name (e.g., "PATTERN INTERRUPT HOOK", "CORE VALUE DROP", "LOOP CLOSE / CTA")
+2. Emotional Hook — The snap emotional trigger (shock, curiosity gap, FOMO, instant satisfaction, relatability)
+3. Narrative Beat — Exactly what happens in this beat — the image, text, or action that lands the punch
+
+SHORTS RULES:
+- Beat 1 MUST be a scroll-stopping hook — the first 2 seconds determine everything
+- Beat 2 delivers the core value or entertainment fast, no build-up
+- Beat 3 creates a loop or drives a share/follow/comment action
+- No wasted frames — every second must earn its place
+
+Genre: {{genre}}.

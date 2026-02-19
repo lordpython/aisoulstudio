@@ -14,6 +14,7 @@ import { StoryModeSchema, VerifyCharacterConsistencySchema, type StoryModeState 
 import { storyModeStore, productionStore } from "../store";
 import { verifyCharacterConsistency } from "../../../visualConsistencyService";
 import { type ScreenplayScene, type ShotlistEntry, type CharacterProfile } from "../../../../types";
+import { detectLanguage } from "../../../languageDetector";
 
 const log = agentLogger.child('Production');
 
@@ -87,8 +88,8 @@ export const generateBreakdownTool = tool(
             maxRetries: 2,
         });
 
-        // Detect Arabic topic to use language-appropriate prompt and markers
-        const isArabicTopic = /[\u0600-\u06FF]/.test(topic);
+        // Detect language to use appropriate prompt and markers
+        const isArabicTopic = detectLanguage(topic) === 'ar';
 
         const prompt = isArabicTopic
             ? `أنت خبير تطوير قصص. قبل الكتابة، حدّد:
@@ -186,8 +187,8 @@ export const createScreenplayTool = tool(
             maxRetries: 2,
         });
 
-        // Detect Arabic content to use appropriate scene markers
-        const isArabicContent = /[\u0600-\u06FF]/.test(state.breakdown);
+        // Detect language to use appropriate scene markers
+        const isArabicContent = detectLanguage(state.breakdown) === 'ar';
 
         // Count the actual number of acts in the breakdown so the screenplay
         // LLM generates exactly one scene per act (prevents count mismatch).
@@ -493,8 +494,7 @@ export const verifyCharacterConsistencyTool = tool(
         };
 
         // Detect language for report
-        const isArabic = /[\u0600-\u06FF]/.test(characterToVerify.visualDescription + characterToVerify.name);
-        const language = isArabic ? 'ar' : 'en';
+        const language = detectLanguage(characterToVerify.visualDescription + ' ' + characterToVerify.name);
 
         const report = await verifyCharacterConsistency(imageUrls, characterToVerify, language);
 

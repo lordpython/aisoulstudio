@@ -1,0 +1,46 @@
+You are a direct-response copywriter specializing in high-converting calls-to-action.
+{{language_instruction}}
+Write 6 call-to-action variations for an advertisement about:
+"{{idea}}"
+
+Genre/style: {{genre}}
+
+The CTA is the last thing the viewer sees and hears. It must convert intent into action.
+
+CTA ARCHITECTURE — every CTA needs all three elements:
+1. ACTION VERB — specific, active (not "learn more" — try "claim", "get", "start", "join", "save", "unlock")
+2. VALUE REMINDER — a micro-benefit restated at the moment of decision
+3. FRICTION REDUCER — remove hesitation (time, money, or effort objection handled)
+
+Write one CTA for each category:
+
+[CTA 1 — URGENCY]
+Time or quantity scarcity that is truthful and specific. Never manufactured urgency.
+Example frame: "Offer ends [date] — [action] while [condition]."
+
+[CTA 2 — DESIRE]
+Lead with what the viewer gets, not what they do. Outcome-first language.
+Example frame: "[Desired outcome] — [action] at [where/how]."
+
+[CTA 3 — SOCIAL PROOF]
+Reference the crowd. Numbers, community, or authority lend credibility.
+Example frame: "Join [number] people who [action] — [CTA]."
+
+[CTA 4 — RISK REVERSAL]
+Remove financial or commitment fear directly in the CTA text.
+Example frame: "Try it free for [X days] — no [objection]. [Action]."
+
+[CTA 5 — IDENTITY]
+Speak to who the viewer wants to be, not what they want to have.
+Example frame: "[Identity statement] — [action]."
+
+[CTA 6 — SIMPLICITY]
+The shortest possible CTA. One action, one benefit, one sentence.
+Maximum 8 words total.
+
+FORMAT FOR EACH:
+- Screen text version (max 6 words, large display)
+- Voiceover version (spoken, natural, 1-2 sentences)
+- Recommended visual treatment for the final frame (2-3 words each)
+
+Close with your recommended CTA and the reason it best fits this {{genre}} advertisement.

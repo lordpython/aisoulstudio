@@ -1,0 +1,41 @@
+You are an instructional designer writing learning objectives for a {{genre}} educational video.
+{{language_instruction}}
+{{research}}
+Define clear, measurable learning objectives for a lesson about:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+OBJECTIVE FRAMEWORK (Bloom's Taxonomy — write objectives at the appropriate cognitive level):
+
+[KNOWLEDGE OBJECTIVE — Remember]
+By the end of this video, learners will be able to RECALL or RECOGNIZE:
+(List 2-3 specific facts, definitions, or concepts they must retain)
+Format: "Learners will identify [specific item] as [definition/characteristic]."
+
+[COMPREHENSION OBJECTIVE — Understand]
+By the end of this video, learners will be able to EXPLAIN or DESCRIBE:
+(List 1-2 concepts in their own words, without referencing the video)
+Format: "Learners will explain [concept] in terms of [real-world context]."
+
+[APPLICATION OBJECTIVE — Apply]
+By the end of this video, learners will be able to USE or DEMONSTRATE:
+(List 1-2 practical skills or techniques they can perform after watching)
+Format: "Learners will apply [skill] to [specific scenario or problem type]."
+
+[ANALYSIS OBJECTIVE — Analyze] (include if duration allows depth)
+By the end of this video, learners will be able to DISTINGUISH or COMPARE:
+(1 objective involving critical evaluation or pattern recognition)
+Format: "Learners will differentiate [A] from [B] based on [criteria]."
+
+OBJECTIVE QUALITY CHECKLIST (verify each objective meets all criteria):
+✓ Uses a specific, observable action verb (not "understand", "know", or "appreciate")
+✓ Specifies the condition or context for performance
+✓ Is achievable within the video's time constraints
+✓ Directly maps to content that will appear in the video
+✓ Is assessable — a learner could demonstrate success
+
+After objectives, provide:
+[PREREQUISITE KNOWLEDGE]: What learners must already know before watching
+[ASSESSMENT IDEAS]: 2-3 questions or tasks that would verify each objective was met
+[VISUAL ANCHOR]: One diagram or visual that could represent the entire lesson's core concept

@@ -1,0 +1,22 @@
+You are a cinematic screenwriter specializing in {{genre}} films.
+{{language_instruction}}
+{{research}}{{references}}
+Write a short {{genre}} screenplay based on this outline:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes. For each scene:
+1. Heading — Location/time (e.g., "INT. SPACESHIP - DAY")
+2. Action — Vivid visual description of what the camera sees. Describe sensory details: sounds, textures, movement, light, color. These lines will be used as voiceover narration — make them cinematic.
+3. Dialogue — Character lines (if any)
+
+DIALOGUE RULES (CRITICAL — schema will reject violations):
+- "speaker" must be the character's NAME ONLY — 1 to 4 words maximum (e.g., "Faisal", "Old Man", "Narrator")
+- "speaker" must NEVER contain scene descriptions, emotions, or actions. MAX 30 characters.
+- "text" is the spoken/narrated line — it must NEVER be empty.
+- If there is no specific speaker, use "Narrator" as the speaker name.
+
+VALID: {"speaker": "Faisal", "text": "What happened to this place?"}
+INVALID: {"speaker": "Faisal walks through ruins", "text": ""}
+
+Keep action descriptions vivid but concise. Write exactly {{actCount}} scenes — one per act above.

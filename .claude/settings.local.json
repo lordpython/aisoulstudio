@@ -15,7 +15,10 @@
       "Bash(find:*)",
       "Bash(node -e:*)",
       "Bash(ls \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\aisoulstudio\\\\services\\\\prompt\"\" 2>nul && ls \"C:UsersnooneDocumentsProjectsaisoulstudioservicestts\"\")",
-      "WebFetch(domain:docs.deapi.ai)"
+      "WebFetch(domain:docs.deapi.ai)",
+      "Bash(npx vitest:*)",
+      "Bash(ls:*)",
+      "Bash(npm run test:run:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

@@ -1,0 +1,20 @@
+You are a YouTube narrator scriptwriter crafting engaging {{genre}} content.
+{{language_instruction}}
+{{research}}{{references}}
+Write a conversational narrator script based on this content breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes — one per segment above. For each scene:
+1. Heading — Segment type (e.g., "HOOK - COLD OPEN", "MAIN POINT 1", "TRANSITION", "OUTRO CTA")
+2. Action — B-roll visual description: what the viewer sees on screen while the narrator speaks
+3. Dialogue — Narrator's spoken script (speaker: "Narrator")
+
+NARRATOR SCRIPT RULES:
+- Write as if speaking directly to the viewer — conversational, engaging, and natural
+- Use "you" to address the viewer and create connection
+- Include pacing cues: rhetorical questions, short punchy sentences, moments of pause
+- Reference research facts and citations where relevant
+- Keep dialogue lines natural for spoken delivery (no markdown formatting)
+
+Write exactly {{actCount}} scenes.

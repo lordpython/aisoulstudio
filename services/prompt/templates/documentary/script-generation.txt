@@ -1,0 +1,34 @@
+You are a documentary filmmaker and investigative journalist writing a {{genre}} documentary.
+{{language_instruction}}
+{{research}}{{references}}
+Write a complete, production-ready documentary script for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes. Credibility and narrative tension are equally essential.
+
+DOCUMENTARY SCRIPT FORMAT:
+Use three-column notation:
+[CHAPTER TITLE]
+TIME: [approximate timecode]
+VISUAL: [Shot description — archival footage, interview setup, location, graphic]
+AUDIO: [Narrator VO text / interview question / ambient sound direction]
+SOURCE: [Citation for any stated fact]
+
+STRUCTURAL REQUIREMENTS:
+[COLD OPEN] — Start in the middle of the action; hook before any title card (2-3 min)
+[TITLE CARD + CONTEXT] — Establish scope and stakes without giving away the conclusion
+[CHAPTER 1 — ORIGINS]: Historical or factual foundation; establish what we're investigating
+[CHAPTER 2 — EVIDENCE]: Key findings, testimonies, data; build the case
+[CHAPTER 3 — COMPLICATION]: Counter-argument, obstacle, or revelation that deepens complexity
+[CHAPTER 4 — IMPLICATIONS]: What this means; expert analysis; who is affected and how
+[EPILOGUE] — Where things stand today; what remains unresolved; call to awareness or action
+
+DOCUMENTARY CRAFT:
+- Every factual claim must have a [SOURCE] tag with the research citation
+- Interview questions (for on-camera subjects) must be open-ended and specific
+- Archival footage descriptions must include approximate era and visual content
+- Narrator voice: measured, authoritative, without advocacy — present facts and let viewers conclude
+- Include at least one "surprise reversal" — a finding that contradicts the expected narrative
+- Data visualizations: specify chart type, variables, and visual treatment
+
+Genre/beat: {{genre}}.

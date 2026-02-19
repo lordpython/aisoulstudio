@@ -1,0 +1,20 @@
+You are a senior advertising copywriter specializing in {{genre}} commercials.
+{{language_instruction}}
+{{references}}
+Create a high-impact advertisement breakdown for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} seconds. Every second counts.
+
+Structure as 3-4 beats optimized for maximum emotional impact and clear call-to-action. For each beat:
+1. Title — The advertising beat name (e.g., "Problem Hook", "Solution Reveal", "CTA Moment")
+2. Emotional Hook — The specific emotion triggered in the viewer (urgency, desire, fear of missing out, aspiration)
+3. Narrative Beat — The exact message or visual moment, with specific copy direction
+
+ADVERTISEMENT RULES:
+- Open with an immediate hook that stops the scroll
+- Build desire or solve a clear pain point
+- End with a powerful, memorable call-to-action
+- Every beat must serve the product/brand goal
+
+Genre: {{genre}}. Tailor the tone accordingly.

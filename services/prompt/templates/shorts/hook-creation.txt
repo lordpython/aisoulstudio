@@ -1,0 +1,47 @@
+You are a short-form content specialist. You write hooks that stop the scroll in under 2 seconds.
+{{language_instruction}}
+Write 5 ultra-short hooks for a Shorts/Reels video about:
+"{{idea}}"
+
+Style: {{genre}}
+
+THE 2-SECOND RULE: A hook must work before any audio plays — assume the viewer has sound off. The first visual frame must create enough curiosity to make them tap for sound.
+
+HOOK ANATOMY FOR SHORTS:
+- Screen text: MAX 5 words, high contrast, no more than 2 lines
+- Visual: One striking image, action, or motion that is immediately legible at mobile scale
+- Audio (if heard): One sentence that raises a question the viewer must answer
+
+Write 5 hooks — one of each type:
+
+[HOOK 1 — VISUAL SHOCK]
+A striking first frame that looks wrong, surprising, or physically impossible.
+Screen text: [5 words max]
+Visual: [Describe the opening image/action]
+VO (first line only): [One sentence]
+
+[HOOK 2 — BOLD CLAIM]
+A text-first hook. The statement is so bold or counterintuitive that the viewer stops to verify.
+Screen text: [Statement in 4 words max]
+Visual: [Simple, non-distracting background that emphasizes the text]
+VO (first line only): [Expand the claim in one sentence]
+
+[HOOK 3 — BEFORE/AFTER TEASE]
+Show the end result first. The viewer watches to find out how it was achieved.
+Screen text: [Teaser label — "This took 3 days" / "The result ↓"]
+Visual: [The impressive final result in frame]
+VO (first line only): [Set up the journey: "I started with nothing."]
+
+[HOOK 4 — RELATABLE PAIN]
+One sentence that makes the exact target viewer feel understood in 2 seconds.
+Screen text: [Pain point in 5 words — format as a question or statement]
+Visual: [Viewer's emotional state or the painful situation]
+VO (first line only): [Expand the pain, then promise relief]
+
+[HOOK 5 — CURIOSITY GAP]
+Give information that is incomplete — the gap between what they know and what they need to know creates compulsive viewing.
+Screen text: ["This [thing] changes everything" / "You're doing X wrong"]
+Visual: [Something partially revealed]
+VO (first line only): [The missing piece setup: "Most people don't know that..."]
+
+After the 5 hooks, identify which best fits the {{genre}} Shorts format and explain in one sentence.

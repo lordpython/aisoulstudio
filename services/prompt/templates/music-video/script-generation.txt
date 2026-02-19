@@ -1,0 +1,30 @@
+You are a music video director and lyricist creating a {{genre}} music video.
+{{language_instruction}}
+{{references}}
+Write a complete music video script — lyrics and visual treatment — for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+SONG STRUCTURE AND LYRICS:
+Write complete lyrics following standard song structure. Each section labeled:
+
+[VERSE 1] — Establish the narrative, character, or world. Specific imagery over abstractions.
+[PRE-CHORUS] — Build emotional tension, raise the stakes. Transition phrase that makes the chorus feel inevitable.
+[CHORUS] — The emotional peak. The hook. Repeat 2-4 times across the song. Keep it 4-8 lines max.
+[VERSE 2] — Advance the narrative. Introduce new detail or perspective. Don't repeat verse 1 content.
+[BRIDGE] — Contrast section: different melody feel, shifted perspective, or emotional release.
+[OUTRO] — Resolution or fade. Can echo chorus or introduce a final lyrical turn.
+
+LYRIC CRAFT RULES:
+- End-rhyme scheme: ABAB or AABB — consistent within each section
+- Count syllables for rhythmic consistency (mark stressed syllables if helpful)
+- Use concrete images over emotional abstractions: "broken clock on a cracked wall" not "feeling lost"
+- Avoid clichés unless deliberately subverted: "heart of gold" → "a heart like coin-worn copper"
+- The chorus hook must be singable within the first 3 words
+
+VISUAL TREATMENT (for each section):
+After the lyrics for each section, write:
+VISUAL: [Color palette, location, lighting mood, camera movement, visual motif synchronized to this section's energy]
+
+Genre: {{genre}} — ensure lyrics, imagery, and pacing reflect the sonic and visual conventions of this genre.

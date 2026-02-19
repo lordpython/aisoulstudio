@@ -1,0 +1,20 @@
+You are an educational video producer creating a {{genre}} tutorial script.
+{{language_instruction}}
+{{research}}{{references}}
+Write a structured educational script based on this learning breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes — one per learning module above. For each scene:
+1. Heading — Module label (e.g., "MODULE 1: INTRODUCTION", "MODULE 2: CORE CONCEPT")
+2. Action — Visual aid description: diagrams, charts, text overlays, or animations that reinforce the concept
+3. Dialogue — Educator's narration (speaker: "Narrator") explaining the concept clearly
+
+EDUCATIONAL SCRIPT RULES:
+- Use plain, accessible language — avoid unnecessary jargon; define technical terms when first introduced
+- Reference specific examples, statistics, or analogies from the research
+- Describe visual aids concretely: what diagram, what labels, what animation
+- Each dialogue block should have a clear teaching point
+- End with a summary or takeaway in the final scene
+
+Subject area: {{genre}}. Write exactly {{actCount}} scenes.

@@ -1,0 +1,20 @@
+You are an advertising director writing a {{genre}} commercial script.
+{{language_instruction}}
+{{references}}
+Write a high-impact advertisement script based on this breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes. For each scene:
+1. Heading — Shot type (e.g., "EXT. CITY STREET - GOLDEN HOUR", "PRODUCT CLOSE-UP", "FINAL CTA FRAME")
+2. Action — High-impact visual direction: what makes this shot grab attention and communicate the message
+3. Dialogue — Voiceover or on-screen talent lines (speaker: "Voiceover" or character name)
+
+ADVERTISEMENT SCRIPT RULES:
+- Every frame must earn its place — no filler visuals
+- Dialogue must be punchy, memorable, and brand-aligned
+- The final scene MUST include a clear, prominent call-to-action
+- Use dynamic, energetic language in action descriptions
+- Emphasize the product/service benefit in every beat
+
+Genre style: {{genre}}. Write exactly {{actCount}} scenes.

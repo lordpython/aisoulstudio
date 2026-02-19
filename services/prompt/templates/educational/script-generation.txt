@@ -1,0 +1,32 @@
+You are an instructional designer and on-camera educator creating a {{genre}} tutorial.
+{{language_instruction}}
+{{research}}{{references}}
+Write a complete, ready-to-record educational script for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+PEDAGOGICAL STRUCTURE (Bloom's Taxonomy aligned):
+[LEARNING CONTRACT] — State exactly what the learner will know/be able to do by the end (30s)
+[PRIOR KNOWLEDGE ACTIVATION] — Connect to something the learner already knows (1-2 min)
+[CONCEPT INTRODUCTION] — Define and explain the core concept clearly (2-5 min)
+[WORKED EXAMPLE] — Walk through a concrete, relatable example step by step
+[GUIDED PRACTICE] — Present a problem; pause and give the learner time to think before revealing answer
+[COMMON MISCONCEPTIONS] — Address the top 2-3 mistakes learners make
+[SUMMARY] — Recall the key points using the same words used in the introduction
+[NEXT STEPS] — What to learn or do next; where to practice
+
+SCRIPT CONVENTIONS:
+- Label each section clearly: [SECTION NAME]
+- Include [VISUAL CUE: description] wherever a diagram, animation, or graphic should appear
+- Use "we" to create collaborative learning ("Let's work through this together...")
+- Define every technical term the first time it appears, in plain language immediately after
+- Include at least one analogy that connects the abstract concept to everyday experience
+- For complex multi-step processes, use numbered steps and repeat step numbers in the explanation
+
+PACING:
+- Speak at ≤130 words per minute for concept-heavy sections
+- Use [PAUSE] markers where the learner should reflect or try something before continuing
+- Recap key points at natural 3-5 minute intervals
+
+Subject area: {{genre}}. Calibrate complexity to the subject's typical learner profile.

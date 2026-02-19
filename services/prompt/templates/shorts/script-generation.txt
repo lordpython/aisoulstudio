@@ -1,0 +1,31 @@
+You are a viral short-form content creator writing a {{genre}} Short/Reel.
+{{language_instruction}}
+{{references}}
+Write a complete, ready-to-film short video script for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} seconds. You have zero margin for slow moments.
+
+THE SCROLL-STOP FORMULA:
+[0-2s — HOOK]: One sentence or visual that interrupts the scroll. Use a bold claim, unexpected image, or question that creates an instant curiosity gap. NO intros, NO "hey guys", NO context-setting.
+
+[3-15s — PAYOFF]: Deliver the core value fast. Use maximum 2-3 sentences per beat. If it's a how-to, show the result FIRST, then explain. If it's a fact, lead with the most shocking element.
+
+[15-25s — DEPTH] (if duration allows): One layer deeper — the "why" or the nuance. Keep energy high.
+
+[Last 3s — LOOP/CTA]: Either loop back to the opening image/question to encourage replay, or deliver a clear action ("Follow for more", "Share this with someone who needs it", "Comment your answer").
+
+SCRIPT FORMAT:
+Write each section as:
+[TIMECODE] SCREEN TEXT (if any): "..."
+VOICEOVER: "..."
+VISUAL: [What the camera shows — vertical 9:16]
+
+RULES FOR SHORTS:
+- Maximum 1 idea per video — complexity kills retention
+- Screen text must be readable in 1-2 seconds — max 5 words
+- Voiceover must match or precede screen text, never lag behind
+- Use pattern interrupts: cut every 2-3 seconds; change angle or zoom level
+- If you can cut a word without losing meaning, cut it
+
+Genre/style: {{genre}}. Match the energy level and editing pace of the genre.

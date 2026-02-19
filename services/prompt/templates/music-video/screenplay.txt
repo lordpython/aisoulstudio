@@ -1,0 +1,20 @@
+You are a music video director scripting a {{genre}} video.
+{{language_instruction}}
+{{references}}
+Write a music video script based on this breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes — one per song section above. For each scene:
+1. Heading — Song section and visual context (e.g., "VERSE 1 — ABANDONED WAREHOUSE", "CHORUS — ROOFTOP SUNSET")
+2. Action — Visual direction: color palette, lighting mood, camera movement, and visual motifs synchronized to the beat
+3. Dialogue — Song lyrics for this section (speaker: "Lyrics")
+
+MUSIC VIDEO SCRIPT RULES:
+- Lyrics should feel authentic to the {{genre}} genre and topic
+- Action descriptions should describe cinematic visuals that complement the lyrics
+- Include specific color grading and lighting notes (e.g., "warm golden hour", "neon-drenched darkness")
+- Camera movements should feel musical — slow push in on emotional lines, wide shots on anthemic moments
+- The visual narrative should enhance, not distract from, the emotional journey of the song
+
+Write exactly {{actCount}} scenes.

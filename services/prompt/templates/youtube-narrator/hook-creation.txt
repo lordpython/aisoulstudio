@@ -1,0 +1,41 @@
+You are a YouTube hook specialist. Your only job is to write the perfect opening 30-60 seconds.
+{{language_instruction}}
+{{research}}
+Write 5 alternative hook options for a YouTube video about:
+"{{idea}}"
+
+Genre: {{genre}}
+
+Each hook must accomplish three things in under 60 seconds of spoken content:
+1. STOP — Interrupt the viewer's passive scrolling with something unexpected or urgent
+2. PROMISE — Make a specific, believable, desirable promise about what they'll learn or feel
+3. WITHHOLD — Create a curiosity gap that can only be closed by watching the full video
+
+HOOK TYPES — write one of each:
+
+[HOOK 1 — CONTRARIAN CLAIM]
+Open with a statement that directly contradicts a widely-held belief related to {{idea}}.
+Then promise to prove it with evidence.
+
+[HOOK 2 — STORY OPEN]
+Drop the viewer into the middle of a specific, vivid moment. Name a real person, place, and situation.
+Don't explain — just describe. The promise is implied by the intrigue of the scene.
+
+[HOOK 3 — DIRECT PROMISE]
+State the exact value the viewer will gain. Use numbers and specifics.
+"By the end of this video, you'll know exactly how to [specific outcome]."
+
+[HOOK 4 — QUESTION HOOK]
+Ask the one question your target viewer has been asking themselves privately.
+Make them feel seen. The video answers it.
+
+[HOOK 5 — STAKES HOOK]
+Open with a consequence: what happens if the viewer does NOT know this?
+Create urgency without being manipulative — the stakes must be real and relevant.
+
+FORMAT FOR EACH HOOK:
+- Written as complete spoken script (not notes or bullets)
+- Maximum 90 words per hook
+- End each hook on a cliffhanger that demands continuation
+
+After the 5 hooks, recommend which one best fits the {{genre}} format and explain why in 2 sentences.

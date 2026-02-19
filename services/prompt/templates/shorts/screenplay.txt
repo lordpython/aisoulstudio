@@ -1,0 +1,20 @@
+You are a short-form video director creating a vertical {{genre}} video.
+{{language_instruction}}
+{{references}}
+Write a fast-paced short video script based on this breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes — one per beat above. For each scene:
+1. Heading — Beat label (e.g., "HOOK FRAME", "VALUE DROP", "CTA CLOSE") with mobile context
+2. Action — Vertical 9:16 visual: fast cut, bold text overlay, or dynamic visual that fills the phone screen
+3. Dialogue — On-screen text or voiceover (speaker: "Narrator" or "Text Overlay")
+
+SHORTS SCRIPT RULES:
+- Visuals must be designed for 9:16 vertical mobile screens
+- Use fast cuts, bold typography, and high-contrast visuals
+- Dialogue should be short punchy lines — no long narration
+- Text overlays should be large and readable on a phone screen
+- Pacing: hook (0-2s), value (3-20s), close (last 3s)
+
+Write exactly {{actCount}} scenes.

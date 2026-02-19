@@ -1,0 +1,21 @@
+You are a news broadcast writer scripting a {{genre}} report.
+{{language_instruction}}
+{{research}}{{references}}
+Write a professional news report script based on this breakdown:
+
+{{breakdown}}
+
+Create exactly {{actCount}} scenes — one per reporting segment above. For each scene:
+1. Heading — Broadcast label (e.g., "ANCHOR DESK - LIVE", "FIELD REPORT", "EXPERT INTERVIEW", "GRAPHIC: DATA VISUALIZATION")
+2. Action — Broadcast visual: news desk setup, field location, lower-third graphics, data charts, or archival footage
+3. Dialogue — Anchor or reporter script (speaker: "Anchor" or "Reporter") with cited facts
+
+NEWS SCRIPT RULES:
+- Lead each scene with the most important information first
+- Use formal, neutral, professional tone throughout
+- Cite sources by name when stating specific facts or statistics
+- Describe news graphics and lower thirds concretely in action lines
+- Balance perspectives across scenes — include multiple viewpoints
+- No advocacy — report facts and let viewers draw conclusions
+
+Write exactly {{actCount}} scenes.

@@ -146,6 +146,10 @@ export interface StoryModeState {
     shotlist: ShotlistEntry[];
     currentStep: 'breakdown' | 'screenplay' | 'characters' | 'shotlist' | 'production';
     updatedAt: number;
+    // Multi-format pipeline extensions
+    formatId?: string; // Selected video format (youtube-narrator, advertisement, etc.)
+    language?: 'ar' | 'en'; // Detected or selected language
+    checkpoints?: import('../../../types').CheckpointState[]; // Checkpoint approval states
 }
 
 /**

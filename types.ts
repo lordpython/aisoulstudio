@@ -583,3 +583,199 @@ export interface StoryState {
   // Error tracking for specific stages
   stageErrors?: Record<StoryStep, string | null>;
 }
+
+// --- Multi-Format Pipeline Types ---
+
+/**
+ * Video format types for the multi-format pipeline
+ */
+export type VideoFormat =
+  | 'youtube-narrator'
+  | 'advertisement'
+  | 'movie-animation'
+  | 'educational'
+  | 'shorts'
+  | 'documentary'
+  | 'music-video'
+  | 'news-politics';
+
+/**
+ * Format metadata for pipeline configuration
+ */
+export interface FormatMetadata {
+  id: VideoFormat;
+  name: string;
+  description: string;
+  icon: string;
+  durationRange: { min: number; max: number }; // seconds
+  aspectRatio: '16:9' | '9:16' | '1:1';
+  applicableGenres: string[];
+  checkpointCount: number;
+  concurrencyLimit: number;
+  requiresResearch: boolean;
+  supportedLanguages: ('ar' | 'en')[];
+  deprecated?: boolean;
+  deprecationMessage?: string;
+}
+
+/**
+ * Pipeline phase configuration
+ */
+export interface PipelinePhase {
+  id: string;
+  name: string;
+  order: number;
+  tasks: PhaseTask[];
+  parallel: boolean;
+  required: boolean;
+}
+
+/**
+ * Individual task within a pipeline phase
+ */
+export interface PhaseTask {
+  id: string;
+  type: 'research' | 'script' | 'visual' | 'audio' | 'assembly';
+  service: string;
+  parameters: Record<string, any>;
+  dependencies: string[]; // task IDs that must complete first
+  retryable: boolean;
+  timeout: number; // milliseconds
+}
+
+/**
+ * Format-specific pipeline configuration
+ */
+export interface FormatPipelineConfig {
+  formatId: VideoFormat;
+  phases: PipelinePhase[];
+  checkpoints: CheckpointConfig[];
+  concurrencyLimit: number;
+  defaultDuration: number; // seconds
+}
+
+/**
+ * Checkpoint configuration for user approval
+ */
+export interface CheckpointConfig {
+  id: string;
+  phase: string;
+  title: string;
+  description: string;
+  timeout: number; // milliseconds
+  required: boolean;
+}
+
+/**
+ * Checkpoint state during execution
+ */
+export interface CheckpointState {
+  checkpointId: string;
+  phase: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedAt?: Date;
+}
+
+// --- Music / Beat Metadata Types (Task 9.3) ---
+
+/**
+ * A single beat event within a music track.
+ * Used for beat-synchronized visual transitions.
+ *
+ * Requirements: 8.4, 8.6, 15.3
+ */
+export interface BeatEvent {
+  /** Beat timestamp in seconds */
+  timestamp: number;
+  /** Beat intensity 0–1 (0 = weak, 1 = strong downbeat) */
+  intensity: number;
+}
+
+/**
+ * Beat metadata extracted from or generated alongside a music track.
+ */
+export interface BeatMetadata {
+  /** Beats per minute */
+  bpm: number;
+  /** Total track duration in seconds */
+  durationSeconds: number;
+  /** Ordered list of beat events */
+  beats: BeatEvent[];
+}
+
+/**
+ * Configuration for AI music generation (Music Video format).
+ *
+ * Requirements: 8.3, 14.2
+ */
+export interface MusicGenerationConfig {
+  genre: string;
+  mood: string;
+  tempo?: number;
+  durationSeconds: number;
+  instrumental?: boolean;
+}
+
+// --- Assembly Types (Task 10) ---
+
+/**
+ * A chapter marker for Documentary format video assembly.
+ *
+ * Requirements: 5.6, 15.4
+ */
+export interface ChapterMarker {
+  id: string;
+  title: string;
+  startTime: number; // seconds
+  endTime: number;   // seconds
+}
+
+/**
+ * CTA (Call-to-Action) marker for Advertisement format.
+ *
+ * Requirements: 4.6, 15.2
+ */
+export interface CTAMarker {
+  text: string;
+  /** CTA start position in seconds (should be in final 5 seconds) */
+  startTime: number;
+  /** CTA duration in seconds */
+  duration: number;
+}
+
+/**
+ * Timeline clip for assembly.
+ */
+export interface TimelineClip {
+  id: string;
+  type: 'visual' | 'audio' | 'text' | 'transition';
+  startTime: number;
+  endTime: number;
+  assetUrl?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Format-specific assembly rules applied during video export.
+ *
+ * Requirements: 15.1
+ */
+export interface FormatAssemblyRules {
+  formatId: VideoFormat;
+  /** Aspect ratio override (from format registry) */
+  aspectRatio: '16:9' | '9:16' | '1:1';
+  /** Default transition between scenes */
+  defaultTransition: TransitionType;
+  /** Transition duration in seconds */
+  transitionDuration: number;
+  /** CTA configuration for Advertisement format */
+  ctaMarker?: CTAMarker;
+  /** Chapter markers for Documentary format */
+  chapters?: ChapterMarker[];
+  /** Beat metadata for Music Video format */
+  beatMetadata?: BeatMetadata;
+  /** Whether to organize content by chapters */
+  useChapterStructure?: boolean;
+  /** Whether to sync visuals to beat timestamps */
+  useBeatSync?: boolean;
+}

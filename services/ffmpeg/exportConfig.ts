@@ -5,7 +5,7 @@
  * Extracted from ffmpegService.ts for modularity.
  */
 
-import { TransitionType } from "../../types";
+import { TransitionType, VideoFormat, FormatAssemblyRules } from "../../types";
 import { isAndroid } from "../../utils/platformUtils";
 
 /**
@@ -72,6 +72,12 @@ export interface ExportConfig {
     musicMasterVolume?: number; // 0-1, default: 0.5
     /** Scene timing info for SFX mixing */
     sceneTimings?: import("../audioMixerService").SceneAudioInfo[];
+
+    // Format-specific assembly (Task 10.1)
+    /** Video format identifier — drives format-specific assembly rules */
+    formatId?: VideoFormat;
+    /** Pre-built format assembly rules (overrides auto-generation from formatId) */
+    assemblyRules?: FormatAssemblyRules;
 }
 
 

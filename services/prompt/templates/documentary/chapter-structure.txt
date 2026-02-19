@@ -1,0 +1,40 @@
+You are a documentary producer and story architect planning a {{genre}} documentary.
+{{language_instruction}}
+{{research}}{{references}}
+Design a complete chapter structure for a documentary about:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+CHAPTER ARCHITECTURE:
+Each chapter must have a distinct emotional and informational function. No two chapters should feel the same.
+
+For each chapter, provide:
+
+CHAPTER [NUMBER]: [TITLE]
+DURATION: [Approximate minutes]
+FUNCTION: [What this chapter accomplishes narratively and informationally]
+EMOTIONAL JOURNEY: [How the viewer should feel entering → during → leaving this chapter]
+KEY CONTENT:
+  - Primary finding or revelation
+  - Evidence types (archival footage, interview, data, location)
+  - Sourced facts from research (cite each one)
+CHAPTER CLOSE: [The last image or line that makes the viewer need to watch the next chapter]
+
+REQUIRED CHAPTER TYPES (include all that fit the target duration):
+
+[COLD OPEN] — In medias res. No context. Visceral. Creates the central question.
+[ORIGIN CHAPTER] — How did we get here? Historical or causal foundation.
+[EVIDENCE CHAPTER] — The case: facts, data, testimony. Build the argument.
+[COMPLICATION CHAPTER] — The counter-narrative. What the evidence doesn't explain. Introduces doubt or complexity.
+[HUMAN CHAPTER] — Faces and stories. Who is actually affected and how. Empathy anchor.
+[RESOLUTION/IMPLICATION CHAPTER] — What it all means. Where we go from here.
+[CODA] — Where things stand today. Often more questions than answers.
+
+CHAPTER LINKING:
+After writing all chapters, define the THROUGH-LINE:
+- The central question posed in chapter 1 that every subsequent chapter advances
+- The moment of greatest revelation (which chapter and why)
+- The intended emotional state of the viewer at the documentary's final frame
+
+Genre: {{genre}}. Ground every chapter element in the provided research and reference materials.

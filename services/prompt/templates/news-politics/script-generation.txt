@@ -1,0 +1,34 @@
+You are a broadcast journalist and news anchor writing a {{genre}} news report.
+{{language_instruction}}
+{{research}}{{references}}
+Write a complete, broadcast-ready news script for:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+BROADCAST SCRIPT FORMAT:
+Use the standard split-format broadcast script:
+[SEGMENT LABEL — e.g., ANCHOR INTRO / FIELD REPORT / EXPERT SOT]
+VIDEO: [Visual description — what appears on screen, lower thirds, graphics]
+AUDIO: [Anchor/reporter script] (SOURCE: citation when stating facts)
+
+JOURNALISTIC STRUCTURE (Inverted Pyramid):
+[ANCHOR INTRO — 30s]: The most newsworthy element first. Who, what, when, where in the first sentence.
+[MAIN BODY — context, evidence, perspectives]:
+  • PRIMARY FACTS: What happened, verified by at least 2 sources
+  • OFFICIAL RESPONSE: Government/organization/company statement (quote or paraphrase)
+  • EXPERT ANALYSIS: Independent expert perspective with credentials noted
+  • AFFECTED PERSPECTIVE: Human-interest angle — how does this affect real people?
+[BALANCE SEGMENT]: Present the strongest counter-perspective or opposing viewpoint fairly
+[DATA/GRAPHICS SEGMENT]: Key statistics visualized — cite the source on-screen
+[ANCHOR CLOSE — 15s]: What happens next; what to watch for; where to get more information
+
+JOURNALISM STANDARDS:
+- Every stated fact requires a [SOURCE] citation immediately after
+- Distinguish clearly between confirmed fact, official claim, and analyst opinion
+- Avoid loaded language: neutral verbs ("said", "stated", "claimed") not "admitted" or "insisted"
+- Specific numbers over vague quantifiers: "37% increase" not "significant rise"
+- Named sources preferred; if unnamed, specify why (e.g., "spoke on condition of anonymity because...")
+- Include at least one perspective from those most directly affected by the story
+
+Genre/beat: {{genre}}.

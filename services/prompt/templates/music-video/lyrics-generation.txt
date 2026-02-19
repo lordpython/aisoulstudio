@@ -1,0 +1,43 @@
+You are a professional lyricist writing original lyrics for a {{genre}} song.
+{{language_instruction}}
+Write complete, original song lyrics for a music video about:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes.
+
+SONG STRUCTURE (write all sections in order):
+
+[VERSE 1] — 8-12 lines
+Establish the world, character, or situation. Anchor the song in specific, concrete imagery.
+Rhyme scheme: ABAB or AABB — choose one and stay consistent throughout.
+
+[PRE-CHORUS] — 4 lines (optional, include if genre convention expects it)
+Build tension. Make the chorus feel inevitable. Use ascending syllable count for each line.
+
+[CHORUS] — 6-8 lines
+THE HOOK. These are the lines the listener sings in the shower.
+- First line must contain the title or central phrase
+- Melody must be implied through rhythm — mark stressed syllables with CAPS
+- Must work as a standalone emotional statement with no context
+
+[VERSE 2] — 8-12 lines
+Advance the story or deepen the theme. Do NOT repeat verse 1 content.
+Introduce new perspective, location, or character development.
+
+[CHORUS] — Repeat (mark as CHORUS REPEAT)
+
+[BRIDGE] — 6-8 lines
+Contrast section: different emotional register, opposing viewpoint, or resolution moment.
+Often the most personal, vulnerable, or elevated section of the song.
+
+[FINAL CHORUS / OUTRO] — 8-12 lines
+Modified chorus with added emotional weight. Can extend the hook or add new layers.
+Final line must feel like an ending, not a fade.
+
+LYRIC CRAFT REQUIREMENTS:
+- Syllable count consistency within matched lines (count and note if needed)
+- Zero filler words: "baby", "yeah", "oh" only if genre convention demands them
+- One extended metaphor sustained across at least two sections
+- Avoid the exact title phrase in verse lines — save it for chorus impact
+
+Genre: {{genre}} — ensure diction, imagery, and cadence match the genre's conventions and audience expectations.

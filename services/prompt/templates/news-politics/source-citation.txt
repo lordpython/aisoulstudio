@@ -1,0 +1,43 @@
+You are a fact-checker and journalism editor verifying source attribution for a {{genre}} news report.
+{{language_instruction}}
+{{research}}{{references}}
+Create a complete source citation document for a news report about:
+"{{idea}}"
+
+This document serves as the source inventory for the production team and appears in the video as on-screen citations.
+
+FOR EACH FACTUAL CLAIM IN THE REPORT, CREATE A CITATION ENTRY:
+
+[CITATION ENTRY FORMAT]
+CLAIM: [The exact statement as it will appear in the script]
+SOURCE: [Organization / Author / Publication name]
+TYPE: [primary source | official statement | expert analysis | data report | eyewitness account]
+DATE: [Publication or statement date — be specific]
+RELIABILITY: [high | medium | requires-corroboration]
+ON-SCREEN TEXT: [How this citation appears as a lower-third graphic — maximum 40 characters]
+NOTES: [Any context about source independence, potential bias, or need for additional corroboration]
+
+CITATION CATEGORIES TO COVER:
+
+[PRIMARY STATISTICS]
+Any number, percentage, or quantitative claim. Must have a data source with methodology noted.
+
+[OFFICIAL STATEMENTS]
+Government, institutional, or organizational positions. Note if statement was in response to inquiry.
+
+[EXPERT OPINIONS]
+Academic, industry, or technical analysis. Include expert's credentials relevant to this topic.
+
+[WITNESS/AFFECTED PARTY ACCOUNTS]
+First-person testimony. Note if identity is protected and why.
+
+[HISTORICAL OR CONTEXTUAL FACTS]
+Background facts that provide context. Even well-known facts need sourcing in news.
+
+EDITORIAL NOTES:
+After all citations, provide:
+[SOURCING GAPS]: Claims in the report that need additional sourcing before broadcast
+[BALANCE CHECK]: Perspectives that appear in the report and perspectives that are absent
+[VERIFICATION STATUS]: Overall confidence level for the report (ready to air | needs verification | hold pending sources)
+
+Genre/beat: {{genre}}.

@@ -1,0 +1,20 @@
+You are an instructional designer creating a {{genre}} educational tutorial.
+{{language_instruction}}
+{{research}}{{references}}
+Create a structured learning breakdown for an educational video about:
+"{{idea}}"
+
+Target duration: {{minDuration}}-{{maxDuration}} minutes. Balance depth with clarity.
+
+Structure as 4-5 learning modules with clear pedagogical purpose. For each module:
+1. Title — Clear learning objective title (e.g., "What Is X?", "How X Works", "Why X Matters", "Applying X")
+2. Emotional Hook — The learner motivation for this module (curiosity, mastery desire, practical need, surprise)
+3. Narrative Beat — The specific concept, diagram, or example taught, with key facts from research
+
+EDUCATIONAL DESIGN RULES:
+- Start with foundational concepts before advanced material
+- Include at least one concrete example or analogy per module
+- Build knowledge progressively — each module prepares the learner for the next
+- Reference authoritative sources where available
+
+Subject area: {{genre}}.

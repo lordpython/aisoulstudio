@@ -18,10 +18,13 @@ import { cleanForTTS } from "../textSanitizer";
 import { agentLogger } from "../logger";
 import { storyModeStore } from "./production/store";
 import type { StoryModeState } from "./production/types";
-import type { ScreenplayScene, CharacterProfile } from "@/types";
+import type { ScreenplayScene, CharacterProfile, FormatMetadata, VideoFormat } from "@/types";
 import { generateImageFromPrompt } from "../imageService";
 import { buildImageStyleGuide } from "../prompt/imageStyleGuide";
 import { cloudAutosave } from "../cloudStorageService";
+import { loadTemplate, substituteVariables } from "../prompt/templateLoader";
+import { formatRegistry } from "../formatRegistry";
+import { detectLanguage } from "../languageDetector";
 
 const log = agentLogger.child('StoryPipeline');
 
@@ -87,13 +90,220 @@ export interface StoryProgress {
     totalSteps?: number;
 }
 
+// --- Format-Aware Generation Options ---
+
+/**
+ * Options for format-specific narrative generation.
+ * All fields are optional; when omitted the pipeline falls back to 'movie-animation' defaults.
+ */
+export interface FormatAwareGenerationOptions {
+    /** Video format identifier — defaults to 'movie-animation' */
+    formatId?: VideoFormat;
+    /** Genre style modifier (e.g., 'Drama', 'Comedy') */
+    genre?: string;
+    /** Explicit language override — auto-detected from topic if omitted */
+    language?: 'ar' | 'en';
+    /** Research summary to incorporate in the prompt (from ResearchService) */
+    researchSummary?: string;
+    /** Formatted citation list to include alongside the research summary */
+    researchCitations?: string;
+    /** Raw reference document content to treat as primary source material */
+    referenceContent?: string;
+}
+
+// --- Duration Constraint Helpers ---
+
+/** Estimated narration speech rate (words per second) — ~140 wpm */
+const WORDS_PER_SECOND = 140 / 60;
+
+/**
+ * Estimate video duration in seconds based on script word count.
+ * Assumes a typical narration pace of ~140 words per minute.
+ *
+ * @param wordCount - Total words in the script
+ * @returns Estimated duration in seconds
+ */
+export function estimateDurationSeconds(wordCount: number): number {
+    return Math.ceil(wordCount / WORDS_PER_SECOND);
+}
+
+/**
+ * Validate whether a script's estimated duration falls within a format's allowed range.
+ * Returns a result with `valid`, the `estimatedSeconds`, and an optional human-readable `message`.
+ *
+ * Requirements: 12.3
+ *
+ * @param wordCount  - Word count of the combined script (action + dialogue)
+ * @param formatMeta - Format metadata containing the durationRange to validate against
+ */
+export function validateDurationConstraint(
+    wordCount: number,
+    formatMeta: FormatMetadata
+): { valid: boolean; estimatedSeconds: number; message?: string } {
+    const estimatedSeconds = estimateDurationSeconds(wordCount);
+    const { min, max } = formatMeta.durationRange;
+
+    if (estimatedSeconds < min) {
+        const estMin = Math.round(estimatedSeconds / 60);
+        const minMin = Math.round(min / 60);
+        return {
+            valid: false,
+            estimatedSeconds,
+            message: `Script too short: ~${estMin} min estimated, minimum is ${minMin} min for "${formatMeta.name}"`,
+        };
+    }
+
+    if (estimatedSeconds > max) {
+        const estMin = Math.round(estimatedSeconds / 60);
+        const maxMin = Math.round(max / 60);
+        return {
+            valid: false,
+            estimatedSeconds,
+            message: `Script too long: ~${estMin} min estimated, maximum is ${maxMin} min for "${formatMeta.name}"`,
+        };
+    }
+
+    return { valid: true, estimatedSeconds };
+}
+
+/** Count words across all screenplay scenes (action + dialogue). */
+export function countScriptWords(scenes: ScreenplayScene[]): number {
+    return scenes.reduce((total, scene) => {
+        const actionWords = scene.action.trim().split(/\s+/).filter(Boolean).length;
+        const dialogueWords = scene.dialogue.reduce(
+            (d, line) => d + line.text.trim().split(/\s+/).filter(Boolean).length,
+            0
+        );
+        return total + actionWords + dialogueWords;
+    }, 0);
+}
+
+// --- Pure Prompt Builder Functions (exported for testing) ---
+
+/**
+ * Build a breakdown prompt for the given topic and format options.
+ * Loads the format-specific template and substitutes all variables.
+ *
+ * Requirements: 12.1, 12.2, 12.6, 19.1, 21.1, 21.3
+ *
+ * @param topic   - User's idea or topic
+ * @param options - Format-aware generation options
+ * @returns Fully resolved prompt string ready for the LLM
+ */
+export function buildBreakdownPrompt(
+    topic: string,
+    options: FormatAwareGenerationOptions = {}
+): string {
+    const {
+        formatId = 'movie-animation',
+        genre = '',
+        language,
+        researchSummary,
+        researchCitations,
+        referenceContent,
+    } = options;
+
+    // Auto-detect language from topic if not explicitly set
+    const detectedLang: 'ar' | 'en' = language ?? (/[\u0600-\u06FF]/.test(topic) ? 'ar' : 'en');
+
+    // Build optional context blocks (empty string when not provided)
+    const researchBlock = researchSummary
+        ? `\nRESEARCH CONTEXT:\n${researchSummary}` +
+          (researchCitations ? `\nCitations: ${researchCitations}` : '') + '\n\n'
+        : '';
+
+    const referenceBlock = referenceContent
+        ? `\nREFERENCE MATERIAL (treat as primary source):\n${referenceContent}\n\n`
+        : '';
+
+    const langInstruction = detectedLang === 'ar'
+        ? 'Write your response entirely in Arabic.'
+        : 'Write your response in English.';
+
+    // Duration hints from format registry
+    const formatMeta = formatRegistry.getFormat(formatId);
+    const minDuration = formatMeta ? Math.round(formatMeta.durationRange.min / 60) : 3;
+    const maxDuration = formatMeta ? Math.round(formatMeta.durationRange.max / 60) : 10;
+
+    const template = loadTemplate(formatId, 'breakdown');
+
+    return substituteVariables(template, {
+        idea: topic,
+        genre: genre || 'General',
+        language_instruction: langInstruction,
+        research: researchBlock,
+        references: referenceBlock,
+        minDuration: String(minDuration),
+        maxDuration: String(maxDuration),
+    });
+}
+
+/**
+ * Build a screenplay prompt from breakdown acts and format options.
+ * Loads the format-specific template and substitutes all variables.
+ *
+ * Requirements: 12.1, 12.2, 12.6, 21.1, 21.3
+ *
+ * @param breakdownActs - Structured acts from the breakdown phase
+ * @param options       - Format-aware generation options
+ * @returns Fully resolved prompt string ready for the LLM
+ */
+export function buildScreenplayPrompt(
+    breakdownActs: { title: string; emotionalHook: string; narrativeBeat: string }[],
+    options: FormatAwareGenerationOptions = {}
+): string {
+    const {
+        formatId = 'movie-animation',
+        genre = '',
+        language,
+        researchSummary,
+        researchCitations,
+        referenceContent,
+    } = options;
+
+    const breakdownSample = breakdownActs.map(a => a.title + ' ' + a.narrativeBeat).join(' ');
+    const detectedLang: 'ar' | 'en' = language ?? detectLanguage(breakdownSample);
+
+    const breakdownText = breakdownActs.map((act, i) =>
+        `Act ${i + 1}: ${act.title}\n- Hook: ${act.emotionalHook}\n- Beat: ${act.narrativeBeat}`
+    ).join('\n\n');
+
+    const researchBlock = researchSummary
+        ? `\nRESEARCH CONTEXT:\n${researchSummary}` +
+          (researchCitations ? `\nCitations: ${researchCitations}` : '') + '\n\n'
+        : '';
+
+    const referenceBlock = referenceContent
+        ? `\nREFERENCE MATERIAL:\n${referenceContent}\n\n`
+        : '';
+
+    const langInstruction = detectedLang === 'ar'
+        ? 'Write the screenplay in Arabic.'
+        : 'Write the screenplay in English.';
+
+    const template = loadTemplate(formatId, 'screenplay');
+
+    return substituteVariables(template, {
+        idea: '',
+        genre: genre || 'General',
+        language_instruction: langInstruction,
+        research: researchBlock,
+        references: referenceBlock,
+        breakdown: breakdownText,
+        actCount: String(breakdownActs.length),
+    });
+}
+
 // --- Pipeline Functions (Discrete LLM Calls) ---
 
 /**
  * Step 1: Generate narrative breakdown from topic
  * Context: Only the topic (minimal)
  */
-async function generateBreakdown(topic: string): Promise<{ acts: { title: string; emotionalHook: string; narrativeBeat: string }[] }> {
+async function generateBreakdown(
+    topic: string,
+    formatOptions?: FormatAwareGenerationOptions
+): Promise<{ acts: { title: string; emotionalHook: string; narrativeBeat: string }[] }> {
     log.info('Step 1: Generating breakdown from topic');
 
     const model = new ChatGoogleGenerativeAI({
@@ -102,7 +312,13 @@ async function generateBreakdown(topic: string): Promise<{ acts: { title: string
         temperature: 0.7,
     }).withStructuredOutput(BreakdownSchema);
 
-    const prompt = `You are a story development expert.
+    // Use format-aware template when format options are provided; otherwise use the
+    // legacy hardcoded prompt for backward compatibility with non-format-aware callers.
+    let prompt: string;
+    if (formatOptions?.formatId) {
+        prompt = buildBreakdownPrompt(topic, formatOptions);
+    } else {
+        prompt = `You are a story development expert.
 
 Before writing, silently identify:
 - Protagonist and their central desire or goal
@@ -119,6 +335,7 @@ Divide into 3-5 acts. For each act provide:
 3. Narrative Beat - The specific story event or revelation that drives this act forward (name characters, describe the action)
 
 Keep each field concise (1-2 sentences max). Be specific — avoid vague labels like "conflict begins" or "things get harder".`;
+    }
 
     const result = await model.invoke(prompt);
     log.info(`Breakdown complete: ${result.acts.length} acts`);
@@ -130,7 +347,8 @@ Keep each field concise (1-2 sentences max). Be specific — avoid vague labels 
  * Context: Only the breakdown (not the original topic)
  */
 async function generateScreenplay(
-    breakdownActs: { title: string; emotionalHook: string; narrativeBeat: string }[]
+    breakdownActs: { title: string; emotionalHook: string; narrativeBeat: string }[],
+    formatOptions?: FormatAwareGenerationOptions
 ): Promise<ScreenplayScene[]> {
     log.info('Step 2: Generating screenplay from breakdown');
 
@@ -140,12 +358,17 @@ async function generateScreenplay(
         temperature: 0.7,
     }).withStructuredOutput(ScreenplaySchema);
 
-    // Format breakdown concisely
-    const breakdownText = breakdownActs.map((act, i) =>
-        `Act ${i + 1}: ${act.title}\n- Hook: ${act.emotionalHook}\n- Beat: ${act.narrativeBeat}`
-    ).join('\n\n');
+    // Use format-aware template when format options are provided
+    let prompt: string;
+    if (formatOptions?.formatId) {
+        prompt = buildScreenplayPrompt(breakdownActs, formatOptions);
+    } else {
+        // Legacy hardcoded prompt for backward compatibility
+        const breakdownText = breakdownActs.map((act, i) =>
+            `Act ${i + 1}: ${act.title}\n- Hook: ${act.emotionalHook}\n- Beat: ${act.narrativeBeat}`
+        ).join('\n\n');
 
-    const prompt = `Write a short screenplay based on this outline:
+        prompt = `Write a short screenplay based on this outline:
 
 ${breakdownText}
 
@@ -168,6 +391,7 @@ INVALID example (will break the system):
 {"speaker": "Faisal walks through the crumbling market, eyes wide with disbelief", "text": ""}
 
 Keep action descriptions vivid but concise.`;
+    }
 
     const result = await model.invoke(prompt);
 
@@ -496,6 +720,13 @@ export interface StoryPipelineOptions {
     generateVisuals?: boolean;
     visualStyle?: string;
     onProgress?: (progress: StoryProgress) => void;
+    // Format-aware options (Task 6.1)
+    formatId?: VideoFormat;
+    genre?: string;
+    language?: 'ar' | 'en';
+    researchSummary?: string;
+    researchCitations?: string;
+    referenceContent?: string;
 }
 
 export interface StoryPipelineResult {
@@ -522,7 +753,18 @@ export async function runStoryPipeline(
         generateVisuals = true,
         visualStyle = "Cinematic",
         onProgress,
+        formatId,
+        genre,
+        language,
+        researchSummary,
+        researchCitations,
+        referenceContent,
     } = options;
+
+    // Compose format-aware options to pass to internal pipeline steps
+    const formatOptions: FormatAwareGenerationOptions | undefined = formatId
+        ? { formatId, genre, language, researchSummary, researchCitations, referenceContent }
+        : undefined;
 
     log.info(`Starting story pipeline for: ${topic.slice(0, 50)}...`);
 
@@ -534,7 +776,7 @@ export async function runStoryPipeline(
     try {
         // Step 1: Topic → Breakdown
         onProgress?.({ stage: 'breakdown', message: 'Creating story outline...', progress: 10 });
-        const breakdown = await generateBreakdown(topic);
+        const breakdown = await generateBreakdown(topic, formatOptions);
 
         // Initialize state with breakdown
         const state: StoryModeState = {
@@ -546,17 +788,37 @@ export async function runStoryPipeline(
             shotlist: [],
             currentStep: 'breakdown',
             updatedAt: Date.now(),
+            // Persist format metadata in session state (Req 18.3)
+            formatId: formatId ?? 'movie-animation',
+            language: formatOptions
+                ? (language ?? (/[\u0600-\u06FF]/.test(topic) ? 'ar' : 'en'))
+                : undefined,
         };
         storyModeStore.set(sessionId, state);
 
         // Step 2: Breakdown → Screenplay
         onProgress?.({ stage: 'screenplay', message: 'Writing screenplay...', progress: 30 });
-        const screenplay = await generateScreenplay(breakdown.acts);
+        const screenplay = await generateScreenplay(breakdown.acts, formatOptions);
 
         state.screenplay = screenplay;
         state.currentStep = 'screenplay';
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
+
+        // Duration constraint validation (Task 6.4 — Requirements 12.3)
+        // Non-fatal: log a warning if the script is outside the format's target range.
+        if (formatId) {
+            const formatMeta = formatRegistry.getFormat(formatId);
+            if (formatMeta) {
+                const wordCount = countScriptWords(screenplay);
+                const durationResult = validateDurationConstraint(wordCount, formatMeta);
+                if (!durationResult.valid) {
+                    log.warn(`Duration constraint: ${durationResult.message} (${wordCount} words, ~${durationResult.estimatedSeconds}s estimated)`);
+                } else {
+                    log.info(`Duration OK: ~${durationResult.estimatedSeconds}s for ${formatMeta.name} (${wordCount} words)`);
+                }
+            }
+        }
 
         // Step 3: Screenplay → Characters (text extraction only, no images yet)
         onProgress?.({ stage: 'characters', message: 'Extracting characters...', progress: 45 });

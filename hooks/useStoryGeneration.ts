@@ -49,6 +49,7 @@ import {
 import { getCharacterSeed } from '@/services/imageService';
 import { cleanForTTS, cleanForSubtitles } from '@/services/textSanitizer';
 import { generateVoiceoverScripts } from '@/services/ai/storyPipeline';
+import { detectLanguage } from '@/services/languageDetector';
 
 /**
  * Generate anti-style negative prompts based on chosen visual style.
@@ -1684,10 +1685,10 @@ export function useStoryGeneration(projectId?: string | null) {
                 screenplayScenes[0]?.action || '',
                 screenplayScenes[0]?.heading || '',
             ].join(' ');
-            const isArabicContent = /[\u0600-\u06FF]/.test(sampleSources);
+            const detectedLang = detectLanguage(sampleSources);
             const narratorConfig: NarratorConfig = {
                 videoPurpose: 'storytelling',
-                ...(isArabicContent ? { language: 'ar' as const } : {}),
+                ...(detectedLang === 'ar' ? { language: 'ar' as const } : {}),
             };
 
             for (let i = 0; i < scenesForNarration.length; i++) {

@@ -187,35 +187,77 @@ export async function flushPendingPersistence(sessionId: string): Promise<void> 
 // ============================================================
 
 /**
- * Save story mode session with IndexedDB persistence
+ * Save story mode session with IndexedDB persistence.
+ * Automatically stamps updatedAt and preserves formatId for isolation.
  */
 export function saveStoryModeSession(sessionId: string, state: StoryModeState): void {
-    storyModeStore.set(sessionId, state);
+    // Ensure updatedAt is current
+    const stamped: StoryModeState = { ...state, updatedAt: Date.now() };
+    storyModeStore.set(sessionId, stamped);
 
     // Persist to IndexedDB (fire-and-forget)
-    saveStorySession(sessionId, state).catch(err => {
+    saveStorySession(sessionId, stamped).catch(err => {
         log.warn('Story session persistence failed:', err);
     });
 }
 
 /**
- * Load story mode session (memory first, then IndexedDB)
+ * Load story mode session (memory first, then IndexedDB).
+ * If formatId is provided, validates that the loaded session matches the format.
  */
-export async function loadStoryModeSession(sessionId: string): Promise<StoryModeState | null> {
+export async function loadStoryModeSession(
+    sessionId: string,
+    expectedFormatId?: string,
+): Promise<StoryModeState | null> {
     // Check memory first
     const memoryState = storyModeStore.get(sessionId);
     if (memoryState) {
+        if (expectedFormatId && memoryState.formatId && memoryState.formatId !== expectedFormatId) {
+            log.debug(`Session ${sessionId} format mismatch: expected ${expectedFormatId}, got ${memoryState.formatId}`);
+            return null;
+        }
         return memoryState;
     }
 
     // Try IndexedDB
     const persistedState = await loadStorySession(sessionId);
     if (persistedState) {
+        if (expectedFormatId && persistedState.formatId && persistedState.formatId !== expectedFormatId) {
+            log.debug(`Persisted session ${sessionId} format mismatch: expected ${expectedFormatId}, got ${persistedState.formatId}`);
+            return null;
+        }
         storyModeStore.set(sessionId, persistedState);
         return persistedState;
     }
 
     return null;
+}
+
+/**
+ * Get all story sessions matching a specific format ID.
+ * Searches both in-memory cache and IndexedDB.
+ * Useful for format-specific state isolation (Requirement 18.4).
+ */
+export function getStorySessionsByFormat(formatId: string): StoryModeState[] {
+    const results: StoryModeState[] = [];
+    for (const state of storyModeStore.values()) {
+        if (state.formatId === formatId) {
+            results.push(state);
+        }
+    }
+    return results.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+/**
+ * Clear all story mode sessions for a specific format.
+ * Useful when switching formats to ensure clean state.
+ */
+export function clearStorySessionsByFormat(formatId: string): void {
+    for (const [key, state] of storyModeStore.entries()) {
+        if (state.formatId === formatId) {
+            storyModeStore.delete(key);
+        }
+    }
 }
 
 // ============================================================
