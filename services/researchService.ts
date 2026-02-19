@@ -12,6 +12,15 @@ import { ParallelExecutionEngine, Task } from './parallelExecutionEngine';
 import { ai, MODELS } from './shared/apiClient';
 import { Type } from '@google/genai';
 
+// Grounded response shape (candidates[0].groundingMetadata)
+interface GroundingChunk {
+  web?: { uri?: string; title?: string };
+}
+interface GroundingMetadata {
+  webSearchQueries?: string[];
+  groundingChunks?: GroundingChunk[];
+}
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -307,21 +316,33 @@ Respond with JSON containing research sources. ${langInstruction}`;
     };
 
     const response = await ai.models.generateContent({
-      model: MODELS.TEXT,
+      model: MODELS.TEXT_GROUNDED,
       contents: prompt,
       config: {
+        tools: [{ googleSearch: {} }],
         responseMimeType: 'application/json',
         responseSchema,
       },
     });
 
+    // Extract real web sources from grounding metadata (when available)
+    const groundingMeta = (response.candidates?.[0] as { groundingMetadata?: GroundingMetadata } | undefined)
+      ?.groundingMetadata;
+    const groundedUrls: Record<number, string> = {};
+    if (groundingMeta?.groundingChunks) {
+      groundingMeta.groundingChunks.forEach((chunk, i) => {
+        if (chunk.web?.uri) groundedUrls[i] = chunk.web.uri;
+      });
+    }
+
     const raw: { sources?: Array<{ title: string; content: string; relevance: number }> } =
       JSON.parse(response.text ?? '{"sources":[]}');
 
-    return (raw.sources ?? []).map((s) => ({
+    return (raw.sources ?? []).map((s, i) => ({
       id: crypto.randomUUID(),
       title: s.title,
       content: s.content,
+      url: groundedUrls[i],
       type,
       relevance: Math.min(QUERY_RELEVANCE_MAX, Math.max(0, s.relevance ?? 0.5)),
       language,

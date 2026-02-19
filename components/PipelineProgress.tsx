@@ -41,6 +41,8 @@ export interface PipelineProgressProps {
   onCancel: () => void;
   /** Whether cancellation is in progress */
   isCancelling?: boolean;
+  /** When true, only renders the task list and summary stats (no header or progress bar) */
+  summaryOnly?: boolean;
   className?: string;
 }
 
@@ -76,6 +78,7 @@ export function PipelineProgress({
   isRunning,
   onCancel,
   isCancelling = false,
+  summaryOnly = false,
   className,
 }: PipelineProgressProps) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -120,83 +123,87 @@ export function PipelineProgress({
       aria-label={`Pipeline progress: ${overallProgress}% complete`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-medium text-zinc-100">
-            {currentPhase || 'Pipeline'}
-          </h2>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="font-mono text-xs text-zinc-500">
-              {executionProgress
-                ? `${executionProgress.completedTasks}/${executionProgress.totalTasks} tasks`
-                : 'Initializing...'}
-            </span>
-            {estimatedTime > 0 && (
-              <span className="flex items-center gap-1 font-mono text-xs text-zinc-600">
-                <Clock className="w-3 h-3" />
-                {formatTimeRemaining(estimatedTime)}
+      {!summaryOnly && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-medium text-zinc-100">
+              {currentPhase || 'Pipeline'}
+            </h2>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="font-mono text-xs text-zinc-500">
+                {executionProgress
+                  ? `${executionProgress.completedTasks}/${executionProgress.totalTasks} tasks`
+                  : 'Initializing...'}
               </span>
-            )}
+              {estimatedTime > 0 && (
+                <span className="flex items-center gap-1 font-mono text-xs text-zinc-600">
+                  <Clock className="w-3 h-3" />
+                  {formatTimeRemaining(estimatedTime)}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Cancel button */}
-        {isRunning && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isCancelling}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-sm border text-xs font-mono transition-colors duration-200',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                showCancelConfirm
-                  ? 'bg-red-500/10 border-red-500/50 text-red-400'
-                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200',
-              )}
-            >
-              {isCancelling ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Cancelling...</span>
-                </>
-              ) : showCancelConfirm ? (
-                <>
-                  <AlertTriangle className="w-3 h-3" />
-                  <span>Confirm cancel?</span>
-                </>
-              ) : (
-                <>
-                  <X className="w-3 h-3" />
-                  <span>Cancel</span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+          {/* Cancel button */}
+          {isRunning && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={isCancelling}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1.5 rounded-sm border text-xs font-mono transition-colors duration-200',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  showCancelConfirm
+                    ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200',
+                )}
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Cancelling...</span>
+                  </>
+                ) : showCancelConfirm ? (
+                  <>
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>Confirm cancel?</span>
+                  </>
+                ) : (
+                  <>
+                    <X className="w-3 h-3" />
+                    <span>Cancel</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Overall Progress Bar */}
-      <div className="mb-6">
-        <div className="flex justify-between text-xs mb-1.5">
-          <span className="font-mono text-zinc-500">Overall</span>
-          <span className="font-mono text-zinc-400">{overallProgress}%</span>
+      {!summaryOnly && (
+        <div className="mb-6">
+          <div className="flex justify-between text-xs mb-1.5">
+            <span className="font-mono text-zinc-500">Overall</span>
+            <span className="font-mono text-zinc-400">{overallProgress}%</span>
+          </div>
+          <div
+            className="h-1.5 bg-zinc-900 rounded-sm overflow-hidden"
+            role="progressbar"
+            aria-valuenow={overallProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <motion.div
+              className="h-full bg-blue-500 rounded-sm"
+              initial={{ width: 0 }}
+              animate={{ width: `${overallProgress}%` }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            />
+          </div>
         </div>
-        <div
-          className="h-1.5 bg-zinc-900 rounded-sm overflow-hidden"
-          role="progressbar"
-          aria-valuenow={overallProgress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <motion.div
-            className="h-full bg-blue-500 rounded-sm"
-            initial={{ width: 0 }}
-            animate={{ width: `${overallProgress}%` }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Concurrent Task List */}
       {tasks.length > 0 && (

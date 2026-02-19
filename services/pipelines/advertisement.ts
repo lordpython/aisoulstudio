@@ -8,7 +8,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import {
   buildBreakdownPrompt,
@@ -76,12 +76,18 @@ export class AdvertisementPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `ad_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting Advertisement pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
@@ -147,7 +153,17 @@ export class AdvertisementPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 1: Script with CTA — Requirement 4.5
-      const scriptApproval = await checkpoints.createCheckpoint('script-with-cta');
+      const scriptApproval = await checkpoints.createCheckpoint('script-with-cta', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          action: s.action.slice(0, 200),
+        })),
+        ctaText,
+        wordCount,
+        estimatedDuration: durationCheck.estimatedSeconds,
+        durationValid: durationCheck.valid,
+      });
       if (!scriptApproval.approved) {
         log.info('Script rejected by user');
         checkpoints.dispose();
@@ -271,7 +287,14 @@ export class AdvertisementPipeline implements FormatPipeline {
       });
 
       // Checkpoint 2: Final Preview — Requirement 4.5
-      const finalApproval = await checkpoints.createCheckpoint('final-preview');
+      const finalApproval = await checkpoints.createCheckpoint('final-preview', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+        ctaText,
+        ctaPositionValid: ctaValid,
+      });
       if (!finalApproval.approved) {
         log.info('Final preview rejected by user');
         checkpoints.dispose();

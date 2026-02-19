@@ -8,7 +8,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import { ResearchService, type ResearchResult } from '../researchService';
 import {
@@ -83,12 +83,18 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `yt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting YouTube Narrator pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
@@ -99,19 +105,14 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       log.info('Phase 1: Research');
 
       let researchResult: ResearchResult | undefined;
-      let indexedDocs;
-
-      if (request.referenceDocuments?.length) {
-        indexedDocs = await this.researchService.prioritizeReferences(request.referenceDocuments);
-      }
 
       researchResult = await this.researchService.research({
         topic: request.idea,
         language,
         depth: 'medium',
-        sources: ['web', 'knowledge-base', ...(indexedDocs ? ['references' as const] : [])],
+        sources: ['web', 'knowledge-base', ...(request.referenceDocuments?.length ? ['references' as const] : [])],
         maxResults: 10,
-        referenceDocuments: indexedDocs,
+        referenceDocuments: request.referenceDocuments,
       });
 
       log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
@@ -175,7 +176,14 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 1: Script Review — Requirement 3.6
-      const scriptApproval = await checkpoints.createCheckpoint('script-review');
+      const scriptApproval = await checkpoints.createCheckpoint('script-review', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          action: s.action.length > 200 ? s.action.slice(0, 200) + '...' : s.action,
+        })),
+        estimatedDuration: `${Math.round(durationCheck.estimatedSeconds)}s`,
+      });
       if (!scriptApproval.approved) {
         log.info('Script rejected by user');
         checkpoints.dispose();
@@ -246,7 +254,14 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 2: Visual Preview — Requirement 3.6
-      const visualApproval = await checkpoints.createCheckpoint('visual-preview');
+      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+        visuals: visuals.map(v => ({
+          sceneId: v.sceneId,
+          imageUrl: v.imageUrl,
+        })),
+        visualCount: visuals.length,
+        totalScenes: screenplay.length,
+      });
       if (!visualApproval.approved) {
         log.info('Visuals rejected by user');
         checkpoints.dispose();
@@ -303,7 +318,12 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       const assemblyRules = buildAssemblyRules(FORMAT_ID, { totalDuration });
 
       // Checkpoint 3: Final Assembly — Requirement 3.6
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly');
+      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+      });
       if (!assemblyApproval.approved) {
         log.info('Assembly rejected by user');
         checkpoints.dispose();

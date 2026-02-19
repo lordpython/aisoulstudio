@@ -48,6 +48,7 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { GraphiteTimeline } from '@/components/TimelineEditor';
 import { useAppStore } from '@/stores';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
+import { useFormatPipeline } from '@/hooks/useFormatPipeline';
 import { useProjectSession } from '@/hooks/useProjectSession';
 import { getCurrentUser } from '@/services/firebase/authService';
 import { StoryWorkspace } from '@/components/story';
@@ -108,6 +109,9 @@ export default function StudioScreen() {
 
   // Story Generation Hook - pass projectId so it resets state for new projects
   const storyHook = useStoryGeneration(params.projectId);
+
+  // Format Pipeline Hook - for non-movie-animation format pipelines
+  const formatPipelineHook = useFormatPipeline();
 
   // Modal state (unified)
   const {
@@ -831,6 +835,24 @@ export default function StudioScreen() {
     alert('Test media loaded! You can now export.');
   }, [setContentPlan, setVisuals, setNarrationSegments, setAppState]);
 
+  // Handle format pipeline execution — delegates movie-animation to storyHook
+  const handleFormatExecute = useCallback(() => {
+    if (formatPipelineHook.selectedFormat === 'movie-animation') {
+      // Delegate to existing story generation pipeline
+      const idea = formatPipelineHook.idea || storyInitialTopic || topic || '';
+      const genre = formatPipelineHook.selectedGenre || 'Drama';
+      setStoryInitialTopic(idea);
+      storyHook.updateGenre(genre);
+      storyHook.generateBreakdown(idea, genre);
+    } else {
+      // Run format-specific pipeline
+      const user = getCurrentUser();
+      const userId = user?.uid ?? 'anonymous';
+      const projectId = params.projectId ?? `fp_${Date.now()}`;
+      formatPipelineHook.execute(userId, projectId);
+    }
+  }, [formatPipelineHook, storyHook, storyInitialTopic, topic, params.projectId]);
+
   // Quick actions for welcome state
   const quickActionItems = useMemo(() => [
     { icon: MusicIcon, label: t('home.createMusic'), prompt: 'Generate an upbeat synthwave track about city lights at night' },
@@ -1049,6 +1071,8 @@ export default function StudioScreen() {
           <StoryWorkspace
             storyState={storyHook.state}
             initialTopic={storyInitialTopic || topic || ''}
+            formatPipelineHook={formatPipelineHook}
+            onFormatExecute={handleFormatExecute}
             onGenerateIdea={(storyTopic, genre) => {
               setStoryInitialTopic(storyTopic);
               storyHook.updateGenre(genre);

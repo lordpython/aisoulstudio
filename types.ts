@@ -674,6 +674,8 @@ export interface CheckpointState {
   phase: string;
   status: 'pending' | 'approved' | 'rejected';
   approvedAt?: Date;
+  /** Arbitrary preview data attached by the pipeline at checkpoint creation */
+  data?: Record<string, unknown>;
 }
 
 // --- Music / Beat Metadata Types (Task 9.3) ---

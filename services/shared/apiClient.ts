@@ -47,6 +47,9 @@ export const MODELS = {
   TRANSLATION: "gemini-3-flash-preview",
   TTS: "gemini-2.5-flash-preview-tts", // Supports AUDIO output modality
 
+  // Grounded research model (Google Search grounding enabled in researchService)
+  TEXT_GROUNDED: "gemini-3-flash-preview",
+
   // Alternative models
   TEXT_EXP: "gemini-3-pro-preview", // Latest reasoning model
   TEXT_LEGACY: "gemini-3-pro-preview",

@@ -9,7 +9,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import { ResearchService, type ResearchResult } from '../researchService';
 import {
@@ -83,12 +83,18 @@ export class NewsPoliticsPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `news_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting News/Politics pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
@@ -98,24 +104,24 @@ export class NewsPoliticsPipeline implements FormatPipeline {
       // ----------------------------------------------------------------
       log.info('Phase 1: Balanced multi-source research');
 
-      let indexedDocs;
-      if (request.referenceDocuments?.length) {
-        indexedDocs = await this.researchService.prioritizeReferences(request.referenceDocuments);
-      }
-
       const researchResult: ResearchResult = await this.researchService.research({
         topic: request.idea,
         language,
         depth: 'medium',
-        sources: ['web', 'knowledge-base', ...(indexedDocs ? ['references' as const] : [])],
+        sources: ['web', 'knowledge-base', ...(request.referenceDocuments?.length ? ['references' as const] : [])],
         maxResults: 12,
-        referenceDocuments: indexedDocs,
+        referenceDocuments: request.referenceDocuments,
       });
 
       log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
       // Checkpoint 1: Research and Sources — Requirement 9.5
-      const researchApproval = await checkpoints.createCheckpoint('research-and-sources');
+      const researchApproval = await checkpoints.createCheckpoint('research-and-sources', {
+        sourceCount: researchResult.sources.length,
+        confidence: researchResult.confidence,
+        topics: researchResult.sources.map(s => s.title).slice(0, 5),
+        summaryPreview: researchResult.summary.slice(0, 300),
+      });
       if (!researchApproval.approved) {
         log.info('Research rejected by user');
         checkpoints.dispose();
@@ -178,7 +184,13 @@ export class NewsPoliticsPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 2: Script Review — Requirement 9.5
-      const scriptApproval = await checkpoints.createCheckpoint('script-review');
+      const scriptApproval = await checkpoints.createCheckpoint('script-review', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          actionPreview: s.action.slice(0, 120),
+        })),
+      });
       if (!scriptApproval.approved) {
         log.info('Script rejected by user');
         checkpoints.dispose();
@@ -259,13 +271,13 @@ export class NewsPoliticsPipeline implements FormatPipeline {
         duration: durationCheck.estimatedSeconds / screenplay.length,
         visualDescription: s.action,
         narrationScript: s.dialogue.map(d => d.text).join(' '),
-        emotionalTone: 'solemn' as const,
+        emotionalTone: 'dramatic',
       }));
 
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'news',
+        videoPurpose: 'documentary',
         language: language as any,
         styleOverride: voiceConfig.stylePrompt,
       };
@@ -291,7 +303,12 @@ export class NewsPoliticsPipeline implements FormatPipeline {
       const assemblyRules = buildAssemblyRules(FORMAT_ID, { totalDuration });
 
       // Checkpoint 3: Final Assembly — Requirement 9.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly');
+      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+      });
       if (!assemblyApproval.approved) {
         log.info('Assembly rejected by user');
         checkpoints.dispose();

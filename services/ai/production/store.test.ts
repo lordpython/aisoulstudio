@@ -61,7 +61,7 @@ describe('State Persistence', () => {
         topic: 'Full state test',
         breakdown: 'Act 1: Introduction\nAct 2: Conflict',
         screenplay: [
-          { heading: 'EXT. PARK - DAY', action: 'A dog runs', dialogue: [] },
+          { id: 'sc1', sceneNumber: 1, heading: 'EXT. PARK - DAY', action: 'A dog runs', dialogue: [], charactersPresent: [] },
         ],
         characters: [
           { id: 'c1', name: 'Hero', role: 'protagonist', visualDescription: 'Tall warrior' },

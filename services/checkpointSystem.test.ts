@@ -163,7 +163,7 @@ describe('CheckpointSystem', () => {
     it('should auto-approve on custom timeout', async () => {
       const system = new CheckpointSystem({ maxCheckpoints: 3 });
 
-      const promise = system.createCheckpoint('quick_review', 5000);
+      const promise = system.createCheckpoint('quick_review', undefined, 5000);
 
       // Advance past 5-second custom timeout
       await vi.advanceTimersByTimeAsync(5100);

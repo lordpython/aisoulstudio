@@ -62,6 +62,7 @@ export class CheckpointSystem {
    */
   async createCheckpoint(
     phase: string,
+    data?: Record<string, unknown>,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
   ): Promise<CheckpointApproval> {
     // Enforce checkpoint count constraint (Requirement 17.4)
@@ -75,6 +76,7 @@ export class CheckpointSystem {
       checkpointId,
       phase,
       status: 'pending',
+      data,
     };
 
     this.checkpoints.set(checkpointId, checkpoint);

@@ -8,7 +8,10 @@
  */
 
 import { formatRegistry } from './formatRegistry';
-import { VideoFormat, FormatMetadata } from '../types';
+import { VideoFormat, FormatMetadata, CheckpointState } from '../types';
+import type { IndexedDocument } from './documentParser';
+import type { CheckpointSystem } from './checkpointSystem';
+import type { ExecutionProgress } from './parallelExecutionEngine';
 
 /**
  * Pipeline request interface
@@ -18,9 +21,19 @@ export interface PipelineRequest {
   idea: string;
   genre?: string;
   language: 'ar' | 'en';
-  referenceDocuments?: File[];
+  referenceDocuments?: IndexedDocument[];
   userId: string;
   projectId: string;
+}
+
+/**
+ * Callbacks for pipeline UI integration
+ */
+export interface PipelineCallbacks {
+  onCheckpointCreated?: (checkpoint: CheckpointState) => void;
+  onCheckpointSystemCreated?: (system: CheckpointSystem) => void;
+  onProgress?: (progress: ExecutionProgress) => void;
+  onCancelRequested?: (cancelFn: () => void) => void;
 }
 
 /**
@@ -38,7 +51,7 @@ export interface PipelineResult {
  * Format-specific pipeline interface
  */
 export interface FormatPipeline {
-  execute(request: PipelineRequest): Promise<PipelineResult>;
+  execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult>;
   validate?(request: PipelineRequest): Promise<boolean>;
   getMetadata(): FormatMetadata;
 }
@@ -148,7 +161,7 @@ export class FormatRouter {
    * @returns Pipeline execution result
    * @throws FormatRouterError if validation or execution fails
    */
-  async dispatch(request: PipelineRequest): Promise<PipelineResult> {
+  async dispatch(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     try {
       // Validate format ID
       this.validateFormat(request.formatId);
@@ -215,7 +228,7 @@ export class FormatRouter {
       }
 
       // Execute pipeline with format-specific parameters
-      const result = await pipeline.execute(request);
+      const result = await pipeline.execute(request, callbacks);
 
       // Attach warnings to result
       if (warnings.length > 0) {

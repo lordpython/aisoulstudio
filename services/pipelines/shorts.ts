@@ -9,7 +9,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import {
   buildBreakdownPrompt,
@@ -77,12 +77,18 @@ export class ShortsPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `sht_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting Shorts pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
@@ -143,7 +149,13 @@ export class ShortsPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 1: Hook Preview — Requirement 6.5
-      const hookApproval = await checkpoints.createCheckpoint('hook-preview');
+      const hookApproval = await checkpoints.createCheckpoint('hook-preview', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          action: s.action.length > 200 ? s.action.slice(0, 200) + '...' : s.action,
+        })),
+      });
       if (!hookApproval.approved) {
         log.info('Hook rejected by user');
         checkpoints.dispose();
@@ -230,7 +242,7 @@ export class ShortsPipeline implements FormatPipeline {
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'social',
+        videoPurpose: 'social_short',
         language: language as any,
         styleOverride: voiceConfig.stylePrompt,
       };
@@ -256,7 +268,12 @@ export class ShortsPipeline implements FormatPipeline {
       const assemblyRules = buildAssemblyRules(FORMAT_ID, { totalDuration });
 
       // Checkpoint 2: Final Assembly — Requirement 6.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly');
+      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+      });
       if (!assemblyApproval.approved) {
         log.info('Assembly rejected by user');
         checkpoints.dispose();

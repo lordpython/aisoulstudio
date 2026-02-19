@@ -316,14 +316,19 @@ describe('DocumentaryPipeline', () => {
       expect(state.language).toBe('en');
     });
 
-    it('should prioritize reference documents when provided (Req 7.6)', async () => {
+    it('should pass reference documents directly to research service (Req 7.6)', async () => {
+      const mockDocs = [{ id: 'doc1', filename: 'source.pdf', content: 'test', chunks: ['test'], metadata: {} }];
       const requestWithRefs: PipelineRequest = {
         ...baseRequest,
-        referenceDocuments: [new File(['content'], 'source.pdf', { type: 'application/pdf' })],
+        referenceDocuments: mockDocs as any,
       };
 
       await pipeline.execute(requestWithRefs);
-      expect(mockResearchService.prioritizeReferences).toHaveBeenCalled();
+      expect(mockResearchService.research).toHaveBeenCalledWith(
+        expect.objectContaining({
+          referenceDocuments: mockDocs,
+        }),
+      );
     });
 
     it('should detect Arabic language and propagate it', async () => {

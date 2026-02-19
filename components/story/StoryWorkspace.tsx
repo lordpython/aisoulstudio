@@ -22,6 +22,12 @@ import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { ExportOptionsPanel } from './ExportOptionsPanel';
 import { useLanguage } from '@/i18n/useLanguage';
+import { FormatSelector } from '@/components/FormatSelector';
+import { PipelineProgress } from '@/components/PipelineProgress';
+import { CheckpointApproval } from '@/components/CheckpointApproval';
+import { ReferenceDocumentUpload } from '@/components/ReferenceDocumentUpload';
+import { formatRegistry } from '@/services/formatRegistry';
+import type { UseFormatPipelineReturn } from '@/hooks/useFormatPipeline';
 
 interface StageProgress {
     totalScenes: number;
@@ -72,6 +78,10 @@ interface StoryWorkspaceProps {
     onApplyTemplate?: (state: Partial<StoryState>) => void;
     onImportProject?: (state: StoryState) => void;
     projectId?: string;
+    /** Format pipeline hook for multi-format support */
+    formatPipelineHook?: UseFormatPipelineReturn;
+    /** Called when user clicks "Start Production" in FormatSelector */
+    onFormatExecute?: () => void;
 }
 
 type MainStep = 'idea' | 'breakdown' | 'storyboard';
@@ -124,6 +134,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onApplyTemplate,
     onImportProject,
     projectId,
+    formatPipelineHook,
+    onFormatExecute,
 }) => {
     const { t } = useLanguage();
 
@@ -229,6 +241,165 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
 
     const renderMainContent = () => {
         if (activeMainTab === 'idea') {
+            // If format pipeline hook is provided, use the multi-format flow
+            if (formatPipelineHook) {
+                const fpHook = formatPipelineHook;
+                const isMovieAnimation = fpHook.selectedFormat === 'movie-animation';
+
+                // State 1: Pipeline is running (non-movie format) → PipelineProgress
+                if (fpHook.isRunning && !isMovieAnimation) {
+                    return (
+                        <motion.div key="pipeline-progress" {...quickFade} className="h-full flex items-center justify-center p-8">
+                            <PipelineProgress
+                                executionProgress={fpHook.executionProgress}
+                                tasks={fpHook.tasks}
+                                currentPhase={fpHook.currentPhase}
+                                isRunning={fpHook.isRunning}
+                                onCancel={fpHook.cancel}
+                                isCancelling={fpHook.isCancelling}
+                            />
+                        </motion.div>
+                    );
+                }
+
+                // State 2: Pipeline completed (success) → result view
+                if (!fpHook.isRunning && fpHook.result?.success) {
+                    return (
+                        <motion.div key="pipeline-complete" {...quickFade} className="h-full flex items-center justify-center p-8">
+                            <div className="w-full max-w-2xl mx-auto text-center">
+                                <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                    <Check className="w-8 h-8 text-emerald-400" />
+                                </div>
+                                <h2 className="text-2xl font-medium text-zinc-100 mb-2">Production Complete</h2>
+                                <p className="text-zinc-400 text-sm mb-8">
+                                    Your {fpHook.selectedFormat ? formatRegistry.getFormat(fpHook.selectedFormat)?.name : 'video'} has been generated successfully.
+                                </p>
+                                {/* Completed task summary */}
+                                <div className="mb-8">
+                                    <PipelineProgress
+                                        executionProgress={fpHook.executionProgress}
+                                        tasks={fpHook.tasks}
+                                        currentPhase="Complete"
+                                        isRunning={false}
+                                        onCancel={() => {}}
+                                        summaryOnly
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={fpHook.reset}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-sm font-mono text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors duration-200"
+                                >
+                                    <RefreshCcw className="w-4 h-4" />
+                                    Start New Production
+                                </button>
+                            </div>
+                        </motion.div>
+                    );
+                }
+
+                // State 3: Pipeline failed or cancelled → error view with retry
+                if (!fpHook.isRunning && (fpHook.error || fpHook.result?.success === false)) {
+                    const errorMsg = fpHook.error || fpHook.result?.error || 'Pipeline failed';
+                    const wasCancelled = fpHook.tasks.some(t => t.status === 'cancelled');
+                    return (
+                        <motion.div key="pipeline-error" {...quickFade} className="h-full flex items-center justify-center p-8">
+                            <div className="w-full max-w-2xl mx-auto text-center">
+                                <div className={`w-16 h-16 mx-auto mb-6 rounded-full flex items-center justify-center ${wasCancelled ? 'bg-zinc-500/10 border border-zinc-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                                    {wasCancelled
+                                        ? <X className="w-8 h-8 text-zinc-400" />
+                                        : <AlertCircle className="w-8 h-8 text-red-400" />
+                                    }
+                                </div>
+                                <h2 className="text-2xl font-medium text-zinc-100 mb-2">
+                                    {wasCancelled ? 'Production Cancelled' : 'Production Failed'}
+                                </h2>
+                                <p className="text-zinc-400 text-sm mb-4">{errorMsg}</p>
+                                {/* Task summary showing what completed */}
+                                {fpHook.tasks.length > 0 && (
+                                    <div className="mb-8">
+                                        <PipelineProgress
+                                            executionProgress={fpHook.executionProgress}
+                                            tasks={fpHook.tasks}
+                                            currentPhase={wasCancelled ? 'Cancelled' : 'Failed'}
+                                            isRunning={false}
+                                            onCancel={() => {}}
+                                            summaryOnly
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={fpHook.reset}
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-sm font-mono text-sm font-medium border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition-colors duration-200"
+                                    >
+                                        <RefreshCcw className="w-4 h-4" />
+                                        Start Over
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    );
+                }
+
+                // State 4: movie-animation selected → IdeaView with synced idea/genre
+                if (isMovieAnimation) {
+                    return (
+                        <motion.div key="idea" {...quickFade} className="h-full">
+                            <IdeaView
+                                initialTopic={fpHook.idea || initialTopic}
+                                onGenerate={(topic, genre) => onGenerateIdea?.(topic, genre)}
+                                onApplyTemplate={onApplyTemplate}
+                                isProcessing={isProcessing}
+                            />
+                        </motion.div>
+                    );
+                }
+
+                // State 5: FormatSelector (no format yet, or a non-movie format selected but idle)
+                const selectedMeta = fpHook.selectedFormat ? formatRegistry.getFormat(fpHook.selectedFormat) : null;
+                return (
+                    <motion.div key="format-selector" {...quickFade} className="h-full overflow-y-auto">
+                        {/* Error banner from previous failed attempt */}
+                        {fpHook.error && !fpHook.isRunning && !fpHook.result && (
+                            <div className="mx-6 mt-6 p-4 rounded-sm bg-red-500/10 border border-red-500/30 flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-sm text-zinc-100 font-medium">Something went wrong</p>
+                                    <p className="text-xs text-zinc-500 mt-1">{fpHook.error}</p>
+                                </div>
+                            </div>
+                        )}
+                        <FormatSelector
+                            selectedFormat={fpHook.selectedFormat}
+                            onFormatSelect={fpHook.setFormat}
+                            selectedGenre={fpHook.selectedGenre}
+                            onGenreSelect={fpHook.setGenre}
+                            idea={fpHook.idea}
+                            onIdeaChange={fpHook.setIdea}
+                            onExecute={() => onFormatExecute?.()}
+                            isProcessing={fpHook.isRunning}
+                        />
+                        {/* Reference document upload for research formats */}
+                        {selectedMeta?.requiresResearch && (
+                            <div className="px-6 pb-12 max-w-3xl mx-auto">
+                                <div className="mb-3">
+                                    <span className="font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-zinc-500">
+                                        Reference Documents (Optional)
+                                    </span>
+                                </div>
+                                <ReferenceDocumentUpload
+                                    documents={fpHook.referenceDocuments}
+                                    onDocumentsChange={fpHook.setReferenceDocuments}
+                                />
+                            </div>
+                        )}
+                    </motion.div>
+                );
+            }
+
+            // Fallback: no format pipeline hook — existing IdeaView (backward compat)
             return (
                 <motion.div key="idea" {...quickFade} className="h-full">
                     <IdeaView
@@ -960,6 +1131,110 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         </motion.div>
                     </motion.div>
                 )}
+            </AnimatePresence>
+
+            {/* Checkpoint Approval Overlay */}
+            <AnimatePresence>
+                {formatPipelineHook?.activeCheckpoint && (() => {
+                    const cp = formatPipelineHook.activeCheckpoint;
+                    const d = cp.data ?? {};
+                    const phase = cp.phase;
+
+                    // Build preview content from checkpoint data
+                    let previewContent: React.ReactNode = null;
+                    const scenes = d.scenes as { heading: string; action: string }[] | undefined;
+                    const visuals = d.visuals as { sceneId: string; imageUrl: string }[] | undefined;
+
+                    if (scenes && scenes.length > 0) {
+                        previewContent = (
+                            <div className="space-y-2">
+                                {d.sceneCount ? <p className="text-xs text-zinc-500 mb-2">{String(d.sceneCount)} scenes {d.estimatedDuration ? `· ${d.estimatedDuration}` : ''}</p> : null}
+                                {scenes.map((s, i) => (
+                                    <div key={i} className="flex gap-3 items-start">
+                                        <span className="font-mono text-[10px] text-blue-400 shrink-0 mt-0.5">{String(i + 1).padStart(2, '0')}</span>
+                                        <div className="min-w-0">
+                                            <p className="text-sm text-zinc-200 font-medium">{s.heading}</p>
+                                            <p className="text-xs text-zinc-500 line-clamp-2" dir="auto">{s.action}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    }
+
+                    if (visuals && visuals.length > 0) {
+                        previewContent = (
+                            <div>
+                                {d.visualCount != null && <p className="text-xs text-zinc-500 mb-2">{d.visualCount as number}/{d.totalScenes as number ?? '?'} visuals generated</p>}
+                                <div className="grid grid-cols-3 gap-2">
+                                    {visuals.map((v, i) => (
+                                        <div key={i} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
+                                            <img src={v.imageUrl} alt={`Scene ${i + 1}`} className="w-full h-full object-cover" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (phase.includes('final') || phase.includes('assembly')) {
+                        const stats = [
+                            d.sceneCount != null && `${d.sceneCount} scenes`,
+                            d.visualCount != null && `${d.visualCount} visuals`,
+                            d.narrationCount != null && `${d.narrationCount} narrations`,
+                            d.totalDuration != null && `${Math.round(d.totalDuration as number)}s total`,
+                        ].filter(Boolean);
+                        if (stats.length > 0 && !scenes && !visuals) {
+                            previewContent = (
+                                <div className="flex flex-wrap gap-3">
+                                    {stats.map((s, i) => (
+                                        <span key={i} className="px-2.5 py-1 bg-zinc-800 rounded-sm text-xs font-mono text-zinc-300">{s}</span>
+                                    ))}
+                                </div>
+                            );
+                        }
+                    }
+
+                    if (d.sourceCount != null && !scenes && !visuals) {
+                        previewContent = (
+                            <div className="space-y-1">
+                                <p className="text-sm text-zinc-300">{d.sourceCount as number} sources found</p>
+                                {d.confidence != null && <p className="text-xs text-zinc-500">Confidence: {Math.round((d.confidence as number) * 100)}%</p>}
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.97, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.97, opacity: 0 }}
+                                transition={{ duration: 0.15 }}
+                                className={`w-full ${visuals && visuals.length > 0 ? 'max-w-3xl' : 'max-w-2xl'} max-h-[80vh] overflow-y-auto`}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="bg-zinc-900 border border-zinc-700 rounded-sm p-6">
+                                    <CheckpointApproval
+                                        checkpointId={cp.checkpointId}
+                                        phase={cp.phase}
+                                        title={`Review: ${cp.phase.replace(/-/g, ' ')}`}
+                                        description={previewContent ? undefined : "Review the generated content before the pipeline continues to the next phase."}
+                                        previewData={previewContent}
+                                        onApprove={() => formatPipelineHook.approveCheckpoint()}
+                                        onRequestChanges={(_id, changeRequest) => formatPipelineHook.rejectCheckpoint(changeRequest)}
+                                    />
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    );
+                })()}
             </AnimatePresence>
         </div>
     );

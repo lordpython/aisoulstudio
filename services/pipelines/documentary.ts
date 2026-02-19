@@ -8,7 +8,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import { ResearchService, type ResearchResult } from '../researchService';
 import {
@@ -87,12 +87,18 @@ export class DocumentaryPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting Documentary pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
@@ -102,24 +108,24 @@ export class DocumentaryPipeline implements FormatPipeline {
       // ----------------------------------------------------------------
       log.info('Phase 1: Deep research across multiple sources');
 
-      let indexedDocs;
-      if (request.referenceDocuments?.length) {
-        indexedDocs = await this.researchService.prioritizeReferences(request.referenceDocuments);
-      }
-
       const researchResult: ResearchResult = await this.researchService.research({
         topic: request.idea,
         language,
         depth: 'deep',
-        sources: ['web', 'knowledge-base', ...(indexedDocs ? ['references' as const] : [])],
+        sources: ['web', 'knowledge-base', ...(request.referenceDocuments?.length ? ['references' as const] : [])],
         maxResults: 20,
-        referenceDocuments: indexedDocs,
+        referenceDocuments: request.referenceDocuments,
       });
 
       log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
       // Checkpoint 1: Research Summary — Requirement 7.5
-      const researchApproval = await checkpoints.createCheckpoint('research-summary');
+      const researchApproval = await checkpoints.createCheckpoint('research-summary', {
+        sourceCount: researchResult.sources.length,
+        confidence: researchResult.confidence,
+        keyTopics: researchResult.summary.slice(0, 200),
+        citationCount: researchResult.citations.length,
+      });
       if (!researchApproval.approved) {
         log.info('Research rejected by user');
         checkpoints.dispose();
@@ -182,7 +188,13 @@ export class DocumentaryPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 2: Chapter Structure — Requirement 7.5
-      const chapterApproval = await checkpoints.createCheckpoint('chapter-structure');
+      const chapterApproval = await checkpoints.createCheckpoint('chapter-structure', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          action: s.action.slice(0, 120),
+        })),
+      });
       if (!chapterApproval.approved) {
         log.info('Chapter structure rejected by user');
         checkpoints.dispose();
@@ -253,7 +265,14 @@ export class DocumentaryPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 3: Visual Preview — Requirement 7.5
-      const visualApproval = await checkpoints.createCheckpoint('visual-preview');
+      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+        visualCount: visuals.length,
+        totalScenes: screenplay.length,
+        visuals: visuals.map(v => ({
+          sceneId: v.sceneId,
+          imageUrl: v.imageUrl,
+        })),
+      });
       if (!visualApproval.approved) {
         log.info('Visuals rejected by user');
         checkpoints.dispose();
@@ -275,7 +294,7 @@ export class DocumentaryPipeline implements FormatPipeline {
         duration: durationCheck.estimatedSeconds / screenplay.length,
         visualDescription: s.action,
         narrationScript: s.dialogue.map(d => d.text).join(' '),
-        emotionalTone: 'solemn' as const,
+        emotionalTone: 'dramatic',
       }));
 
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
@@ -319,7 +338,12 @@ export class DocumentaryPipeline implements FormatPipeline {
       });
 
       // Checkpoint 4: Final Assembly — Requirement 7.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly');
+      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+      });
       if (!assemblyApproval.approved) {
         log.info('Assembly rejected by user');
         checkpoints.dispose();

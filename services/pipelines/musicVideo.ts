@@ -9,7 +9,7 @@
  */
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import {
   buildBreakdownPrompt,
@@ -96,12 +96,18 @@ export class MusicVideoPipeline implements FormatPipeline {
     return !!request.idea && request.idea.trim().length > 0;
   }
 
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const sessionId = `mv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
     log.info(`Starting Music Video pipeline: "${request.idea.slice(0, 60)}..." genre=${request.genre ?? 'Pop'} [${language}]`);
 
@@ -179,7 +185,20 @@ export class MusicVideoPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 1: Lyrics and Music — Requirement 8.5
-      const lyricsApproval = await checkpoints.createCheckpoint('lyrics-and-music');
+      const lyricsApproval = await checkpoints.createCheckpoint('lyrics-and-music', {
+        sceneCount: screenplay.length,
+        scenes: screenplay.map(s => ({
+          heading: s.heading,
+          action: s.action.slice(0, 120),
+        })),
+        lyrics: lyrics.map(l => ({
+          section: l.section,
+          lineCount: l.lines.length,
+        })),
+        bpm,
+        estimatedDuration,
+        beatCount: beatMetadata.beats.length,
+      });
       if (!lyricsApproval.approved) {
         log.info('Lyrics rejected by user');
         checkpoints.dispose();
@@ -257,7 +276,14 @@ export class MusicVideoPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       // Checkpoint 2: Visual Preview — Requirement 8.5
-      const visualApproval = await checkpoints.createCheckpoint('visual-preview');
+      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+        visuals: visuals.map(v => ({
+          sceneId: v.sceneId,
+          imageUrl: v.imageUrl,
+        })),
+        visualCount: visuals.length,
+        totalScenes: screenplay.length,
+      });
       if (!visualApproval.approved) {
         log.info('Visuals rejected by user');
         checkpoints.dispose();
@@ -279,13 +305,13 @@ export class MusicVideoPipeline implements FormatPipeline {
         duration: estimatedDuration / screenplay.length,
         visualDescription: s.action,
         narrationScript: s.dialogue.map(d => d.text).join('\n'),
-        emotionalTone: 'joyful' as const,
+        emotionalTone: 'friendly',
       }));
 
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'music',
+        videoPurpose: 'music_video',
         language: language as any,
         styleOverride: voiceConfig.stylePrompt,
       };
@@ -315,7 +341,12 @@ export class MusicVideoPipeline implements FormatPipeline {
       });
 
       // Checkpoint 3: Final Assembly — Requirement 8.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly');
+      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
+        sceneCount: screenplay.length,
+        visualCount: visuals.length,
+        narrationCount: narrationSegments.length,
+        totalDuration,
+      });
       if (!assemblyApproval.approved) {
         log.info('Assembly rejected by user');
         checkpoints.dispose();
