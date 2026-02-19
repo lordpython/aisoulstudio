@@ -1,0 +1,645 @@
+/* =============================================================================
+   Video Editor - CSS Foundation
+   Extends the graphite design tokens for the professional video editor layout
+   ============================================================================= */
+
+/* Import graphite tokens (already loaded via graphite-timeline.css) */
+
+/* -----------------------------------------------------------------------------
+   Additional Track Colors for Video Editor
+   ----------------------------------------------------------------------------- */
+:root {
+  /* Text track — blue */
+  --track-text: rgba(59, 130, 246, 0.12);
+  --track-text-border: rgba(59, 130, 246, 0.5);
+  --track-text-clip: rgba(59, 130, 246, 0.25);
+
+  /* Video track — teal */
+  --track-video-ed: rgba(20, 184, 166, 0.12);
+  --track-video-ed-border: rgba(20, 184, 166, 0.5);
+  --track-video-ed-clip: rgba(20, 184, 166, 0.25);
+
+  /* Image track — green */
+  --track-image: rgba(34, 197, 94, 0.12);
+  --track-image-border: rgba(34, 197, 94, 0.5);
+  --track-image-clip: rgba(34, 197, 94, 0.25);
+
+  /* Audio track — orange */
+  --track-audio-ed: rgba(249, 115, 22, 0.12);
+  --track-audio-ed-border: rgba(249, 115, 22, 0.5);
+  --track-audio-ed-clip: rgba(249, 115, 22, 0.2);
+
+  /* Editor sizing */
+  --ve-toolbar-width: 48px;
+  --ve-panel-width: 280px;
+  --ve-transport-height: 48px;
+  --ve-track-height: 64px;
+  --ve-clip-height: 48px;
+  --ve-label-width: 160px;
+}
+
+/* -----------------------------------------------------------------------------
+   Editor Layout
+   ----------------------------------------------------------------------------- */
+.video-editor {
+  display: grid;
+  grid-template-columns: var(--ve-toolbar-width) 1fr;
+  grid-template-rows: 1fr var(--ve-transport-height) minmax(180px, 40vh);
+  height: 100%;
+  width: 100%;
+  background: var(--graphite-bg);
+  color: var(--graphite-text-main);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  position: relative;
+}
+
+/* When tool panel is open, add panel column */
+.video-editor--panel-open {
+  grid-template-columns: var(--ve-toolbar-width) var(--ve-panel-width) 1fr;
+}
+
+/* -----------------------------------------------------------------------------
+   Left Tool Sidebar
+   ----------------------------------------------------------------------------- */
+.ve-toolbar {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  background: var(--graphite-deep);
+  border-right: 1px solid var(--graphite-edge);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 2px;
+  z-index: 20;
+}
+
+.ve-toolbar-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--graphite-transition-fast);
+  color: var(--graphite-text-dim);
+  background: transparent;
+  border: none;
+}
+
+.ve-toolbar-btn:hover {
+  background: var(--graphite-mid);
+  color: var(--graphite-text-main);
+}
+
+.ve-toolbar-btn.active {
+  background: rgba(0, 242, 255, 0.1);
+  color: var(--plasma-cyan);
+  box-shadow: inset 0 0 10px rgba(0, 242, 255, 0.1);
+}
+
+.ve-toolbar-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* -----------------------------------------------------------------------------
+   Tool Panel (slides out from toolbar)
+   ----------------------------------------------------------------------------- */
+.ve-tool-panel {
+  grid-row: 1;
+  grid-column: 2;
+  background: var(--graphite-deep);
+  border-right: 1px solid var(--graphite-edge);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.ve-tool-panel-header {
+  padding: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--graphite-text-dim);
+  border-bottom: 1px solid var(--graphite-edge);
+}
+
+/* -----------------------------------------------------------------------------
+   Canvas Preview
+   ----------------------------------------------------------------------------- */
+.ve-preview {
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.ve-preview-canvas {
+  background: #000;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Aspect ratio badges */
+.ve-aspect-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--graphite-text-dim);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* -----------------------------------------------------------------------------
+   Transport Bar
+   ----------------------------------------------------------------------------- */
+.ve-transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--graphite-deep);
+  border-top: 1px solid var(--graphite-edge);
+  border-bottom: 1px solid var(--graphite-edge);
+  height: var(--ve-transport-height);
+}
+
+.ve-transport-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ve-transport-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--graphite-edge);
+  margin: 0 8px;
+}
+
+.ve-transport-spacer {
+  flex: 1;
+}
+
+.ve-transport-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--graphite-transition-fast);
+  color: var(--graphite-text-dim);
+  background: transparent;
+  border: none;
+}
+
+.ve-transport-btn:hover {
+  background: var(--graphite-mid);
+  color: var(--graphite-text-main);
+}
+
+.ve-transport-btn.active {
+  color: var(--plasma-cyan);
+}
+
+.ve-transport-btn.primary {
+  color: var(--graphite-text-main);
+  background: var(--graphite-mid);
+}
+
+.ve-transport-btn.primary:hover {
+  background: var(--graphite-light);
+}
+
+.ve-transport-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ve-transport-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.ve-timecode {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--graphite-text-main);
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  border: 1px solid var(--graphite-edge);
+  white-space: nowrap;
+  min-width: 140px;
+  text-align: center;
+}
+
+.ve-timecode-current {
+  color: var(--plasma-cyan);
+}
+
+.ve-timecode-separator {
+  color: var(--graphite-text-dim);
+  margin: 0 2px;
+}
+
+/* Aspect ratio select */
+.ve-aspect-select {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--graphite-text-dim);
+  background: transparent;
+  border: 1px solid var(--graphite-edge);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.ve-aspect-select:hover {
+  border-color: var(--graphite-text-dim);
+}
+
+/* Zoom slider in transport */
+.ve-zoom-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 100px;
+}
+
+.ve-zoom-slider {
+  width: 80px;
+  height: 3px;
+  appearance: none;
+  background: var(--graphite-mid);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.ve-zoom-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--graphite-text-main);
+  cursor: pointer;
+}
+
+.ve-zoom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--graphite-text-main);
+  cursor: pointer;
+  border: none;
+}
+
+/* -----------------------------------------------------------------------------
+   Timeline Area (bottom panel)
+   ----------------------------------------------------------------------------- */
+.ve-timeline-area {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  background: var(--graphite-bg);
+}
+
+/* Track Labels (left of timeline) */
+.ve-track-labels {
+  width: var(--ve-label-width);
+  min-width: var(--ve-label-width);
+  background: var(--graphite-deep);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.ve-track-label-spacer {
+  height: var(--graphite-ruler-height);
+  border-bottom: 1px solid var(--graphite-edge);
+  flex-shrink: 0;
+}
+
+.ve-track-label {
+  height: var(--ve-track-height);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: background var(--graphite-transition-fast);
+}
+
+.ve-track-label:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ve-track-label.selected {
+  background: rgba(0, 242, 255, 0.05);
+}
+
+.ve-track-label-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--graphite-text-dim);
+  flex-shrink: 0;
+}
+
+.ve-track-label-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--graphite-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.ve-track-label-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--graphite-transition-fast);
+}
+
+.ve-track-label:hover .ve-track-label-actions {
+  opacity: 1;
+}
+
+.ve-track-action-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--graphite-text-dim);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.ve-track-action-btn:hover {
+  background: var(--graphite-mid);
+  color: var(--graphite-text-main);
+}
+
+.ve-track-action-btn.active {
+  color: var(--plasma-cyan);
+}
+
+.ve-track-action-btn.muted {
+  color: var(--laser-red);
+}
+
+/* Timeline content */
+.ve-timeline-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Track lanes scroll container */
+.ve-track-lanes {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+}
+
+.ve-track-lanes-inner {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  position: relative;
+}
+
+/* Individual track lane */
+.ve-lane {
+  height: var(--ve-track-height);
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.ve-lane--text {
+  background: var(--track-text);
+  border-left: 3px solid var(--track-text-border);
+}
+
+.ve-lane--video {
+  background: var(--track-video-ed);
+  border-left: 3px solid var(--track-video-ed-border);
+}
+
+.ve-lane--image {
+  background: var(--track-image);
+  border-left: 3px solid var(--track-image-border);
+}
+
+.ve-lane--audio {
+  background: var(--track-audio-ed);
+  border-left: 3px solid var(--track-audio-ed-border);
+}
+
+/* -----------------------------------------------------------------------------
+   Clip Styles
+   ----------------------------------------------------------------------------- */
+.ve-clip {
+  position: absolute;
+  height: var(--ve-clip-height);
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  transition: box-shadow var(--graphite-transition-fast), border-color var(--graphite-transition-fast);
+  user-select: none;
+}
+
+.ve-clip:hover {
+  z-index: 5;
+}
+
+.ve-clip.selected {
+  border-color: var(--plasma-cyan) !important;
+  box-shadow: 0 0 12px var(--plasma-glow);
+  z-index: 10;
+}
+
+.ve-clip--text {
+  background: var(--track-text-clip);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.ve-clip--video {
+  background: var(--track-video-ed-clip);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+}
+
+.ve-clip--image {
+  background: var(--track-image-clip);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.ve-clip--audio {
+  background: var(--track-audio-ed-clip);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.ve-clip-name {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--graphite-text-main);
+  pointer-events: none;
+}
+
+/* Clip icon badge */
+.ve-clip-icon {
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* Resize handles */
+.ve-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 15;
+  transition: background var(--graphite-transition-fast);
+}
+
+.ve-resize-handle:hover {
+  background: rgba(0, 242, 255, 0.3);
+}
+
+.ve-resize-handle--left {
+  left: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.ve-resize-handle--right {
+  right: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Waveform in audio clips */
+.ve-waveform {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 100%;
+  padding: 0 8px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.ve-wave-bar {
+  width: 2px;
+  border-radius: 1px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* Thumbnail strip in video clips */
+.ve-thumb-strip {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  flex: 1;
+}
+
+.ve-thumb-tile {
+  width: 50px;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* Image clip thumbnail */
+.ve-image-thumb {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+}
+
+/* Drag ghost */
+.ve-clip.dragging {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Empty state */
+.ve-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--graphite-text-dim);
+  font-size: 13px;
+  height: 100%;
+}
+
+.ve-empty-state-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.3;
+}
+
+/* -----------------------------------------------------------------------------
+   Reduced Motion & High Contrast
+   ----------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ve-clip,
+  .ve-toolbar-btn,
+  .ve-transport-btn,
+  .ve-track-label-actions {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .ve-clip.selected {
+    outline: 3px solid var(--focus-ring);
+  }
+}

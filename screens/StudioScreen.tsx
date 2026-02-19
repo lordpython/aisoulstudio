@@ -53,6 +53,7 @@ import { useProjectSession } from '@/hooks/useProjectSession';
 import { getCurrentUser } from '@/services/firebase/authService';
 import { StoryWorkspace } from '@/components/story';
 import { StoryWorkspaceErrorBoundary } from '@/components/story/StoryWorkspaceErrorBoundary';
+import { VideoEditor } from '@/components/VideoEditor';
 
 // ============================================================
 // Types & Helpers
@@ -103,7 +104,7 @@ export default function StudioScreen() {
 
   // View mode toggle (Requirement 6.6)
   const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
-  const [studioMode, setStudioMode] = useState<'chat' | 'story'>(
+  const [studioMode, setStudioMode] = useState<'chat' | 'story' | 'editor'>(
     params.mode === 'story' ? 'story' : 'chat'
   );
 
@@ -890,6 +891,17 @@ export default function StudioScreen() {
         >
           Story Mode
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setStudioMode('editor')}
+          className={cn(
+            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            studioMode === 'editor' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Editor
+        </Button>
       </div>
 
       {/* Simple/Advanced toggle */}
@@ -1059,7 +1071,9 @@ export default function StudioScreen() {
         ) : null
       }
     >
-      {studioMode === 'story' ? (
+      {studioMode === 'editor' ? (
+        <VideoEditor className="h-full" />
+      ) : studioMode === 'story' ? (
         <StoryWorkspaceErrorBoundary 
           storyState={storyHook.state}
           onRestore={() => {

@@ -18,7 +18,7 @@ import { StepProgressBar } from './StepProgressBar';
 import type { StoryState, StoryStep, CharacterProfile } from '@/types';
 import type { VisualStyleKey, AspectRatioId } from '@/constants/visualStyles';
 import { estimateProjectCost } from '@/utils/costEstimator';
-import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check, History, ImageIcon } from 'lucide-react';
+import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check, History, ImageIcon, MessageCircle, GripVertical } from 'lucide-react';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { ExportOptionsPanel } from './ExportOptionsPanel';
 import { useLanguage } from '@/i18n/useLanguage';
@@ -92,6 +92,26 @@ const quickFade = {
     exit: { opacity: 0 },
     transition: { duration: 0.15 },
 };
+
+function deriveEquipment(movement: string): string {
+    const m = movement.toLowerCase();
+    if (m === 'static') return 'Tripod';
+    if (m.includes('dolly')) return 'Dolly';
+    if (m.includes('track')) return 'Steady cam';
+    if (m.includes('handheld')) return 'Handheld';
+    if (m.includes('pan') || m.includes('tilt')) return 'Tripod';
+    return 'Steady cam';
+}
+
+function deriveFocalLength(shotType: string): string {
+    const s = shotType.toLowerCase();
+    if (s.includes('extreme')) return '85mm';
+    if (s.includes('close')) return '50mm';
+    if (s.includes('medium')) return '35mm';
+    if (s.includes('wide') || s.includes('long')) return '24mm';
+    if (s.includes('pov') || s.includes('shoulder')) return '40mm';
+    return '35mm';
+}
 
 export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     storyState,
@@ -262,37 +282,174 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                     );
                 }
 
-                // State 2: Pipeline completed (success) → result view
+                // State 2: Pipeline completed (success) → result view with asset preview
                 if (!fpHook.isRunning && fpHook.result?.success) {
+                    const pr = fpHook.result.partialResults ?? {};
+                    const screenplay = (pr.screenplay ?? []) as { id: string; heading: string; action: string; dialogue?: { speaker: string; text: string }[] }[];
+                    const visuals = (pr.visuals ?? []) as { sceneId: string; imageUrl: string }[];
+                    const narrations = (pr.narrationSegments ?? []) as { sceneId: string; audioBlob: Blob; audioDuration: number; transcript: string }[];
+                    const totalDuration = pr.totalDuration as number | undefined;
+                    const research = pr.research as { sources?: { title: string }[]; citations?: { text: string }[] } | undefined;
+                    const formatName = fpHook.selectedFormat ? formatRegistry.getFormat(fpHook.selectedFormat)?.name : 'video';
+
+                    // Build a visual/narration lookup by sceneId for quick access
+                    const visualMap = new Map(visuals.map(v => [v.sceneId, v.imageUrl]));
+                    const narrationMap = new Map(narrations.map(n => [n.sceneId, n]));
+
                     return (
-                        <motion.div key="pipeline-complete" {...quickFade} className="h-full flex items-center justify-center p-8">
-                            <div className="w-full max-w-2xl mx-auto text-center">
-                                <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                                    <Check className="w-8 h-8 text-emerald-400" />
+                        <motion.div key="pipeline-complete" {...quickFade} className="h-full overflow-y-auto">
+                            <div className="w-full max-w-4xl mx-auto px-6 py-8">
+                                {/* Header */}
+                                <div className="text-center mb-8">
+                                    <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                        <Check className="w-7 h-7 text-emerald-400" />
+                                    </div>
+                                    <h2 className="text-2xl font-medium text-zinc-100 mb-1">Production Complete</h2>
+                                    <p className="text-zinc-500 text-sm">
+                                        {formatName} — {screenplay.length} scene{screenplay.length !== 1 ? 's' : ''}
+                                        {totalDuration != null && ` — ${Math.round(totalDuration)}s`}
+                                        {narrations.length > 0 && ` — ${narrations.length} narration${narrations.length !== 1 ? 's' : ''}`}
+                                    </p>
                                 </div>
-                                <h2 className="text-2xl font-medium text-zinc-100 mb-2">Production Complete</h2>
-                                <p className="text-zinc-400 text-sm mb-8">
-                                    Your {fpHook.selectedFormat ? formatRegistry.getFormat(fpHook.selectedFormat)?.name : 'video'} has been generated successfully.
-                                </p>
-                                {/* Completed task summary */}
-                                <div className="mb-8">
-                                    <PipelineProgress
-                                        executionProgress={fpHook.executionProgress}
-                                        tasks={fpHook.tasks}
-                                        currentPhase="Complete"
-                                        isRunning={false}
-                                        onCancel={() => {}}
-                                        summaryOnly
-                                    />
+
+                                {/* Stats bar */}
+                                <div className="flex flex-wrap justify-center gap-3 mb-8">
+                                    <span className="px-3 py-1.5 bg-zinc-800/80 border border-zinc-700/50 rounded-sm text-xs font-mono text-zinc-300 flex items-center gap-1.5">
+                                        <Film className="w-3.5 h-3.5 text-blue-400" />
+                                        {screenplay.length} scenes
+                                    </span>
+                                    <span className="px-3 py-1.5 bg-zinc-800/80 border border-zinc-700/50 rounded-sm text-xs font-mono text-zinc-300 flex items-center gap-1.5">
+                                        <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
+                                        {visuals.length} visuals
+                                    </span>
+                                    <span className="px-3 py-1.5 bg-zinc-800/80 border border-zinc-700/50 rounded-sm text-xs font-mono text-zinc-300 flex items-center gap-1.5">
+                                        <Mic className="w-3.5 h-3.5 text-amber-400" />
+                                        {narrations.length} narrations
+                                    </span>
+                                    {totalDuration != null && (
+                                        <span className="px-3 py-1.5 bg-zinc-800/80 border border-zinc-700/50 rounded-sm text-xs font-mono text-zinc-300 flex items-center gap-1.5">
+                                            <Play className="w-3.5 h-3.5 text-emerald-400" />
+                                            {Math.floor(totalDuration / 60)}:{String(Math.round(totalDuration % 60)).padStart(2, '0')}
+                                        </span>
+                                    )}
+                                    {research?.sources && (
+                                        <span className="px-3 py-1.5 bg-zinc-800/80 border border-zinc-700/50 rounded-sm text-xs font-mono text-zinc-300">
+                                            {research.sources.length} sources
+                                        </span>
+                                    )}
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={fpHook.reset}
-                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-sm font-mono text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors duration-200"
-                                >
-                                    <RefreshCcw className="w-4 h-4" />
-                                    Start New Production
-                                </button>
+
+                                {/* Scene cards with visuals and audio */}
+                                {screenplay.length > 0 && (
+                                    <div className="space-y-4 mb-8">
+                                        {screenplay.map((scene, i) => {
+                                            const imageUrl = visualMap.get(scene.id);
+                                            const narration = narrationMap.get(scene.id);
+                                            return (
+                                                <div key={scene.id} className="bg-zinc-900/60 border border-zinc-800 rounded-sm overflow-hidden">
+                                                    <div className="flex flex-col sm:flex-row">
+                                                        {/* Visual thumbnail */}
+                                                        {imageUrl && (
+                                                            <div className="sm:w-48 sm:shrink-0 aspect-video sm:aspect-auto sm:h-auto bg-zinc-950">
+                                                                <img
+                                                                    src={imageUrl}
+                                                                    alt={`Scene ${i + 1}`}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        {/* Scene content */}
+                                                        <div className="flex-1 p-4 min-w-0">
+                                                            <div className="flex items-start gap-2 mb-1.5">
+                                                                <span className="font-mono text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
+                                                                    {String(i + 1).padStart(2, '0')}
+                                                                </span>
+                                                                <h4 className="text-sm font-medium text-zinc-200 leading-tight">{scene.heading}</h4>
+                                                            </div>
+                                                            <p className="text-xs text-zinc-400 line-clamp-3 mb-2" dir="auto">{scene.action}</p>
+
+                                                            {/* Dialogue preview */}
+                                                            {scene.dialogue && scene.dialogue.length > 0 && (
+                                                                <div className="mb-2">
+                                                                    {scene.dialogue.slice(0, 2).map((d, di) => (
+                                                                        <p key={di} className="text-[11px] text-zinc-500 truncate">
+                                                                            <span className="text-zinc-400 font-medium">{d.speaker}:</span> {d.text}
+                                                                        </p>
+                                                                    ))}
+                                                                    {scene.dialogue.length > 2 && (
+                                                                        <p className="text-[10px] text-zinc-600">+{scene.dialogue.length - 2} more</p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Audio player for narration */}
+                                                            {narration && (
+                                                                <div className="flex items-center gap-2 mt-2">
+                                                                    <Mic className="w-3 h-3 text-amber-400 shrink-0" />
+                                                                    <audio
+                                                                        controls
+                                                                        className="h-7 w-full max-w-xs [&::-webkit-media-controls-panel]:bg-zinc-800 [&::-webkit-media-controls-panel]:rounded-sm"
+                                                                        src={URL.createObjectURL(narration.audioBlob)}
+                                                                    />
+                                                                    <span className="text-[10px] text-zinc-500 font-mono shrink-0">{narration.audioDuration.toFixed(1)}s</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Completed task summary (collapsed) */}
+                                {fpHook.tasks.length > 0 && (
+                                    <details className="mb-8 group">
+                                        <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400 transition-colors font-mono text-center">
+                                            Pipeline tasks
+                                        </summary>
+                                        <div className="mt-3">
+                                            <PipelineProgress
+                                                executionProgress={fpHook.executionProgress}
+                                                tasks={fpHook.tasks}
+                                                currentPhase="Complete"
+                                                isRunning={false}
+                                                onCancel={() => {}}
+                                                summaryOnly
+                                            />
+                                        </div>
+                                    </details>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex items-center justify-center gap-3">
+                                    {/* Download all visuals */}
+                                    {visuals.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                visuals.forEach((v, i) => {
+                                                    const a = document.createElement('a');
+                                                    a.href = v.imageUrl;
+                                                    a.download = `scene_${i + 1}.png`;
+                                                    a.click();
+                                                });
+                                            }}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-sm font-mono text-sm font-medium border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition-colors duration-200"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            Download Images
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={fpHook.reset}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-sm font-mono text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors duration-200"
+                                    >
+                                        <RefreshCcw className="w-4 h-4" />
+                                        Start New Production
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     );
@@ -515,68 +672,129 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             </div>
                                         )}
                                     </div>
-                                    <div className="grid gap-6">
+                                    <div className="space-y-8">
                                         {storyState.breakdown.map((scene, idx) => {
                                             const sceneShots = storyState.shots?.filter(s => s.sceneId === scene.id) || [];
+                                            const moodLighting = sceneShots[0]?.lighting || '';
                                             return (
-                                                <div
-                                                    key={scene.id}
-                                                    className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden"
-                                                >
-                                                    <div className="px-6 py-4 bg-zinc-950 flex justify-between items-center border-b border-zinc-800">
-                                                        <div className="flex items-center gap-4">
-                                                            <span className="font-mono text-sm font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-sm border border-blue-500/20">
-                                                                {String(scene.sceneNumber).padStart(2, '0')}
+                                                <div key={scene.id} className="rounded-sm overflow-hidden border border-zinc-800">
+                                                    {/* Scene Header */}
+                                                    <div className="px-5 py-3 bg-zinc-950 flex items-center justify-between border-b border-zinc-800">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-sm border border-blue-500/20 shrink-0">
+                                                                SCENE {scene.sceneNumber}
                                                             </span>
-                                                            <span className="font-sans text-sm font-medium text-zinc-100">
+                                                            <span className="font-mono text-sm font-medium text-zinc-100 truncate" dir="auto">
                                                                 {scene.heading}
                                                             </span>
+                                                            {moodLighting && (
+                                                                <span className="flex items-center gap-1.5 text-[11px] text-zinc-500 shrink-0">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400/70" />
+                                                                    {moodLighting}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         {!sceneShots.length && onGenerateShots && (
                                                             <button
                                                                 onClick={() => onGenerateShots(idx)}
-                                                                className="text-sm px-5 py-2 rounded-sm bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors duration-200"
+                                                                className="text-xs px-4 py-1.5 rounded-sm bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors duration-200 shrink-0 ml-4"
                                                             >
                                                                 {t('story.generateShots')}
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {sceneShots.map(shot => (
-                                                            <div
-                                                                key={shot.id}
-                                                                className="group bg-zinc-950 border border-zinc-800 rounded-sm overflow-hidden hover:border-blue-500/40 transition-all duration-200"
-                                                            >
-                                                                <div className="relative aspect-video bg-zinc-900 border-b border-zinc-800 flex items-center justify-center overflow-hidden">
-                                                                    <ImageIcon className="w-10 h-10 text-zinc-800 group-hover:text-zinc-700 transition-colors" />
-                                                                    <div className="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-sm text-[10px] font-mono text-zinc-400">
-                                                                        {shot.shotType}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="p-4">
-                                                                    <div className="flex justify-between items-center mb-3">
-                                                                        <span className="font-mono text-xs font-bold text-blue-400">
-                                                                            SHOT {shot.shotNumber}
-                                                                        </span>
-                                                                        <span className="text-[10px] text-zinc-600 uppercase tracking-widest">
-                                                                            {shot.cameraAngle || 'Standard'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <p className="text-zinc-400 text-sm leading-relaxed line-clamp-4">
-                                                                        {shot.description}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        {sceneShots.length === 0 && (
-                                                            <div className="col-span-full text-center py-12">
-                                                                <ImageIcon className="w-12 h-12 mx-auto mb-4 text-zinc-800" />
-                                                                <p className="text-zinc-600 text-sm">
-                                                                    {t('story.noShotsGenerated')}
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
+
+                                                    {/* Shots Table */}
+                                                    {sceneShots.length > 0 ? (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="border-b border-zinc-800 bg-zinc-900/60">
+                                                                        <th className="py-2 px-2 w-6" />
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-16">Scene</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-14">Shot</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 min-w-[220px]">Description</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-20">Dialogue</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-16">ERT</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-28">Size</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-28">Perspective</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-28">Movement</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-28">Equipment</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-28">Focal Length</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-24">Aspect Ratio</th>
+                                                                        <th className="py-2 px-3 font-mono text-[10px] tracking-[0.12em] uppercase text-zinc-600 w-16">Notes</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {sceneShots.map((shot) => {
+                                                                        const equipment = deriveEquipment(shot.movement);
+                                                                        const focalLength = deriveFocalLength(shot.shotType);
+                                                                        const hasDialogue = !!shot.scriptSegment;
+                                                                        return (
+                                                                            <tr
+                                                                                key={shot.id}
+                                                                                className="border-b border-zinc-800/50 hover:bg-zinc-800/25 transition-colors group"
+                                                                            >
+                                                                                <td className="py-3 px-2 text-zinc-700 group-hover:text-zinc-500">
+                                                                                    <GripVertical className="w-3.5 h-3.5" />
+                                                                                </td>
+                                                                                <td className="py-3 px-3 font-mono text-xs text-zinc-500">
+                                                                                    {scene.sceneNumber}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 font-mono text-xs text-blue-400 font-bold">
+                                                                                    {shot.shotNumber}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-300 leading-relaxed" dir="auto">
+                                                                                    {shot.description}
+                                                                                </td>
+                                                                                <td className="py-3 px-3">
+                                                                                    <button
+                                                                                        className={`p-1.5 rounded-sm transition-colors ${hasDialogue ? 'text-blue-400 hover:text-blue-300' : 'text-zinc-700 hover:text-zinc-500'}`}
+                                                                                        title={shot.scriptSegment || undefined}
+                                                                                    >
+                                                                                        <MessageCircle className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {shot.duration} sec
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {shot.shotType}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {shot.cameraAngle}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {shot.movement}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {equipment}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {focalLength}
+                                                                                </td>
+                                                                                <td className="py-3 px-3 text-xs text-zinc-400 whitespace-nowrap">
+                                                                                    {storyState.aspectRatio || '16:9'}
+                                                                                </td>
+                                                                                <td className="py-3 px-3">
+                                                                                    <button className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors whitespace-nowrap">
+                                                                                        Add+
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-12">
+                                                            <ImageIcon className="w-12 h-12 mx-auto mb-4 text-zinc-800" />
+                                                            <p className="text-zinc-600 text-sm">
+                                                                {t('story.noShotsGenerated')}
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
