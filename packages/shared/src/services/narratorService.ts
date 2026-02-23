@@ -11,7 +11,9 @@
  */
 
 import { ai, API_KEY, MODELS, withRetry } from "./shared/apiClient";
-import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet, VideoFormat } from "../types";
+import { Scene, NarrationSegment, EmotionalTone, InstructionTriplet, VideoFormat, ShotlistEntry, ScreenplayScene } from "../types";
+import { ParallelExecutionEngine } from "./parallelExecutionEngine";
+import { cleanForTTS } from "./textSanitizer";
 import { VideoPurpose, type LanguageCode } from "../constants";
 import { traceAsync } from "./tracing";
 import { cloudAutosave } from "./cloudStorageService";
@@ -20,24 +22,38 @@ import { getEffectiveTriplet, getEffectiveLegacyTone } from "./tripletUtils";
 import { tripletToPromptFragments } from "./prompt/vibeLibrary";
 import { convertMarkersToDirectorNote } from "./tts/deliveryMarkers";
 
-// --- TTS Throttling ---
-// Gemini TTS has rate limits; add minimum delay between calls to avoid 500 errors
+// --- TTS Throttling (mutex-safe for parallel callers) ---
+// Gemini TTS has rate limits; enforce minimum delay between calls via a promise-chain mutex.
+// The old TOCTOU pattern (read lastTtsCallTime → check → set) allowed concurrent callers to
+// both see "enough time has passed" and proceed simultaneously. The gate below serializes all
+// TTS callers globally so only one call is in-flight at a time with a mandatory 2s cooldown.
 
-const TTS_INTER_CALL_DELAY_MS = 2000; // 2 seconds between TTS API calls
-let lastTtsCallTime = 0;
+const TTS_INTER_CALL_DELAY_MS = 2000;
+
+// A promise chain that gates TTS calls sequentially with enforced spacing.
+let _ttsGate: Promise<void> = Promise.resolve();
 
 /**
- * Wait for TTS throttling to prevent rate limiting
+ * Acquire a TTS slot — returns a release function that the caller MUST invoke
+ * (in a finally block) after the API call completes.
+ * The release function starts the 2-second cooldown timer for the next caller.
  */
-async function waitForTtsThrottle(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastCall = now - lastTtsCallTime;
-    if (timeSinceLastCall < TTS_INTER_CALL_DELAY_MS) {
-        const waitTime = TTS_INTER_CALL_DELAY_MS - timeSinceLastCall;
-        console.log(`[Narrator] Throttling: waiting ${waitTime}ms before next TTS call`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    lastTtsCallTime = Date.now();
+async function acquireTtsSlot(): Promise<() => void> {
+    let releaseCallback!: () => void;
+    const thisSlot = new Promise<void>(resolve => { releaseCallback = resolve; });
+
+    // Chain onto the existing gate so callers queue up in arrival order.
+    const prevGate = _ttsGate;
+    _ttsGate = prevGate.then(() => thisSlot);
+
+    // Wait until all previous callers have finished AND their cooldown has elapsed.
+    await prevGate;
+
+    // Our turn. Return the release function — caller must invoke it in finally{}.
+    // It starts TTS_INTER_CALL_DELAY_MS timer then unblocks the next caller.
+    return () => {
+        setTimeout(releaseCallback, TTS_INTER_CALL_DELAY_MS);
+    };
 }
 
 // --- Voice Configuration ---
@@ -675,8 +691,9 @@ export const synthesizeSpeech = traceAsync(
             console.log(`[Narrator] Using style prompt: ${buildDirectorNote(resolvedConfig.stylePrompt)}`);
         }
 
-        // Apply throttling to prevent rate limiting (2-second minimum gap between calls)
-        await waitForTtsThrottle();
+        // Acquire TTS slot (mutex) to prevent rate limiting.
+        // MUST release in finally{} so the next caller can proceed after 2s cooldown.
+        const releaseSlot = await acquireTtsSlot();
 
         // TTS is prone to transient 500 errors - use more aggressive retry settings
         // NarratorError wrapping is OUTSIDE withRetry so the raw API error (with .status)
@@ -733,6 +750,8 @@ export const synthesizeSpeech = traceAsync(
                 "API_FAILURE",
                 error instanceof Error ? error : undefined
             );
+        } finally {
+            releaseSlot(); // Starts 2s cooldown; next caller proceeds after it elapses.
         }
     },
     "synthesizeSpeech",
@@ -751,7 +770,7 @@ export const synthesizeSpeech = traceAsync(
  * @param audioBlob - The WAV audio blob
  * @returns Duration in seconds
  */
-function calculateAudioDuration(audioBlob: Blob): number {
+export function calculateAudioDuration(audioBlob: Blob): number {
     // WAV header is 44 bytes, rest is PCM data
     // PCM at 24kHz, 16-bit (2 bytes), mono = 48000 bytes per second
     const WAV_HEADER_SIZE = 44;
@@ -933,6 +952,123 @@ export const narrateAllScenes = traceAsync(
         tags: ["tts", "narration"],
     }
 );
+
+/**
+ * Generate narration for all shots using per-shot scriptSegment text.
+ * Falls back to scene action text when scriptSegment is absent.
+ * Uses ParallelExecutionEngine with concurrency 2 (effectively serialized by acquireTtsSlot).
+ *
+ * @param shots - ShotlistEntry array with optional scriptSegment for per-shot narration text
+ * @param screenplayScenes - ScreenplayScene[] for fallback action text
+ * @param config - NarratorConfig (voice, language, etc.)
+ * @param onProgress - Progress callback (completedCount, totalCount)
+ * @param sessionId - For cloud autosave
+ * @param existingStatus - Per-shot narration status map (skip shots already marked 'success')
+ * @param existingShotNarrations - Already narrated shots (to skip on resume)
+ * @returns Array of per-shot narration results (only successful ones)
+ */
+export async function narrateAllShots(
+    shots: ShotlistEntry[],
+    screenplayScenes: ScreenplayScene[],
+    config: NarratorConfig | undefined,
+    onProgress: ((completed: number, total: number) => void) | undefined,
+    sessionId: string | undefined,
+    existingStatus?: Record<string, 'pending' | 'success' | 'failed'>,
+    existingShotNarrations?: Array<{ shotId: string; sceneId: string; audioUrl: string; duration: number; text: string }>,
+): Promise<Array<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }>> {
+    // Build scene action map for fallback text
+    const sceneActionMap = new Map<string, string>();
+    for (const scene of screenplayScenes) {
+        sceneActionMap.set(scene.id, scene.action);
+    }
+
+    // Set of shot IDs already successfully narrated (for resume)
+    const existingNarrationMap = new Map<string, NonNullable<typeof existingShotNarrations>[number]>(
+        (existingShotNarrations || []).filter(n => n.audioUrl).map(n => [n.shotId, n])
+    );
+
+    // Filter to only shots that still need narration
+    const shotsToProcess = shots.filter(shot => {
+        if (existingStatus?.[shot.id] === 'success' && existingNarrationMap.has(shot.id)) {
+            return false; // Already done
+        }
+        return true;
+    });
+
+    if (shotsToProcess.length === 0) {
+        console.log('[Narrator] narrateAllShots: all shots already narrated, skipping');
+        return [];
+    }
+
+    console.log(`[Narrator] narrateAllShots: narrating ${shotsToProcess.length}/${shots.length} shots`);
+
+    // Default voice for shot-level narration (uses dramatic/storytelling profile)
+    const defaultVoiceConfig: ExtendedVoiceConfig = TONE_VOICE_MAP['dramatic'];
+
+    // Build tasks for the ParallelExecutionEngine
+    const tasks = shotsToProcess
+        .map(shot => {
+            // Build narration text with fallback chain
+            const rawText = shot.scriptSegment
+                ?? sceneActionMap.get(shot.sceneId)
+                ?? shot.description;
+            const narrationText = cleanForTTS(rawText || '');
+
+            // Skip shots with empty narration text (synthesizeSpeech throws on empty input)
+            if (!narrationText.trim()) {
+                console.warn(`[Narrator] Skipping shot ${shot.id}: empty narration text after cleaning`);
+                return null;
+            }
+
+            return {
+                id: shot.id,
+                type: 'audio' as const,
+                priority: shot.shotNumber,
+                retryable: true,
+                timeout: 45_000,
+                execute: async (): Promise<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }> => {
+                    console.log(`[Narrator] Narrating shot ${shot.shotNumber} (${shot.id}): "${narrationText.substring(0, 50)}..."`);
+                    const audioBlob = await synthesizeSpeech(narrationText, defaultVoiceConfig, config);
+                    const duration = calculateAudioDuration(audioBlob);
+                    return { shotId: shot.id, sceneId: shot.sceneId, audioBlob, duration, text: narrationText };
+                },
+            };
+        })
+        .filter((t): t is NonNullable<typeof t> => t !== null);
+
+    if (tasks.length === 0) {
+        console.warn('[Narrator] narrateAllShots: no tasks after filtering empty text');
+        return [];
+    }
+
+    const engine = new ParallelExecutionEngine();
+    const taskResults = await engine.execute(tasks, {
+        concurrencyLimit: 2, // 2 slots — effectively 1 due to acquireTtsSlot gate
+        retryAttempts: 3,
+        retryDelay: 3000,
+        exponentialBackoff: true,
+        onProgress: (p) => onProgress?.(p.completedTasks, p.totalTasks),
+        onTaskFail: (taskId, error) => {
+            console.error(`[Narrator] Shot narration failed for ${taskId}:`, error.message);
+        },
+    });
+
+    // Collect only successful results
+    const results: Array<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }> = [];
+    for (const result of taskResults) {
+        if (result.success && result.data) {
+            results.push(result.data);
+        }
+    }
+
+    const failedCount = taskResults.filter(r => !r.success).length;
+    if (failedCount > 0) {
+        console.warn(`[Narrator] narrateAllShots: ${failedCount} shots failed (non-fatal)`);
+    }
+
+    console.log(`[Narrator] narrateAllShots: completed ${results.length}/${tasks.length} shots`);
+    return results;
+}
 
 /**
  * Get voice config for an emotional tone.

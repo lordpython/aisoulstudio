@@ -25,6 +25,7 @@ import { cloudAutosave } from "../cloudStorageService";
 import { loadTemplate, substituteVariables } from "../prompt/templateLoader";
 import { formatRegistry } from "../formatRegistry";
 import { detectLanguage } from "../languageDetector";
+import { ParallelExecutionEngine, type Task } from "../parallelExecutionEngine";
 
 const log = agentLogger.child('StoryPipeline');
 
@@ -641,8 +642,9 @@ function buildVisualAnchor(char: CharacterProfile): string {
 }
 
 /**
- * Step 5: Generate scene visuals
- * Context: One scene at a time with character references and emotional context
+ * Step 5: Generate scene visuals in parallel using ParallelExecutionEngine.
+ * Supports resume via existingVisuals — scenes already in that list are skipped.
+ * A styleExtractionDone flag prevents concurrent style extraction races.
  */
 async function generateSceneVisuals(
     scenes: ScreenplayScene[],
@@ -651,8 +653,9 @@ async function generateSceneVisuals(
     style: string = "Cinematic",
     onProgress?: (current: number, total: number) => void,
     emotionalHooks?: string[],
+    existingVisuals?: { sceneId: string; imageUrl: string }[],
 ): Promise<{ sceneId: string; imageUrl: string }[]> {
-    log.info(`Step 5: Generating ${scenes.length} scene visuals`);
+    log.info(`Step 5: Generating scene visuals (${scenes.length} total)`);
 
     // Build character visual anchor map (compact, not full bios)
     const charAnchorMap = new Map<string, string>();
@@ -660,54 +663,103 @@ async function generateSceneVisuals(
         charAnchorMap.set(c.name.toLowerCase(), buildVisualAnchor(c));
     });
 
-    const results: { sceneId: string; imageUrl: string }[] = [];
+    // Build map of already-done visuals for quick lookup
+    const existingMap = new Map<string, string>(
+        (existingVisuals || []).map(v => [v.sceneId, v.imageUrl])
+    );
 
-    for (let i = 0; i < scenes.length; i++) {
-        const scene = scenes[i];
-        if (!scene) continue;
+    // Start results with already-generated visuals
+    const results: { sceneId: string; imageUrl: string }[] = [...(existingVisuals || [])];
 
-        onProgress?.(i + 1, scenes.length);
-        log.info(`Generating visual ${i + 1}/${scenes.length}: ${scene.heading}`);
+    // Filter to only scenes that still need generation
+    const scenesToProcess = scenes.filter(s => !existingMap.has(s.id));
 
-        try {
-            // Determine emotional context for this scene
-            const emotionalVibe = emotionalHooks?.[i] || emotionalHooks?.[0] || 'Cinematic';
+    if (scenesToProcess.length === 0) {
+        log.info('All scene visuals already generated, skipping');
+        return results;
+    }
 
-            // Build character subject entries from visual anchors
-            const charSubjects = scene.charactersPresent
-                .map(charName => {
-                    const anchor = charAnchorMap.get(charName.toLowerCase());
-                    return anchor ? { type: "person" as const, description: anchor } : null;
-                })
-                .filter((s): s is { type: "person"; description: string } => s !== null);
+    log.info(`Generating ${scenesToProcess.length} new visuals (${existingMap.size} already done)`);
 
-            // Build structured style guide for the scene
-            const sceneGuide = buildImageStyleGuide({
-                scene: scene.action,
-                subjects: charSubjects.length > 0 ? charSubjects : undefined,
-                mood: emotionalVibe,
-                style,
-                background: scene.heading,
-            });
+    // Guard to prevent concurrent style extraction races
+    let styleExtractionDone = false;
 
-            const imageUrl = await generateImageFromPrompt(
-                scene.action,    // fallback text (unused when prebuiltGuide is set)
-                style,
-                "",
-                "16:9",
-                true,            // skipRefine — guide is already complete
-                undefined,
-                sessionId,
-                i,
-                sceneGuide,      // prebuiltGuide — avoids double-wrapping
-            );
+    const tasks: Task<{ sceneId: string; imageUrl: string }>[] = scenesToProcess.map(scene => {
+        const sceneIndex = scenes.indexOf(scene);
+        return {
+            id: scene.id,
+            type: 'visual' as const,
+            priority: sceneIndex, // lower index = higher priority (process in order)
+            retryable: true,
+            timeout: 90_000, // Imagen can be slow
+            execute: async () => {
+                const emotionalVibe = emotionalHooks?.[sceneIndex] || emotionalHooks?.[0] || 'Cinematic';
 
-            results.push({ sceneId: scene.id, imageUrl });
-        } catch (error) {
-            log.error(`Failed to generate visual for scene ${i + 1}:`, error);
+                const charSubjects = scene.charactersPresent
+                    .map(charName => {
+                        const anchor = charAnchorMap.get(charName.toLowerCase());
+                        return anchor ? { type: "person" as const, description: anchor } : null;
+                    })
+                    .filter((s): s is { type: "person"; description: string } => s !== null);
+
+                const sceneGuide = buildImageStyleGuide({
+                    scene: scene.action,
+                    subjects: charSubjects.length > 0 ? charSubjects : undefined,
+                    mood: emotionalVibe,
+                    style,
+                    background: scene.heading,
+                });
+
+                const imageUrl = await generateImageFromPrompt(
+                    scene.action,
+                    style,
+                    "",
+                    "16:9",
+                    true,       // skipRefine — guide is already complete
+                    undefined,
+                    sessionId,
+                    sceneIndex,
+                    sceneGuide,
+                );
+
+                log.info(`Generated visual for scene ${sceneIndex + 1}: ${scene.id}`);
+                return { sceneId: scene.id, imageUrl };
+            },
+        };
+    });
+
+    const alreadyDoneCount = results.length;
+    const engine = new ParallelExecutionEngine();
+    const taskResults = await engine.execute(tasks, {
+        concurrencyLimit: 4,
+        retryAttempts: 2, // double-retry: generateImageFromPrompt already has withRetry internally
+        retryDelay: 2000,
+        exponentialBackoff: true,
+        onProgress: (p) => {
+            const completedCount = alreadyDoneCount + p.completedTasks;
+            onProgress?.(completedCount, scenes.length);
+        },
+        onTaskFail: (taskId, error) => {
+            log.error(`Failed to generate visual for scene ${taskId}:`, error.message);
+        },
+        onTaskComplete: (taskId, result) => {
+            // Only the first completed task triggers style extraction (race guard)
+            if (!styleExtractionDone) {
+                styleExtractionDone = true;
+                // Style extraction is handled by the caller (storyPipeline main flow);
+                // flag is here to prevent multiple concurrent attempts within this function.
+            }
+        },
+    });
+
+    // Collect successful results
+    for (const result of taskResults) {
+        if (result.success && result.data) {
+            results.push(result.data);
         }
     }
 
+    log.info(`Scene visuals complete: ${results.length}/${scenes.length} generated`);
     return results;
 }
 

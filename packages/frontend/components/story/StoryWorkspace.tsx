@@ -3,7 +3,7 @@
  * Main orchestrator for the story mode pipeline.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IdeaView } from './IdeaView';
 import { ScriptView } from './ScriptView';
@@ -176,6 +176,9 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     const [showLockDialog, setShowLockDialog] = useState(false);
     const [showVersionHistory, setShowVersionHistory] = useState(false);
     const [editingShot, setEditingShot] = useState<ShotlistEntry | null>(null);
+    // Fix #2: Keep a ref to the current editingShot so onNavigate never closes over a stale value.
+    const editingShotRef = useRef(editingShot);
+    useEffect(() => { editingShotRef.current = editingShot; }, [editingShot]);
     // Track which individual shots are being animated (by shot.id)
     const [animatingShotIds, setAnimatingShotIds] = useState<Set<string>>(new Set());
 
@@ -183,6 +186,27 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     useEffect(() => {
         if (!isProcessing) setAnimatingShotIds(new Set());
     }, [isProcessing]);
+
+    // Fix #1: Memoize blob URLs from format-pipeline narration results.
+    // URL.createObjectURL must never be called in render — it creates a new URL
+    // on every render that is never revoked, causing a memory leak.
+    const narrationBlobUrlMap = useMemo<Map<string, string>>(() => {
+        if (!formatPipelineHook?.result?.success) return new Map();
+        const pr = formatPipelineHook.result.partialResults ?? {};
+        const narrations = (pr.narrationSegments ?? []) as { sceneId: string; audioBlob: Blob }[];
+        return new Map(narrations.map(n => [n.sceneId, URL.createObjectURL(n.audioBlob)]));
+    }, [formatPipelineHook?.result]);
+    // Revoke old blob URLs when the map changes or component unmounts
+    useEffect(() => {
+        return () => { narrationBlobUrlMap.forEach(url => URL.revokeObjectURL(url)); };
+    }, [narrationBlobUrlMap]);
+
+    // Fix #4: Pre-compute animatedShots lookup map to avoid O(n²) in the animation grid.
+    const animatedShotsMap = useMemo(() => {
+        const m = new Map<string, NonNullable<typeof storyState.animatedShots>[number]>();
+        storyState.animatedShots?.forEach(a => m.set(a.shotId, a));
+        return m;
+    }, [storyState.animatedShots]);
 
     useEffect(() => {
         const newMain = getHighLevelStep(storyState.currentStep);
@@ -397,13 +421,13 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                             )}
 
                                                             {/* Audio player for narration */}
-                                                            {narration && (
+                                                            {narration && narrationBlobUrlMap.get(scene.id) && (
                                                                 <div className="flex items-center gap-2 mt-2">
                                                                     <Mic className="w-3 h-3 text-amber-400 shrink-0" />
                                                                     <audio
                                                                         controls
                                                                         className="h-7 w-full max-w-xs [&::-webkit-media-controls-panel]:bg-zinc-800 [&::-webkit-media-controls-panel]:rounded-sm"
-                                                                        src={URL.createObjectURL(narration.audioBlob)}
+                                                                        src={narrationBlobUrlMap.get(scene.id)}
                                                                     />
                                                                     <span className="text-[10px] text-zinc-500 font-mono shrink-0">{narration.audioDuration.toFixed(1)}s</span>
                                                                 </div>
@@ -939,7 +963,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     </p>
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                         {storyState.shotlist.map((shot, idx) => {
-                                            const animated = storyState.animatedShots?.find(a => a.shotId === shot.id);
+                                            const animated = animatedShotsMap.get(shot.id);
                                             return (
                                                 <div
                                                     key={shot.id}
@@ -969,8 +993,19 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                         {!animated && !animatingShotIds.has(shot.id) && shot.imageUrl && onAnimateShots && (
                                                             <button
                                                                 onClick={() => {
-                                                                    setAnimatingShotIds(prev => new Set(prev).add(shot.id));
-                                                                    onAnimateShots(idx);
+                                                                    const shotId = shot.id;
+                                                                    setAnimatingShotIds(prev => new Set(prev).add(shotId));
+                                                                    try {
+                                                                        onAnimateShots(idx);
+                                                                    } catch {
+                                                                        // Clear spinner immediately on synchronous failure;
+                                                                        // async failures are cleared by the isProcessing → false effect.
+                                                                        setAnimatingShotIds(prev => {
+                                                                            const next = new Set(prev);
+                                                                            next.delete(shotId);
+                                                                            return next;
+                                                                        });
+                                                                    }
                                                                 }}
                                                                 disabled={isProcessing}
                                                                 className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -1047,7 +1082,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             {!storyState.finalVideoUrl ? (
                                                 <button
                                                     onClick={onExportFinalVideo}
-                                                    disabled={isProcessing || !storyState.narrationSegments?.length}
+                                                    disabled={isProcessing || !storyState.narrationSegments?.length || !storyState.shotlist.some(s => s.imageUrl)}
                                                     className="w-full py-4 rounded-sm text-sm font-medium flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 transition-colors duration-200"
                                                 >
                                                     {isProcessing ? (
@@ -1065,7 +1100,12 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                     {t('story.downloadVideo')}
                                                 </button>
                                             )}
-                                            {!storyState.narrationSegments?.length && (
+                                            {!storyState.shotlist.some(s => s.imageUrl) && (
+                                                <p className="text-center text-xs text-orange-400">
+                                                    {t('story.generateStoryboardFirst')}
+                                                </p>
+                                            )}
+                                            {storyState.shotlist.some(s => s.imageUrl) && !storyState.narrationSegments?.length && (
                                                 <p className="text-center text-xs text-orange-400">
                                                     {t('story.generateNarrationBeforeExport')}
                                                 </p>
@@ -1365,7 +1405,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         sceneNumber={scene?.sceneNumber ?? 0}
                         sceneHeading={scene?.heading ?? ''}
                         sceneLighting={editingShot.lighting}
-                        shotIndexInScene={Math.max(0, shotIndexInScene)}
+                        shotIndexInScene={shotIndexInScene >= 0 ? shotIndexInScene : 0}
                         totalShotsInScene={shotsInScene.length}
                         onClose={() => setEditingShot(null)}
                         onSave={(shotId, updates) => {
@@ -1378,7 +1418,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                             setEditingShot(null);
                         }}
                         onNavigate={(dir) => {
-                            const idx = shotsInScene.findIndex(s => s.id === editingShot.id);
+                            // Use ref to avoid stale closure on rapid clicks
+                            const currentShot = editingShotRef.current;
+                            if (!currentShot) return;
+                            const idx = shotsInScene.findIndex(s => s.id === currentShot.id);
                             const nextIdx = dir === 'next' ? idx + 1 : idx - 1;
                             const nextShot = shotsInScene[nextIdx];
                             if (nextShot) setEditingShot(nextShot);
@@ -1468,7 +1511,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 {d.visualCount != null && <p className="text-xs text-zinc-500 mb-2">{d.visualCount as number}/{d.totalScenes as number ?? '?'} visuals generated</p>}
                                 <div className="grid grid-cols-3 gap-2">
                                     {visuals.map((v, i) => (
-                                        <div key={i} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
+                                        <div key={v.sceneId} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
                                             <img src={v.imageUrl} alt={`Scene ${i + 1}`} className="w-full h-full object-cover" />
                                         </div>
                                     ))}

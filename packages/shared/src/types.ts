@@ -453,6 +453,12 @@ export interface CharacterProfile {
   visualDescription: string; // The "Golden Prompt" for consistency
   facialTags?: string; // 5-keyword compact face/clothing tags for prompt anchoring
   referenceImageUrl?: string; // Generated "Sheet" for the character
+  /** 30-50 word structured visual identity anchor for prompt injection.
+   * Format: "[name]: [first 2 sentences of visualDescription]. Face: [facialTags]. Rendered in [style] art style."
+   * Built by enrichCharactersWithCoreAnchors() after character extraction.
+   * Injected as "CHARACTERS IN FRAME:" prefix in image prompts for consistency.
+   */
+  coreAnchors?: string;
 }
 
 /**
@@ -518,6 +524,11 @@ export interface StoryShot {
   lighting: string;
   scriptSegment?: string; // 1-3 sentences of narration mapped to this shot
   imageUrl?: string; // Generated image for this shot
+  // Extended cinematography metadata (matches ShotlistEntry for shot-table display)
+  equipment?: string; // Camera equipment, e.g. "Tripod", "Steadicam"
+  focalLength?: string; // e.g. "35mm", "85mm"
+  aspectRatio?: string; // e.g. "16:9", "9:16", "1:1"
+  notes?: string; // Production notes
 }
 
 /**
@@ -588,6 +599,33 @@ export interface StoryState {
 
   // Error tracking for specific stages
   stageErrors?: Record<StoryStep, string | null>;
+
+  /**
+   * Per-shot image generation status for error recovery and resume.
+   * Key is shot.id, value is 'pending' | 'success' | 'failed'.
+   * Populated/updated during generateVisuals().
+   */
+  storyboardStatus?: Record<string, 'pending' | 'success' | 'failed'>;
+
+  /**
+   * Per-shot narration generation status for error recovery and resume.
+   * Key is shot.id, value is 'pending' | 'success' | 'failed'.
+   * Populated/updated during generateNarration().
+   */
+  narrationStatus?: Record<string, 'pending' | 'success' | 'failed'>;
+
+  /**
+   * Per-shot narration audio segments.
+   * Enables exact timing alignment: each shot's audio maps directly to its visual.
+   * Coexists with narrationSegments (scene-level) for backward compatibility.
+   */
+  shotNarrationSegments?: Array<{
+    shotId: string;
+    sceneId: string;
+    audioUrl: string;
+    duration: number;
+    text: string;
+  }>;
 }
 
 // --- Multi-Format Pipeline Types ---

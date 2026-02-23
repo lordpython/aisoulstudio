@@ -20,11 +20,11 @@ import { runProductionAgent } from '@/services/ai/productionAgent';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';
-import { narrateScene, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
+import { narrateScene, narrateAllShots, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
 import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
-import { generateCharacterReference } from '@/services/characterService';
+import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/characterService';
 import { cloudAutosave } from '@/services/cloudStorageService';
 import { createCombinedNarrationAudio } from '@/services/audioConcatService';
 import {
@@ -233,6 +233,11 @@ function stripImageDataForStorage(state: StoryState): StoryState {
         })),
         // Strip blob URLs from narration (audio)
         narrationSegments: state.narrationSegments?.map(seg => ({
+            ...seg,
+            audioUrl: shouldStrip(seg.audioUrl) ? '' : seg.audioUrl,
+        })),
+        // Strip blob URLs from per-shot narration segments
+        shotNarrationSegments: state.shotNarrationSegments?.map(seg => ({
             ...seg,
             audioUrl: shouldStrip(seg.audioUrl) ? '' : seg.audioUrl,
         })),
@@ -783,10 +788,16 @@ export function useStoryGeneration(projectId?: string | null) {
             if (storyState && storyState.characters && storyState.characters.length > 0) {
                 console.log('[useStoryGeneration] Characters retrieved:', storyState.characters.length);
 
+                // Enrich with coreAnchors for stronger prompt anchoring in image generation
+                const enrichedCharacters = enrichCharactersWithCoreAnchors(
+                    storyState.characters,
+                    state.visualStyle || 'Cinematic'
+                );
+
                 setState(prev => ({
                     ...prev,
                     currentStep: 'characters',
-                    characters: storyState.characters,
+                    characters: enrichedCharacters,
                 }));
             } else {
                 setError('Characters were generated but could not be retrieved. Please try again.');
@@ -1258,7 +1269,19 @@ export function useStoryGeneration(projectId?: string | null) {
                     extractedStyleOverride,
                     storyPersona,
                 );
-                return serializeStyleGuideAsText(guide);
+                const serialized = serializeStyleGuideAsText(guide);
+
+                // Inject CHARACTERS IN FRAME section from coreAnchors for stronger consistency
+                const shotDescLower = shot.description.toLowerCase();
+                const presentChars = state.characters.filter(c =>
+                    shotDescLower.includes(c.name.toLowerCase()) && c.coreAnchors
+                );
+                if (presentChars.length > 0) {
+                    const charSection = "CHARACTERS IN FRAME:\n" +
+                        presentChars.map(c => `- ${c.coreAnchors}`).join('\n');
+                    return `${charSection}\n\nSCENE:\n${serialized}`;
+                }
+                return serialized;
             };
 
             // Helper: get seed for the primary character in a shot (Issue 1)
@@ -1302,9 +1325,20 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
             };
 
+            // --- Resume logic: build storyboard status and filter already-done shots ---
+            const alreadyDoneShots = state.shotlist.filter(s => s.imageUrl);
+            const alreadyDoneStatus: Record<string, 'pending' | 'success' | 'failed'> = {};
+            alreadyDoneShots.forEach(s => { alreadyDoneStatus[s.id] = 'success'; });
+            const storyboardStatus: Record<string, 'pending' | 'success' | 'failed'> = {
+                ...(state.storyboardStatus || {}),
+                ...alreadyDoneStatus,
+            };
+            // Only process shots that don't already have an imageUrl
+            const shotsNeedingVisuals = shotsToProcess.filter(s => !s?.imageUrl);
+
             if (state.imageProvider === 'deapi') {
                 // Sequential-first for shot #1 (extract style), then parallel for rest
-                const validShots = shotsToProcess.filter((s): s is NonNullable<typeof s> => s != null);
+                const validShots = shotsNeedingVisuals.filter((s): s is NonNullable<typeof s> => s != null);
 
                 // Generate shot #1 first to extract visual style (Issue 3)
                 if (validShots.length > 0) {
@@ -1370,48 +1404,97 @@ export function useStoryGeneration(projectId?: string | null) {
                     }
                 }
             } else {
-                // Sequential generation via Gemini Imagen
-                for (let i = 0; i < shotsToProcess.length; i++) {
-                    const shot = shotsToProcess[i];
-                    if (!shot) continue;
+                // Parallel generation via Gemini Imagen using ParallelExecutionEngine
+                const { ParallelExecutionEngine } = await import('@/services/parallelExecutionEngine');
+                const engine = new ParallelExecutionEngine();
 
-                    const percent = 10 + ((i + 1) / shotsToProcess.length) * 80;
-                    setProgress({
-                        message: `Generating visual ${i + 1} of ${shotsToProcess.length}...`,
-                        percent
-                    });
-
+                // If we have existing images, extract style from the first one for consistency
+                const firstExistingImage = state.shotlist.find(s => s.imageUrl)?.imageUrl;
+                if (firstExistingImage && !extractedStyleOverride) {
                     try {
-                        const prompt = buildShotPrompt(shot);
-                        const imageUrl = await generateImageFromPrompt(
-                            prompt,
-                            style,
-                            '',
-                            state.aspectRatio || '16:9',
-                            false,
-                            undefined,
-                            sessionId || undefined,
-                            i
-                        );
-                        await processShotResult(shot, imageUrl);
+                        const visualStyleData = await extractVisualStyle(firstExistingImage, sessionId || undefined);
+                        extractedStyleOverride = {
+                            colorPalette: visualStyleData.colorPalette,
+                            lighting: visualStyleData.lighting,
+                            texture: visualStyleData.texture,
+                            moodKeywords: visualStyleData.moodKeywords,
+                            negativePrompts: generateNegativePromptsForStyle(style),
+                        };
+                    } catch (e) { /* non-fatal */ }
+                }
 
-                        // Extract visual style from first shot for consistency (Issue 3)
-                        if (i === 0 && !extractedStyleOverride) {
-                            try {
-                                const visualStyle = await extractVisualStyle(imageUrl, sessionId || undefined);
-                                extractedStyleOverride = {
-                                    colorPalette: visualStyle.colorPalette,
-                                    lighting: visualStyle.lighting,
-                                    texture: visualStyle.texture,
-                                    moodKeywords: visualStyle.moodKeywords,
-                                    negativePrompts: generateNegativePromptsForStyle(style),
-                                };
-                            } catch (styleErr) {
-                                console.warn('[useStoryGeneration] Style extraction failed:', styleErr);
-                            }
+                // Style extraction guard — only the first completed task triggers it
+                let styleExtractionDone = !!extractedStyleOverride;
+
+                const tasks = shotsNeedingVisuals
+                    .filter((s): s is NonNullable<typeof s> => s != null)
+                    .map((shot, idx) => ({
+                        id: shot.id,
+                        type: 'visual' as const,
+                        priority: shot.shotNumber,
+                        retryable: true,
+                        timeout: 90_000,
+                        execute: async () => {
+                            const prompt = buildShotPrompt(shot);
+                            const imageUrl = await generateImageFromPrompt(
+                                prompt,
+                                style,
+                                '',
+                                state.aspectRatio || '16:9',
+                                false,
+                                undefined,
+                                sessionId || undefined,
+                                idx
+                            );
+                            return { shotId: shot.id, imageUrl };
+                        },
+                    }));
+
+                let completedCount = alreadyDoneShots.length;
+                const geminiResults = await engine.execute(tasks, {
+                    concurrencyLimit: 4,
+                    retryAttempts: 2,
+                    retryDelay: 3000,
+                    exponentialBackoff: true,
+                    onProgress: (p) => {
+                        completedCount = alreadyDoneShots.length + p.completedTasks;
+                        setProgress({
+                            message: `Generating visual ${completedCount + 1}/${shotsToProcess.length}...`,
+                            percent: 10 + (completedCount / shotsToProcess.length) * 80,
+                        });
+                    },
+                    onTaskFail: (taskId, error) => {
+                        console.error(`[generateVisuals] Shot ${taskId} failed:`, error.message);
+                        storyboardStatus[taskId] = 'failed';
+                    },
+                    onTaskComplete: (taskId) => {
+                        storyboardStatus[taskId] = 'success';
+                    },
+                });
+
+                // Process results in post-execution loop (cloud upload + shotlist mutation NOT inside execute())
+                for (const result of geminiResults) {
+                    if (!result.success || !result.data) continue;
+                    const shot = shotsNeedingVisuals.find(s => s?.id === result.taskId);
+                    if (!shot) continue;
+                    await processShotResult(shot, result.data.imageUrl);
+                    storyboardStatus[result.taskId] = 'success';
+
+                    // Extract visual style from first successfully generated image
+                    if (!styleExtractionDone) {
+                        styleExtractionDone = true;
+                        try {
+                            const vs = await extractVisualStyle(result.data.imageUrl, sessionId || undefined);
+                            extractedStyleOverride = {
+                                colorPalette: vs.colorPalette,
+                                lighting: vs.lighting,
+                                texture: vs.texture,
+                                moodKeywords: vs.moodKeywords,
+                                negativePrompts: generateNegativePromptsForStyle(style),
+                            };
+                        } catch (styleErr) {
+                            console.warn('[useStoryGeneration] Style extraction failed:', styleErr);
                         }
-                    } catch (err) {
-                        console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, err);
                     }
                 }
             }
@@ -1428,6 +1511,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 shotlist: updatedShotlist,
                 currentStep: 'storyboard',
                 scenesWithVisuals: newScenesWithVisuals,
+                storyboardStatus,
             });
 
             setProgress({ message: 'Complete!', percent: 100 });
@@ -1639,8 +1723,9 @@ export function useStoryGeneration(projectId?: string | null) {
     }, [state.currentStep, clearError, generateScreenplay, generateCharacters, generateShots, generateVisuals]);
 
     /**
-     * Step 6: Generate narration (TTS) for all scenes
-     * Uses Gemini TTS to create voiceover for each scene's action/dialogue
+     * Step 6: Generate per-shot narration (TTS).
+     * Uses narrateAllShots() for per-shot audio segments, with resume logic to skip
+     * already-narrated shots. Falls back to voiceover scripts → scene action → description.
      */
     const generateNarration = useCallback(async () => {
         if (!state.shotlist || state.shotlist.length === 0) {
@@ -1650,46 +1735,19 @@ export function useStoryGeneration(projectId?: string | null) {
 
         setIsProcessing(true);
         setError(null);
-        setProgress({ message: 'Generating narration...', percent: 10 });
+        setProgress({ message: 'Rewriting scripts for voiceover...', percent: 5 });
 
         try {
-            const narrationSegments: NonNullable<StoryState['narrationSegments']> = [];
-
-            // Convert screenplay scenes to Scene format for narrator.
-            // Use screenplay (state.script.scenes) as the source — its action text
-            // is written as cinematic voiceover. The breakdown contains raw production
-            // notes (emotional hooks, narrative beats) which should NOT be narrated.
             const screenplayScenes = state.script?.scenes || [];
-            const totalScenes = state.breakdown.length;
 
-            // Step A: Generate voiceover scripts from screenplay action text.
-            // This rewrites camera directions into spoken narration with delivery markers.
-            setProgress({ message: 'Rewriting scripts for voiceover...', percent: 12 });
+            // Step A: Generate voiceover scripts from screenplay action text (delivery markers)
             const breakdownHooks = state.breakdown.map(s => {
-                // Extract emotional hook from breakdown metadata if available
                 const action = s.action || '';
                 return action.length > 100 ? action.slice(0, 100) : action;
             });
             const voiceoverMap = await generateVoiceoverScripts(screenplayScenes, breakdownHooks);
 
-            const scenesForNarration: Scene[] = state.breakdown.map((scene, idx) => {
-                const screenplayScene = screenplayScenes.find(s => s.id === scene.id) || screenplayScenes[idx];
-                const rawAction = screenplayScene?.action || scene.action;
-                // Use voiceover script if available (has delivery markers), else fall back to cleaned action
-                const narrationText = voiceoverMap.get(scene.id) || rawAction;
-                const { emotionalTone, instructionTriplet } = inferSceneEmotion(scene, idx, totalScenes);
-                return {
-                    id: scene.id,
-                    name: scene.heading,
-                    duration: 8, // Default duration, will be adjusted by TTS
-                    visualDescription: scene.action,
-                    narrationScript: cleanNarrationText(narrationText),
-                    emotionalTone,
-                    instructionTriplet,
-                };
-            });
-
-            // Detect language from multiple sources for robust Arabic detection
+            // Detect language for voice selection
             const sampleSources = [
                 state.breakdown[0]?.action || '',
                 state.breakdown[0]?.heading || '',
@@ -1702,61 +1760,102 @@ export function useStoryGeneration(projectId?: string | null) {
                 ...(detectedLang === 'ar' ? { language: 'ar' as const } : {}),
             };
 
-            for (let i = 0; i < scenesForNarration.length; i++) {
-                const scene = scenesForNarration[i];
-                if (!scene) continue;
+            // Resume logic: identify shots already narrated
+            const existingNarrations = state.shotNarrationSegments || [];
+            const narrationStatus: Record<string, 'pending' | 'success' | 'failed'> = {
+                ...(state.narrationStatus || {}),
+            };
+            const successfulIds = new Set(
+                existingNarrations.filter(s => s.audioUrl).map(s => s.shotId)
+            );
+            const shotsToNarrate = state.shotlist.filter(s => !successfulIds.has(s.id));
 
-                // Add delay between scenes to prevent rate limiting (except for first scene)
-                if (i > 0) {
+            setProgress({ message: 'Generating narration...', percent: 15 });
+
+            // Call narrateAllShots for parallel per-shot TTS (serialized via acquireTtsSlot mutex)
+            const newSegments = await narrateAllShots(
+                shotsToNarrate,
+                screenplayScenes,
+                narratorConfig,
+                (completed, total) => {
                     setProgress({
-                        message: `Waiting before scene ${i + 1}...`,
-                        percent: 10 + (i / scenesForNarration.length) * 60
+                        message: `Narrating shot ${completed}/${total}...`,
+                        percent: 15 + (total > 0 ? (completed / total) * 70 : 0),
                     });
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
+                },
+                sessionId || undefined,
+                state.narrationStatus,
+                existingNarrations,
+            );
 
-                setProgress({
-                    message: `Generating narration ${i + 1}/${scenesForNarration.length}...`,
-                    percent: 10 + ((i + 1) / scenesForNarration.length) * 60
-                });
+            setProgress({ message: 'Uploading audio...', percent: 88 });
 
-                try {
-                    const segment = await narrateScene(scene, narratorConfig, sessionId || undefined);
-
-                    if (segment && segment.audioBlob) {
-                        let audioUrl = createAudioUrl(segment);
-
-                        // Upload to cloud storage for persistence (blob URLs don't survive page refresh)
-                        if (sessionId) {
-                            const cloudUrl = await cloudAutosave.saveNarrationWithUrl(
-                                sessionId,
-                                segment.audioBlob,
-                                scene.id
-                            );
-                            if (cloudUrl) {
-                                console.log(`[useStoryGeneration] Narration uploaded to cloud: ${scene.id}`);
-                                audioUrl = cloudUrl; // Use cloud URL for persistence
-                            }
-                        }
-
-                        narrationSegments.push({
-                            sceneId: scene.id,
-                            audioUrl,
-                            duration: segment.audioDuration,
-                            text: segment.transcript,
-                        });
+            // Process results: create object URLs, optionally upload to cloud
+            const updatedShotNarrations: NonNullable<StoryState['shotNarrationSegments']> = [];
+            for (const seg of newSegments) {
+                let audioUrl = URL.createObjectURL(seg.audioBlob);
+                if (sessionId) {
+                    const cloudUrl = await cloudAutosave.saveNarrationWithUrl(
+                        sessionId,
+                        seg.audioBlob,
+                        seg.shotId
+                    );
+                    if (cloudUrl) {
+                        console.log(`[useStoryGeneration] Shot narration uploaded to cloud: ${seg.shotId}`);
+                        audioUrl = cloudUrl;
                     }
-                } catch (err) {
-                    console.error(`Failed to generate narration for scene ${i + 1}:`, err);
+                }
+                narrationStatus[seg.shotId] = 'success';
+                updatedShotNarrations.push({
+                    shotId: seg.shotId,
+                    sceneId: seg.sceneId,
+                    audioUrl,
+                    duration: seg.duration,
+                    text: seg.text,
+                });
+            }
+
+            // Mark failed shots
+            const newShotIds = new Set(updatedShotNarrations.map(s => s.shotId));
+            for (const shot of shotsToNarrate) {
+                if (!newShotIds.has(shot.id)) {
+                    narrationStatus[shot.id] = 'failed';
                 }
             }
+
+            // Merge with existing (keep previously narrated, replace updated ones)
+            const allShotNarrations: NonNullable<StoryState['shotNarrationSegments']> = [
+                ...existingNarrations.filter(n => !newShotIds.has(n.shotId)),
+                ...updatedShotNarrations,
+            ];
+
+            // Build legacy scene-level narrationSegments for backward compat with animateShots()
+            const sceneNarrationMap = new Map<string, { audioUrl: string; duration: number; text: string }>();
+            for (const seg of allShotNarrations) {
+                const existing = sceneNarrationMap.get(seg.sceneId);
+                if (existing) {
+                    existing.duration += seg.duration;
+                    existing.text += ' ' + seg.text;
+                } else {
+                    sceneNarrationMap.set(seg.sceneId, {
+                        audioUrl: seg.audioUrl, // Use first shot's audio for legacy compat
+                        duration: seg.duration,
+                        text: seg.text,
+                    });
+                }
+            }
+            const narrationSegments: NonNullable<StoryState['narrationSegments']> = Array.from(
+                sceneNarrationMap.entries()
+            ).map(([sceneId, data]) => ({ sceneId, ...data }));
 
             setProgress({ message: 'Finalizing narration...', percent: 95 });
 
             pushState({
                 ...state,
-                narrationSegments,
-                scenesWithNarration: narrationSegments.map(s => s.sceneId),
+                shotNarrationSegments: allShotNarrations,
+                narrationStatus,
+                narrationSegments, // Legacy: for animateShots() fallback
+                scenesWithNarration: [...new Set(allShotNarrations.map(n => n.sceneId))],
                 currentStep: 'narration',
             });
 
@@ -1806,9 +1905,15 @@ export function useStoryGeneration(projectId?: string | null) {
 
             const useDeApi = isDeApiConfigured();
 
-            // Pre-compute per-shot target durations from narration (Issue 6)
+            // Pre-compute per-shot target durations from narration
             const shotTargetDurations = new Map<string, number>();
-            if (state.narrationSegments && state.narrationSegments.length > 0) {
+            if (state.shotNarrationSegments && state.shotNarrationSegments.length > 0) {
+                // Exact per-shot durations from per-shot narration (new system)
+                state.shotNarrationSegments.forEach(seg => {
+                    shotTargetDurations.set(seg.shotId, seg.duration);
+                });
+            } else if (state.narrationSegments && state.narrationSegments.length > 0) {
+                // Legacy fallback: divide scene duration evenly across shots in that scene
                 const sceneIds = [...new Set(state.shotlist.map(s => s.sceneId))];
                 for (const sceneId of sceneIds) {
                     const sceneShotIds = state.shotlist.filter(s => s.sceneId === sceneId).map(s => s.id);

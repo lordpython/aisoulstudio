@@ -25,7 +25,9 @@
       "Bash(\"C:/Users/noone/Documents/Projects/aisoulstudio/packages/shared/src/vite-env.d.ts\":*)",
       "Bash(python3:*)",
       "Bash(echo Done: $?:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"
