@@ -8,7 +8,7 @@ import {
   createRenderJob,
   serializeJob,
   deserializeJob,
-} from '../../../server/types/renderJob';
+} from '../../../packages/server/types/renderJob';
 
 describe('RenderJob', () => {
   describe('createRenderJob', () => {

@@ -2,130 +2,119 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Commands
 
-LyricLens is an AI-powered video production platform built with React 19, TypeScript, Vite 7, and Express 5. It has two modes:
-- **Production Mode**: Generate videos from text topics using multi-agent AI orchestration
-- **Visualizer Mode**: Create lyric videos from audio files with synchronized subtitles
-
-## Development Commands
+All commands run from the workspace root unless noted.
 
 ```bash
-# Development
-npm run dev              # Frontend only (port 3000)
-npm run server           # Backend only (port 3001)
-npm run dev:all          # Both frontend and backend concurrently
+# Dev (run both together for full stack)
+pnpm run dev          # Frontend only (Vite, port 3000)
+pnpm run dev:host     # Frontend + exposed on LAN (for mobile testing)
+pnpm run server       # Backend only (Express, port 3001)
+pnpm run dev:all      # Frontend + backend concurrently
 
-# Testing
-npm test                 # Vitest unit tests (watch mode)
-npm run test:run         # Single test run (no watch)
-npm run test:e2e         # Playwright E2E tests
-npm run test:agent       # LangChain agent tests (npx tsx scripts/test-agent-node.ts)
-npm run test:pipeline    # Full pipeline tests (npx tsx scripts/test-full-pipeline.ts)
+# Build & preview
+pnpm run build        # Production frontend build
+pnpm run preview      # Serve production build locally
 
-# Build
-npm run build            # Production build
-npm run preview          # Preview production build
+# Tests
+pnpm run test         # Frontend tests (Vitest, watch mode)
+pnpm run test:run     # Frontend tests (run once)
+pnpm run test:server  # Server/shared tests (Vitest node env, reads __tests__/ at root)
+pnpm run test:e2e     # Playwright E2E tests
 
-# Mobile (Capacitor)
-npm run cap:sync         # Sync web assets to native
-npm run cap:android      # Open Android Studio
-npm run cap:ios          # Open Xcode
+# Run a single test file (server/shared — from workspace root)
+pnpm exec vitest run --config vitest.config.ts __tests__/services/textSanitizer.test.ts
+# Run a single test file (frontend — from packages/frontend or workspace root)
+pnpm --filter @studio/frontend exec vitest run components/CheckpointApproval.test.tsx
+
+# Mobile
+pnpm run build:mobile  # Build frontend then sync Capacitor
+pnpm run cap:android   # Open Android Studio
+pnpm run cap:ios       # Open Xcode
 ```
 
-**Note**: Always use `npm install --legacy-peer-deps` due to dotenv peer dependency conflict (handled by `.npmrc`).
+## Environment
+
+`.env` and `.env.local` live at the **workspace root** (not inside packages). The server's `env.ts` resolves them via `../../` from `packages/server/`, and Vite uses `envDir: "../../"`. Both must be loaded from the root.
+
+## Monorepo Structure
+
+pnpm workspaces with three packages:
+
+- **`packages/frontend`** (`@studio/frontend`) — React 19 SPA. Entry: `index.tsx` → `App.tsx` → React Router v7. Screens in `screens/`, reusable components in `components/`, hooks in `hooks/`.
+- **`packages/server`** (`@studio/server`) — Express 5 REST API on port 3001. Runs via `tsx` (no compile step). `env.ts` **must be imported first** in `index.ts`. Routes: `/api/export`, `/api/import`, `/api/gemini`, `/api/deapi`, `/api/suno`, `/api/cloud`, `/api/video`, `/api/director`.
+- **`packages/shared`** (`@studio/shared`) — All business logic (AI agents, FFmpeg services, pipelines, Firebase, Zustand stores). Consumed by both frontend and server. Exports via `"./src/*": "./src/*"`.
+
+Server/shared integration tests live in `__tests__/` at the workspace root, driven by `vitest.config.ts` there.
+
+## Path Aliases
+
+**Frontend** (`packages/frontend/vite.config.ts`) — regex aliases, **order matters**:
+- `@/services/*`, `@/types/*`, `@/constants/*`, `@/utils/*`, `@/lib/*`, `@/stores/*` → `packages/shared/src/`
+- `@/*` (catch-all) → `packages/frontend/` — **must be last**
+
+**Server** (`packages/server/tsconfig.json`):
+- `@studio/shared/src/*` and `@shared/*` → `packages/shared/src/`
+
+**Frontend tsconfig** mirrors the Vite aliases so tsc type-checks correctly.
 
 ## Architecture
 
-### Layered Structure
-```
-screens/          → Full-page components (HomeScreen, StudioScreen, etc.)
-    ↓
-components/       → Feature-specific UI (TimelineEditor, chat, visualizer, story)
-    ↓
-hooks/            → React hooks bridging UI and services
-    ↓
-services/         → Business logic (React-free, usable in browser and Node)
-    ↓
-stores/appStore.ts → Zustand global state with localStorage persistence
-```
+### AI Models (`packages/shared/src/services/shared/apiClient.ts`)
 
-### Multi-Agent System (`services/ai/`)
+The `MODELS` constant defines which models are used:
+- `TEXT`: `gemini-3-flash-preview` (primary LLM for all text tasks)
+- `IMAGE`: `imagen-4.0-fast-generate-001`
+- `VIDEO`: `veo-3.1-fast-generate-preview`
+- `TTS`: `gemini-2.5-flash-preview-tts` (audio output modality)
 
-Toggle via `VITE_USE_MULTI_AGENT=true/false`:
+Server-side uses **Vertex AI** (`GOOGLE_CLOUD_PROJECT`). Browser-side proxies all calls through the Express server.
 
-**Supervisor-Subagent Pattern** (`services/ai/subagents/`):
-- **Supervisor Agent** (`supervisorAgent.ts`) → Orchestrates workflow, manages sessionId
-- **Import Subagent** → Media/topic input (optional)
-- **Content Subagent** → Narrative planning, scene generation (required)
-- **Media Subagent** → TTS (Gemini), images (Imagen 4/DeAPI), video (Veo 3.1/LTX)
-- **Enhancement/Export Subagent** → Audio mixing, final export
+### AI Pipeline
 
-**Production Pipeline** (`services/ai/production/`):
-- `agentCore.ts` - Main execution loop with result caching and error recovery
-- `toolRegistration.ts` - LangChain tool definitions with Zod schemas
-- `tools/contentTools.ts`, `tools/storyTools.ts`, `tools/mediaTools.ts` - Tool implementations
-- `store.ts` - Production state management (separate from app store)
+Format-specific pipelines in `packages/shared/src/services/pipelines/` (e.g. `newsPolitics.ts`, `documentary.ts`, `shorts.ts`) orchestrate the full production workflow:
+1. Research/script generation (LLM calls via `apiClient.ts` → server proxy → Gemini)
+2. Checkpoint gates (user approval steps via `checkpointSystem.ts`)
+3. Parallel visual generation (`imageService.ts` → Gemini Imagen)
+4. Sequential TTS narration (`narratorService.ts` → Gemini 2.5 Flash TTS)
+5. Assembly
 
-**Story Mode Pipeline** (`components/story/`, `services/ai/storyPipeline.ts`):
-10-step discrete LLM workflow: Idea → Breakdown → Script → Characters → Shots → Style → Storyboard → Narration → Animation → Export
+The supervisor/subagent pattern in `services/ai/subagents/` handles open-ended "chat" style production.
+
+### API Proxying
+
+The frontend never calls AI APIs directly. All AI calls go through the Express server:
+- Frontend → `fetch('/api/...')` → Vite proxy → `localhost:3001` → server route → Gemini/DeAPI/Suno
+- `ProxyAIClient` in `shared/src/services/shared/apiClient.ts` mimics the `@google/genai` SDK interface so shared services are isomorphic.
+
+### Retry / Circuit Breaker
+
+`withRetry()` in `apiClient.ts` retries on `error.status === 500/503/429` or messages containing `"INTERNAL"` / `"fetch failed"`. The `ProxyAIClient.callProxy()` attaches `.status` to thrown errors so retry detection works. Errors must **not** be wrapped before being passed to `withRetry` — wrap them after.
+
+### Server Rendering Infrastructure
+
+On startup, `index.ts` initializes: `detectEncoders()` → `workerPool.initialize()` → `jobQueue.initialize()`. The job queue delegates render jobs to a worker pool (`packages/server/workers/workerPool.ts`), which runs `ffmpegWorker.ts`. Progress/completion messages flow back via the worker message handler.
 
 ### State Management
 
-Single Zustand store (`stores/appStore.ts`) with sections:
-- Conversation (chat history, context)
-- Generation (pipeline progress)
-- Export (settings, progress)
-- UI (panels, modals, view modes)
-- Production (scenes, playback)
-- Navigation (route persistence, unsaved changes)
+Zustand stores in `packages/shared/src/stores/`. localStorage keys all use prefix `ai_soul_studio_`. `useStoryGeneration(projectId?)` resets state when the projectId changes to prevent cross-project data leakage.
 
-### Video Export
+### Firebase
 
-Dual-engine approach:
-- **Client-side**: FFmpeg WASM (`services/ffmpeg/`) - instant preview, browser-based
-- **Server-side**: Native FFmpeg (`server/routes/export.ts`) - production quality, required for mobile WebViews
+Firestore rejects `undefined` values — always sanitize with a JSON round-trip (`JSON.parse(JSON.stringify(obj))`) before `setDoc()`. See `storySync.ts`.
 
-## API Endpoints (Express, port 3001)
+### FFmpeg
 
-- `POST /api/export/init|chunk|finalize` - Chunked video export pipeline
-- `POST /api/import/youtube` - YouTube audio download (requires yt-dlp)
-- `POST /api/gemini/proxy/*` - Gemini API proxy
-- `POST /api/deapi/image|animate` - DeAPI image/video generation
-- `POST /api/suno/proxy/*` - Suno music generation proxy
-- `GET /api/health` - Server status
+Two modes: browser-side WASM (`@ffmpeg/ffmpeg`) and server-side via the `/api/export` endpoints. WASM isn't available in Capacitor WebViews — use server-side export there. Dev server intentionally omits COOP/COEP headers to avoid breaking Firebase Auth popups.
 
-## Configuration
+## Key Gotchas
 
-### Environment Variables (.env.local)
-```env
-# Required
-VITE_GEMINI_API_KEY=
-
-# Optional AI services
-VITE_DEAPI_API_KEY=
-VITE_SUNO_API_KEY=
-VITE_FREESOUND_API_KEY=
-VITE_LANGSMITH_API_KEY=
-
-# Feature flags
-VITE_USE_MULTI_AGENT=true
-```
-
-### TypeScript
-- Strict mode fully enabled with `noUncheckedIndexedAccess`
-- Path alias: `@/*` maps to project root
-
-### ESLint Rules
-- Unused variables with `_` prefix allowed (`argsIgnorePattern: "^_"`)
-- `@ts-ignore` allowed when needed (`ban-ts-comment: off`)
-- `no-require-imports` disabled for conditional imports
-- `no-explicit-any` is a warning, not error
-
-## Key Conventions
-
-- **Services must be React-free** (no React imports) for Node.js compatibility
-- **Use `arabic-reshaper`** for Arabic text in subtitles (RTL support)
-- **FFmpeg WASM requires COOP/COEP headers** (configured in vite.config.ts, disabled for mobile builds)
-- **Mobile WebViews don't support SharedArrayBuffer** — use server-side export via `/api/export` endpoints
-- **Session IDs** are critical in multi-agent pipeline — format: `prod_TIMESTAMP_HASH` (e.g., `prod_1768266562924_r3zdsyfgc`)
+- **Imagen API**: `seed` param is not supported — remove it before calling `imageService.ts`.
+- **DeAPI animation**: `animateImageWithDeApi` expects full data URLs (`data:image/png;base64,...`), not raw base64.
+- **Tailwind v4**: PostCSS emits a cosmetic warning about missing `from` option — filtered out in `vite.config.ts`.
+- **Peer deps**: `.npmrc` sets `legacy-peer-deps=true` because `@langchain/community` pins an older `dotenv` range.
+- **TTS voice**: Language-aware voice selection happens in `narratorService.ts` — e.g. `"Kore"` for English.
+- **Studio URL modes**: `parseStudioParams()` in `StudioScreen.tsx` parses `?mode=video|music|story`.
+- **Vertex AI auth**: Server requires `gcloud auth application-default login` and `GOOGLE_CLOUD_PROJECT` set. Falls back to `VITE_GEMINI_API_KEY` for direct API key auth.
+- **Mobile builds**: Set `CAPACITOR_BUILD=true` env var to switch Vite `base` to `"./"` for relative asset paths.

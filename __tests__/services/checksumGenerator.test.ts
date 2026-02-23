@@ -8,7 +8,7 @@ import {
   generateSimpleChecksum,
   createFrameManifest,
   FrameChecksum,
-} from '../../services/ffmpeg/checksumGenerator';
+} from '../../packages/shared/src/services/ffmpeg/checksumGenerator';
 
 // Mock the crypto.subtle API if not available in test environment
 beforeAll(() => {

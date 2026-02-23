@@ -18,7 +18,14 @@
       "WebFetch(domain:docs.deapi.ai)",
       "Bash(npx vitest:*)",
       "Bash(ls:*)",
-      "Bash(npm run test:run:*)"
+      "Bash(npm run test:run:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)",
+      "Bash(pnpm install:*)",
+      "Bash(\"C:/Users/noone/Documents/Projects/aisoulstudio/packages/shared/src/vite-env.d.ts\":*)",
+      "Bash(python3:*)",
+      "Bash(echo Done: $?:*)",
+      "Bash(wc:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

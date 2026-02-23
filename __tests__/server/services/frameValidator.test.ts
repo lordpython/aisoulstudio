@@ -7,7 +7,7 @@ import {
   generateChecksum,
   verifyFrameChecksum,
   validateFrameSequence,
-} from '../../../server/services/validation/frameValidator';
+} from '../../../packages/server/services/validation/frameValidator';
 
 describe('Frame Validator', () => {
   describe('generateChecksum', () => {

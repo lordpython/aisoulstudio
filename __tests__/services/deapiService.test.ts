@@ -72,7 +72,7 @@ describe('DeAPI Service', () => {
         blob: async () => new Blob(['test-image-data'], { type: 'image/png' }),
       });
 
-      const { generateImageWithDeApi } = await import('../../services/deapiService');
+      const { generateImageWithDeApi } = await import('../../packages/shared/src/services/deapiService');
       await generateImageWithDeApi(params);
 
       // Verify the request was made with all parameters
@@ -129,7 +129,7 @@ describe('DeAPI Service', () => {
         blob: async () => new Blob(['test-video-data'], { type: 'video/mp4' }),
       });
 
-      const { generateVideoWithDeApi } = await import('../../services/deapiService');
+      const { generateVideoWithDeApi } = await import('../../packages/shared/src/services/deapiService');
       await generateVideoWithDeApi(params, '16:9');
 
       expect(mockFetch).toHaveBeenCalled();
@@ -175,7 +175,7 @@ describe('DeAPI Service', () => {
         };
       });
 
-      const { animateImageWithDeApi } = await import('../../services/deapiService');
+      const { animateImageWithDeApi } = await import('../../packages/shared/src/services/deapiService');
       await animateImageWithDeApi(base64Image, prompt, '16:9', undefined, undefined, options);
 
       expect(mockFetch).toHaveBeenCalled();
@@ -184,7 +184,7 @@ describe('DeAPI Service', () => {
 
   describe('Model Recommendations', () => {
     it('should export model recommendations', async () => {
-      const { MODEL_RECOMMENDATIONS } = await import('../../services/deapiService');
+      const { MODEL_RECOMMENDATIONS } = await import('../../packages/shared/src/services/deapiService');
       
       expect(MODEL_RECOMMENDATIONS.speed).toBe('Flux1schnell');
       expect(MODEL_RECOMMENDATIONS.storyboard).toBe('Flux_2_Klein_4B_BF16');
@@ -194,7 +194,7 @@ describe('DeAPI Service', () => {
 
   describe('Rate Limiter', () => {
     it('should export rate limiter functions', async () => {
-      const { getImg2VideoWaitTime, getImg2VideoQueueLength } = await import('../../services/deapiService');
+      const { getImg2VideoWaitTime, getImg2VideoQueueLength } = await import('../../packages/shared/src/services/deapiService');
       
       expect(typeof getImg2VideoWaitTime).toBe('function');
       expect(typeof getImg2VideoQueueLength).toBe('function');
@@ -204,7 +204,7 @@ describe('DeAPI Service', () => {
 
   describe('Tier Detection', () => {
     it('should export tier detection functions', async () => {
-      const { detectTier, getRecommendedConcurrency, getCurrentTier } = await import('../../services/deapiService');
+      const { detectTier, getRecommendedConcurrency, getCurrentTier } = await import('../../packages/shared/src/services/deapiService');
       
       expect(typeof detectTier).toBe('function');
       expect(typeof getRecommendedConcurrency).toBe('function');
@@ -216,7 +216,7 @@ describe('DeAPI Service', () => {
     });
 
     it('should return appropriate concurrency for tiers', async () => {
-      const { getRecommendedConcurrency } = await import('../../services/deapiService');
+      const { getRecommendedConcurrency } = await import('../../packages/shared/src/services/deapiService');
       
       const concurrency = getRecommendedConcurrency();
       expect(concurrency).toBeGreaterThanOrEqual(1);
@@ -226,7 +226,7 @@ describe('DeAPI Service', () => {
 
   describe('Cost Estimation', () => {
     it('should estimate batch costs correctly', async () => {
-      const { estimateBatchCost } = await import('../../services/deapiService');
+      const { estimateBatchCost } = await import('../../packages/shared/src/services/deapiService');
       
       const estimate = estimateBatchCost(10, 5, '16:9');
       
@@ -246,7 +246,7 @@ describe('DeAPI Service', () => {
         text: async () => 'Internal Server Error',
       });
 
-      const { generateImageWithDeApi } = await import('../../services/deapiService');
+      const { generateImageWithDeApi } = await import('../../packages/shared/src/services/deapiService');
       
       await expect(generateImageWithDeApi({
         prompt: 'test',
@@ -261,7 +261,7 @@ describe('DeAPI Service', () => {
         text: async () => 'Rate limit exceeded',
       });
 
-      const { generateImageWithDeApi } = await import('../../services/deapiService');
+      const { generateImageWithDeApi } = await import('../../packages/shared/src/services/deapiService');
       
       await expect(generateImageWithDeApi({
         prompt: 'test',
@@ -271,7 +271,7 @@ describe('DeAPI Service', () => {
 
   describe('Configuration', () => {
     it('should export configuration check functions', async () => {
-      const { isDeApiConfigured, getDeApiConfigMessage } = await import('../../services/deapiService');
+      const { isDeApiConfigured, getDeApiConfigMessage } = await import('../../packages/shared/src/services/deapiService');
       
       expect(typeof isDeApiConfigured).toBe('function');
       expect(typeof getDeApiConfigMessage).toBe('function');

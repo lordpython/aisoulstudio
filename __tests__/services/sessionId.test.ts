@@ -7,7 +7,7 @@ import {
     generateSessionId,
     validateContentPlanId,
     isValidSessionId,
-} from '../../services/ai/production/utils';
+} from '../../packages/shared/src/services/ai/production/utils';
 
 describe('sessionId Generation and Validation', () => {
     describe('generateSessionId', () => {

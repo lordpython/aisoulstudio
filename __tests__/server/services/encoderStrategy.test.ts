@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ENCODING_SPEC,
   getEncoderArgs,
-} from '../../../server/services/encoding/encoderStrategy';
+} from '../../../packages/server/services/encoding/encoderStrategy';
 
 describe('Encoder Strategy', () => {
   describe('ENCODING_SPEC', () => {

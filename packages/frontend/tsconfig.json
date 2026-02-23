@@ -1,0 +1,48 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "types": ["node", "vite/client"],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/services/*": ["../shared/src/services/*"],
+      "@/types/*": ["../shared/src/types/*"],
+      "@/types": ["../shared/src/types.ts"],
+      "@/constants": ["../shared/src/constants/index.ts"],
+      "@/constants/*": ["../shared/src/constants/*"],
+      "@/utils/*": ["../shared/src/utils/*"],
+      "@/lib/*": ["../shared/src/lib/*"],
+      "@/stores": ["../shared/src/stores/appStore.ts"],
+      "@/stores/*": ["../shared/src/stores/*"],
+      "@/*": ["./*"]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
+    "../shared/src/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

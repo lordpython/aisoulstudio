@@ -1,0 +1,32 @@
+{
+  "name": "@studio/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx tsx --tsconfig tsconfig.json index.ts",
+    "start": "node --import tsx/esm index.ts"
+  },
+  "dependencies": {
+    "@studio/shared": "workspace:*",
+    "@google-cloud/storage": "^7.18.0",
+    "@google/genai": "^1.38.0",
+    "@langchain/community": "^1.1.7",
+    "@langchain/core": "^1.1.17",
+    "@langchain/google-genai": "^2.1.13",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "langsmith": "^0.4.8",
+    "multer": "^2.0.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^25.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

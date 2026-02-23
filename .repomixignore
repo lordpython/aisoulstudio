@@ -1,0 +1,63 @@
+# IDEs & tools
+.claude
+.cursor
+.kilocode
+.kiro
+.kombai
+.trae
+.vscode
+
+# Build outputs
+build
+dist
+
+# Dependencies
+node_modules
+
+# Generated/output files
+codebase-export.md
+codebase-map.html
+last-run
+pnpm-lock.yaml
+project-export.json
+repomix.config.json
+story-pipeline-output.md
+tree.md
+
+# Docs & plans
+docs
+plans
+
+# Config files
+.env
+.gitignore
+.mcp.json
+.npmrc
+.repomixignore
+.npmrc
+capacitor.config.ts
+components.json
+eslint.config.ts
+firebase.json
+firestore.indexes.json
+firestore.rules
+postcss.config.js
+pnpm-workspace.yaml
+tsconfig.json
+vite.config.ts
+vite-env.d.ts
+
+# Misc root files
+CLAUDE.md
+DEPENDENCY_NOTES.md
+index.css
+index.html
+llms.txt
+package.json
+prompt.md
+README.md
+StoryIdea.txt
+Untitled-2.ps1
+
+# Public assets
+public

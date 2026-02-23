@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderFrameToCanvas } from '../../services/ffmpeg/frameRenderer';
-import { ExportConfig, RenderAsset } from '../../services/ffmpeg/exportConfig';
+import { renderFrameToCanvas } from '../../packages/shared/src/services/ffmpeg/frameRenderer';
+import { ExportConfig, RenderAsset } from '../../packages/shared/src/services/ffmpeg/exportConfig';
 
 describe('Frame Renderer', () => {
     let mockCtx: any;
