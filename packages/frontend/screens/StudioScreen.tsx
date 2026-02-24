@@ -1243,11 +1243,14 @@ export default function StudioScreen() {
             stageProgress={storyHook.getStageProgress()}
             isProcessing={storyHook.isProcessing}
             progress={storyHook.progress}
+            processingShots={storyHook.processingShots}
             // Storyboarder.ai-style workflow props
             onLockStory={storyHook.lockStory}
             onUpdateVisualStyle={storyHook.updateVisualStyle}
             onUpdateAspectRatio={storyHook.updateAspectRatio}
             onUpdateImageProvider={storyHook.updateImageProvider}
+            onUpdateStyleConsistency={storyHook.updateStyleConsistency}
+            onUpdateBgRemoval={storyHook.updateBgRemoval}
             // Error handling
             error={storyHook.error}
             onClearError={storyHook.clearError}
@@ -1260,6 +1263,8 @@ export default function StudioScreen() {
             onDownloadVideo={storyHook.downloadVideo}
             allScenesHaveNarration={storyHook.allScenesHaveNarration}
             allShotsHaveAnimation={storyHook.allShotsHaveAnimation}
+            // Drag-to-reorder shots
+            onReorderShots={storyHook.reorderShots}
             // Template and project management
             projectId={storyHook.sessionId ?? undefined}
             onApplyTemplate={storyHook.applyTemplate}

@@ -140,16 +140,16 @@ function buildFFmpegArgs(job: RenderJob, sessionDir: string): string[] {
   args.push('-c:v', encoder);
 
   // Encoder-specific settings (aligned with encoderStrategy.ts ENCODING_SPEC)
-  const quality = config.quality || 21;
+  const quality = config.quality || 18;
   switch (encoder) {
     case 'h264_nvenc':
       args.push(
-        '-preset', 'p4',
+        '-preset', 'p5',
         '-rc', 'vbr',
         '-cq', String(quality),
-        '-b:v', '8M',
-        '-maxrate', '12M',
-        '-bufsize', '16M'
+        '-b:v', '12M',
+        '-maxrate', '18M',
+        '-bufsize', '24M'
       );
       break;
     case 'h264_qsv':
@@ -171,7 +171,7 @@ function buildFFmpegArgs(job: RenderJob, sessionDir: string): string[] {
     default: {
       const cpuCount = Math.max(2, os.cpus().length - 2);
       args.push(
-        '-preset', 'fast',
+        '-preset', 'medium',
         '-crf', String(quality),
         '-tune', 'film',
         '-threads', String(cpuCount)

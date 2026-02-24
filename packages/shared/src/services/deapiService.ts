@@ -1,4 +1,5 @@
 import { cloudAutosave } from "./cloudStorageService";
+import { enhanceImg2ImgPrompt } from "./deapiPromptService";
 
 const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 const PROXY_BASE = "/api/deapi/proxy"; // Server-side proxy to bypass CORS
@@ -299,9 +300,25 @@ const base64ToBlob = async (base64Data: string): Promise<Blob> => {
 };
 
 /**
- * Poll for request completion with exponential backoff and rate limit handling
+ * Poll for request completion with exponential backoff and rate limit handling.
+ * In browser environments with VITE_DEAPI_CLIENT_ID configured, uses WebSocket instead.
  */
-async function pollRequest(requestId: string): Promise<string> {
+async function pollRequest(requestId: string, onProgress?: (progress: number, preview?: string) => void): Promise<string> {
+  // Try WebSocket first in browser (zero-poll, live previews)
+  if (isBrowser) {
+    try {
+      const { waitForJobViaWebSocket, isWebSocketAvailable } = await import('./deapiWebSocket.js');
+      if (isWebSocketAvailable()) {
+        console.log(`[DeAPI] Using WebSocket for request: ${requestId}`);
+        const wsResult = await waitForJobViaWebSocket(requestId, onProgress);
+        if (wsResult !== null) return wsResult;
+        console.log(`[DeAPI] WebSocket timed out, falling back to polling for ${requestId}`);
+      }
+    } catch {
+      // pusher-js unavailable or module missing — fall through to polling
+    }
+  }
+
   const maxAttempts = 60; // Max polling attempts
   const baseDelayMs = 3000; // Start with 3s delay
   const maxDelayMs = 15000; // Cap at 15s between polls
@@ -385,6 +402,12 @@ async function pollRequest(requestId: string): Promise<string> {
       // Still pending or processing - log progress
       if (data.progress) {
         console.log(`[DeAPI] Progress: ${data.progress}% (poll ${attempt + 1}/${maxAttempts})`);
+        const progressValue = parseFloat(data.progress);
+        if (!Number.isNaN(progressValue)) {
+          onProgress?.(progressValue, data.preview ?? undefined);
+        }
+      } else if (data.preview) {
+        onProgress?.(0, data.preview);
       } else {
         console.log(`[DeAPI] Status: ${data.status || 'pending'} (poll ${attempt + 1}/${maxAttempts})`);
       }
@@ -479,6 +502,7 @@ export const generateVideoWithDeApi = async (
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
   sessionId?: string,
   sceneIndex?: number,
+  onProgress?: (progress: number, preview?: string) => void,
 ): Promise<string> => {
   if (!isDeApiConfigured()) {
     throw new Error(
@@ -595,7 +619,7 @@ export const generateVideoWithDeApi = async (
     throw new Error(data.error || "Video generation failed at provider");
   } else if (data.request_id) {
     console.log(`[DeAPI] Polling for txt2video request: ${data.request_id}`);
-    videoUrl = await pollRequest(data.request_id);
+    videoUrl = await pollRequest(data.request_id, onProgress);
   } else {
     throw new Error("No request_id or result_url received from DeAPI txt2video");
   }
@@ -644,6 +668,8 @@ export const animateImageWithDeApi = async (
     last_frame_image?: string;  // Optional: Ending frame image (base64)
     webhook_url?: string;       // Optional: Webhook for async completion
     motionStrength?: 'subtle' | 'moderate' | 'dynamic'; // Controls frame count and motion intensity
+    removeBackground?: boolean; // Strip background before animation (reduces morphing artifacts)
+    onProgress?: (progress: number, preview?: string) => void; // Live job updates from WS/poll fallback
   },
 ): Promise<string> => {
   let base64Image = base64ImageInput;
@@ -672,6 +698,17 @@ export const animateImageWithDeApi = async (
         `DeAPI img2video requires a valid image data URL. ` +
         `Received: ${base64Image ? base64Image.substring(0, 50) + '...' : 'empty/null'}`
       );
+    }
+  }
+
+  // Optional: strip background before animation to prevent morphing artifacts
+  if (options?.removeBackground) {
+    try {
+      console.log('[DeAPI] Removing background before animation...');
+      base64Image = await removeImageBackground(base64Image, sessionId, sceneIndex);
+      console.log('[DeAPI] Background removed — proceeding to animate');
+    } catch (err) {
+      console.warn('[DeAPI] Background removal failed (non-fatal), animating with original:', err);
     }
   }
 
@@ -795,7 +832,7 @@ export const animateImageWithDeApi = async (
   // Priority 3: Check for request_id to poll
   else if (data.request_id) {
     console.log(`[DeAPI] Polling for request: ${data.request_id}, status: ${data.status}`);
-    videoUrl = await pollRequest(data.request_id);
+    videoUrl = await pollRequest(data.request_id, options?.onProgress);
   }
   // Priority 4: Fallback - unexpected structure
   else {
@@ -992,6 +1029,191 @@ export const generateImageWithAspectRatio = async (
     width: dimensions.width,
     height: dimensions.height,
     negative_prompt: negativePrompt,
+  });
+};
+
+// ============================================================
+// Background Removal
+// ============================================================
+
+/**
+ * Remove the background from an image using DeAPI Ben2 model.
+ * Returns a base64 PNG data URL with transparent background.
+ * Useful as a pre-processing step before img2video animation to prevent
+ * background morphing artifacts.
+ */
+export const removeImageBackground = async (
+  base64Image: string,
+  sessionId?: string,
+  sceneIndex?: number,
+): Promise<string> => {
+  if (!isDeApiConfigured()) {
+    throw new Error('DeAPI is not configured.');
+  }
+
+  if (!base64Image || (!base64Image.startsWith('data:image/') && !base64Image.startsWith('data:application/'))) {
+    throw new Error('removeImageBackground requires a valid image data URL.');
+  }
+
+  const imageBlob = await base64ToBlob(base64Image);
+  const formData = new FormData();
+  formData.append('image', imageBlob, 'image.png');
+  formData.append('model', 'Ben2');
+
+  let response: Response;
+  if (isBrowser) {
+    response = await fetch('/api/deapi/img-rmbg', {
+      method: 'POST',
+      body: formData,
+    });
+  } else {
+    response = await fetch(`${DEAPI_DIRECT_BASE}/img-rmbg`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0',
+      },
+      body: formData,
+    });
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`DeAPI img-rmbg failed (${response.status}): ${errText.substring(0, 200)}`);
+  }
+
+  const rawData = await response.json();
+  const data: DeApiResponse = rawData.data || rawData;
+
+  let imageUrl: string;
+  if (data.result_url) {
+    imageUrl = data.result_url;
+  } else if (data.status === 'error') {
+    throw new Error(data.error || 'Background removal failed at provider');
+  } else if (data.request_id) {
+    console.log(`[DeAPI] Polling for bg removal: ${data.request_id}`);
+    imageUrl = await pollRequest(data.request_id);
+  } else {
+    throw new Error('No request_id or result_url from DeAPI img-rmbg');
+  }
+
+  const imgResp = await fetch(imageUrl);
+  if (!imgResp.ok) {
+    throw new Error(`Failed to download bg-removed image: ${imgResp.status}`);
+  }
+
+  const imgBlob = await imgResp.blob();
+  console.log(`[DeAPI] Background removed: ${(imgBlob.size / 1024).toFixed(2)} KB`);
+
+  if (sessionId && sceneIndex !== undefined) {
+    cloudAutosave.saveAsset(
+      sessionId,
+      imgBlob,
+      `scene_${sceneIndex}_rmbg.png`,
+      'visuals'
+    ).catch(err => console.warn('[DeAPI] Cloud upload failed (non-fatal):', err));
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to convert bg-removed image to base64'));
+    reader.readAsDataURL(imgBlob);
+  });
+};
+
+// ============================================================
+// Style Consistency (img2img)
+// ============================================================
+
+/**
+ * Apply visual style consistency across scenes using DeAPI img2img.
+ * Takes a reference image (typically Scene 1) and generates a new image
+ * that shares its visual style while depicting the new scene description.
+ *
+ * Uses Flux_2_Klein_4B_BF16 which supports both txt2img and img2img.
+ * Guidance of ~5 preserves style while allowing new content.
+ */
+export const applyStyleConsistency = async (
+  referenceImageBase64: string,
+  prompt: string,
+  aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
+): Promise<string> => {
+  if (!isDeApiConfigured()) {
+    throw new Error('DeAPI is not configured.');
+  }
+
+  if (!referenceImageBase64 || !referenceImageBase64.startsWith('data:image/')) {
+    throw new Error('Reference image must be a valid data URL.');
+  }
+
+  const { width, height } = getDeApiDimensions(aspectRatio);
+
+  // Enhance the transformation prompt with DeAPI's img2img specialist (non-fatal)
+  const enhancedPrompt = await enhanceImg2ImgPrompt(prompt);
+
+  const imageBlob = await base64ToBlob(referenceImageBase64);
+  const formData = new FormData();
+  formData.append('image', imageBlob, 'reference.png');
+  formData.append('prompt', enhancedPrompt);
+  formData.append('model', 'Flux_2_Klein_4B_BF16');
+  formData.append('guidance', '5');  // Moderate: preserve style but allow new content
+  formData.append('steps', '4');
+  formData.append('seed', '-1');
+  formData.append('width', width.toString());
+  formData.append('height', height.toString());
+
+  let response: Response;
+  if (isBrowser) {
+    response = await fetch('/api/deapi/img2img', {
+      method: 'POST',
+      body: formData,
+    });
+  } else {
+    response = await fetch(`${DEAPI_DIRECT_BASE}/img2img`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0',
+      },
+      body: formData,
+    });
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`DeAPI img2img failed (${response.status}): ${errText.substring(0, 200)}`);
+  }
+
+  const rawData = await response.json();
+  const data: DeApiResponse = rawData.data || rawData;
+
+  let imageUrl: string;
+  if (data.result_url) {
+    imageUrl = data.result_url;
+  } else if (data.status === 'error') {
+    throw new Error(data.error || 'Style consistency pass failed at provider');
+  } else if (data.request_id) {
+    console.log(`[DeAPI] Polling for img2img: ${data.request_id}`);
+    imageUrl = await pollRequest(data.request_id);
+  } else {
+    throw new Error('No request_id or result_url from DeAPI img2img');
+  }
+
+  const imgResp = await fetch(imageUrl);
+  if (!imgResp.ok) {
+    throw new Error(`Failed to download style-consistent image: ${imgResp.status}`);
+  }
+
+  const imgBlob = await imgResp.blob();
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to convert style-consistent image to base64'));
+    reader.readAsDataURL(imgBlob);
   });
 };
 

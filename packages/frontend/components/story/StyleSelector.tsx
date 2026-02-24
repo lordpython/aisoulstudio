@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, RectangleHorizontal, Cpu } from 'lucide-react';
+import { Check, RectangleHorizontal, Cpu, Layers, Eraser } from 'lucide-react';
 import {
     VISUAL_STYLES,
     ASPECT_RATIOS,
@@ -20,6 +20,10 @@ interface StyleSelectorProps {
     onSelectAspectRatio: (ratio: AspectRatioId) => void;
     imageProvider?: 'gemini' | 'deapi';
     onSelectImageProvider?: (provider: 'gemini' | 'deapi') => void;
+    applyStyleConsistency?: boolean;
+    onToggleStyleConsistency?: (enabled: boolean) => void;
+    animateWithBgRemoval?: boolean;
+    onToggleBgRemoval?: (enabled: boolean) => void;
 }
 
 export const StyleSelector: React.FC<StyleSelectorProps> = ({
@@ -29,6 +33,10 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     onSelectAspectRatio,
     imageProvider = 'gemini',
     onSelectImageProvider,
+    applyStyleConsistency = false,
+    onToggleStyleConsistency,
+    animateWithBgRemoval = false,
+    onToggleBgRemoval,
 }) => {
     const styles = Object.values(VISUAL_STYLES);
 
@@ -129,6 +137,73 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                                 </button>
                             );
                         })}
+                    </div>
+                </div>
+            )}
+
+            {/* DeAPI Feature Toggles — only visible when DeAPI provider is selected */}
+            {imageProvider === 'deapi' && (
+                <div className="mb-12">
+                    <div className="flex items-center gap-3 mb-4">
+                        <Layers className="w-4 h-4 text-zinc-600" />
+                        <span className="font-mono text-xs text-zinc-600 uppercase tracking-widest">
+                            DeAPI Options
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {/* Style Consistency Toggle */}
+                        {onToggleStyleConsistency && (
+                            <button
+                                onClick={() => onToggleStyleConsistency(!applyStyleConsistency)}
+                                className={`
+                                    flex items-center gap-3 px-5 py-3 rounded-sm transition-colors duration-200
+                                    ${applyStyleConsistency
+                                        ? 'bg-blue-500/10 border border-blue-500/50 text-blue-400'
+                                        : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-zinc-600'
+                                    }
+                                `}
+                            >
+                                <Layers className="w-4 h-4" />
+                                <div className="text-left">
+                                    <span className="font-sans text-sm font-medium block">
+                                        Style Consistency
+                                    </span>
+                                    <span className={`text-xs ${applyStyleConsistency ? 'text-blue-400/70' : 'text-zinc-600'}`}>
+                                        img2img pass for visual coherence
+                                    </span>
+                                </div>
+                                <span className={`ml-2 text-xs font-mono uppercase ${applyStyleConsistency ? 'text-blue-400' : 'text-zinc-600'}`}>
+                                    {applyStyleConsistency ? 'On' : 'Off'}
+                                </span>
+                            </button>
+                        )}
+
+                        {/* Background Removal Toggle */}
+                        {onToggleBgRemoval && (
+                            <button
+                                onClick={() => onToggleBgRemoval(!animateWithBgRemoval)}
+                                className={`
+                                    flex items-center gap-3 px-5 py-3 rounded-sm transition-colors duration-200
+                                    ${animateWithBgRemoval
+                                        ? 'bg-blue-500/10 border border-blue-500/50 text-blue-400'
+                                        : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-zinc-600'
+                                    }
+                                `}
+                            >
+                                <Eraser className="w-4 h-4" />
+                                <div className="text-left">
+                                    <span className="font-sans text-sm font-medium block">
+                                        Background Removal
+                                    </span>
+                                    <span className={`text-xs ${animateWithBgRemoval ? 'text-blue-400/70' : 'text-zinc-600'}`}>
+                                        Remove bg before animation
+                                    </span>
+                                </div>
+                                <span className={`ml-2 text-xs font-mono uppercase ${animateWithBgRemoval ? 'text-blue-400' : 'text-zinc-600'}`}>
+                                    {animateWithBgRemoval ? 'On' : 'Off'}
+                                </span>
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

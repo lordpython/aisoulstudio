@@ -22,7 +22,7 @@ import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';
 import { narrateScene, narrateAllShots, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
-import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/deapiService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/characterService';
 import { cloudAutosave } from '@/services/cloudStorageService';
@@ -394,6 +394,9 @@ export function useStoryGeneration(projectId?: string | null) {
         percent: 0
     });
 
+    // Batch animation progress tracking (Feature 4)
+    const [processingShots, setProcessingShots] = useState<Map<string, { progress: number; preview?: string }>>(new Map());
+
     // History for Undo/Redo
     const [past, setPast] = useState<StoryState[]>([]);
     const [future, setFuture] = useState<StoryState[]>([]);
@@ -591,7 +594,7 @@ export function useStoryGeneration(projectId?: string | null) {
         try {
             const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${inputTopic}. Return 3-5 scenes.`;
             let capturedSessionId: string | null = null;
-            
+
             await runProductionAgent(prompt, (progress) => {
                 setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 50 });
                 // Capture sessionId from the progress callback
@@ -911,6 +914,30 @@ export function useStoryGeneration(projectId?: string | null) {
         pushState({ ...state, shotlist: updatedShotlist });
     }, [state, pushState]);
 
+    /**
+     * Reorder shots by dragging from one index to another.
+     * Uses pushState for undo support. Re-numbers shots after reordering.
+     * 
+     * @param fromIndex - The current index of the shot being dragged
+     * @param toIndex - The target index where the shot should be dropped
+     */
+    const reorderShots = useCallback((fromIndex: number, toIndex: number) => {
+        if (fromIndex === toIndex) return;
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= state.shotlist.length || toIndex >= state.shotlist.length) return;
+
+        const newShotlist = [...state.shotlist];
+        const [movedShot] = newShotlist.splice(fromIndex, 1);
+        newShotlist.splice(toIndex, 0, movedShot!);
+
+        // Re-number shots after reordering
+        const renumberedShotlist = newShotlist.map((shot, idx) => ({
+            ...shot,
+            shotNumber: idx + 1,
+        }));
+
+        pushState({ ...state, shotlist: renumberedShotlist });
+    }, [state, pushState]);
+
     const resetStory = useCallback(() => {
         setState(initialState);
         setSessionId(null);
@@ -1184,6 +1211,26 @@ export function useStoryGeneration(projectId?: string | null) {
         setState(prev => ({
             ...prev,
             imageProvider: provider,
+        }));
+    }, []);
+
+    /**
+     * Toggle DeAPI style consistency (img2img pass)
+     */
+    const updateStyleConsistency = useCallback((enabled: boolean) => {
+        setState(prev => ({
+            ...prev,
+            applyStyleConsistency: enabled,
+        }));
+    }, []);
+
+    /**
+     * Toggle DeAPI background removal before animation
+     */
+    const updateBgRemoval = useCallback((enabled: boolean) => {
+        setState(prev => ({
+            ...prev,
+            animateWithBgRemoval: enabled,
         }));
     }, []);
 
@@ -1930,6 +1977,29 @@ export function useStoryGeneration(projectId?: string | null) {
                 const shot = shotsToAnimate[i];
                 if (!shot || !shot.imageUrl) continue;
 
+                const updateShotProgress = (rawProgress: number, preview?: string) => {
+                    const normalized = Number.isFinite(rawProgress)
+                        ? Math.max(0, Math.min(1, rawProgress > 1 ? rawProgress / 100 : rawProgress))
+                        : 0;
+
+                    setProcessingShots(prev => {
+                        const next = new Map(prev);
+                        const existing = next.get(shot.id);
+                        next.set(shot.id, {
+                            progress: normalized,
+                            preview: preview ?? existing?.preview,
+                        });
+                        return next;
+                    });
+                };
+
+                // Set per-shot progress (Feature 4)
+                setProcessingShots(prev => {
+                    const next = new Map(prev);
+                    next.set(shot.id, { progress: 0 });
+                    return next;
+                });
+
                 const percent = 10 + ((i + 1) / shotsToAnimate.length) * 80;
                 setProgress({
                     message: `Animating shot ${i + 1}/${shotsToAnimate.length}...`,
@@ -1975,13 +2045,32 @@ export function useStoryGeneration(projectId?: string | null) {
                         }
 
                         if (imageDataUrl.startsWith('data:')) {
+                            // Optional: Apply style consistency pass (img2img) before animation
+                            if (state.applyStyleConsistency) {
+                                try {
+                                    console.log(`[useStoryGeneration] Applying style consistency pass for shot ${shot.id}...`);
+                                    imageDataUrl = await applyStyleConsistency(
+                                        imageDataUrl,
+                                        animationPrompt,
+                                        deapiAspectRatio,
+                                    );
+                                    console.log(`[useStoryGeneration] Style consistency pass complete for shot ${shot.id}`);
+                                } catch (styleErr) {
+                                    console.warn(`[useStoryGeneration] Style consistency pass failed (non-fatal), using original image:`, styleErr);
+                                }
+                            }
+
                             videoUrl = await animateImageWithDeApi(
                                 imageDataUrl,
                                 animationPrompt,
                                 deapiAspectRatio,
                                 sessionId || undefined,
                                 i,
-                                { motionStrength },
+                                {
+                                    motionStrength,
+                                    removeBackground: state.animateWithBgRemoval,
+                                    onProgress: updateShotProgress,
+                                },
                             );
                         } else {
                             // Fallback to txt2video only if image conversion failed
@@ -1992,7 +2081,8 @@ export function useStoryGeneration(projectId?: string | null) {
                                 },
                                 deapiAspectRatio,
                                 sessionId || undefined,
-                                i
+                                i,
+                                updateShotProgress,
                             );
                         }
                     } else {
@@ -2032,8 +2122,21 @@ export function useStoryGeneration(projectId?: string | null) {
                     } else {
                         animatedShots.push(animatedShot);
                     }
+
+                    // Clear per-shot progress on success (Feature 4)
+                    setProcessingShots(prev => {
+                        const next = new Map(prev);
+                        next.delete(shot.id);
+                        return next;
+                    });
                 } catch (err) {
                     console.error(`Failed to animate shot ${shot.id}:`, err);
+                    // Clear per-shot progress on failure (Feature 4)
+                    setProcessingShots(prev => {
+                        const next = new Map(prev);
+                        next.delete(shot.id);
+                        return next;
+                    });
                 }
             }
 
@@ -2051,6 +2154,8 @@ export function useStoryGeneration(projectId?: string | null) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
             setIsProcessing(false);
+            // Clear all per-shot progress (Feature 4)
+            setProcessingShots(new Map());
         }
     }, [state, sessionId, pushState]);
 
@@ -2229,8 +2334,12 @@ export function useStoryGeneration(projectId?: string | null) {
                 { cloudSessionId: sessionId || undefined }
             );
 
-            // Create URL for the final video (use cloud URL if available, otherwise create blob URL)
-            const finalVideoUrl = exportResult.cloudUrl || URL.createObjectURL(exportResult.blob);
+            // Always use local blob URL for immediate playback reliability in the current session.
+            // Cloud URLs can be stored/uploaded for persistence, but preview should not wait on remote availability.
+            if (state.finalVideoUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(state.finalVideoUrl);
+            }
+            const finalVideoUrl = URL.createObjectURL(exportResult.blob);
 
             pushState({
                 ...state,
@@ -2351,6 +2460,7 @@ export function useStoryGeneration(projectId?: string | null) {
         isProcessing,
         error,
         progress,
+        processingShots, // Batch animation progress tracking (Feature 4)
         generateBreakdown,
         generateScreenplay,
         generateCharacters,
@@ -2373,11 +2483,14 @@ export function useStoryGeneration(projectId?: string | null) {
         updateAspectRatio,
         updateGenre,
         updateImageProvider,
+        updateStyleConsistency,
+        updateBgRemoval,
         // New step-by-step generation methods
         generateShots,
         generateVisuals,
         regenerateShotVisual, // Storyboarder.ai-style per-shot refresh
         updateShot,           // Merge metadata edits from Shot Editor Modal
+        reorderShots,         // Drag-to-reorder shots with undo support
         // Narration, Animation, and Export methods
         generateNarration,
         animateShots,

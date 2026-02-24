@@ -185,6 +185,146 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
 });
 
 // ============================================================
+// img-rmbg - Background removal (Ben2 model)
+// ============================================================
+router.post('/img-rmbg', upload.single('image'), async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured' });
+        return;
+    }
+
+    if (!req.file) {
+        res.status(400).json({ error: 'No image file provided' });
+        return;
+    }
+
+    try {
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
+
+        const formData = new FormData();
+        formData.append('image', blob, req.file.originalname || 'image.png');
+        formData.append('model', req.body.model || 'Ben2');
+
+        if (req.body.webhook_url) {
+            formData.append('webhook_url', req.body.webhook_url);
+        }
+
+        const response = await fetch('https://api.deapi.ai/api/v1/client/img-rmbg', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+                'Accept': 'application/json',
+            },
+            body: formData,
+        });
+
+        fs.unlinkSync(req.file.path);
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        const err = error as Error;
+        res.status(500).json({ error: err.message || 'DeAPI img-rmbg failed' });
+    }
+});
+
+// ============================================================
+// img2img - Image-to-image style transfer / editing
+// ============================================================
+router.post('/img2img', upload.single('image'), async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured' });
+        return;
+    }
+
+    if (!req.file) {
+        res.status(400).json({ error: 'No image file provided' });
+        return;
+    }
+
+    try {
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
+
+        const formData = new FormData();
+        formData.append('image', blob, req.file.originalname || 'image.png');
+
+        const fields = ['prompt', 'model', 'guidance', 'steps', 'seed', 'negative_prompt', 'loras', 'webhook_url', 'width', 'height'];
+        fields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                formData.append(field, req.body[field]);
+            }
+        });
+
+        // Defaults
+        if (!req.body.model) formData.append('model', 'Flux_2_Klein_4B_BF16');
+        if (!req.body.guidance) formData.append('guidance', '5');
+        if (!req.body.steps) formData.append('steps', '4');
+
+        const response = await fetch('https://api.deapi.ai/api/v1/client/img2img', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+                'Accept': 'application/json',
+            },
+            body: formData,
+        });
+
+        fs.unlinkSync(req.file.path);
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        const err = error as Error;
+        res.status(500).json({ error: err.message || 'DeAPI img2img failed' });
+    }
+});
+
+// ============================================================
+// ws-auth - Pusher channel auth proxy for WebSocket integration
+// ============================================================
+router.post('/ws-auth', async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured' });
+        return;
+    }
+
+    try {
+        const { socket_id, channel_name } = req.body ?? {};
+
+        if (!socket_id || !channel_name) {
+            res.status(400).json({ error: 'socket_id and channel_name are required' });
+            return;
+        }
+
+        const response = await fetch('https://api.deapi.ai/broadcasting/auth', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+            },
+            body: JSON.stringify({ socket_id, channel_name }),
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            res.status(response.status).json({ error: `DeAPI Pusher auth failed: ${errText.substring(0, 200)}` });
+            return;
+        }
+
+        const authData = await response.json();
+        res.json(authData);
+    } catch (error: unknown) {
+        const err = error as Error;
+        deapiLog.error('WebSocket auth error:', err);
+        res.status(500).json({ error: err.message || 'WebSocket auth failed' });
+    }
+});
+
+// ============================================================
 // Webhook handler for async job completion
 // DeAPI sends: { event: 'job.completed'|'job.failed', request_id, result_url?, error? }
 // ============================================================
@@ -271,6 +411,49 @@ router.post('/batch', async (req: Request, res: Response): Promise<void> => {
         const err = error as Error;
         deapiLog.error('Batch generation error:', err);
         res.status(500).json({ error: err.message || 'Batch generation failed' });
+    }
+});
+
+// ============================================================
+// Prompt enhancement endpoints: /prompt/image, /prompt/video,
+// /prompt/image2image, /prompt/speech
+// ============================================================
+router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured' });
+        return;
+    }
+
+    const type = req.params.type as string;
+    const allowed = ['image', 'video', 'image2image', 'speech'];
+    if (!allowed.includes(type)) {
+        res.status(400).json({ error: `Unknown prompt type: ${type}. Allowed: ${allowed.join(', ')}` });
+        return;
+    }
+
+    try {
+        const { prompt } = req.body ?? {};
+        if (!prompt) {
+            res.status(400).json({ error: 'prompt is required' });
+            return;
+        }
+
+        const response = await fetch(`https://api.deapi.ai/api/v1/client/prompt/${type}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
+        });
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        const err = error as Error;
+        deapiLog.error(`Prompt enhancement (${req.params.type}) error:`, err);
+        res.status(500).json({ error: err.message || 'Prompt enhancement failed' });
     }
 });
 

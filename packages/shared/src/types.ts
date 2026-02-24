@@ -562,6 +562,8 @@ export interface StoryState {
   aspectRatio?: string;
   genre?: string;
   imageProvider?: 'gemini' | 'deapi';  // Image generation provider for storyboard visuals
+  applyStyleConsistency?: boolean;  // DeAPI: img2img style consistency pass after visual generation
+  animateWithBgRemoval?: boolean;   // DeAPI: remove background before animation
 
   // Per-scene generation progress tracking
   scenesWithShots?: string[]; // scene IDs that have shots generated

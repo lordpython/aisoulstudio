@@ -27,7 +27,8 @@
       "Bash(echo Done: $?:*)",
       "Bash(wc:*)",
       "Bash(tail:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(cd \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\aisoulstudio\" && pnpm add)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

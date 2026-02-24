@@ -54,10 +54,13 @@ interface StoryWorkspaceProps {
     canRedo?: boolean;
     isProcessing: boolean;
     progress: { message: string; percent: number };
+    processingShots?: Map<string, { progress: number; preview?: string }>; // Batch animation progress (Feature 4)
     onLockStory?: () => void;
     onUpdateVisualStyle?: (style: string) => void;
     onUpdateAspectRatio?: (ratio: string) => void;
     onUpdateImageProvider?: (provider: 'gemini' | 'deapi') => void;
+    onUpdateStyleConsistency?: (enabled: boolean) => void;
+    onUpdateBgRemoval?: (enabled: boolean) => void;
     onGenerateShots?: (sceneIndex?: number) => void;
     onGenerateVisuals?: (sceneIndex?: number) => void;
     stageProgress?: StageProgress;
@@ -70,6 +73,7 @@ interface StoryWorkspaceProps {
     onGenerateCharacterImage?: (characterId: string) => void;
     onGenerateVideo?: (shotId: string) => void;
     onUpdateShotDuration?: (shotId: string, duration: number) => void;
+    onReorderShots?: (fromIndex: number, toIndex: number) => void;
     onUpdateShot?: (shotId: string, updates: Partial<ShotlistEntry>) => void;
     onGenerateNarration?: () => void;
     onAnimateShots?: (shotIndex?: number) => void;
@@ -133,10 +137,13 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     canRedo,
     isProcessing,
     progress,
+    processingShots, // Batch animation progress (Feature 4)
     onLockStory,
     onUpdateVisualStyle,
     onUpdateAspectRatio,
     onUpdateImageProvider,
+    onUpdateStyleConsistency,
+    onUpdateBgRemoval,
     onGenerateShots,
     onGenerateVisuals,
     stageProgress,
@@ -149,6 +156,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onGenerateCharacterImage,
     onGenerateVideo,
     onUpdateShotDuration,
+    onReorderShots,
     onUpdateShot,
     onGenerateNarration,
     onAnimateShots,
@@ -207,6 +215,30 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
         storyState.animatedShots?.forEach(a => m.set(a.shotId, a));
         return m;
     }, [storyState.animatedShots]);
+
+    // Pre-compute animated shot video URL map for StoryboardView
+    const animatedShotVideosMap = useMemo(() => {
+        const m = new Map<string, string>();
+        storyState.animatedShots?.forEach(a => {
+            if (a.videoUrl) m.set(a.shotId, a.videoUrl);
+        });
+        return m;
+    }, [storyState.animatedShots]);
+
+    // Pre-compute per-shot narration map for StoryboardView audio preview
+    const shotNarrationMap = useMemo(() => {
+        const m = new Map<string, { audioUrl: string; duration: number; text: string }>();
+        storyState.shotNarrationSegments?.forEach(seg => {
+            if (seg.audioUrl) m.set(seg.shotId, { audioUrl: seg.audioUrl, duration: seg.duration, text: seg.text });
+        });
+        return m;
+    }, [storyState.shotNarrationSegments]);
+
+    const hasExportVisuals = useMemo(() => {
+        return (storyState.animatedShots?.length ?? 0) > 0 || storyState.shotlist.some(s => !!s.imageUrl);
+    }, [storyState.animatedShots, storyState.shotlist]);
+
+    const canExportFinalVideo = !isProcessing && !!storyState.narrationSegments?.length && hasExportVisuals;
 
     useEffect(() => {
         const newMain = getHighLevelStep(storyState.currentStep);
@@ -869,6 +901,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onSelectAspectRatio={(ratio) => onUpdateAspectRatio?.(ratio)}
                                         imageProvider={storyState.imageProvider || 'gemini'}
                                         onSelectImageProvider={onUpdateImageProvider}
+                                        applyStyleConsistency={storyState.applyStyleConsistency}
+                                        onToggleStyleConsistency={onUpdateStyleConsistency}
+                                        animateWithBgRemoval={storyState.animateWithBgRemoval}
+                                        onToggleBgRemoval={onUpdateBgRemoval}
                                     />
                                 </motion.div>
                             )}
@@ -880,12 +916,16 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         scenesWithVisuals={storyState.scenesWithVisuals}
                                         onGenerateVisuals={onGenerateVisuals}
                                         isProcessing={isProcessing}
+                                        processingShots={processingShots}
                                         onUpdateDuration={onUpdateShotDuration}
                                         onGenerateVideo={onGenerateVideo}
+                                        onReorderShots={onReorderShots}
                                         onEditShot={(shotId) => {
                                             const shot = storyState.shotlist.find(s => s.id === shotId);
                                             if (shot) setEditingShot(shot);
                                         }}
+                                        shotNarrationMap={shotNarrationMap}
+                                        animatedShotVideos={animatedShotVideosMap}
                                     />
                                 </motion.div>
                             )}
@@ -1082,7 +1122,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             {!storyState.finalVideoUrl ? (
                                                 <button
                                                     onClick={onExportFinalVideo}
-                                                    disabled={isProcessing || !storyState.narrationSegments?.length || !storyState.shotlist.some(s => s.imageUrl)}
+                                                    disabled={!canExportFinalVideo}
                                                     className="w-full py-4 rounded-sm text-sm font-medium flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 transition-colors duration-200"
                                                 >
                                                     {isProcessing ? (
@@ -1100,19 +1140,18 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                     {t('story.downloadVideo')}
                                                 </button>
                                             )}
-                                            {!storyState.shotlist.some(s => s.imageUrl) && (
-                                                <p className="text-center text-xs text-orange-400">
-                                                    {t('story.generateStoryboardFirst')}
-                                                </p>
-                                            )}
-                                            {storyState.shotlist.some(s => s.imageUrl) && !storyState.narrationSegments?.length && (
+                                            {hasExportVisuals && !storyState.narrationSegments?.length && (
                                                 <p className="text-center text-xs text-orange-400">
                                                     {t('story.generateNarrationBeforeExport')}
                                                 </p>
                                             )}
+                                            {!hasExportVisuals && (
+                                                <p className="text-center text-xs text-orange-400">
+                                                    {t('story.generateStoryboardFirst')}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-
                                     <div className="mt-6">
                                         <ExportOptionsPanel
                                             storyState={storyState}
@@ -1291,11 +1330,26 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                     )}
                     {activeMainTab === 'storyboard' && subTab === 'animation' && (
                         <button
-                            onClick={() => setSubTab('export')}
+                            onClick={async () => {
+                                if (!onExportFinalVideo) {
+                                    setSubTab('export');
+                                    return;
+                                }
+
+                                try {
+                                    const result = await onExportFinalVideo();
+                                    if (result) {
+                                        setSubTab('export');
+                                    }
+                                } catch (err) {
+                                    console.error('[StoryWorkspace] Export final video failed:', err);
+                                }
+                            }}
+                            disabled={!canExportFinalVideo}
                             className="flex items-center gap-2 px-4 py-1.5 rounded-sm font-sans text-[12px] font-medium bg-white text-black hover:bg-zinc-200 transition-all duration-200"
                         >
                             <Film className="w-3 h-3" />
-                            {t('story.export')}
+                            {t('story.exportVideo')}
                         </button>
                     )}
                 </div>

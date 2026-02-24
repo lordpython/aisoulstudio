@@ -32,7 +32,7 @@ const RENDER_HEIGHT_LANDSCAPE = 1080;
 const RENDER_WIDTH_PORTRAIT = 1080;
 const RENDER_HEIGHT_PORTRAIT = 1920;
 const FPS = 24;
-const JPEG_QUALITY = 0.92;      // Slightly reduced for faster uploads (still excellent quality)
+const JPEG_QUALITY = 0.98;      // Prioritize visual fidelity for final exports
 const BATCH_SIZE = 96;          // Doubled batch size for fewer HTTP round-trips
 const PARALLEL_RENDERS = 4;     // Number of frames to render in parallel (where possible)
 
@@ -627,7 +627,7 @@ export async function exportVideoClientSide(
         "-vf", `scale=${WIDTH}:${HEIGHT}:flags=lanczos,setsar=1`,
         "-shortest",
         "-preset", "medium",
-        "-crf", "21",
+        "-crf", "18",
         "output.mp4",
     ]);
 

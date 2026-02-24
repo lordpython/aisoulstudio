@@ -23,7 +23,8 @@ import { generateContentPlan, ContentPlannerConfig } from "./contentPlannerServi
 import { narrateAllScenes, NarratorConfig } from "./narratorService";
 import { validateContentPlan, syncDurationsToNarration, EditorConfig } from "./editorService";
 import { generateImageFromPrompt } from "./imageService";
-import { animateImageWithDeApi, isDeApiConfigured } from "./deapiService";
+import { animateImageWithDeApi, isDeApiConfigured, applyStyleConsistency } from "./deapiService";
+import { enhanceVideoPrompt } from "./deapiPromptService";
 import { generateProfessionalVideo } from "./videoService";
 import { generateMotionPrompt } from "./promptService";
 import { generateVideoSFXPlan, generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "./sfxService";
@@ -97,11 +98,13 @@ export interface ProductionConfig {
     skipVisuals?: boolean; // Skip image generation
     skipValidation?: boolean; // Skip editor validation
     animateVisuals?: boolean; // Animate images to video with DeAPI
+    applyStyleConsistency?: boolean; // Apply img2img consistency pass after visuals (DeAPI)
+    animateWithBgRemoval?: boolean; // Remove backgrounds before animation (DeAPI)
     veoVideoCount?: number; // Number of scenes to generate as professional videos
     maxRetries?: number; // Max feedback loop iterations
 }
 
-const DEFAULT_CONFIG: Required<Pick<ProductionConfig, "targetDuration" | "sceneCount" | "targetAudience" | "visualStyle" | "aspectRatio" | "skipNarration" | "skipVisuals" | "skipValidation" | "animateVisuals" | "maxRetries">> = {
+const DEFAULT_CONFIG: Required<Pick<ProductionConfig, "targetDuration" | "sceneCount" | "targetAudience" | "visualStyle" | "aspectRatio" | "skipNarration" | "skipVisuals" | "skipValidation" | "animateVisuals" | "applyStyleConsistency" | "animateWithBgRemoval" | "maxRetries">> = {
     targetDuration: 60,
     sceneCount: 5,
     targetAudience: "General audience",
@@ -111,6 +114,8 @@ const DEFAULT_CONFIG: Required<Pick<ProductionConfig, "targetDuration" | "sceneC
     skipVisuals: false,
     skipValidation: false,
     animateVisuals: false, // Default off - requires DeAPI key
+    applyStyleConsistency: false, // Default off - requires DeAPI key
+    animateWithBgRemoval: false, // Default off - requires DeAPI key
     maxRetries: 2,
 };
 
@@ -120,6 +125,7 @@ export type ProductionStage =
     | "content_planning"
     | "narrating"
     | "generating_visuals"
+    | "applying_style_consistency"
     | "animating_visuals"
     | "validating"
     | "adjusting"
@@ -419,6 +425,62 @@ export const runProductionPipeline = traceAsync(
                 }));
             }
 
+            // --- Stage 2.5: Style Consistency Pass (Optional, DeAPI img2img) ---
+            if (mergedConfig.applyStyleConsistency && isDeApiConfigured() && result.visuals.length > 1) {
+                const referenceVisual = result.visuals.find(v => v.imageUrl);
+                if (referenceVisual) {
+                    checkAbort();
+                    log.info("Stage 2.5: Applying style consistency via DeAPI img2img");
+                    onProgress?.({
+                        stage: "applying_style_consistency",
+                        progress: 0,
+                        message: "Applying visual style consistency across scenes...",
+                    });
+
+                    const visualsToProcess = result.visuals.filter(
+                        v => v.imageUrl && v.promptId !== referenceVisual.promptId
+                    );
+                    const totalToProcess = visualsToProcess.length;
+                    let processedCount = 0;
+
+                    await runWithConcurrency(
+                        visualsToProcess,
+                        async (visual) => {
+                            const scene = result.contentPlan!.scenes.find(s => s.id === visual.promptId);
+                            if (!scene) return;
+
+                            try {
+                                const consistentImage = await applyStyleConsistency(
+                                    referenceVisual.imageUrl,
+                                    scene.visualDescription,
+                                    (mergedConfig.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
+                                );
+                                const idx = result.visuals.findIndex(v => v.promptId === visual.promptId);
+                                if (idx !== -1) {
+                                    result.visuals[idx]!.imageUrl = consistentImage;
+                                    processedCount++;
+                                }
+                            } catch (err) {
+                                log.warn(`Style consistency failed for "${scene.name}" (non-fatal):`, err);
+                            }
+                            onProgress?.({
+                                stage: "applying_style_consistency",
+                                progress: Math.round((processedCount / totalToProcess) * 100),
+                                message: `Consistency pass: ${processedCount}/${totalToProcess} scenes`,
+                            });
+                        },
+                        3
+                    );
+
+                    log.info(`Stage 2.5: Applied consistency to ${processedCount}/${totalToProcess} scenes`);
+                    onProgress?.({
+                        stage: "applying_style_consistency",
+                        progress: 100,
+                        message: `Style consistency applied to ${processedCount}/${totalToProcess} scenes`,
+                    });
+                }
+            }
+
             // --- Stage 3.5: Video Animation (Optional) ---
             if (mergedConfig.animateVisuals && isDeApiConfigured()) {
                 checkAbort();
@@ -434,19 +496,13 @@ export const runProductionPipeline = traceAsync(
                 const totalToAnimate = visualsToAnimate.length;
                 let animatedCount = 0;
 
-                for (const visual of visualsToAnimate) {
+                await runWithConcurrency(
+                    visualsToAnimate,
+                    async (visual) => {
                     checkAbort();
                     const scene = result.contentPlan!.scenes.find(s => s.id === visual.promptId);
 
-                    if (!scene || !visual.imageUrl) continue;
-
-                    onProgress?.({
-                        stage: "animating_visuals",
-                        progress: Math.round((animatedCount / totalToAnimate) * 100),
-                        message: `Animating scene ${animatedCount + 1}/${totalToAnimate}: ${scene.name}`,
-                        currentScene: animatedCount + 1,
-                        totalScenes: totalToAnimate,
-                    });
+                    if (!scene || !visual.imageUrl) return;
 
                     try {
                         log.info(`Generating motion prompt for: ${scene.name}`);
@@ -462,15 +518,20 @@ export const runProductionPipeline = traceAsync(
                             `Motion prompt generation for "${scene.name}" timed out`
                         );
 
-                        log.info(`Animating with prompt: ${motionResult.combined.substring(0, 80)}...`);
+                        // DeAPI video prompt enhancement (non-fatal polish pass)
+                        const enhancedMotion = await enhanceVideoPrompt(motionResult.combined);
+                        log.info(`Animating with prompt: ${enhancedMotion.substring(0, 80)}...`);
 
                         // Animate the image with timeout and retry
                         const videoUrl = await withRetryBackoff(
                             async () => withTimeout(
                                 animateImageWithDeApi(
                                     visual.imageUrl,
-                                    motionResult.combined,
-                                    (mergedConfig.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9"
+                                    enhancedMotion,
+                                    (mergedConfig.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9",
+                                    undefined,
+                                    undefined,
+                                    { removeBackground: mergedConfig.animateWithBgRemoval }
                                 ),
                                 STAGE_TIMEOUTS.ANIMATION_PER_VIDEO,
                                 `Animation for "${scene.name}" timed out`
@@ -494,6 +555,13 @@ export const runProductionPipeline = traceAsync(
                         }
 
                         log.info(`Animated scene ${animatedCount} successfully`);
+                        onProgress?.({
+                            stage: "animating_visuals",
+                            progress: Math.round((animatedCount / totalToAnimate) * 100),
+                            message: `Animated ${animatedCount}/${totalToAnimate} visuals`,
+                            currentScene: animatedCount,
+                            totalScenes: totalToAnimate,
+                        });
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : String(error);
                         log.error(`Failed to animate scene ${scene.id} with DeAPI:`, error);
@@ -505,13 +573,6 @@ export const runProductionPipeline = traceAsync(
 
                         if (isCloudflareBlock) {
                             log.info(`DeAPI blocked by Cloudflare for "${scene.name}", trying Veo 3.1 with professional prompt...`);
-                            onProgress?.({
-                                stage: "animating_visuals",
-                                progress: Math.round((animatedCount / totalToAnimate) * 100),
-                                message: `DeAPI blocked - generating professional Veo 3.1 video for scene ${animatedCount + 1}`,
-                                currentScene: animatedCount + 1,
-                                totalScenes: totalToAnimate,
-                            });
 
                             try {
                                 // Use Veo 3.1 with professional cinematographer-level prompt
@@ -550,7 +611,9 @@ export const runProductionPipeline = traceAsync(
                             // Continue with static image - graceful degradation
                         }
                     }
-                }
+                    },
+                    3 // Run up to 3 animations in parallel
+                );
 
                 onProgress?.({
                     stage: "animating_visuals",
@@ -571,20 +634,13 @@ export const runProductionPipeline = traceAsync(
                 const videoPurpose = mergedConfig.contentPlannerConfig?.videoPurpose || "documentary";
                 let videoCount = 0;
 
-                for (let i = 0; i < totalScenes; i++) {
+                await runWithConcurrency(
+                    result.contentPlan!.scenes.map((scene, i) => ({ scene, i })),
+                    async ({ scene, i }) => {
                     checkAbort();
-                    const scene = result.contentPlan!.scenes[i];
                     const visual = result.visuals[i];
 
-                    if (!scene || !visual) continue;
-
-                    onProgress?.({
-                        stage: "animating_visuals",
-                        progress: Math.round((i / totalScenes) * 100),
-                        message: `Creating cinematic Veo 3.1 video ${i + 1}/${totalScenes}: ${scene.name}`,
-                        currentScene: i + 1,
-                        totalScenes,
-                    });
+                    if (!scene || !visual) return;
 
                     try {
                         // Generate professional video with AI-powered cinematographer prompt
@@ -610,12 +666,21 @@ export const runProductionPipeline = traceAsync(
                             videoCount++;
                         }
                         log.info(`Generated Veo 3.1 video for scene ${i + 1}`);
+                        onProgress?.({
+                            stage: "animating_visuals",
+                            progress: Math.round((videoCount / totalScenes) * 100),
+                            message: `Generated ${videoCount}/${totalScenes} Veo 3.1 videos`,
+                            currentScene: videoCount,
+                            totalScenes,
+                        });
                     } catch (error) {
                         log.error(`Failed to generate Veo video for scene ${scene.id}:`, error);
                         result.errors?.push(`Veo video failed for "${scene.name}": ${error instanceof Error ? error.message : String(error)}`);
                         // Continue with static image
                     }
-                }
+                    },
+                    3 // Run up to 3 Veo generations in parallel
+                );
 
                 onProgress?.({
                     stage: "animating_visuals",

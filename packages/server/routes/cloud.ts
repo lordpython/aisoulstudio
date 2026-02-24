@@ -169,13 +169,58 @@ router.get('/file', async (req: Request, res: Response): Promise<void> => {
         // Get file metadata for content-type
         const [metadata] = await file.getMetadata();
         const contentType = metadata.contentType || 'application/octet-stream';
+        const totalSize = Number(metadata.size || 0);
+        const range = req.headers.range;
 
         // Set response headers
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-        
-        // Stream the file to response
-        file.createReadStream().pipe(res);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Disposition', 'inline');
+
+        if (range && totalSize > 0) {
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+            if (!match) {
+                res.status(416).setHeader('Content-Range', `bytes */${totalSize}`);
+                res.end();
+                return;
+            }
+
+            const start = match[1] ? parseInt(match[1], 10) : 0;
+            const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+
+            if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end >= totalSize || start > end) {
+                res.status(416).setHeader('Content-Range', `bytes */${totalSize}`);
+                res.end();
+                return;
+            }
+
+            const chunkSize = end - start + 1;
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+            res.setHeader('Content-Length', chunkSize.toString());
+
+            file.createReadStream({ start, end })
+                .on('error', (err) => {
+                    cloudLog.error('File proxy range stream error:', err);
+                    if (!res.headersSent) res.status(500).end();
+                    else res.end();
+                })
+                .pipe(res);
+            return;
+        }
+
+        if (totalSize > 0) {
+            res.setHeader('Content-Length', totalSize.toString());
+        }
+
+        file.createReadStream()
+            .on('error', (err) => {
+                cloudLog.error('File proxy stream error:', err);
+                if (!res.headersSent) res.status(500).end();
+                else res.end();
+            })
+            .pipe(res);
     } catch (error: any) {
         cloudLog.error('File proxy error:', error);
         res.status(500).json({ error: error.message || 'Failed to retrieve file' });
