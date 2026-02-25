@@ -200,7 +200,17 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 
   setCurrentTime: (time: number) => set({ currentTime: Math.max(0, time) }),
   setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),
-  togglePlayback: () => set(state => ({ isPlaying: !state.isPlaying })),
+  togglePlayback: () => set(state => {
+    if (state.isPlaying) {
+      return { isPlaying: false };
+    }
+
+    if (state.currentTime >= state.duration) {
+      return { isPlaying: true, currentTime: 0 };
+    }
+
+    return { isPlaying: true };
+  }),
 
   // ---- View Actions ----
 

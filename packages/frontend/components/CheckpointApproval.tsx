@@ -26,6 +26,9 @@ export interface CheckpointApprovalProps {
   title: string;
   description?: string;
   previewData?: React.ReactNode;
+  outputPreview?: React.ReactNode;
+  outputLabel?: string;
+  layout?: 'default' | 'editor';
   timeoutMs?: number;
   onApprove: (checkpointId: string) => void;
   onRequestChanges: (checkpointId: string, changeRequest: string) => void;
@@ -50,6 +53,9 @@ export function CheckpointApproval({
   title,
   description,
   previewData,
+  outputPreview,
+  outputLabel = 'Output Preview',
+  layout = 'default',
   timeoutMs = DEFAULT_TIMEOUT_MS,
   onApprove,
   onRequestChanges,
@@ -106,16 +112,8 @@ export function CheckpointApproval({
 
   const isWarning = remaining <= WARNING_THRESHOLD_MS && remaining > 0;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-      className={cn('w-full max-w-2xl mx-auto', className)}
-      role="dialog"
-      aria-label={`Checkpoint approval: ${title}`}
-    >
+  const controlsContent = (
+    <>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -284,6 +282,46 @@ export function CheckpointApproval({
           </motion.div>
         )}
       </AnimatePresence>
+    </>
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className={cn(
+        layout === 'editor' ? 'w-full h-full' : 'w-full max-w-2xl mx-auto',
+        className,
+      )}
+      role="dialog"
+      aria-label={`Checkpoint approval: ${title}`}
+    >
+      {layout === 'editor' ? (
+        <div className="grid h-full min-h-[68vh] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="bg-[#07142b] border border-blue-900/60 rounded-lg p-4 flex flex-col min-h-[320px]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-blue-300/80">
+                {outputLabel}
+              </span>
+              <span className="font-mono text-[10px] text-blue-400/70">{phase}</span>
+            </div>
+            <div className="flex-1 min-h-[260px] rounded-md border border-blue-900/60 bg-black/85 overflow-hidden">
+              {outputPreview ?? (
+                <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
+                  Output preview will appear here.
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-zinc-900/95 border border-zinc-700 rounded-lg p-4 overflow-y-auto">
+            {controlsContent}
+          </div>
+        </div>
+      ) : (
+        controlsContent
+      )}
     </motion.div>
   );
 }

@@ -1601,29 +1601,101 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         );
                     }
 
+                    const outputPreview = (() => {
+                        const primaryVisual = visuals?.[0]?.imageUrl;
+                        const timelineItems = (scenes?.map((scene, index) => ({
+                            id: `scene-${index}`,
+                            label: scene.heading,
+                        })) ?? visuals?.map((visual, index) => ({
+                            id: visual.sceneId || `visual-${index}`,
+                            label: `Visual ${index + 1}`,
+                        })) ?? []).slice(0, 7);
+
+                        return (
+                            <div className="h-full flex flex-col bg-[#08152d]">
+                                <div className="flex-1 p-4">
+                                    <div className="h-full rounded-md border border-blue-900/50 bg-black overflow-hidden relative">
+                                        {primaryVisual ? (
+                                            <img
+                                                src={primaryVisual}
+                                                alt="Checkpoint output preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
+                                                Waiting for generated output...
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 border border-zinc-700 text-[10px] font-mono text-zinc-300">
+                                            {d.estimatedDuration ? String(d.estimatedDuration) : 'Preview'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="px-4 py-2 border-t border-blue-900/40 bg-[#091a37] flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                                    <span>{timelineItems.length || visuals?.length || 0} clips</span>
+                                    <span>{d.totalDuration != null ? `${Math.round(d.totalDuration as number)}s total` : 'Checkpoint output'}</span>
+                                </div>
+
+                                <div className="border-t border-blue-900/40 bg-[#07142a] p-3">
+                                    {timelineItems.length > 0 ? (
+                                        <div className="relative h-12 rounded-sm border border-zinc-800 bg-[#030b1a] overflow-hidden">
+                                            {timelineItems.map((item, index) => {
+                                                const segmentCount = timelineItems.length;
+                                                const widthPct = Math.max(14, 92 / segmentCount);
+                                                const leftPct = (index / segmentCount) * 100;
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className="absolute top-2 h-8 rounded-sm border border-blue-400/40 bg-blue-500/25 text-[10px] text-blue-100 px-2 flex items-center"
+                                                        style={{
+                                                            left: `${leftPct}%`,
+                                                            width: `${widthPct}%`,
+                                                        }}
+                                                        title={item.label}
+                                                    >
+                                                        <span className="truncate">{item.label}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="h-12 rounded-sm border border-zinc-800 bg-[#030b1a] flex items-center justify-center text-[11px] text-zinc-500">
+                                            Timeline will populate as output is generated.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })();
+
                     return (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
-                            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                            className="fixed inset-0 bg-[#020712]/90 backdrop-blur-sm p-3 sm:p-4 z-50"
                         >
                             <motion.div
                                 initial={{ scale: 0.97, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.97, opacity: 0 }}
                                 transition={{ duration: 0.15 }}
-                                className={`w-full ${visuals && visuals.length > 0 ? 'max-w-3xl' : 'max-w-2xl'} max-h-[80vh] overflow-y-auto`}
+                                className="w-full h-full max-w-7xl mx-auto"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="bg-zinc-900 border border-zinc-700 rounded-sm p-6">
+                                <div className="h-full rounded-lg border border-blue-950/70 bg-[#040d1c] p-3 sm:p-4">
                                     <CheckpointApproval
                                         checkpointId={cp.checkpointId}
                                         phase={cp.phase}
                                         title={`Review: ${cp.phase.replace(/-/g, ' ')}`}
                                         description={previewContent ? undefined : "Review the generated content before the pipeline continues to the next phase."}
                                         previewData={previewContent}
+                                        outputPreview={outputPreview}
+                                        outputLabel="Generated Output"
+                                        layout="editor"
+                                        className="h-full"
                                         onApprove={() => formatPipelineHook.approveCheckpoint()}
                                         onRequestChanges={(_id, changeRequest) => formatPipelineHook.rejectCheckpoint(changeRequest)}
                                     />
