@@ -14,7 +14,9 @@ import type {
     ShotlistEntry,
     ConsistencyReport,
     StoryShot,
-    Scene
+    Scene,
+    StoryNarrationSegment,
+    AnimatedShot,
 } from '@/types';
 import { runProductionAgent } from '@/services/ai/productionAgent';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
@@ -38,6 +40,7 @@ import {
 import {
     fromShotBreakdown,
     serializeStyleGuideAsText,
+    toCharacterInputs,
     type ExtractedStyleOverride,
 } from '@/services/prompt/imageStyleGuide';
 import { getSystemPersona } from '@/services/prompt/personaData';
@@ -397,7 +400,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Helper to push a new state to history
      */
     const pushState = useCallback((newState: StoryState) => {
-        setPast(prev => {
+        setPast((prev: StoryState[]) => {
             // Limit history size to 50
             const nextPast = [...prev, state];
             if (nextPast.length > 50) return nextPast.slice(nextPast.length - 50);
@@ -416,7 +419,7 @@ export function useStoryGeneration(projectId?: string | null) {
         const newPast = past.slice(0, past.length - 1);
 
         setPast(newPast);
-        setFuture(prev => [state, ...prev]);
+        setFuture((prev: StoryState[]) => [state, ...prev]);
         setState(previous);
     }, [past, state]);
 
@@ -429,7 +432,7 @@ export function useStoryGeneration(projectId?: string | null) {
         const newFuture = future.slice(1);
 
         setFuture(newFuture);
-        setPast(prev => [...prev, state]);
+        setPast((prev: StoryState[]) => [...prev, state]);
         setState(next);
     }, [future, state]);
 
@@ -650,7 +653,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
                 console.log('[useStoryGeneration] Breakdown parsed into scenes:', scenes.length);
 
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     currentStep: 'breakdown',
                     breakdown: scenes,
@@ -682,7 +685,7 @@ export function useStoryGeneration(projectId?: string | null) {
             });
 
             if (result && (result as unknown as StoryAgentResult).scenes) {
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     breakdown: (result as unknown as StoryAgentResult).scenes || prev.breakdown
                 }));
@@ -747,7 +750,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     scenes: screenplayScenes,
                 };
 
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     currentStep: 'script',
                     script,
@@ -783,7 +786,7 @@ export function useStoryGeneration(projectId?: string | null) {
             if (storyState && storyState.characters && storyState.characters.length > 0) {
                 console.log('[useStoryGeneration] Characters retrieved:', storyState.characters.length);
 
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     currentStep: 'characters',
                     characters: storyState.characters,
@@ -804,7 +807,7 @@ export function useStoryGeneration(projectId?: string | null) {
     const generateCharacterImage = useCallback(async (characterId: string) => {
         if (!sessionId) return;
 
-        const char = state.characters.find(c => c.id === characterId);
+        const char = state.characters.find((c: CharacterProfile) => c.id === characterId);
         if (!char) {
             setError(`Character not found: ${characterId}`);
             return;
@@ -822,9 +825,9 @@ export function useStoryGeneration(projectId?: string | null) {
                 state.visualStyle || 'Cinematic',
             );
 
-            setState(prev => ({
+            setState((prev: StoryState) => ({
                 ...prev,
-                characters: prev.characters.map(c =>
+                characters: prev.characters.map((c: CharacterProfile) =>
                     c.id === characterId
                         ? { ...c, referenceImageUrl: referenceUrl }
                         : c
@@ -859,7 +862,7 @@ export function useStoryGeneration(projectId?: string | null) {
             if (storyState && storyState.shotlist && storyState.shotlist.length > 0) {
                 console.log('[useStoryGeneration] Shotlist retrieved:', storyState.shotlist.length, 'shots');
 
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     currentStep: 'storyboard',
                     shotlist: storyState.shotlist,
@@ -878,7 +881,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Navigation actions
      */
     const setStep = (step: StoryStep) => {
-        setState(prev => ({ ...prev, currentStep: step }));
+        setState((prev: StoryState) => ({ ...prev, currentStep: step }));
     };
 
     const updateBreakdown = (scenes: ScreenplayScene[]) => {
@@ -894,7 +897,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Merges `updates` into the matching ShotlistEntry without regenerating visuals.
      */
     const updateShot = useCallback((shotId: string, updates: Partial<ShotlistEntry>) => {
-        const updatedShotlist = state.shotlist.map(s =>
+        const updatedShotlist = state.shotlist.map((s: ShotlistEntry) =>
             s.id === shotId ? { ...s, ...updates } : s
         );
         pushState({ ...state, shotlist: updatedShotlist });
@@ -1012,7 +1015,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
             if (result && (result as any).report) {
                 const report = (result as any).report as ConsistencyReport;
-                setState(prev => ({
+                setState((prev: StoryState) => ({
                     ...prev,
                     consistencyReports: {
                         ...(prev.consistencyReports || {}),
@@ -1082,7 +1085,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 percent: 10
             });
 
-            const newShots = await breakAllScenesIntoShots(
+            const shotBreakdownResult = await breakAllScenesIntoShots(
                 scenesToProcess,
                 genre,
                 (sceneIdx, totalScenes) => {
@@ -1096,7 +1099,7 @@ export function useStoryGeneration(projectId?: string | null) {
             );
 
             // Convert Shot[] to StoryShot[]
-            const storyShots: StoryShot[] = newShots.map(shot => ({
+            const storyShots: StoryShot[] = shotBreakdownResult.shots.map((shot) => ({
                 ...shot,
             }));
 
@@ -1124,7 +1127,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     ...state,
                     shots: storyShots,
                     currentStep: 'shots',
-                    scenesWithShots: state.breakdown.map(s => s.id),
+                    scenesWithShots: state.breakdown.map((s: ScreenplayScene) => s.id),
                 });
             }
 
@@ -1140,7 +1143,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Update Visual Style
      */
     const updateVisualStyle = useCallback((style: string) => {
-        setState(prev => ({
+        setState((prev: StoryState) => ({
             ...prev,
             visualStyle: style,
         }));
@@ -1150,7 +1153,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Update Aspect Ratio
      */
     const updateAspectRatio = useCallback((ratio: string) => {
-        setState(prev => ({
+        setState((prev: StoryState) => ({
             ...prev,
             aspectRatio: ratio,
         }));
@@ -1160,7 +1163,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Update Genre
      */
     const updateGenre = useCallback((genre: string) => {
-        setState(prev => ({
+        setState((prev: StoryState) => ({
             ...prev,
             genre,
         }));
@@ -1170,7 +1173,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Update Image Provider (gemini or deapi)
      */
     const updateImageProvider = useCallback((provider: 'gemini' | 'deapi') => {
-        setState(prev => ({
+        setState((prev: StoryState) => ({
             ...prev,
             imageProvider: provider,
         }));
@@ -1196,7 +1199,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
         // Filter shots for the target scene(s)
         const shotsToProcess = isPerScene
-            ? state.shots.filter(s => s.sceneId === targetSceneId)
+            ? state.shots.filter((s: StoryShot) => s.sceneId === targetSceneId)
             : state.shots;
 
         if (shotsToProcess.length === 0) {
@@ -1220,9 +1223,7 @@ export function useStoryGeneration(projectId?: string | null) {
             const style = state.visualStyle || 'Cinematic';
 
             // Build character input list for structured prompt builder
-            const characterInputs = state.characters
-                .filter(c => c.visualDescription)
-                .map(c => ({ name: c.name, visualDescription: c.visualDescription, facialTags: c.facialTags }));
+            const characterInputs = toCharacterInputs(state.characters);
 
             // Extract visual style from first generated shot for consistency (Issue 3)
             let extractedStyleOverride: ExtractedStyleOverride | undefined;
@@ -1264,7 +1265,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Helper: get seed for the primary character in a shot (Issue 1)
             const getShotSeed = (shot: NonNullable<typeof shotsToProcess[0]>): number | undefined => {
                 const shotDescLower = shot.description.toLowerCase();
-                const primaryChar = characterInputs.find(c =>
+                const primaryChar = characterInputs.find((c: { name: string; visualDescription: string; facialTags?: string }) =>
                     shotDescLower.includes(c.name.toLowerCase())
                 );
                 if (primaryChar) {
@@ -1283,7 +1284,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         finalUrl = cloudUrl;
                     }
                 }
-                const existingIdx = updatedShotlist.findIndex(s => s.id === shot.id);
+                const existingIdx = updatedShotlist.findIndex((s: ShotlistEntry) => s.id === shot.id);
                 const shotlistEntry: ShotlistEntry = {
                     id: shot.id,
                     sceneId: shot.sceneId,
@@ -1360,7 +1361,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     );
 
                     for (const result of batchResults) {
-                        const shot = remainingShots.find(s => s.id === result.id);
+                        const shot = remainingShots.find((s: StoryShot) => s.id === result.id);
                         if (!shot) continue;
                         if (result.success && result.imageUrl) {
                             await processShotResult(shot, result.imageUrl);
@@ -1421,7 +1422,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Update scenes with visuals tracking
             const newScenesWithVisuals = isPerScene && targetSceneId
                 ? [...(state.scenesWithVisuals || []), targetSceneId].filter((v, i, a) => a.indexOf(v) === i)
-                : state.breakdown.map(s => s.id);
+                : state.breakdown.map((s: ScreenplayScene) => s.id);
 
             pushState({
                 ...state,
@@ -1446,8 +1447,8 @@ export function useStoryGeneration(projectId?: string | null) {
      * @param customPrompt - Optional custom prompt override (for user edits)
      */
     const regenerateShotVisual = useCallback(async (shotId: string, customPrompt?: string) => {
-        const shot = state.shots?.find(s => s.id === shotId);
-        const existingEntry = state.shotlist.find(s => s.id === shotId);
+        const shot = state.shots?.find((s: StoryShot) => s.id === shotId);
+        const existingEntry = state.shotlist.find((s: ShotlistEntry) => s.id === shotId);
 
         if (!shot && !existingEntry) {
             setError(`Shot ${shotId} not found`);
@@ -1538,7 +1539,7 @@ export function useStoryGeneration(projectId?: string | null) {
             );
 
             // If shot wasn't in shotlist yet, add it
-            if (!state.shotlist.find(s => s.id === shotId) && shot) {
+            if (!state.shotlist.find((s: ShotlistEntry) => s.id === shotId) && shot) {
                 updatedShotlist.push({
                     id: shot.id,
                     sceneId: shot.sceneId,
@@ -1570,7 +1571,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const allScenesHaveShots = useCallback(() => {
         if (!state.scenesWithShots) return false;
-        return state.breakdown.every(s => state.scenesWithShots?.includes(s.id));
+        return state.breakdown.every((s: ScreenplayScene) => state.scenesWithShots?.includes(s.id));
     }, [state.breakdown, state.scenesWithShots]);
 
     /**
@@ -1578,7 +1579,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const allScenesHaveVisuals = useCallback(() => {
         if (!state.scenesWithVisuals) return false;
-        return state.breakdown.every(s => state.scenesWithVisuals?.includes(s.id));
+        return state.breakdown.every((s: ScreenplayScene) => state.scenesWithVisuals?.includes(s.id));
     }, [state.breakdown, state.scenesWithVisuals]);
 
     /**
@@ -1665,7 +1666,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Step A: Generate voiceover scripts from screenplay action text.
             // This rewrites camera directions into spoken narration with delivery markers.
             setProgress({ message: 'Rewriting scripts for voiceover...', percent: 12 });
-            const breakdownHooks = state.breakdown.map(s => {
+            const breakdownHooks = state.breakdown.map((s: ScreenplayScene) => {
                 // Extract emotional hook from breakdown metadata if available
                 const action = s.action || '';
                 return action.length > 100 ? action.slice(0, 100) : action;
@@ -1673,7 +1674,7 @@ export function useStoryGeneration(projectId?: string | null) {
             const voiceoverMap = await generateVoiceoverScripts(screenplayScenes, breakdownHooks);
 
             const scenesForNarration: Scene[] = state.breakdown.map((scene, idx) => {
-                const screenplayScene = screenplayScenes.find(s => s.id === scene.id) || screenplayScenes[idx];
+                const screenplayScene = screenplayScenes.find((s: ScreenplayScene) => s.id === scene.id) || screenplayScenes[idx];
                 const rawAction = screenplayScene?.action || scene.action;
                 // Use voiceover script if available (has delivery markers), else fall back to cleaned action
                 const narrationText = voiceoverMap.get(scene.id) || rawAction;
@@ -1756,7 +1757,7 @@ export function useStoryGeneration(projectId?: string | null) {
             pushState({
                 ...state,
                 narrationSegments,
-                scenesWithNarration: narrationSegments.map(s => s.sceneId),
+                scenesWithNarration: narrationSegments.map((s: StoryNarrationSegment) => s.sceneId),
                 currentStep: 'narration',
             });
 
@@ -1784,7 +1785,7 @@ export function useStoryGeneration(projectId?: string | null) {
         const isPerShot = shotIndex !== undefined;
         const shotsToAnimate = isPerShot
             ? [state.shotlist[shotIndex]].filter(Boolean)
-            : state.shotlist.filter(s => s.imageUrl);
+            : state.shotlist.filter((s: ShotlistEntry) => s.imageUrl);
 
         if (shotsToAnimate.length === 0) {
             setError('No shots with images to animate');
@@ -1809,10 +1810,10 @@ export function useStoryGeneration(projectId?: string | null) {
             // Pre-compute per-shot target durations from narration (Issue 6)
             const shotTargetDurations = new Map<string, number>();
             if (state.narrationSegments && state.narrationSegments.length > 0) {
-                const sceneIds = [...new Set(state.shotlist.map(s => s.sceneId))];
+                const sceneIds = [...new Set(state.shotlist.map((s: ShotlistEntry) => s.sceneId))];
                 for (const sceneId of sceneIds) {
-                    const sceneShotIds = state.shotlist.filter(s => s.sceneId === sceneId).map(s => s.id);
-                    const sceneNarration = state.narrationSegments.find(n => n.sceneId === sceneId);
+                    const sceneShotIds = state.shotlist.filter((s: ShotlistEntry) => s.sceneId === sceneId).map((s: ShotlistEntry) => s.id);
+                    const sceneNarration = state.narrationSegments.find((n: StoryNarrationSegment) => n.sceneId === sceneId);
                     const sceneDur = sceneNarration?.duration || 5;
                     const perShot = sceneDur / Math.max(sceneShotIds.length, 1);
                     for (const sid of sceneShotIds) {
@@ -1839,7 +1840,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     const deapiAspectRatio = (state.aspectRatio === '9:16' ? '9:16' : state.aspectRatio === '1:1' ? '1:1' : '16:9') as '16:9' | '9:16' | '1:1';
 
                     // Get the StoryShot data for motion strength selection (Issue 4)
-                    const storyShot = state.shots?.find(s => s.id === shot.id);
+                    const storyShot = state.shots?.find((s: StoryShot) => s.id === shot.id);
                     const shotType = storyShot?.shotType || '';
                     const movement = storyShot?.movement || shot.movement || 'Static';
 
@@ -1915,7 +1916,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
                     // Store with target duration from narration (Issue 6)
                     const targetDuration = shotTargetDurations.get(shot.id) || motionConfig.frames / 30;
-                    const existingIdx = animatedShots.findIndex(a => a.shotId === shot.id);
+                    const existingIdx = animatedShots.findIndex((a: AnimatedShot) => a.shotId === shot.id);
                     const animatedShot = {
                         shotId: shot.id,
                         videoUrl,
@@ -1937,7 +1938,7 @@ export function useStoryGeneration(projectId?: string | null) {
             pushState({
                 ...state,
                 animatedShots,
-                shotsWithAnimation: animatedShots.map(s => s.shotId),
+                shotsWithAnimation: animatedShots.map((s: AnimatedShot) => s.shotId),
                 currentStep: 'animation',
             });
 
@@ -1980,7 +1981,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 narrationSegments: narrationSegs.length,
                 totalDuration,
                 shotlistLength: state.shotlist.length,
-                segmentDurations: narrationSegs.map(s => s.duration),
+                segmentDurations: narrationSegs.map((s: StoryNarrationSegment) => s.duration),
             });
 
             // Combine all narration audio segments into a single audio track
@@ -2002,7 +2003,7 @@ export function useStoryGeneration(projectId?: string | null) {
             const effectiveDuration = totalDuration > 0 ? totalDuration : state.shotlist.length * 5;
 
             // Build scene → shots mapping and scene → narration duration mapping
-            const sceneIds = [...new Set(state.shotlist.map(s => s.sceneId))];
+            const sceneIds = [...new Set(state.shotlist.map((s: ShotlistEntry) => s.sceneId))];
             const prompts: Array<{
                 id: string;
                 text: string;
@@ -2013,9 +2014,9 @@ export function useStoryGeneration(projectId?: string | null) {
             let accumulatedTime = 0;
 
             for (const sceneId of sceneIds) {
-                const sceneShotlist = state.shotlist.filter(s => s.sceneId === sceneId);
+                const sceneShotlist = state.shotlist.filter((s: ShotlistEntry) => s.sceneId === sceneId);
                 // Find narration segment for this scene
-                const sceneNarration = narrationSegs.find(n => n.sceneId === sceneId);
+                const sceneNarration = narrationSegs.find((n: StoryNarrationSegment) => n.sceneId === sceneId);
                 const sceneDuration = sceneNarration?.duration || (effectiveDuration / sceneIds.length);
                 const perShotDuration = sceneDuration / Math.max(sceneShotlist.length, 1);
 
@@ -2167,7 +2168,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const allScenesHaveNarration = useCallback(() => {
         if (!state.scenesWithNarration) return false;
-        return state.breakdown.every(s => state.scenesWithNarration?.includes(s.id));
+        return state.breakdown.every((s: ScreenplayScene) => state.scenesWithNarration?.includes(s.id));
     }, [state.breakdown, state.scenesWithNarration]);
 
     /**
@@ -2175,7 +2176,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const allShotsHaveAnimation = useCallback(() => {
         if (!state.shotsWithAnimation || !state.shotlist) return false;
-        return state.shotlist.every(s => state.shotsWithAnimation?.includes(s.id));
+        return state.shotlist.every((s: ShotlistEntry) => state.shotsWithAnimation?.includes(s.id));
     }, [state.shotlist, state.shotsWithAnimation]);
 
     /**

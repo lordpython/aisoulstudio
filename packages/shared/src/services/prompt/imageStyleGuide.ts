@@ -355,6 +355,14 @@ export interface CharacterInput {
   facialTags?: string;
 }
 
+export function toCharacterInputs(
+  chars: Array<{ name: string; visualDescription: string; facialTags?: string }>,
+): CharacterInput[] {
+  return chars
+    .filter(c => c.visualDescription)
+    .map(c => ({ name: c.name, visualDescription: c.visualDescription, facialTags: c.facialTags }));
+}
+
 /**
  * Build a complete `BuildImageStyleGuideParams` from shot breakdown + character data.
  * Centralizes the mapping from story pipeline types to the style guide system.

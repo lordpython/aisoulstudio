@@ -8,7 +8,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { MODELS } from "../shared/apiClient";
 import { agentLogger } from "../logger";
-import type { ScreenplayScene } from "@/types";
+import type { ScreenplayScene, ShotlistEntry } from "@/types";
 import { withAILogging } from "../aiLogService";
 import { type CharacterInput } from "../prompt/imageStyleGuide";
 
@@ -57,6 +57,11 @@ export interface Shot {
     emotion: string;
     lighting: string;
     scriptSegment?: string;
+}
+
+export interface ShotBreakdownResult {
+    shots: Shot[];
+    failedSceneIds: string[];
 }
 
 /**
@@ -288,9 +293,10 @@ export async function breakAllScenesIntoShots(
     sessionId?: string,
     emotionalContexts?: string[],
     characters?: CharacterInput[],
-): Promise<Shot[]> {
+): Promise<ShotBreakdownResult> {
     const model = getGeminiModel();
     const allShots: Shot[] = [];
+    const failedSceneIds: string[] = [];
 
     for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
@@ -304,15 +310,39 @@ export async function breakAllScenesIntoShots(
         try {
             const emotionalContext = emotionalContexts?.[i];
             const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext, characters);
+            if (shots.length === 0) {
+                failedSceneIds.push(scene.id);
+                continue;
+            }
             allShots.push(...shots);
         } catch (error) {
             log.error(`Failed to process scene ${i + 1}:`, error);
+            failedSceneIds.push(scene.id);
             // Continue with other scenes
         }
     }
 
     log.info(`Total shots generated: ${allShots.length} across ${scenes.length} scenes`);
-    return allShots;
+    return {
+        shots: allShots,
+        failedSceneIds,
+    };
+}
+
+export function mapShotsToShotlistEntries(shots: Shot[]): ShotlistEntry[] {
+    return shots.map(shot => ({
+        id: shot.id,
+        sceneId: shot.sceneId,
+        shotNumber: shot.shotNumber,
+        description: shot.description,
+        cameraAngle: shot.cameraAngle,
+        movement: shot.movement,
+        lighting: shot.lighting,
+        dialogue: '',
+        scriptSegment: shot.scriptSegment,
+        durationEst: shot.duration,
+        shotType: shot.shotType,
+    }));
 }
 
 /**

@@ -518,6 +518,10 @@ export interface StoryShot {
   lighting: string;
   scriptSegment?: string; // 1-3 sentences of narration mapped to this shot
   imageUrl?: string; // Generated image for this shot
+  equipment?: string; // Camera support/rig recommendation (e.g. tripod, handheld rig)
+  focalLength?: string; // Suggested lens focal length (e.g. 35mm, 85mm)
+  aspectRatio?: string; // Shot-specific framing override (e.g. 16:9)
+  notes?: string; // Optional production notes
 }
 
 /**
@@ -530,6 +534,20 @@ export interface ConsistencyReport {
   suggestions: string[];
   details: string;
 }
+
+export type StoryNarrationSegment = {
+  sceneId: string;
+  audioUrl: string;
+  duration: number;
+  text: string;
+};
+
+export type AnimatedShot = {
+  shotId: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  duration: number;
+};
 
 /**
  * Story Mode complete state
@@ -557,21 +575,11 @@ export interface StoryState {
   scenesWithVisuals?: string[]; // scene IDs that have storyboard visuals generated
 
   // Narration (TTS) state
-  narrationSegments?: Array<{
-    sceneId: string;
-    audioUrl: string;
-    duration: number;
-    text: string;
-  }>;
+  narrationSegments?: StoryNarrationSegment[];
   scenesWithNarration?: string[]; // scene IDs that have narration generated
 
   // Animation (Veo/DeAPI) state
-  animatedShots?: Array<{
-    shotId: string;
-    videoUrl: string;
-    thumbnailUrl?: string;
-    duration: number;
-  }>;
+  animatedShots?: AnimatedShot[];
   shotsWithAnimation?: string[]; // shot IDs that have animation generated
 
   // Visual style DNA extracted from first generated shot (Issue 3)

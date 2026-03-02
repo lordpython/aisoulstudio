@@ -13,7 +13,8 @@ import { withAILogging } from "../../../aiLogService";
 import { StoryModeSchema, VerifyCharacterConsistencySchema, type StoryModeState } from "../types";
 import { storyModeStore, productionStore } from "../store";
 import { verifyCharacterConsistency } from "../../../visualConsistencyService";
-import { type ScreenplayScene, type ShotlistEntry, type CharacterProfile } from "../../../../types";
+import { type ScreenplayScene, type CharacterProfile } from "../../../../types";
+import { toCharacterInputs } from "../../../prompt/imageStyleGuide";
 import { detectLanguage } from "../../../languageDetector";
 
 const log = agentLogger.child('Production');
@@ -388,39 +389,41 @@ export const generateShotlistTool = tool(
         log.info(` Generating shotlist for: ${sessionId}`);
 
         try {
-            const { breakAllScenesIntoShots } = await import("../../shotBreakdownAgent");
+            const { breakAllScenesIntoShots, mapShotsToShotlistEntries } = await import("../../shotBreakdownAgent");
 
             const genre = 'Drama'; // Default genre; ideally passed from session state
-            const rawShots = await breakAllScenesIntoShots(
+            const characterInputs = toCharacterInputs(state.characters);
+
+            const shotBreakdownResult = await breakAllScenesIntoShots(
                 state.screenplay,
                 genre,
                 (sceneIndex, totalScenes) => {
                     log.info(` Shotlist progress: scene ${sceneIndex + 1}/${totalScenes}`);
                 },
                 sessionId,
+                undefined,
+                characterInputs,
             );
 
-            // Convert Shot[] to ShotlistEntry[]
-            const shots: ShotlistEntry[] = rawShots.map(shot => ({
-                id: shot.id,
-                sceneId: shot.sceneId,
-                shotNumber: shot.shotNumber,
-                description: shot.description,
-                cameraAngle: shot.cameraAngle,
-                movement: shot.movement,
-                lighting: shot.lighting,
-                dialogue: "",
-            }));
+            const shots = mapShotsToShotlistEntries(shotBreakdownResult.shots);
+
+            const generatedSceneIds = new Set(shots.map(shot => shot.sceneId));
+            const failedSceneSet = new Set(shotBreakdownResult.failedSceneIds);
+            const failedSceneCount = state.screenplay.filter(scene => failedSceneSet.has(scene.id) || !generatedSceneIds.has(scene.id)).length;
 
             state.shotlist = shots;
             state.currentStep = 'shotlist';
             state.updatedAt = Date.now();
             storyModeStore.set(sessionId, state);
 
+            const warning = failedSceneCount > 0
+                ? ` ${failedSceneCount} scene(s) failed and should be retried.`
+                : '';
+
             return JSON.stringify({
                 success: true,
                 shotCount: shots.length,
-                message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.`,
+                message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.${warning}`,
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);

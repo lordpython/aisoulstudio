@@ -15,7 +15,13 @@ import {
 import { runProductionPipeline, ProductionConfig } from '../agentOrchestrator';
 import { generatePromptsWithAgent, AgentDirectorConfig } from '../agentDirectorService';
 import { agentDirectorLogger as agentLogger } from '../agent/agentLogger';
-import { v4 as uuidv4 } from 'uuid';
+
+function createExecutionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `exec_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 // --- Local Types ---
 
@@ -133,7 +139,7 @@ class WorkflowTriggerService {
    */
   async executeWorkflow(params: WorkflowExecutorParams): Promise<ExtendedWorkflowResult> {
     const { intent, context, entities, userInput, onProgress } = params;
-    const executionId = uuidv4();
+    const executionId = createExecutionId();
     const startTime = new Date();
 
     agentLogger.info('Starting workflow execution', {
