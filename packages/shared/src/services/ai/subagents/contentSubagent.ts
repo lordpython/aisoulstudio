@@ -212,15 +212,23 @@ export function createContentSubagent(apiKey: string): Subagent {
       const modelWithTools = model.bindTools(contentTools);
 
       // Build enhanced instruction with RAG knowledge context
-      const enhancedInstruction = ragKnowledge
-        ? `${ragKnowledge}\n\n---\n\nUser Request: ${context.instruction}`
-        : context.instruction;
+        const sessionInstruction = context.sessionId
+          ? `Reuse the existing production sessionId "${context.sessionId}" when you call plan_video. Do not create a new session.`
+          : '';
+
+        const enhancedInstruction = ragKnowledge
+          ? `${ragKnowledge}\n\n---\n\nUser Request: ${context.instruction}`
+          : context.instruction;
 
       // Initialize messages
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(CONTENT_SUBAGENT_PROMPT),
         new HumanMessage(enhancedInstruction),
       ];
+
+      if (sessionInstruction) {
+        messages.push(new HumanMessage(sessionInstruction));
+      }
 
       let iteration = 0;
       const MAX_ITERATIONS = this.maxIterations;
@@ -285,7 +293,11 @@ export function createContentSubagent(apiKey: string): Subagent {
           }
 
           try {
-            const result = await tool.invoke(toolCall.args);
+            const toolArgs = toolName === "plan_video" && currentSessionId && !toolCall.args.sessionId
+              ? { ...toolCall.args, sessionId: currentSessionId }
+              : toolCall.args;
+
+            const result = await tool.invoke(toolArgs);
 
             // Extract sessionId if this was plan_video
             if (toolName === "plan_video" && typeof result === "string") {

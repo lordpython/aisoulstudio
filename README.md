@@ -384,9 +384,9 @@ The Express server (port 3001) provides these endpoints:
 #### AI Generation (Proxied)
 - `POST /api/gemini/proxy/generateContent` - Generate text content
 - `POST /api/gemini/proxy/generateImages` - Generate images
-- `POST /api/gemini/image` - Image generation with Imagen 4
-- `POST /api/deapi/image` - DeAPI text-to-image
-- `POST /api/deapi/animate` - DeAPI image-to-video
+- `POST /api/gemini/image` - Deprecated legacy image generation endpoint
+- `POST /api/deapi/image` - Deprecated legacy DeAPI text-to-image endpoint
+- `POST /api/deapi/animate` - Deprecated legacy DeAPI image-to-video endpoint
 - `POST /api/deapi/img2video` - Full img2video with file upload
 - `POST /api/director/generate` - Generate video prompts
 

@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { productionStore } from "../store";
+import { updateProductionSession } from "../store";
 import { validateContentPlanId } from "../utils";
 
 // --- Get Production Status Tool ---
@@ -63,8 +64,7 @@ export const markCompleteTool = tool(
             });
         }
 
-        state.isComplete = true;
-        productionStore.set(contentPlanId, state);
+        updateProductionSession(contentPlanId, { isComplete: true });
 
         return JSON.stringify({
             success: true,

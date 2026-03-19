@@ -295,6 +295,7 @@ export interface SupervisorOptions {
   apiKey: string;
   userRequest: string;
   onProgress?: ProgressCallback;
+  sessionId?: string | null;
 }
 
 /**
@@ -314,7 +315,7 @@ export interface SupervisorResult {
  * This is the main entry point for the multi-agent production system.
  */
 export async function runSupervisorAgent(options: SupervisorOptions): Promise<SupervisorResult> {
-  const { apiKey, userRequest, onProgress } = options;
+  const { apiKey, userRequest, onProgress, sessionId: initialSessionId = null } = options;
   const startTime = Date.now();
 
   log.info(" Starting production:", userRequest);
@@ -357,7 +358,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
     async ({ sessionId, topic, targetDuration, style }) => {
       const instruction = `Create content plan for "${topic}" (${targetDuration}s duration, ${style || "Cinematic"} style)`;
       const result = await executeSubagent(contentSubagent, {
-        sessionId: sessionId || null,
+        sessionId: sessionId || initialSessionId,
         instruction,
         priorStages: [],
         userPreferences: { style },
@@ -475,7 +476,15 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
     new HumanMessage(enhancedRequest),
   ];
 
-  let sessionId: string | null = null;
+  if (initialSessionId) {
+    messages.push(
+      new HumanMessage(
+        `IMPORTANT: Reuse the existing production sessionId "${initialSessionId}" for this run. Do not create or switch to another sessionId.`
+      )
+    );
+  }
+
+  let sessionId: string | null = initialSessionId;
   const completedStages: CompletedStage[] = [];
   const MAX_ITERATIONS = 20;
   let iteration = 0;

@@ -250,6 +250,29 @@ function stripImageDataForStorage(state: StoryState): StoryState {
     };
 }
 
+function mapStoryStepToStoryModeStep(step: StoryStep): StoryModeState['currentStep'] {
+    if (step === 'idea' || step === 'breakdown') return 'breakdown';
+    if (step === 'script') return 'screenplay';
+    if (step === 'characters') return 'characters';
+    if (step === 'narration' || step === 'animation' || step === 'export') return 'production';
+    return 'shotlist';
+}
+
+function buildStoryModeState(sessionId: string, state: StoryState, topic?: string | null): StoryModeState {
+    return {
+        id: sessionId,
+        topic: topic || state.script?.title || state.breakdown[0]?.heading || 'Story Session',
+        breakdown: state.breakdown
+            .map((scene: ScreenplayScene) => `${scene.heading}: ${scene.action}`)
+            .join('\n'),
+        screenplay: state.script?.scenes || state.breakdown,
+        characters: state.characters || [],
+        shotlist: state.shotlist || [],
+        currentStep: mapStoryStepToStoryModeStep(state.currentStep),
+        updatedAt: Date.now(),
+    };
+}
+
 /** Matches ASCII digits (0-9), Arabic-Indic (٠-٩), and Extended Arabic-Indic (۰-۹) */
 const DIGITS = '(?:[0-9\u0660-\u0669\u06F0-\u06F9])';
 
@@ -503,20 +526,7 @@ export function useStoryGeneration(projectId?: string | null) {
             if (savedState) {
                 try {
                     const parsed = JSON.parse(savedState);
-                    // Convert React state format to StoryModeState format
-                    const storyModeState = {
-                        id: savedSession,
-                        topic: parsed.breakdown?.[0]?.heading || 'Restored Story',
-                        breakdown: parsed.breakdown?.map((s: ScreenplayScene) =>
-                            `${s.heading}: ${s.action}`
-                        ).join('\n') || '',
-                        screenplay: parsed.script?.scenes || [],
-                        characters: parsed.characters || [],
-                        shotlist: parsed.shotlist || [],
-                        currentStep: parsed.currentStep === 'script' ? 'screenplay' : parsed.currentStep,
-                        updatedAt: Date.now(),
-                    };
-                    storyModeStore.set(savedSession, storyModeState);
+                    storyModeStore.set(savedSession, buildStoryModeState(savedSession, parsed));
                     console.log('[useStoryGeneration] Restored storyModeStore for session:', savedSession);
                 } catch (e) {
                     console.error('[useStoryGeneration] Failed to restore storyModeStore:', e);
@@ -2236,10 +2246,40 @@ export function useStoryGeneration(projectId?: string | null) {
     /**
      * Import a complete project state (e.g., from JSON file or version history)
      */
-    const importProject = useCallback((importedState: StoryState) => {
+    const importProject = useCallback((importedState: StoryState, options?: {
+        sessionId?: string | null;
+        topic?: string | null;
+    }) => {
         console.log('[useStoryGeneration] Importing project state');
-        pushState(importedState);
-    }, [pushState]);
+        setPast([]);
+        setFuture([]);
+        setError(null);
+        setState(importedState);
+
+        const nextTopic = options?.topic ?? topic;
+        setTopic(nextTopic ?? null);
+
+        if (options?.sessionId !== undefined) {
+            if (options.sessionId) {
+                setSessionId(options.sessionId);
+                const currentUser = getCurrentUser();
+                if (currentUser) {
+                    localStorage.setItem(USER_ID_KEY, currentUser.uid);
+                }
+                cloudAutosave.initSession(options.sessionId, currentUser?.uid).then(success => {
+                    if (success) {
+                        console.log('[useStoryGeneration] Cloud storage initialized for imported session');
+                    }
+                });
+                storyModeStore.set(options.sessionId, buildStoryModeState(options.sessionId, importedState, nextTopic));
+            } else {
+                setSessionId(null);
+                localStorage.removeItem(SESSION_KEY);
+            }
+        } else if (sessionId) {
+            storyModeStore.set(sessionId, buildStoryModeState(sessionId, importedState, nextTopic));
+        }
+    }, [sessionId, topic]);
 
     return {
         state,

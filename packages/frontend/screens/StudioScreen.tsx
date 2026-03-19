@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
 import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
+import type { ScreenplayScene, StoryState, ShotlistEntry } from '@/types';
 import { AppState } from '@/types';
 import { getEffectiveLegacyTone } from '@/services/tripletUtils';
 
@@ -51,6 +52,7 @@ import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { useFormatPipeline } from '@/hooks/useFormatPipeline';
 import { useProjectSession } from '@/hooks/useProjectSession';
 import { getCurrentUser } from '@/services/firebase/authService';
+import { storyModeStore } from '@/services/ai/production/store';
 import { StoryWorkspace } from '@/components/story';
 import { StoryWorkspaceErrorBoundary } from '@/components/story/StoryWorkspaceErrorBoundary';
 import { VideoEditor } from '@/components/VideoEditor';
@@ -84,6 +86,41 @@ export function parseStudioParams(searchParams: URLSearchParams): StudioParams {
   };
 }
 
+function normalizePipelineScenes(value: unknown): ScreenplayScene[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((scene, index) => {
+    const candidate = (scene ?? {}) as Partial<ScreenplayScene>;
+    return {
+      id: candidate.id || `scene_${index}`,
+      sceneNumber: candidate.sceneNumber || index + 1,
+      heading: candidate.heading || `Scene ${index + 1}`,
+      action: candidate.action || '',
+      dialogue: Array.isArray(candidate.dialogue) ? candidate.dialogue : [],
+      charactersPresent: Array.isArray(candidate.charactersPresent) ? candidate.charactersPresent : [],
+    };
+  });
+}
+
+function buildFallbackShotlist(screenplay: ScreenplayScene[], visuals: unknown): ShotlistEntry[] {
+  if (!Array.isArray(visuals)) return [];
+
+  return visuals.map((visual, index) => {
+    const candidate = (visual ?? {}) as { sceneId?: string; imageUrl?: string };
+    return {
+      id: `shot_${index}`,
+      sceneId: candidate.sceneId || screenplay[index]?.id || `scene_${index}`,
+      shotNumber: index + 1,
+      description: screenplay[index]?.action || '',
+      cameraAngle: 'Eye-level',
+      movement: 'Static',
+      lighting: 'Natural',
+      dialogue: screenplay[index]?.dialogue?.[0]?.text || '',
+      imageUrl: candidate.imageUrl,
+    };
+  });
+}
+
 // ============================================================
 // Main Component
 // ============================================================
@@ -97,10 +134,12 @@ export default function StudioScreen() {
   // Project session management
   const {
     project,
+    sessionId,
     isLoading: isProjectLoading,
     error: projectError,
     restoredState,
     syncProjectMetadata,
+    flushSession,
   } = useProjectSession(params.projectId);
 
   // View mode toggle (Requirement 6.6)
@@ -170,6 +209,8 @@ export default function StudioScreen() {
     setVisuals,
     setContentPlan,
     setNarrationSegments,
+    setSfxPlan,
+    setValidation,
     setAppState,
   } = useVideoProductionRefactored();
 
@@ -233,6 +274,12 @@ export default function StudioScreen() {
       if (restoredState.narrationSegments?.length) {
         setNarrationSegments(restoredState.narrationSegments);
       }
+      if (restoredState.sfxPlan) {
+        setSfxPlan(restoredState.sfxPlan);
+      }
+      if (restoredState.validation) {
+        setValidation(restoredState.validation);
+      }
       // Set topic from restored content plan
       if (restoredState.contentPlan.title) {
         setTopic(restoredState.contentPlan.title);
@@ -260,6 +307,8 @@ export default function StudioScreen() {
         addMessage('assistant', t('studio.generating'));
         setTimeout(() => {
           startProduction({
+            sessionId: sessionId || project?.cloudSessionId,
+            projectId: params.projectId,
             skipNarration: false,
             targetDuration: params.duration || 60,
             visualStyle: params.style || project?.style || 'Cinematic',
@@ -279,7 +328,7 @@ export default function StudioScreen() {
     } else if (params.mode === 'music') {
       setShowMusic(true);
     }
-  }, [params, isProjectLoading, project, restoredState, setVisualStyle, setTargetDuration, setVideoPurpose, setTopic, startProduction, addMessage, t, setShowMusic, setContentPlan, setVisuals, setNarrationSegments, setAppState]);
+  }, [params, isProjectLoading, project, restoredState, sessionId, setVisualStyle, setTargetDuration, setVideoPurpose, setTopic, startProduction, addMessage, t, setShowMusic, setContentPlan, setVisuals, setNarrationSegments, setSfxPlan, setValidation, setAppState]);
 
   // Sync project metadata when production state changes
   useEffect(() => {
@@ -519,7 +568,7 @@ export default function StudioScreen() {
           break;
         }
         case 'create_video': {
-          const params = agentResponse.action.params as { topic: string; duration?: number; style?: string };
+          const params = agentResponse.action.params as { topic: string; duration?: number; style?: string; projectId?: string };
           updateLastMessage(messageUpdate);
           setTopic(params.topic);
           setTargetDuration(params.duration || 60);
@@ -533,6 +582,8 @@ export default function StudioScreen() {
           });
 
           startProduction({
+            sessionId: sessionId || project?.cloudSessionId,
+            projectId: params.projectId,
             skipNarration: false,
             targetDuration: params.duration || 60,
             visualStyle: params.style || 'Cinematic',
@@ -697,6 +748,8 @@ export default function StudioScreen() {
       throw new Error('Video not ready for export');
     }
 
+    await flushSession();
+
     let currentTime = 0;
     const parsedSubtitles = contentPlan.scenes.map((scene, idx) => {
       const narration = narrationSegments.find(n => n.sceneId === scene.id);
@@ -761,7 +814,7 @@ export default function StudioScreen() {
       // Pass export options for history tracking
       {
         projectId: params.projectId,
-        cloudSessionId: project?.cloudSessionId,
+        cloudSessionId: sessionId || project?.cloudSessionId,
         userId: getCurrentUser()?.uid,
       }
     );
@@ -777,7 +830,14 @@ export default function StudioScreen() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan, params.projectId, project]);
+
+    if (params.projectId) {
+      syncProjectMetadata({
+        hasExport: true,
+        status: 'completed',
+      });
+    }
+  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan, params.projectId, project, sessionId, flushSession, syncProjectMetadata]);
 
   // ============================================================
   // TEST: Load saved media from local folder
@@ -855,6 +915,85 @@ export default function StudioScreen() {
       formatPipelineHook.execute(userId, projectId);
     }
   }, [formatPipelineHook, storyHook, storyInitialTopic, topic, params.projectId]);
+
+  const handleContinueFromFormatPipeline = useCallback(() => {
+    if (!formatPipelineHook.result?.success) {
+      return;
+    }
+
+    const partialResults = formatPipelineHook.result.partialResults ?? {};
+    const pipelineSessionId = typeof partialResults.sessionId === 'string'
+      ? partialResults.sessionId
+      : undefined;
+    const storedState = pipelineSessionId ? storyModeStore.get(pipelineSessionId) : undefined;
+    const screenplay = normalizePipelineScenes(
+      storedState?.screenplay?.length ? storedState.screenplay : partialResults.screenplay,
+    );
+
+    if (screenplay.length === 0) {
+      return;
+    }
+
+    const shotlist = storedState?.shotlist?.length
+      ? storedState.shotlist
+      : buildFallbackShotlist(screenplay, partialResults.visuals);
+
+    const narrationSegments = Array.isArray(partialResults.narrationSegments)
+      ? partialResults.narrationSegments.flatMap((segment: any) => {
+        const audioUrl = typeof segment?.audioUrl === 'string' && segment.audioUrl
+          ? segment.audioUrl
+          : segment?.audioBlob instanceof Blob
+            ? URL.createObjectURL(segment.audioBlob)
+            : '';
+
+        if (!audioUrl) {
+          return [];
+        }
+
+        return [{
+          sceneId: String(segment.sceneId || ''),
+          audioUrl,
+          duration: Number(segment.audioDuration ?? segment.duration ?? 0),
+          text: String(segment.transcript ?? segment.text ?? ''),
+        }];
+      })
+      : undefined;
+
+    const importedTopic = formatPipelineHook.idea
+      || storedState?.topic
+      || storyInitialTopic
+      || topic
+      || screenplay[0]?.heading
+      || 'Imported Story';
+
+    const importedState: StoryState = {
+      currentStep: narrationSegments?.length ? 'narration' : shotlist.length > 0 ? 'storyboard' : 'script',
+      breakdown: screenplay,
+      script: {
+        title: importedTopic,
+        scenes: screenplay,
+      },
+      characters: storedState?.characters || [],
+      shotlist,
+      genre: formatPipelineHook.selectedGenre || storyHook.state.genre,
+      visualStyle: storyHook.state.visualStyle || params.style || 'Cinematic',
+      aspectRatio: partialResults.aspectRatio || storyHook.state.aspectRatio || '16:9',
+      imageProvider: storyHook.state.imageProvider || 'gemini',
+      scenesWithShots: Array.from(new Set(shotlist.map((shot) => shot.sceneId))),
+      scenesWithVisuals: Array.from(new Set(shotlist.filter((shot) => Boolean(shot.imageUrl)).map((shot) => shot.sceneId))),
+      ...(narrationSegments?.length ? {
+        narrationSegments,
+        scenesWithNarration: Array.from(new Set(narrationSegments.map((segment: { sceneId: string }) => segment.sceneId))),
+      } : {}),
+    };
+
+    setStoryInitialTopic(importedTopic);
+    storyHook.importProject(importedState, {
+      sessionId: pipelineSessionId ?? storyHook.sessionId ?? null,
+      topic: importedTopic,
+    });
+    setStudioMode('story');
+  }, [formatPipelineHook, storyHook, storyInitialTopic, topic, params.style]);
 
   const handleOpenInEditor = useCallback(() => {
     const editorStore = useVideoEditorStore.getState();
@@ -1191,6 +1330,7 @@ export default function StudioScreen() {
             formatPipelineHook={formatPipelineHook}
             onFormatExecute={handleFormatExecute}
             onOpenInEditor={handleOpenInEditor}
+            onContinueFromFormatPipeline={handleContinueFromFormatPipeline}
             onGenerateIdea={(storyTopic, genre) => {
               setStoryInitialTopic(storyTopic);
               storyHook.updateGenre(genre);

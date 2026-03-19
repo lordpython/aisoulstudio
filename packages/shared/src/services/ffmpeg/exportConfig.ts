@@ -6,7 +6,7 @@
  */
 
 import { TransitionType, VideoFormat, FormatAssemblyRules } from "../../types";
-import { isAndroid } from "../../utils/platformUtils";
+import { getServerBaseUrl } from "../serverBaseUrl";
 
 /**
  * Get the server URL based on the current platform.
@@ -19,16 +19,8 @@ import { isAndroid } from "../../utils/platformUtils";
  *  3. Default — localhost:3001 (works for web browser dev).
  */
 export const getServerUrl = (): string => {
-    // Allow override via environment variable (real device / CI)
-    const envUrl = typeof import.meta !== 'undefined'
-        ? (import.meta as { env?: Record<string, string> }).env?.VITE_SERVER_URL
-        : undefined;
-    if (envUrl) return envUrl;
-
-    if (isAndroid()) {
-        return "http://10.0.2.2:3001";
-    }
-    return "http://localhost:3001";
+    const baseUrl = getServerBaseUrl();
+    return baseUrl || "http://localhost:3001";
 };
 
 export const SERVER_URL = getServerUrl();

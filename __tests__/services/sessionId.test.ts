@@ -47,6 +47,11 @@ describe('sessionId Generation and Validation', () => {
             expect(isValidSessionId('story_1')).toBe(true);
         });
 
+        it('should return true for valid production_ project sessionIds', () => {
+            expect(isValidSessionId('production_proj_123')).toBe(true);
+            expect(isValidSessionId('production_my_project')).toBe(true);
+        });
+
         it('should return false for null or undefined', () => {
             expect(isValidSessionId(null)).toBe(false);
             expect(isValidSessionId(undefined)).toBe(false);
@@ -78,6 +83,10 @@ describe('sessionId Generation and Validation', () => {
 
         it('should return null for valid story_ sessionIds', () => {
             expect(validateContentPlanId('story_1234567890')).toBeNull();
+        });
+
+        it('should return null for valid production_ sessionIds', () => {
+            expect(validateContentPlanId('production_proj_123')).toBeNull();
         });
 
         it('should return error for missing contentPlanId', () => {

@@ -10,9 +10,14 @@ import { getSelectedEncoder, getEncoderInfo, getEncoderArgs, ENCODING_SPEC } fro
 import { validateSessionFrames, validateFrameSizes } from '../services/validation/frameValidator.js';
 import { verifyOutputQuality, quickValidate } from '../services/validation/qualityVerifier.js';
 import { RenderJob, JobProgress, FrameChecksum } from '../types/renderJob.js';
+import { createDeprecatedRouteMiddleware } from './routeUtils.js';
 
 const exportLog = createLogger('Export');
 const ffmpegLog = createLogger('FFmpeg');
+const deprecatedCancelRoute = createDeprecatedRouteMiddleware(
+  exportLog,
+  'POST /api/export/cancel/:jobId',
+);
 
 const router = Router();
 
@@ -458,7 +463,7 @@ router.get('/download/:jobId', (req: Request, res: Response) => {
 /**
  * Cancel a job
  */
-router.post('/cancel/:jobId', async (req: Request, res: Response) => {
+router.post('/cancel/:jobId', deprecatedCancelRoute, async (req: Request, res: Response) => {
   const jobId = req.params.jobId as string;
   const job = jobQueue.getJob(jobId);
 

@@ -9,15 +9,15 @@
  * 2. Real-time autosave via server proxy (works in browser)
  */
 
+import { getServerBaseUrl } from "./serverBaseUrl";
+
 // Configuration
 const BUCKET_NAME = 'aisoul-studio-storage';
 
 // Server API base URL for cloud autosave
 // In browser: use relative URLs so requests go through Vite's dev proxy
 // On server: use direct URL
-const CLOUD_API_BASE = typeof window !== 'undefined'
-  ? ''
-  : 'http://localhost:3001';
+const CLOUD_API_BASE = getServerBaseUrl();
 
 /**
  * Convert a direct GCS URL to a proxy URL to avoid CORS issues.

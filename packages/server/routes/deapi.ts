@@ -5,6 +5,16 @@ import { createLogger } from '@studio/shared/src/services/logger.js';
 import fs from 'fs';
 import multer from 'multer';
 import type { Txt2ImgParams, DeApiImageModel } from '@studio/shared/src/services/deapiService.js';
+import {
+    buildProxyUrl,
+    createDeprecatedRouteMiddleware,
+    isAllowedProxyEndpoint,
+    isSafeProxyEndpoint,
+    isWebhookAuthorized,
+    normalizeProxyEndpoint,
+    type ProxyEndpointRule,
+    type RawBodyRequest,
+} from './routeUtils.js';
 
 const deapiLog = createLogger('DeAPI');
 const router = Router();
@@ -13,7 +23,34 @@ const upload = multer({
     limits: { fileSize: MAX_SINGLE_FILE }
 });
 
-router.post('/image', async (req: ApiProxyRequest, res: Response): Promise<void> => {
+const DEAPI_PROXY_RULES: ProxyEndpointRule[] = [
+    { methods: ['POST'], pattern: /^txt2img$/ },
+    { methods: ['GET'], pattern: /^request-status\/[A-Za-z0-9_-]+$/ },
+];
+
+function getWebhookSecret(): string | undefined {
+    return process.env.DEAPI_WEBHOOK_SECRET;
+}
+
+const deprecatedImageRoute = createDeprecatedRouteMiddleware(
+    deapiLog,
+    'POST /api/deapi/image',
+    '/api/deapi/proxy/txt2img',
+);
+
+const deprecatedAnimateRoute = createDeprecatedRouteMiddleware(
+    deapiLog,
+    'POST /api/deapi/animate',
+    '/api/deapi/img2video',
+);
+
+const deprecatedBatchRoute = createDeprecatedRouteMiddleware(
+    deapiLog,
+    'POST /api/deapi/batch',
+    '/api/deapi/proxy/txt2img',
+);
+
+router.post('/image', deprecatedImageRoute, async (req: ApiProxyRequest, res: Response): Promise<void> => {
     if (!DEAPI_API_KEY) {
         res.status(500).json({ success: false, error: 'DEAPI key not configured' });
         return;
@@ -47,7 +84,7 @@ router.post('/image', async (req: ApiProxyRequest, res: Response): Promise<void>
     }
 });
 
-router.post('/animate', async (req: ApiProxyRequest, res: Response) => {
+router.post('/animate', deprecatedAnimateRoute, async (req: ApiProxyRequest, res: Response) => {
     if (!DEAPI_API_KEY) {
         return res.status(500).json({ success: false, error: 'DEAPI key not configured' });
     }
@@ -194,14 +231,24 @@ const pendingJobs = new Map<string, {
     timeout: NodeJS.Timeout;
 }>();
 
-router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
+router.post('/webhook', async (req: RawBodyRequest, res: Response): Promise<void> => {
     try {
         // Safely destructure with fallback to prevent TypeError when req.body is undefined
         const { event, request_id, result_url, error } = req.body ?? {};
 
-        // Validate webhook signature (recommended for production)
-        // const signature = req.headers['x-deapi-signature'];
-        // TODO: Implement HMAC-SHA256 validation
+        const webhookSecret = getWebhookSecret();
+
+        if (!webhookSecret) {
+            deapiLog.warn('Rejected webhook because DEAPI_WEBHOOK_SECRET is not configured');
+            res.status(503).json({ error: 'Webhook secret not configured' });
+            return;
+        }
+
+        if (!isWebhookAuthorized(req, webhookSecret)) {
+            deapiLog.warn('Rejected unauthorized webhook request');
+            res.status(401).json({ error: 'Unauthorized webhook' });
+            return;
+        }
 
         deapiLog.info(`Webhook received: ${event} for ${request_id}`);
 
@@ -242,7 +289,7 @@ export const waitForJob = (requestId: string, timeoutMs: number = 300000): Promi
 // ============================================================
 // Batch generation endpoint with progress streaming
 // ============================================================
-router.post('/batch', async (req: Request, res: Response): Promise<void> => {
+router.post('/batch', deprecatedBatchRoute, async (req: Request, res: Response): Promise<void> => {
     if (!DEAPI_API_KEY) {
         res.status(500).json({ error: 'DeAPI API key not configured on server' });
         return;
@@ -281,8 +328,23 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    const endpoint = req.path.startsWith('/') ? req.path.slice(1) : req.path;
-    const deapiUrl = `https://api.deapi.ai/api/v1/client/${endpoint}`;
+    const endpoint = normalizeProxyEndpoint(req.path);
+
+    if (!isSafeProxyEndpoint(endpoint)) {
+        res.status(400).json({ error: 'Invalid proxy endpoint' });
+        return;
+    }
+
+    if (!isAllowedProxyEndpoint(endpoint, req.method, DEAPI_PROXY_RULES)) {
+        deapiLog.warn('Rejected disallowed DeAPI proxy request', {
+            method: req.method,
+            endpoint,
+        });
+        res.status(403).json({ error: 'Proxy endpoint is not allowed' });
+        return;
+    }
+
+    const deapiUrl = buildProxyUrl('https://api.deapi.ai/api/v1/client', endpoint, req.query);
 
     try {
         const fetchOptions: RequestInit = {

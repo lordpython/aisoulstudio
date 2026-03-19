@@ -95,6 +95,11 @@ export function useProjectSession(projectId: string | undefined): UseProjectSess
             `[useProjectSession] Restored session ${cloudSessionId} with ${restored.contentPlan?.scenes?.length || 0} scenes`
           );
           setRestoredState(restored);
+
+          // Reconnect autosave/export uploads to the canonical project session.
+          cloudAutosave.initSession(cloudSessionId).catch((err) => {
+            console.warn('[useProjectSession] Cloud autosave init failed:', err);
+          });
         } else {
           // No existing session - initialize new one
           console.log(

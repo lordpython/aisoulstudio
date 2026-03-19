@@ -3,7 +3,7 @@
  * Main orchestrator for the story mode pipeline.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IdeaView } from './IdeaView';
 import { ScriptView } from './ScriptView';
@@ -86,6 +86,8 @@ interface StoryWorkspaceProps {
     onFormatExecute?: () => void;
     /** Transition to the advanced Video Editor */
     onOpenInEditor?: () => void;
+    /** Adopt a completed format-pipeline result into the story workflow */
+    onContinueFromFormatPipeline?: () => void;
 }
 
 type MainStep = 'idea' | 'breakdown' | 'storyboard';
@@ -162,6 +164,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     formatPipelineHook,
     onFormatExecute,
     onOpenInEditor,
+    onContinueFromFormatPipeline,
 }) => {
     const { t } = useLanguage();
 
@@ -178,6 +181,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     const [editingShot, setEditingShot] = useState<ShotlistEntry | null>(null);
     // Track which individual shots are being animated (by shot.id)
     const [animatingShotIds, setAnimatingShotIds] = useState<Set<string>>(new Set());
+    const skipCurrentStepSyncRef = useRef(false);
 
     // Clear per-shot animation trackers when global processing finishes
     useEffect(() => {
@@ -185,6 +189,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     }, [isProcessing]);
 
     useEffect(() => {
+        if (skipCurrentStepSyncRef.current) {
+            skipCurrentStepSyncRef.current = false;
+            return;
+        }
         const newMain = getHighLevelStep(storyState.currentStep);
         setActiveMainTab(newMain);
         setSubTab(storyState.currentStep);
@@ -437,6 +445,21 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
 
                                 {/* Actions */}
                                 <div className="flex items-center justify-center gap-3">
+                                    {onContinueFromFormatPipeline && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                skipCurrentStepSyncRef.current = true;
+                                                onContinueFromFormatPipeline();
+                                                setActiveMainTab('breakdown');
+                                                setSubTab(screenplay.length > 0 ? 'script' : 'breakdown');
+                                            }}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-sm font-mono text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors duration-200"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            {t('story.continueToBreakdown')}
+                                        </button>
+                                    )}
                                     {/* Download all visuals */}
                                     {visuals.length > 0 && (
                                         <button

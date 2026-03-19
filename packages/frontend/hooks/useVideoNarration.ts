@@ -45,6 +45,19 @@ export function useVideoNarration(
         };
     }, []);
 
+    useEffect(() => {
+        const nextUrls = new Map<string, string>();
+
+        narrationSegments.forEach((segment) => {
+            if (segment.audioBlob) {
+                nextUrls.set(segment.sceneId, createAudioUrl(segment));
+            }
+        });
+
+        audioUrlsRef.current.forEach((url) => revokeAudioUrl(url));
+        audioUrlsRef.current = nextUrls;
+    }, [narrationSegments]);
+
     /**
      * Generate narration for all scenes
      */
@@ -78,9 +91,6 @@ export function useVideoNarration(
                 const segment = await narrateScene(scene, narratorConfig);
                 segments.push(segment);
 
-                // Create audio URL for playback
-                const url = createAudioUrl(segment);
-                audioUrlsRef.current.set(scene.id, url);
             } catch (err) {
                 console.error(`[useVideoNarration] Narration failed for scene ${scene.id}:`, err);
                 onError?.(`Narration failed for "${scene.name}"`);
@@ -140,10 +150,6 @@ export function useVideoNarration(
             // Generate new narration
             const narratorConfig: NarratorConfig = { videoPurpose };
             const segment = await narrateScene(currentScene, narratorConfig);
-
-            // Create new audio URL
-            const url = createAudioUrl(segment);
-            audioUrlsRef.current.set(sceneId, url);
 
             // Update narration segments
             setNarrationSegments(prev => {

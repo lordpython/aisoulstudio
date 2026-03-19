@@ -45,7 +45,8 @@ const log = agentLogger.child('AgentCore');
  */
 export async function runProductionAgentWithSubagents(
     userRequest: string,
-    onProgress?: (progress: ProductionProgress) => void
+    onProgress?: (progress: ProductionProgress) => void,
+    options?: { sessionId?: string | null }
 ): Promise<ProductionState | null> {
     if (!GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY not configured');
@@ -63,6 +64,7 @@ export async function runProductionAgentWithSubagents(
         const supervisorOptions: SupervisorOptions = {
             apiKey: GEMINI_API_KEY,
             userRequest,
+            sessionId: options?.sessionId ?? null,
             onProgress: (progress) => {
                 onProgress?.({
                     stage: progress.stage,
@@ -70,6 +72,7 @@ export async function runProductionAgentWithSubagents(
                     message: progress.message,
                     isComplete: progress.isComplete,
                     success: progress.success,
+                    sessionId: progress.sessionId,
                 });
             },
         };
@@ -93,12 +96,14 @@ export async function runProductionAgentWithSubagents(
                 message: `Multi-agent production complete! Generated ${assetSummary.scenes} scenes with ${assetSummary.narrations} narrations, ${assetSummary.visuals} visuals${assetSummary.music ? ', music' : ''}${assetSummary.sfx ? `, ${assetSummary.sfx} SFX` : ''}${assetSummary.subtitles ? ', and subtitles' : ''}.`,
                 isComplete: true,
                 assetSummary,
+                sessionId: result.sessionId ?? options?.sessionId ?? undefined,
             });
         } else {
             onProgress?.({
                 stage: "complete",
                 message: result.message || "Multi-agent production complete!",
                 isComplete: true,
+                sessionId: result.sessionId ?? options?.sessionId ?? undefined,
             });
         }
 
@@ -110,6 +115,7 @@ export async function runProductionAgentWithSubagents(
             stage: "error",
             message: error instanceof Error ? error.message : String(error),
             isComplete: true,
+            sessionId: options?.sessionId ?? undefined,
         });
 
         throw error;

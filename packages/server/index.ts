@@ -15,8 +15,8 @@ import geminiRoutes from './routes/gemini.js';
 import deapiRoutes from './routes/deapi.js';
 import sunoRoutes from './routes/suno.js';
 import cloudRoutes from './routes/cloud.js';
-import videoRoutes from './routes/video.js';
 import directorRoutes from './routes/director.js';
+import productionRoutes from './routes/production.js';
 
 // Import job queue and worker pool
 import { jobQueue } from './services/jobQueue/index.js';
@@ -35,7 +35,12 @@ ensureJobsDir();
 
 // --- Middleware ---
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, _res, buf) => {
+    (req as { rawBody?: string }).rawBody = buf.toString('utf8');
+  },
+}));
 
 // --- Modular Routes ---
 app.use('/api/export', exportRoutes);
@@ -45,8 +50,8 @@ app.use('/api/gemini', geminiRoutes);
 app.use('/api/deapi', deapiRoutes);
 app.use('/api/suno', sunoRoutes);
 app.use('/api/cloud', cloudRoutes);
-app.use('/api/video', videoRoutes);
 app.use('/api/director', directorRoutes);
+app.use('/api/production', productionRoutes);
 
 // Get network IP for display
 function getNetworkIP(): string {

@@ -16,8 +16,13 @@ import {
 } from "../types";
 import { productionStore } from "../store";
 import {
+    initializeProductionSession,
+    updateProductionSession,
+} from "../store";
+import {
     detectLanguageFromText,
     generateSessionId,
+    isValidSessionId,
     validateContentPlanId
 } from "../utils";
 import { generateContentPlan, ContentPlannerConfig } from "../../../contentPlannerService";
@@ -77,10 +82,17 @@ function emitSceneProgress(toolName: string, currentScene: number, totalScenes: 
 // --- Plan Video Tool ---
 
 export const planVideoTool = tool(
-    async ({ topic, targetDuration, style, audience, language, videoPurpose }) => {
+    async ({ topic, targetDuration, sessionId, style, audience, language, videoPurpose }) => {
         log.info(` Planning video: "${topic}" (${targetDuration}s)`);
 
         try {
+            if (sessionId && !isValidSessionId(sessionId)) {
+                return JSON.stringify({
+                    success: false,
+                    error: `Invalid sessionId: "${sessionId}". Use a valid production session ID.`,
+                });
+            }
+
             const config: ContentPlannerConfig = {
                 videoPurpose: (videoPurpose || "documentary") as VideoPurpose,
                 visualStyle: style || "Cinematic",
@@ -93,27 +105,33 @@ export const planVideoTool = tool(
                 config,
             });
 
-            const sessionId = generateSessionId();
-            const initialState = createInitialState();
+            const effectiveSessionId = sessionId || generateSessionId();
+            const initialState = productionStore.get(effectiveSessionId) || createInitialState();
             initialState.contentPlan = contentPlan;
+            initialState.validation = null;
+            initialState.isComplete = false;
 
-            productionStore.set(sessionId, initialState);
+            if (productionStore.has(effectiveSessionId)) {
+                updateProductionSession(effectiveSessionId, initialState);
+            } else {
+                await initializeProductionSession(effectiveSessionId, initialState);
+            }
 
             // Initialize cloud autosave session (fire-and-forget, non-blocking)
-            cloudAutosave.initSession(sessionId).catch(err => {
+            cloudAutosave.initSession(effectiveSessionId).catch(err => {
                 log.warn('Cloud autosave init failed (non-fatal):', err);
             });
 
             return JSON.stringify({
                 success: true,
-                sessionId,
+                sessionId: effectiveSessionId,
                 sceneCount: contentPlan.scenes.length,
                 totalDuration: contentPlan.totalDuration,
                 scenes: contentPlan.scenes.map((s: { name: string; duration: number }) => ({
                     name: s.name,
                     duration: s.duration,
                 })),
-                message: `Created content plan with ${contentPlan.scenes.length} scenes (~${contentPlan.totalDuration}s total). IMPORTANT: Use sessionId="${sessionId}" as contentPlanId for all subsequent tool calls (narrate_scenes, generate_visuals, validate_plan, etc.)`,
+                message: `Created content plan with ${contentPlan.scenes.length} scenes (~${contentPlan.totalDuration}s total). IMPORTANT: Use sessionId="${effectiveSessionId}" as contentPlanId for all subsequent tool calls (narrate_scenes, generate_visuals, validate_plan, etc.)`,
             });
         } catch (error) {
             return JSON.stringify({
@@ -176,10 +194,10 @@ export const narrateScenesTool = tool(
 
             const syncedPlan = syncDurationsToNarration(state.contentPlan, segments);
 
-            const currentState = productionStore.get(contentPlanId) || state;
-            currentState.contentPlan = syncedPlan;
-            currentState.narrationSegments = segments;
-            productionStore.set(contentPlanId, currentState);
+            updateProductionSession(contentPlanId, {
+                contentPlan: syncedPlan,
+                narrationSegments: segments,
+            });
 
             return JSON.stringify({
                 success: true,
@@ -341,9 +359,7 @@ export const generateVisualsTool = tool(
                             type: isVideoScene ? "video" : "image",
                         };
 
-                        const currentState = productionStore.get(contentPlanId) || state;
-                        currentState.visuals = visuals;
-                        productionStore.set(contentPlanId, currentState);
+                        updateProductionSession(contentPlanId, { visuals });
                     }
                 }
 
@@ -413,9 +429,7 @@ export const generateVisualsTool = tool(
                         }
                     }
 
-                    const currentState = productionStore.get(contentPlanId) || state;
-                    currentState.visuals = visuals;
-                    productionStore.set(contentPlanId, currentState);
+                    updateProductionSession(contentPlanId, { visuals });
                 }
 
                 const successCount = visuals.filter(v => v?.imageUrl).length;
@@ -472,8 +486,7 @@ export const planSFXTool = tool(
 
             const sfxPlan = await generateVideoSFXPlanWithAudio(state.contentPlan.scenes, "documentary" as VideoPurpose);
 
-            state.sfxPlan = sfxPlan;
-            productionStore.set(contentPlanId, state);
+            updateProductionSession(contentPlanId, { sfxPlan });
 
             return JSON.stringify({
                 success: true,
@@ -514,30 +527,33 @@ export const validatePlanTool = tool(
         try {
             const validation = await validateContentPlan(state.contentPlan);
 
-            state.qualityScore = validation.score;
+            const bestQualityScore = validation.score > state.bestQualityScore
+                ? validation.score
+                : state.bestQualityScore;
 
-            if (validation.score > state.bestQualityScore) {
-                state.bestQualityScore = validation.score;
-            }
+            updateProductionSession(contentPlanId, {
+                validation,
+                qualityScore: validation.score,
+                bestQualityScore,
+            });
 
-            productionStore.set(contentPlanId, state);
-
+            const nextState = productionStore.get(contentPlanId) || state;
             const needsImprovement = validation.score < 80;
-            const canRetry = state.qualityIterations < 2;
+            const canRetry = nextState.qualityIterations < 2;
 
             return JSON.stringify({
                 success: true,
                 approved: validation.approved,
                 score: validation.score,
-                bestScore: state.bestQualityScore,
-                iterations: state.qualityIterations,
+                bestScore: bestQualityScore,
+                iterations: nextState.qualityIterations,
                 needsImprovement,
                 canRetry,
                 issues: validation.issues,
                 suggestions: validation.suggestions,
                 message: validation.approved
-                    ? `Plan approved with score ${validation.score}/100 (best: ${state.bestQualityScore}/100)`
-                    : `Plan needs improvement. Score: ${validation.score}/100 (best: ${state.bestQualityScore}/100). ${canRetry ? 'Can retry quality improvement.' : 'Max retries reached.'}`,
+                    ? `Plan approved with score ${validation.score}/100 (best: ${bestQualityScore}/100)`
+                    : `Plan needs improvement. Score: ${validation.score}/100 (best: ${bestQualityScore}/100). ${canRetry ? 'Can retry quality improvement.' : 'Max retries reached.'}`,
             });
         } catch (error) {
             return JSON.stringify({
@@ -588,16 +604,18 @@ export const adjustTimingTool = tool(
         try {
             const syncedPlan = syncDurationsToNarration(state.contentPlan, state.narrationSegments);
 
-            state.contentPlan = syncedPlan;
-            state.qualityIterations++;
-            productionStore.set(contentPlanId, state);
+            const qualityIterations = state.qualityIterations + 1;
+            updateProductionSession(contentPlanId, {
+                contentPlan: syncedPlan,
+                qualityIterations,
+            });
 
             return JSON.stringify({
                 success: true,
-                iteration: state.qualityIterations,
+                iteration: qualityIterations,
                 totalDuration: syncedPlan.totalDuration,
                 sceneCount: syncedPlan.scenes.length,
-                message: `Adjusted timing to match narration (iteration ${state.qualityIterations}/2). Total duration: ${syncedPlan.totalDuration}s. Call validate_plan again to check improvement.`,
+                message: `Adjusted timing to match narration (iteration ${qualityIterations}/2). Total duration: ${syncedPlan.totalDuration}s. Call validate_plan again to check improvement.`,
             });
         } catch (error) {
             return JSON.stringify({

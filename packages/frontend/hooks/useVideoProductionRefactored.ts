@@ -9,18 +9,16 @@
 
 import { useCallback } from "react";
 import { AppState } from "@/types";
-import {
-    runProductionPipeline,
-    ProductionConfig,
-    stageToAppState
-} from "@/services/agentOrchestrator";
-import {
-    runProductionAgent,
-    runProductionAgentWithSubagents,
-    ProductionProgress as AgentProgress,
-} from "@/services/ai/productionAgent";
+import { ProductionConfig } from "@/services/agentOrchestrator";
 import { generateContentPlan, ContentPlannerConfig } from "@/services/contentPlannerService";
-import { NarratorConfig, createAudioUrl } from "@/services/narratorService";
+import { initializeProductionSession } from "@/services/ai/production/store";
+import {
+    getProductionSessionSnapshot,
+    hydrateProductionSessionSnapshot,
+    startProductionRun,
+    subscribeToProductionRun,
+    type ProductionEvent,
+} from "@/services/productionApi";
 
 // Import focused hooks
 import { useVideoProductionCore } from "./useVideoProductionCore";
@@ -31,8 +29,48 @@ import { useVideoSFX } from "./useVideoSFX";
 import { useVideoPromptTools } from "./useVideoPromptTools";
 import { useSunoMusic } from "./useSunoMusic";
 
-// Toggle between monolithic and multi-agent system
-const USE_MULTI_AGENT = import.meta.env.VITE_USE_MULTI_AGENT !== 'false';
+type CoreStudioProductionConfig = ProductionConfig & {
+    sessionId?: string;
+    projectId?: string;
+};
+
+function mapProductionEventToAppState(event: ProductionEvent): AppState {
+    if (event.tool === 'plan_video') {
+        return AppState.CONTENT_PLANNING;
+    }
+
+    if (event.tool === 'narrate_scenes') {
+        return AppState.NARRATING;
+    }
+
+    if (event.tool === 'generate_visuals' || event.tool === 'animate_image') {
+        return AppState.GENERATING_PROMPTS;
+    }
+
+    if (event.tool === 'validate_plan') {
+        return AppState.VALIDATING;
+    }
+
+    switch (event.stage) {
+        case 'content_planning':
+        case 'session_created':
+            return AppState.CONTENT_PLANNING;
+        case 'narrating':
+            return AppState.NARRATING;
+        case 'generating_visuals':
+        case 'animating_visuals':
+            return AppState.GENERATING_PROMPTS;
+        case 'validating':
+        case 'adjusting':
+            return AppState.VALIDATING;
+        case 'complete':
+            return AppState.READY;
+        case 'error':
+            return AppState.ERROR;
+        default:
+            return AppState.IDLE;
+    }
+}
 
 export function useVideoProductionRefactored() {
     // Core state and configuration
@@ -75,7 +113,7 @@ export function useVideoProductionRefactored() {
     /**
      * Start the full production pipeline
      */
-    const startProduction = useCallback(async (config?: ProductionConfig, topicOverride?: string) => {
+    const startProduction = useCallback(async (config?: CoreStudioProductionConfig, topicOverride?: string) => {
         const effectiveTopic = topicOverride || coreHook.topic;
 
         if (!effectiveTopic.trim()) {
@@ -93,160 +131,103 @@ export function useVideoProductionRefactored() {
 
         // Calculate scene count from duration (1 scene per ~12 seconds, min 3)
         const effectiveDuration = config?.targetDuration ?? coreHook.targetDuration;
-        const calculatedSceneCount = Math.max(3, Math.floor(effectiveDuration / 12));
+        const requestSessionId = config?.sessionId;
 
         try {
-            // Check if we should use AI Agent mode (default for complex automation)
-            if (coreHook.useAgentMode) {
-                console.log(`[useVideoProduction] Using AI Agent mode for ${effectiveDuration}s video`);
-                coreHook.setAppState(AppState.CONTENT_PLANNING);
+            if (requestSessionId) {
+                await initializeProductionSession(requestSessionId, {
+                    contentPlan: coreHook.contentPlan,
+                    validation: coreHook.validation,
+                    narrationSegments: narrationHook.narrationSegments,
+                    visuals: visualsHook.visuals,
+                    sfxPlan: sfxHook.sfxPlan,
+                    isComplete: false,
+                });
+            }
 
-                // Build user request for the agent
-                const userRequest = `Create a ${effectiveDuration} second ${coreHook.videoPurpose} video about: ${effectiveTopic}. 
-Style: ${coreHook.visualStyle}. Language: ${coreHook.language === 'auto' ? 'detect from topic' : coreHook.language}.
-Target audience: ${coreHook.targetAudience}.
-${effectiveDuration > 300 ? 'This is a long video, use appropriate number of scenes.' : ''}
-${config?.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the animate_image tool for every scene.' : ''}
-${coreHook.veoVideoCount > 0 ? `IMPORTANT: Use generate_visuals with veoVideoCount=${coreHook.veoVideoCount} to generate professional videos for the first ${coreHook.veoVideoCount} scenes.` : ''}`;
+            coreHook.setAppState(AppState.CONTENT_PLANNING);
 
-                // Choose which agent system to use
-                const productionFunction = USE_MULTI_AGENT
-                    ? runProductionAgentWithSubagents
-                    : runProductionAgent;
+            const mode = coreHook.useAgentMode ? 'agent' : 'orchestrator';
+            const { runId, sessionId } = await startProductionRun({
+                sessionId: requestSessionId,
+                projectId: config?.projectId,
+                topic: effectiveTopic,
+                targetDuration: effectiveDuration,
+                targetAudience: coreHook.targetAudience,
+                visualStyle: config?.visualStyle ?? coreHook.visualStyle,
+                videoPurpose: coreHook.videoPurpose,
+                language: coreHook.language,
+                veoVideoCount: coreHook.veoVideoCount,
+                animateVisuals: config?.animateVisuals,
+                mode,
+            });
 
-                console.log(`[useVideoProduction] Using ${USE_MULTI_AGENT ? 'MULTI-AGENT' : 'MONOLITHIC'} system`);
+            await new Promise<void>((resolve, reject) => {
+                let unsubscribe = () => {};
 
-                const agentResult = await productionFunction(
-                    userRequest,
-                    (agentProg: AgentProgress) => {
-                        // Map agent progress to our progress format
+                unsubscribe = subscribeToProductionRun(
+                    runId,
+                    (event) => {
                         coreHook.setProgress({
-                            stage: agentProg.stage as any,
-                            progress: agentProg.isComplete ? 100 : 50,
-                            message: agentProg.message,
+                            stage: event.stage as any,
+                            progress: event.progress ?? (event.isComplete ? 100 : 0),
+                            message: event.message,
+                            currentScene: event.currentScene,
+                            totalScenes: event.totalScenes,
                         });
+                        coreHook.setAppState(mapProductionEventToAppState(event));
 
-                        // Update app state based on tool being called
-                        if (agentProg.tool === 'plan_video') {
-                            coreHook.setAppState(AppState.CONTENT_PLANNING);
-                        } else if (agentProg.tool === 'narrate_scenes') {
-                            coreHook.setAppState(AppState.NARRATING);
-                        } else if (agentProg.tool === 'generate_visuals' || agentProg.tool === 'animate_image') {
-                            coreHook.setAppState(AppState.GENERATING_PROMPTS);
-                        } else if (agentProg.tool === 'validate_plan') {
-                            coreHook.setAppState(AppState.VALIDATING);
+                        if (!event.isComplete) {
+                            return;
                         }
-                    }
-                );
 
-                if (agentResult) {
-                    coreHook.setContentPlan(agentResult.contentPlan);
-                    narrationHook.setNarrationSegments(agentResult.narrationSegments);
-                    visualsHook.setVisuals(agentResult.visuals);
-                    sfxHook.setSfxPlan(agentResult.sfxPlan);
-
-                    // Create audio URLs for playback from narration segments
-                    agentResult.narrationSegments.forEach((segment) => {
-                        if (segment.audioBlob) {
-                            const url = createAudioUrl(segment);
-                            // Note: This would need to be handled by the narration hook
+                        unsubscribe();
+                        if (event.success === false) {
+                            reject(new Error(event.error || event.message));
+                            return;
                         }
-                    });
 
-                    // Generate quality report if we have a content plan
-                    if (agentResult.contentPlan) {
-                        // Convert ToolError[] to validation issues format
-                        const errorMessages = (agentResult.errors || []).map(err => {
-                            if (typeof err === 'string') {
-                                return { scene: 'general', type: 'error' as const, message: err };
-                            }
-                            const sceneInfo = err.sceneIndex !== undefined ? `Scene ${err.sceneIndex}` : err.tool;
-                            return {
-                                scene: sceneInfo,
-                                type: 'error' as const,
-                                message: `${err.tool}: ${err.error}${err.fallbackApplied ? ` (fallback: ${err.fallbackApplied})` : ''}`
-                            };
-                        });
-
-                        const partialReport = agentResult.partialSuccessReport;
-                        const hasErrors = errorMessages.length > 0;
-                        const score = partialReport?.isUsable
-                            ? (partialReport.fallbackApplied > 0 ? 75 : 85)
-                            : (hasErrors ? 60 : 85);
-
-                        const validation = {
-                            approved: !hasErrors || (partialReport?.isUsable ?? true),
-                            score,
-                            issues: errorMessages,
-                            suggestions: partialReport ? [partialReport.summary] : []
-                        };
-                        coreHook.setValidation(validation);
-
-                        const qualityReport = qualityHook.generateAndSaveQualityReport(
-                            agentResult.contentPlan as any,
-                            agentResult.narrationSegments,
-                            agentResult.sfxPlan,
-                            validation,
-                            coreHook.videoPurpose
-                        );
-                        console.log(`[useVideoProduction] Agent Mode Quality Report: ${qualityReport.overallScore}/100`);
-                    }
-
-                    coreHook.setAppState(AppState.READY);
-                } else {
-                    throw new Error("Agent returned no result");
-                }
-            } else {
-                // Fast mode - use direct orchestrator pipeline
-                console.log(`[useVideoProduction] Using Fast mode (orchestrator) for ${effectiveDuration}s video`);
-
-                const result = await runProductionPipeline(
-                    effectiveTopic,
-                    {
-                        targetDuration: effectiveDuration,
-                        sceneCount: calculatedSceneCount,
-                        targetAudience: coreHook.targetAudience,
-                        visualStyle: coreHook.visualStyle,
-                        contentPlannerConfig: {
-                            videoPurpose: coreHook.videoPurpose,
-                            visualStyle: coreHook.visualStyle,
-                            language: coreHook.language,
-                        },
-                        narratorConfig: {
-                            videoPurpose: coreHook.videoPurpose,
-                            language: coreHook.language,
-                        },
-                        veoVideoCount: coreHook.veoVideoCount,
-                        ...config,
+                        resolve();
                     },
-                    (prog) => {
-                        coreHook.setProgress(prog);
-                        coreHook.setAppState(stageToAppState(prog.stage));
+                    (streamError) => {
+                        unsubscribe();
+                        reject(streamError);
                     }
                 );
+            });
 
-                coreHook.setContentPlan(result.contentPlan);
-                narrationHook.setNarrationSegments(result.narrationSegments);
-                visualsHook.setVisuals(result.visuals);
-                sfxHook.setSfxPlan(result.sfxPlan);
-                coreHook.setValidation(result.validation);
+            const snapshot = await getProductionSessionSnapshot(sessionId);
+            const hydratedState = await hydrateProductionSessionSnapshot(snapshot);
 
-                // Generate quality report
+            await initializeProductionSession(sessionId, hydratedState);
+
+            coreHook.setContentPlan(hydratedState.contentPlan);
+            narrationHook.setNarrationSegments(hydratedState.narrationSegments);
+            visualsHook.setVisuals(hydratedState.visuals);
+            sfxHook.setSfxPlan(hydratedState.sfxPlan);
+            coreHook.setValidation(snapshot.validation);
+
+            if (hydratedState.contentPlan && snapshot.validation) {
                 const report = qualityHook.generateAndSaveQualityReport(
-                    result.contentPlan as any,
-                    result.narrationSegments,
-                    result.sfxPlan,
-                    result.validation,
+                    hydratedState.contentPlan as any,
+                    hydratedState.narrationSegments,
+                    hydratedState.sfxPlan,
+                    snapshot.validation,
                     coreHook.videoPurpose
                 );
-                console.log(`[useVideoProduction] Fast Mode Quality Report: ${report.overallScore}/100`);
-
-                if (!result.success) {
-                    coreHook.setError(`Production completed with issues (score: ${result.validation.score})`);
-                }
-
-                coreHook.setAppState(AppState.READY);
+                console.log(`[useVideoProduction] Backend Mode Quality Report: ${report.overallScore}/100`);
             }
+
+            if (!snapshot.isComplete || snapshot.errors.length > 0) {
+                coreHook.setError(`Production completed with issues (score: ${snapshot.qualityScore || snapshot.validation?.score || 0})`);
+            }
+
+            coreHook.setProgress({
+                stage: "complete",
+                progress: 100,
+                message: "Production complete!",
+            });
+            coreHook.setAppState(AppState.READY);
         } catch (err) {
             console.error("[useVideoProduction] Pipeline failed:", err);
             coreHook.setError(err instanceof Error ? err.message : String(err));
@@ -409,6 +390,8 @@ ${coreHook.veoVideoCount > 0 ? `IMPORTANT: Use generate_visuals with veoVideoCou
         setVisuals: visualsHook.setVisuals,
         setContentPlan: coreHook.setContentPlan,
         setNarrationSegments: narrationHook.setNarrationSegments,
+        setSfxPlan: sfxHook.setSfxPlan,
+        setValidation: coreHook.setValidation,
         setAppState: coreHook.setAppState,
 
         // SFX & Freesound

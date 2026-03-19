@@ -8,6 +8,8 @@ import { agentLogger } from "../../logger";
 
 const log = agentLogger.child('Production');
 
+const SESSION_PREFIXES = ['prod_', 'production_', 'story_'] as const;
+
 /**
  * Detect language from text content using Unicode character analysis.
  * Used to auto-select the appropriate TTS voice for narration.
@@ -135,11 +137,11 @@ export function validateContentPlanId(contentPlanId: string): string | null {
         });
     }
 
-    // Check if it matches the expected formats (prod_ or story_)
-    if (!contentPlanId.startsWith('prod_') && !contentPlanId.startsWith('story_')) {
+    // Check if it matches the expected formats (prod_, production_, or story_)
+    if (!SESSION_PREFIXES.some((prefix) => contentPlanId.startsWith(prefix))) {
         return JSON.stringify({
             success: false,
-            error: `Invalid contentPlanId format: "${contentPlanId}". Expected format: prod_TIMESTAMP_HASH or story_TIMESTAMP. Make sure you are using the exact sessionId returned by plan_video or generate_breakdown.`
+            error: `Invalid contentPlanId format: "${contentPlanId}". Expected format: prod_TIMESTAMP_HASH, production_PROJECT_ID, or story_TIMESTAMP. Make sure you are using the exact sessionId returned by plan_video or generate_breakdown.`
         });
     }
 
@@ -158,8 +160,8 @@ export function isValidSessionId(sessionId: string | null | undefined): sessionI
         return false;
     }
     
-    // Check if it matches the expected formats (prod_ or story_)
-    return sessionId.startsWith('prod_') || sessionId.startsWith('story_');
+    // Check if it matches the expected formats (prod_, production_, or story_)
+    return SESSION_PREFIXES.some((prefix) => sessionId.startsWith(prefix));
 }
 
 /**

@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan, ScreenplayScene, CharacterProfile, ShotlistEntry } from "../../../types";
+import { ContentPlan, NarrationSegment, GeneratedImage, VideoSFXPlan, ScreenplayScene, CharacterProfile, ShotlistEntry, ValidationResult } from "../../../types";
 import { type ImportedContent } from "../../agent/importUtils";
 import { type MixedAudioResult } from "../../agent/audioMixingTools";
 import { type SubtitleResult } from "../../agent/subtitleTools";
@@ -17,6 +17,7 @@ import { type ToolError, type PartialSuccessReport } from "../../agent/errorReco
 export const PlanVideoSchema = z.object({
     topic: z.string().describe("Main topic or subject for the video"),
     targetDuration: z.number().min(10).max(600).describe("Target video duration in seconds (10-600)"),
+    sessionId: z.string().optional().describe("Optional existing production session ID to reuse"),
     style: z.string().optional().describe("Visual style (e.g., 'Cinematic', 'Documentary')"),
     mood: z.string().optional().describe("Mood/tone (e.g., 'dramatic', 'upbeat')"),
     videoPurpose: z.string().optional().describe("Purpose (e.g., 'educational', 'entertainment')"),
@@ -97,6 +98,8 @@ export const VerifyCharacterConsistencySchema = z.object({
 export interface ProductionState {
     /** Content plan with scenes and narration scripts */
     contentPlan: ContentPlan | null;
+    /** Latest validation result */
+    validation: ValidationResult | null;
     /** Generated narration audio segments */
     narrationSegments: NarrationSegment[];
     /** Generated visual assets for each scene */
@@ -199,6 +202,7 @@ export interface ProductionProgress {
 export function createInitialState(): ProductionState {
     return {
         contentPlan: null,
+        validation: null,
         narrationSegments: [],
         visuals: [],
         sfxPlan: null,

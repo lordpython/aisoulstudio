@@ -3,6 +3,13 @@ import { createLogger } from '@studio/shared/src/services/logger.js';
 import fs from 'fs';
 import multer from 'multer';
 import { MAX_SINGLE_FILE } from '../utils/index.js';
+import {
+    buildProxyUrl,
+    isAllowedProxyEndpoint,
+    isSafeProxyEndpoint,
+    normalizeProxyEndpoint,
+    type ProxyEndpointRule,
+} from './routeUtils.js';
 
 const sunoLog = createLogger('Suno');
 const router = Router();
@@ -10,6 +17,30 @@ const upload = multer({
     dest: 'temp/',
     limits: { fileSize: MAX_SINGLE_FILE }
 });
+
+const SUNO_PROXY_RULES: ProxyEndpointRule[] = [
+    { methods: ['POST'], pattern: /^generate$/ },
+    { methods: ['GET'], pattern: /^generate\/record-info$/ },
+    { methods: ['POST'], pattern: /^generate-lyrics$/ },
+    { methods: ['GET'], pattern: /^generate-lyrics\/record-info$/ },
+    { methods: ['GET'], pattern: /^get-timestamped-lyrics$/ },
+    { methods: ['GET'], pattern: /^generate\/credit$/ },
+    { methods: ['POST'], pattern: /^create-music-video$/ },
+    { methods: ['POST'], pattern: /^cover$/ },
+    { methods: ['POST'], pattern: /^boost-music-style$/ },
+    { methods: ['POST'], pattern: /^add-vocals$/ },
+    { methods: ['POST'], pattern: /^add-instrumental$/ },
+    { methods: ['POST'], pattern: /^generate\/upload-cover$/ },
+    { methods: ['POST'], pattern: /^replace-section$/ },
+    { methods: ['POST'], pattern: /^extend$/ },
+    { methods: ['POST'], pattern: /^upload-and-extend$/ },
+    { methods: ['POST'], pattern: /^generate-persona$/ },
+    { methods: ['POST'], pattern: /^convert-to-wav$/ },
+    { methods: ['POST'], pattern: /^separate-vocals-from-music$/ },
+    { methods: ['GET'], pattern: /^separate-vocals-from-music\/record-info$/ },
+    { methods: ['POST'], pattern: /^upload\/base64$/ },
+    { methods: ['POST'], pattern: /^upload\/url$/ },
+];
 
 router.post('/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
     if (!req.file) {
@@ -49,7 +80,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 });
 
 router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
-    const endpoint = req.path.startsWith('/') ? req.path.slice(1) : req.path;
+    const endpoint = normalizeProxyEndpoint(req.path);
     const SUNO_API_KEY = process.env.VITE_SUNO_API_KEY || process.env.SUNO_API_KEY;
 
     if (!SUNO_API_KEY) {
@@ -57,8 +88,22 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
+    if (!isSafeProxyEndpoint(endpoint)) {
+        res.status(400).json({ error: 'Invalid proxy endpoint' });
+        return;
+    }
+
+    if (!isAllowedProxyEndpoint(endpoint, req.method, SUNO_PROXY_RULES)) {
+        sunoLog.warn('Rejected disallowed Suno proxy request', {
+            method: req.method,
+            endpoint,
+        });
+        res.status(403).json({ error: 'Proxy endpoint is not allowed' });
+        return;
+    }
+
     try {
-        const sunoUrl = `https://api.sunoapi.org/api/v1/${endpoint}`;
+        const sunoUrl = buildProxyUrl('https://api.sunoapi.org/api/v1', endpoint, req.query);
         sunoLog.info(`Proxying ${req.method} request to Suno: ${endpoint}`);
         const fetchOptions: RequestInit = {
             method: req.method,

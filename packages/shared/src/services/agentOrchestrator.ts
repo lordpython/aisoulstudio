@@ -30,6 +30,12 @@ import { generateVideoSFXPlan, generateVideoSFXPlanWithAudio, isSFXAudioAvailabl
 import { getEffectiveLegacyTone } from "./tripletUtils";
 import { traceAsync, isTracingEnabled } from "./tracing";
 import {
+    initializeProductionSession,
+    productionStore,
+    updateProductionSession,
+} from "./ai/production/store";
+import { createInitialState } from "./ai/production/types";
+import {
     withTimeout,
     withRetryBackoff,
     runWithConcurrency,
@@ -77,6 +83,7 @@ const RETRY_CONFIG = {
 // --- Configuration ---
 
 export interface ProductionConfig {
+    sessionId?: string;
     // Target settings
     targetDuration?: number;
     sceneCount?: number;
@@ -180,6 +187,7 @@ export const runProductionPipeline = traceAsync(
         const topic = typeof input === "string" ? input : input.topic;
 
         const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+        const sessionId = mergedConfig.sessionId;
 
         log.info("Starting production pipeline");
         log.info(`Topic: "${topic.substring(0, 50)}..."`);
@@ -195,6 +203,15 @@ export const runProductionPipeline = traceAsync(
             validation: { approved: false, score: 0, issues: [], suggestions: [] },
             success: false,
             errors: [],
+        };
+
+        if (sessionId && !productionStore.has(sessionId)) {
+            await initializeProductionSession(sessionId, createInitialState());
+        }
+
+        const persistState = (updates: Partial<import("./ai/production/types").ProductionState>) => {
+            if (!sessionId) return;
+            updateProductionSession(sessionId, updates);
         };
 
         // Helper to check abort signal and throw if aborted
@@ -246,6 +263,10 @@ export const runProductionPipeline = traceAsync(
                 stage: "content_planning",
                 progress: 100,
                 message: `Created plan with ${result.contentPlan.scenes.length} scenes`,
+            });
+            persistState({
+                contentPlan: result.contentPlan,
+                isComplete: false,
             });
 
             // --- Stage 2: Narration ---
@@ -312,6 +333,11 @@ export const runProductionPipeline = traceAsync(
                     );
                     log.info(`Synced durations to narration. New total: ${result.contentPlan.totalDuration}s`);
                 }
+
+                persistState({
+                    contentPlan: result.contentPlan,
+                    narrationSegments: result.narrationSegments,
+                });
             }
 
             // --- Stage 3: Visual Generation ---
@@ -408,6 +434,7 @@ export const runProductionPipeline = traceAsync(
                     progress: 100,
                     message: `Generated ${successCount}/${totalScenes} visuals`,
                 });
+                persistState({ visuals: result.visuals });
             } else {
                 log.info("Stage 3: Visual Generation (skipped)");
                 // Create placeholder visuals
@@ -417,6 +444,7 @@ export const runProductionPipeline = traceAsync(
                     imageUrl: "",
                     type: "image" as const,
                 }));
+                persistState({ visuals: result.visuals });
             }
 
             // --- Stage 3.5: Video Animation (Optional) ---
@@ -557,6 +585,7 @@ export const runProductionPipeline = traceAsync(
                     progress: 100,
                     message: `Animated ${animatedCount}/${totalToAnimate} visuals`,
                 });
+                persistState({ visuals: result.visuals });
             } else if (mergedConfig.animateVisuals && !isDeApiConfigured()) {
                 log.info("Stage 3.5: DeAPI not configured - generating professional Veo 3.1 videos...");
 
@@ -622,6 +651,7 @@ export const runProductionPipeline = traceAsync(
                     progress: 100,
                     message: `Generated ${videoCount}/${totalScenes} videos with Veo 3.1`,
                 });
+                persistState({ visuals: result.visuals });
             }
 
             // --- Stage 4: SFX Planning ---
@@ -674,6 +704,7 @@ export const runProductionPipeline = traceAsync(
                     masterVolume: 1.0,
                 };
             }
+            persistState({ sfxPlan: result.sfxPlan });
 
             // --- Stage 5: Validation ---
             if (!mergedConfig.skipValidation) {
@@ -730,6 +761,11 @@ export const runProductionPipeline = traceAsync(
             } else {
                 result.validation = { approved: true, score: 100, issues: [], suggestions: [] };
             }
+            persistState({
+                validation: result.validation,
+                qualityScore: result.validation.score,
+                bestQualityScore: result.validation.score,
+            });
 
             // --- Success Determination ---
             // Consider it successful if we have content, narration, and visuals
@@ -755,6 +791,24 @@ export const runProductionPipeline = traceAsync(
             });
 
             log.info(`Pipeline complete. Success: ${result.success}, Quality: ${result.validation.score}/100`);
+            persistState({
+                contentPlan: result.contentPlan,
+                validation: result.validation,
+                narrationSegments: result.narrationSegments,
+                visuals: result.visuals,
+                sfxPlan: result.sfxPlan,
+                qualityScore: result.validation.score,
+                bestQualityScore: result.validation.score,
+                isComplete: result.success,
+                errors: (result.errors || []).map((errorMessage) => ({
+                    tool: "agent_orchestrator",
+                    error: errorMessage,
+                    category: "fatal" as const,
+                    timestamp: Date.now(),
+                    retryCount: 0,
+                    recoverable: false,
+                })),
+            });
             return result;
 
         } catch (error) {
