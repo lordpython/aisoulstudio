@@ -20,8 +20,9 @@ export const getProductionStatusTool = tool(
         const state = productionStore.get(contentPlanId);
         if (!state) {
             return JSON.stringify({ 
-                success: false, 
-                error: `Session not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+                success: true,
+                status: 'no_session',
+                message: `Session not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
             });
         }
 
@@ -59,8 +60,9 @@ export const markCompleteTool = tool(
         const state = productionStore.get(contentPlanId);
         if (!state) {
             return JSON.stringify({ 
-                success: false, 
-                error: `Session not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
+                success: true,
+                status: 'no_session',
+                message: `Session not found for sessionId: ${contentPlanId}. Make sure you are using the exact sessionId returned by plan_video.` 
             });
         }
 
@@ -86,3 +88,4 @@ export const markCompleteTool = tool(
         }),
     }
 );
+

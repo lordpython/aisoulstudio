@@ -2,7 +2,7 @@ import { cloudAutosave } from "./cloudStorageService";
 
 const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 const PROXY_BASE = "/api/deapi/proxy"; // Server-side proxy to bypass CORS
-const DEFAULT_VIDEO_MODEL = "Ltxv_13B_0_9_8_Distilled_FP8";
+const DEFAULT_VIDEO_MODEL = "Ltx2_3_22B_Dist_INT8";
 const DEFAULT_IMAGE_MODEL = "Flux1schnell"; // Fast, high-quality text-to-image
 
 // Rate limit: 1 request per 60 seconds for img2video
@@ -644,6 +644,8 @@ export const animateImageWithDeApi = async (
     last_frame_image?: string;  // Optional: Ending frame image (base64)
     webhook_url?: string;       // Optional: Webhook for async completion
     motionStrength?: 'subtle' | 'moderate' | 'dynamic'; // Controls frame count and motion intensity
+    targetDurationSeconds?: number;  // Maps to frames at 24fps; overrides motionStrength when provided
+    seed?: number;                   // Explicit seed for reproducibility; -1 = random
   },
 ): Promise<string> => {
   let base64Image = base64ImageInput;
@@ -684,21 +686,28 @@ export const animateImageWithDeApi = async (
   const formData = new FormData();
   const imageBlob = await base64ToBlob(base64Image);
 
-  // Determine frames from motion strength (Issue 4: reduce morphing artifacts)
-  const motionFrameMap = { subtle: 60, moderate: 90, dynamic: 120 } as const;
+  // Ltx2 model runs at 24fps. motionStrength buckets recalibrated to 24fps.
+  // If targetDurationSeconds is provided (from shot plan), it takes priority.
+  const motionFrameMap = {
+    subtle:   73,   // ~3s at 24fps
+    moderate: 121,  // ~5s at 24fps
+    dynamic:  241,  // ~10s at 24fps
+  } as const;
   const motionStrength = options?.motionStrength || 'moderate';
-  const frames = motionFrameMap[motionStrength] || 90;
+  const frames = options?.targetDurationSeconds
+    ? Math.round(options.targetDurationSeconds * 24)
+    : (motionFrameMap[motionStrength] || 121);
 
   formData.append("first_frame_image", imageBlob, "frame0.png");
   formData.append("prompt", prompt);
   formData.append("frames", frames.toString());
   formData.append("width", width.toString());
   formData.append("height", height.toString());
-  formData.append("fps", "30");
+  formData.append("fps", "24");
   formData.append("model", DEFAULT_VIDEO_MODEL);
   formData.append("guidance", "0"); // Distilled model does not support CFG
   formData.append("steps", "1"); // Distilled model requires max 1 step
-  formData.append("seed", "-1"); // Random seed
+  formData.append("seed", (options?.seed ?? -1).toString());
 
   // Add optional last_frame_image if provided
   if (options?.last_frame_image) {
@@ -1306,6 +1315,8 @@ export const animateImageBatch = async (
     imageUrl: string;
     prompt: string;
     aspectRatio?: "16:9" | "9:16" | "1:1";
+    seed?: number;
+    targetDurationSeconds?: number;
   }>,
   concurrencyLimit: number = 2,
   onProgress?: (progress: BatchGenerationProgress) => void
@@ -1320,13 +1331,25 @@ export const animateImageBatch = async (
 
   // Lower concurrency for video generation (more resource intensive)
   const effectiveConcurrency = Math.max(1, Math.min(concurrencyLimit, 4));
+
+  // Sort by scene/shot number to ensure correct ordering (ids follow "shot_scene_X_Y" pattern)
+  const sortedItems = [...items].sort((a, b) => {
+    const parseId = (id: string) => {
+      const parts = id.split('_');
+      return { scene: parseInt(parts[2] || '0'), shot: parseInt(parts[3] || '0') };
+    };
+    const pa = parseId(a.id);
+    const pb = parseId(b.id);
+    return pa.scene - pb.scene || pa.shot - pb.shot;
+  });
+
   const semaphore = new Semaphore(effectiveConcurrency);
   const results: BatchGenerationResult[] = [];
   let completed = 0;
 
-  const totalBatches = Math.ceil(items.length / effectiveConcurrency);
+  const totalBatches = Math.ceil(sortedItems.length / effectiveConcurrency);
 
-  console.log(`[DeAPI Batch] Starting video batch: ${items.length} items, concurrency: ${effectiveConcurrency}`);
+  console.log(`[DeAPI Batch] Starting video batch: ${sortedItems.length} items, concurrency: ${effectiveConcurrency}`);
 
   const processItem = async (item: typeof items[0]): Promise<BatchGenerationResult> => {
     await semaphore.acquire();
@@ -1337,7 +1360,13 @@ export const animateImageBatch = async (
       const videoUrl = await animateImageWithDeApi(
         item.imageUrl,
         item.prompt,
-        item.aspectRatio || "16:9"
+        item.aspectRatio || "16:9",
+        undefined,
+        undefined,
+        {
+          seed: item.seed,
+          targetDurationSeconds: item.targetDurationSeconds,
+        }
       );
 
       return {
@@ -1361,7 +1390,7 @@ export const animateImageBatch = async (
       const currentBatch = Math.ceil(completed / effectiveConcurrency);
       onProgress?.({
         completed,
-        total: items.length,
+        total: sortedItems.length,
         currentBatch,
         totalBatches,
         results: [...results],
@@ -1369,11 +1398,11 @@ export const animateImageBatch = async (
     }
   };
 
-  const promises = items.map(processItem);
+  const promises = sortedItems.map(processItem);
   const allResults = await Promise.all(promises);
 
   const resultMap = new Map(allResults.map(r => [r.id, r]));
-  const orderedResults = items.map(item => resultMap.get(item.id)!);
+  const orderedResults = sortedItems.map(item => resultMap.get(item.id)!);
 
   const successCount = orderedResults.filter(r => r.success).length;
   console.log(`[DeAPI Batch] Video batch complete: ${successCount}/${items.length} successful`);

@@ -416,7 +416,7 @@ export default function VisualizerScreen() {
         <Button
           onClick={() => setShowExport(true)}
           size="sm"
-          className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500"
+          className="bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500"
         >
           <Download className="w-4 h-4 me-2" aria-hidden="true" />
           {t('studio.export')}

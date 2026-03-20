@@ -157,7 +157,7 @@ export function ProjectCard({
       {/* Hover glow effect */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[1px]"
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-px"
           style={{
             background: 'linear-gradient(90deg, transparent, oklch(0.70 0.15 190 / 0.4), transparent)',
           }}
@@ -165,7 +165,7 @@ export function ProjectCard({
       </div>
 
       {/* Thumbnail Area */}
-      <div className="relative aspect-video bg-gradient-to-br from-secondary to-muted overflow-hidden">
+      <div className="relative aspect-video bg-linear-to-br from-secondary to-muted overflow-hidden">
         {project.thumbnailUrl ? (
           <img
             src={project.thumbnailUrl}
@@ -175,7 +175,7 @@ export function ProjectCard({
         ) : (
           <div
             className={cn(
-              'w-full h-full flex items-center justify-center bg-gradient-to-br',
+              'w-full h-full flex items-center justify-center bg-linear-to-br',
               gradientClass
             )}
           >

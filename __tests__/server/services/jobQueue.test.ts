@@ -104,7 +104,7 @@ describe('TimeoutManager', () => {
   it('should have configuration constants', async () => {
     // Dynamic import to avoid initialization issues
     const { timeoutManager } = await import(
-      '../../../server/services/jobQueue/timeoutManager'
+      '../../../packages/server/services/jobQueue/timeoutManager'
     );
 
     const config = timeoutManager.getConfig();

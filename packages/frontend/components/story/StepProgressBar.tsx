@@ -145,7 +145,7 @@ export function StepProgressBar({
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                   />
                 </div>
-                <span className="font-mono text-xs text-zinc-500 min-w-[3rem] text-right shrink-0">
+                <span className="font-mono text-xs text-zinc-500 min-w-12 text-right shrink-0">
                   {progress.percent}%
                 </span>
               </div>
