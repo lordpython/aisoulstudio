@@ -34,10 +34,10 @@ export const ENCODING_SPEC = {
   colorTrc: 'bt709',
   pixelFormat: 'yuv420p',
   quality: {
-    nvenc: { cq: 21, preset: 'p4' },
-    qsv: { cq: 21, preset: 'medium' },
-    amf: { cq: 21, preset: 'quality' },
-    libx264: { crf: 21, preset: 'fast' },
+    nvenc: { cq: 19, preset: 'p5' },
+    qsv: { cq: 19, preset: 'medium' },
+    amf: { cq: 19, preset: 'quality' },
+    libx264: { crf: 18, preset: 'medium' },
   },
 } as const;
 
@@ -279,9 +279,9 @@ export function getEncoderArgs(encoder: EncoderType): string[] {
         '-preset', quality.nvenc.preset,
         '-rc', 'vbr',
         '-cq', String(quality.nvenc.cq),
-        '-b:v', '8M',
-        '-maxrate', '12M',
-        '-bufsize', '16M'
+        '-b:v', '12M',
+        '-maxrate', '18M',
+        '-bufsize', '24M'
       );
       break;
 

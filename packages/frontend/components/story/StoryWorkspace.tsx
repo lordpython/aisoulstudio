@@ -3,7 +3,7 @@
  * Main orchestrator for the story mode pipeline.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IdeaView } from './IdeaView';
 import { ScriptView } from './ScriptView';
@@ -54,10 +54,13 @@ interface StoryWorkspaceProps {
     canRedo?: boolean;
     isProcessing: boolean;
     progress: { message: string; percent: number };
+    processingShots?: Map<string, { progress: number; preview?: string }>; // Batch animation progress (Feature 4)
     onLockStory?: () => void;
     onUpdateVisualStyle?: (style: string) => void;
     onUpdateAspectRatio?: (ratio: string) => void;
     onUpdateImageProvider?: (provider: 'gemini' | 'deapi') => void;
+    onUpdateStyleConsistency?: (enabled: boolean) => void;
+    onUpdateBgRemoval?: (enabled: boolean) => void;
     onGenerateShots?: (sceneIndex?: number) => void;
     onGenerateVisuals?: (sceneIndex?: number) => void;
     stageProgress?: StageProgress;
@@ -70,6 +73,7 @@ interface StoryWorkspaceProps {
     onGenerateCharacterImage?: (characterId: string) => void;
     onGenerateVideo?: (shotId: string) => void;
     onUpdateShotDuration?: (shotId: string, duration: number) => void;
+    onReorderShots?: (fromIndex: number, toIndex: number) => void;
     onUpdateShot?: (shotId: string, updates: Partial<ShotlistEntry>) => void;
     onGenerateNarration?: () => void;
     onAnimateShots?: (shotIndex?: number) => void;
@@ -135,10 +139,13 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     canRedo,
     isProcessing,
     progress,
+    processingShots, // Batch animation progress (Feature 4)
     onLockStory,
     onUpdateVisualStyle,
     onUpdateAspectRatio,
     onUpdateImageProvider,
+    onUpdateStyleConsistency,
+    onUpdateBgRemoval,
     onGenerateShots,
     onGenerateVisuals,
     stageProgress,
@@ -151,6 +158,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onGenerateCharacterImage,
     onGenerateVideo,
     onUpdateShotDuration,
+    onReorderShots,
     onUpdateShot,
     onGenerateNarration,
     onAnimateShots,
@@ -179,6 +187,9 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     const [showLockDialog, setShowLockDialog] = useState(false);
     const [showVersionHistory, setShowVersionHistory] = useState(false);
     const [editingShot, setEditingShot] = useState<ShotlistEntry | null>(null);
+    // Fix #2: Keep a ref to the current editingShot so onNavigate never closes over a stale value.
+    const editingShotRef = useRef(editingShot);
+    useEffect(() => { editingShotRef.current = editingShot; }, [editingShot]);
     // Track which individual shots are being animated (by shot.id)
     const [animatingShotIds, setAnimatingShotIds] = useState<Set<string>>(new Set());
     const skipCurrentStepSyncRef = useRef(false);
@@ -187,6 +198,51 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     useEffect(() => {
         if (!isProcessing) setAnimatingShotIds(new Set());
     }, [isProcessing]);
+
+    // Fix #1: Memoize blob URLs from format-pipeline narration results.
+    // URL.createObjectURL must never be called in render — it creates a new URL
+    // on every render that is never revoked, causing a memory leak.
+    const narrationBlobUrlMap = useMemo<Map<string, string>>(() => {
+        if (!formatPipelineHook?.result?.success) return new Map();
+        const pr = formatPipelineHook.result.partialResults ?? {};
+        const narrations = (pr.narrationSegments ?? []) as { sceneId: string; audioBlob: Blob }[];
+        return new Map(narrations.map(n => [n.sceneId, URL.createObjectURL(n.audioBlob)]));
+    }, [formatPipelineHook?.result]);
+    // Revoke old blob URLs when the map changes or component unmounts
+    useEffect(() => {
+        return () => { narrationBlobUrlMap.forEach(url => URL.revokeObjectURL(url)); };
+    }, [narrationBlobUrlMap]);
+
+    // Fix #4: Pre-compute animatedShots lookup map to avoid O(n²) in the animation grid.
+    const animatedShotsMap = useMemo(() => {
+        const m = new Map<string, NonNullable<typeof storyState.animatedShots>[number]>();
+        storyState.animatedShots?.forEach(a => m.set(a.shotId, a));
+        return m;
+    }, [storyState.animatedShots]);
+
+    // Pre-compute animated shot video URL map for StoryboardView
+    const animatedShotVideosMap = useMemo(() => {
+        const m = new Map<string, string>();
+        storyState.animatedShots?.forEach(a => {
+            if (a.videoUrl) m.set(a.shotId, a.videoUrl);
+        });
+        return m;
+    }, [storyState.animatedShots]);
+
+    // Pre-compute per-shot narration map for StoryboardView audio preview
+    const shotNarrationMap = useMemo(() => {
+        const m = new Map<string, { audioUrl: string; duration: number; text: string }>();
+        storyState.shotNarrationSegments?.forEach(seg => {
+            if (seg.audioUrl) m.set(seg.shotId, { audioUrl: seg.audioUrl, duration: seg.duration, text: seg.text });
+        });
+        return m;
+    }, [storyState.shotNarrationSegments]);
+
+    const hasExportVisuals = useMemo(() => {
+        return (storyState.animatedShots?.length ?? 0) > 0 || storyState.shotlist.some(s => !!s.imageUrl);
+    }, [storyState.animatedShots, storyState.shotlist]);
+
+    const canExportFinalVideo = !isProcessing && !!storyState.narrationSegments?.length && hasExportVisuals;
 
     useEffect(() => {
         if (skipCurrentStepSyncRef.current) {
@@ -405,13 +461,13 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                             )}
 
                                                             {/* Audio player for narration */}
-                                                            {narration && (
+                                                            {narration && narrationBlobUrlMap.get(scene.id) && (
                                                                 <div className="flex items-center gap-2 mt-2">
                                                                     <Mic className="w-3 h-3 text-amber-400 shrink-0" />
                                                                     <audio
                                                                         controls
                                                                         className="h-7 w-full max-w-xs [&::-webkit-media-controls-panel]:bg-zinc-800 [&::-webkit-media-controls-panel]:rounded-sm"
-                                                                        src={URL.createObjectURL(narration.audioBlob)}
+                                                                        src={narrationBlobUrlMap.get(scene.id)}
                                                                     />
                                                                     <span className="text-[10px] text-zinc-500 font-mono shrink-0">{narration.audioDuration.toFixed(1)}s</span>
                                                                 </div>
@@ -868,6 +924,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onSelectAspectRatio={(ratio) => onUpdateAspectRatio?.(ratio)}
                                         imageProvider={storyState.imageProvider || 'gemini'}
                                         onSelectImageProvider={onUpdateImageProvider}
+                                        applyStyleConsistency={storyState.applyStyleConsistency}
+                                        onToggleStyleConsistency={onUpdateStyleConsistency}
+                                        animateWithBgRemoval={storyState.animateWithBgRemoval}
+                                        onToggleBgRemoval={onUpdateBgRemoval}
                                     />
                                 </motion.div>
                             )}
@@ -879,12 +939,16 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         scenesWithVisuals={storyState.scenesWithVisuals}
                                         onGenerateVisuals={onGenerateVisuals}
                                         isProcessing={isProcessing}
+                                        processingShots={processingShots}
                                         onUpdateDuration={onUpdateShotDuration}
                                         onGenerateVideo={onGenerateVideo}
+                                        onReorderShots={onReorderShots}
                                         onEditShot={(shotId) => {
                                             const shot = storyState.shotlist.find(s => s.id === shotId);
                                             if (shot) setEditingShot(shot);
                                         }}
+                                        shotNarrationMap={shotNarrationMap}
+                                        animatedShotVideos={animatedShotVideosMap}
                                     />
                                 </motion.div>
                             )}
@@ -962,7 +1026,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     </p>
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                         {storyState.shotlist.map((shot, idx) => {
-                                            const animated = storyState.animatedShots?.find(a => a.shotId === shot.id);
+                                            const animated = animatedShotsMap.get(shot.id);
                                             return (
                                                 <div
                                                     key={shot.id}
@@ -992,8 +1056,19 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                         {!animated && !animatingShotIds.has(shot.id) && shot.imageUrl && onAnimateShots && (
                                                             <button
                                                                 onClick={() => {
-                                                                    setAnimatingShotIds(prev => new Set(prev).add(shot.id));
-                                                                    onAnimateShots(idx);
+                                                                    const shotId = shot.id;
+                                                                    setAnimatingShotIds(prev => new Set(prev).add(shotId));
+                                                                    try {
+                                                                        onAnimateShots(idx);
+                                                                    } catch {
+                                                                        // Clear spinner immediately on synchronous failure;
+                                                                        // async failures are cleared by the isProcessing → false effect.
+                                                                        setAnimatingShotIds(prev => {
+                                                                            const next = new Set(prev);
+                                                                            next.delete(shotId);
+                                                                            return next;
+                                                                        });
+                                                                    }
                                                                 }}
                                                                 disabled={isProcessing}
                                                                 className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -1070,7 +1145,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                             {!storyState.finalVideoUrl ? (
                                                 <button
                                                     onClick={onExportFinalVideo}
-                                                    disabled={isProcessing || !storyState.narrationSegments?.length}
+                                                    disabled={!canExportFinalVideo}
                                                     className="w-full py-4 rounded-sm text-sm font-medium flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 transition-colors duration-200"
                                                 >
                                                     {isProcessing ? (
@@ -1088,14 +1163,18 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                     {t('story.downloadVideo')}
                                                 </button>
                                             )}
-                                            {!storyState.narrationSegments?.length && (
+                                            {hasExportVisuals && !storyState.narrationSegments?.length && (
                                                 <p className="text-center text-xs text-orange-400">
                                                     {t('story.generateNarrationBeforeExport')}
                                                 </p>
                                             )}
+                                            {!hasExportVisuals && (
+                                                <p className="text-center text-xs text-orange-400">
+                                                    {t('story.generateStoryboardFirst')}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-
                                     <div className="mt-6">
                                         <ExportOptionsPanel
                                             storyState={storyState}
@@ -1274,11 +1353,26 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                     )}
                     {activeMainTab === 'storyboard' && subTab === 'animation' && (
                         <button
-                            onClick={() => setSubTab('export')}
+                            onClick={async () => {
+                                if (!onExportFinalVideo) {
+                                    setSubTab('export');
+                                    return;
+                                }
+
+                                try {
+                                    const result = await onExportFinalVideo();
+                                    if (result) {
+                                        setSubTab('export');
+                                    }
+                                } catch (err) {
+                                    console.error('[StoryWorkspace] Export final video failed:', err);
+                                }
+                            }}
+                            disabled={!canExportFinalVideo}
                             className="flex items-center gap-2 px-4 py-1.5 rounded-sm font-sans text-[12px] font-medium bg-white text-black hover:bg-zinc-200 transition-all duration-200"
                         >
                             <Film className="w-3 h-3" />
-                            {t('story.export')}
+                            {t('story.exportVideo')}
                         </button>
                     )}
                 </div>
@@ -1388,7 +1482,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         sceneNumber={scene?.sceneNumber ?? 0}
                         sceneHeading={scene?.heading ?? ''}
                         sceneLighting={editingShot.lighting}
-                        shotIndexInScene={Math.max(0, shotIndexInScene)}
+                        shotIndexInScene={shotIndexInScene >= 0 ? shotIndexInScene : 0}
                         totalShotsInScene={shotsInScene.length}
                         onClose={() => setEditingShot(null)}
                         onSave={(shotId, updates) => {
@@ -1401,7 +1495,10 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                             setEditingShot(null);
                         }}
                         onNavigate={(dir) => {
-                            const idx = shotsInScene.findIndex(s => s.id === editingShot.id);
+                            // Use ref to avoid stale closure on rapid clicks
+                            const currentShot = editingShotRef.current;
+                            if (!currentShot) return;
+                            const idx = shotsInScene.findIndex(s => s.id === currentShot.id);
                             const nextIdx = dir === 'next' ? idx + 1 : idx - 1;
                             const nextShot = shotsInScene[nextIdx];
                             if (nextShot) setEditingShot(nextShot);
@@ -1491,7 +1588,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 {d.visualCount != null && <p className="text-xs text-zinc-500 mb-2">{d.visualCount as number}/{d.totalScenes as number ?? '?'} visuals generated</p>}
                                 <div className="grid grid-cols-3 gap-2">
                                     {visuals.map((v, i) => (
-                                        <div key={i} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
+                                        <div key={v.sceneId} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
                                             <img src={v.imageUrl} alt={`Scene ${i + 1}`} className="w-full h-full object-cover" />
                                         </div>
                                     ))}
@@ -1527,29 +1624,101 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                         );
                     }
 
+                    const outputPreview = (() => {
+                        const primaryVisual = visuals?.[0]?.imageUrl;
+                        const timelineItems = (scenes?.map((scene, index) => ({
+                            id: `scene-${index}`,
+                            label: scene.heading,
+                        })) ?? visuals?.map((visual, index) => ({
+                            id: visual.sceneId || `visual-${index}`,
+                            label: `Visual ${index + 1}`,
+                        })) ?? []).slice(0, 7);
+
+                        return (
+                            <div className="h-full flex flex-col bg-[#08152d]">
+                                <div className="flex-1 p-4">
+                                    <div className="h-full rounded-md border border-blue-900/50 bg-black overflow-hidden relative">
+                                        {primaryVisual ? (
+                                            <img
+                                                src={primaryVisual}
+                                                alt="Checkpoint output preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
+                                                Waiting for generated output...
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 border border-zinc-700 text-[10px] font-mono text-zinc-300">
+                                            {d.estimatedDuration ? String(d.estimatedDuration) : 'Preview'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="px-4 py-2 border-t border-blue-900/40 bg-[#091a37] flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                                    <span>{timelineItems.length || visuals?.length || 0} clips</span>
+                                    <span>{d.totalDuration != null ? `${Math.round(d.totalDuration as number)}s total` : 'Checkpoint output'}</span>
+                                </div>
+
+                                <div className="border-t border-blue-900/40 bg-[#07142a] p-3">
+                                    {timelineItems.length > 0 ? (
+                                        <div className="relative h-12 rounded-sm border border-zinc-800 bg-[#030b1a] overflow-hidden">
+                                            {timelineItems.map((item, index) => {
+                                                const segmentCount = timelineItems.length;
+                                                const widthPct = Math.max(14, 92 / segmentCount);
+                                                const leftPct = (index / segmentCount) * 100;
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className="absolute top-2 h-8 rounded-sm border border-blue-400/40 bg-blue-500/25 text-[10px] text-blue-100 px-2 flex items-center"
+                                                        style={{
+                                                            left: `${leftPct}%`,
+                                                            width: `${widthPct}%`,
+                                                        }}
+                                                        title={item.label}
+                                                    >
+                                                        <span className="truncate">{item.label}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="h-12 rounded-sm border border-zinc-800 bg-[#030b1a] flex items-center justify-center text-[11px] text-zinc-500">
+                                            Timeline will populate as output is generated.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })();
+
                     return (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
-                            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                            className="fixed inset-0 bg-[#020712]/90 backdrop-blur-sm p-3 sm:p-4 z-50"
                         >
                             <motion.div
                                 initial={{ scale: 0.97, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.97, opacity: 0 }}
                                 transition={{ duration: 0.15 }}
-                                className={`w-full ${visuals && visuals.length > 0 ? 'max-w-3xl' : 'max-w-2xl'} max-h-[80vh] overflow-y-auto`}
+                                className="w-full h-full max-w-7xl mx-auto"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="bg-zinc-900 border border-zinc-700 rounded-sm p-6">
+                                <div className="h-full rounded-lg border border-blue-950/70 bg-[#040d1c] p-3 sm:p-4">
                                     <CheckpointApproval
                                         checkpointId={cp.checkpointId}
                                         phase={cp.phase}
                                         title={`Review: ${cp.phase.replace(/-/g, ' ')}`}
                                         description={previewContent ? undefined : "Review the generated content before the pipeline continues to the next phase."}
                                         previewData={previewContent}
+                                        outputPreview={outputPreview}
+                                        outputLabel="Generated Output"
+                                        layout="editor"
+                                        className="h-full"
                                         onApprove={() => formatPipelineHook.approveCheckpoint()}
                                         onRequestChanges={(_id, changeRequest) => formatPipelineHook.rejectCheckpoint(changeRequest)}
                                     />

@@ -26,7 +26,12 @@
       "Bash(cd:*)",
       "Bash(node -e:*)",
       "Bash(python3:*)",
-      "WebFetch(domain:docs.deapi.ai)"
+      "WebFetch(domain:docs.deapi.ai)",
+      "Bash(echo Done: $?:*)",
+      "Bash(wc:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)",
+      "Bash(cd \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\aisoulstudio\" && pnpm add)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

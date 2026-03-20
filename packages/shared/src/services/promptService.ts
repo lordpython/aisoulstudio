@@ -10,6 +10,7 @@ import { ai, MODELS, withRetry } from "./shared/apiClient";
 import { CAMERA_ANGLES, LIGHTING_MOODS, VideoPurpose } from "../constants";
 import type { ImageStyleGuide } from "./prompt/imageStyleGuide";
 import { normalizeForSimilarity, countWords } from "./utils/textProcessing";
+import { enhanceImagePrompt } from "./deapiPromptService";
 
 // --- NEW STYLE INJECTOR ---
 
@@ -801,7 +802,7 @@ export const refineImagePrompt = async (params: {
     return { refinedPrompt: promptText.trim(), issues };
   }
 
-  const refinedPrompt = await withRetry(async () => {
+  const geminiRefined = await withRetry(async () => {
     return refineImagePromptWithAI({
       promptText,
       style,
@@ -811,6 +812,10 @@ export const refineImagePrompt = async (params: {
       issues,
     });
   });
+
+  // DeAPI polish pass: runs after Gemini rewrite to add photography/art technique
+  // keywords. Non-fatal — falls back to Gemini result if DeAPI is unavailable.
+  const refinedPrompt = await enhanceImagePrompt(geminiRefined);
 
   return { refinedPrompt, issues };
 };

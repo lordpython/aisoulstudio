@@ -48,10 +48,11 @@ export function VideoEditor({ className = '' }: VideoEditorProps) {
     const tick = (now: number) => {
       const delta = (now - lastTimeRef.current) / 1000;
       lastTimeRef.current = now;
-      const newTime = store.currentTime + delta;
-      if (newTime >= store.duration) {
+      const { currentTime, duration } = useVideoEditorStore.getState();
+      const newTime = currentTime + delta;
+      if (newTime >= duration) {
         store.setIsPlaying(false);
-        store.setCurrentTime(store.duration);
+        store.setCurrentTime(duration);
         return;
       }
       store.setCurrentTime(newTime);
@@ -233,14 +234,18 @@ export function VideoEditor({ className = '' }: VideoEditorProps) {
         />
       )}
 
-      {/* Canvas preview */}
-      <CanvasPreview
-        clips={store.clips}
-        currentTime={store.currentTime}
-        aspectRatio={store.aspectRatio}
-        isPlaying={store.isPlaying}
-        className={isPanelOpen ? '' : ''}
-      />
+      {/* Canvas stage */}
+      <div className="ve-stage">
+        <div className="ve-stage-inner">
+          <CanvasPreview
+            clips={store.clips}
+            currentTime={store.currentTime}
+            aspectRatio={store.aspectRatio}
+            isPlaying={store.isPlaying}
+            className="ve-stage-preview"
+          />
+        </div>
+      </div>
 
       {/* Transport bar — spans full width below preview */}
       <EnhancedTransportBar

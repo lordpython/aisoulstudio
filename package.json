@@ -19,6 +19,9 @@
     "test:agent": "npx tsx scripts/test-agent-node.ts",
     "test:pipeline": "npx tsx scripts/test-full-pipeline.ts",
     "test:langchain": "npx tsx scripts/test-agent-langchain.ts",
+    "codemaps": "pnpm run codemaps:export && pnpm run codemaps:deps",
+    "codemaps:export": "npx repomix --config repomix.config.json",
+    "codemaps:deps": "npx depcruise --config .dependency-cruiser.cjs -T html -f codebase-map.html packages",
     "generate:sitemap": "npx tsx scripts/generate-sitemap.ts",
     "generate:sitemap:auto": "npx tsx scripts/auto-generate-sitemap.ts",
     "cap:sync": "npx cap sync",
@@ -28,6 +31,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "dependency-cruiser": "^17.3.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

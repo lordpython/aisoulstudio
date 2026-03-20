@@ -117,8 +117,58 @@ export async function generateCharacterReference(
 }
 
 /**
+ * Build a structured 30-50 word visual identity anchor string for a character.
+ * Used as the "CHARACTERS IN FRAME:" section in image prompts to enforce visual consistency.
+ *
+ * Format: "[name]: [first 2 sentences of visualDescription]. Face: [facialTags]. Rendered in [style] art style."
+ * Degrades gracefully if facialTags is absent — uses visualDescription sentences only.
+ *
+ * @param char - CharacterProfile with at minimum name and visualDescription
+ * @param visualStyle - Current project art style (e.g., "Cinematic", "Anime / Manga")
+ * @returns 30-50 word structured anchor string
+ */
+export function buildCoreAnchors(char: CharacterProfile, visualStyle: string = "Cinematic"): string {
+    const parts: string[] = [];
+
+    parts.push(`${char.name}:`);
+
+    // First 2 sentences of visualDescription for compact physical identity
+    const descSentences = char.visualDescription.match(/[^.!?]+[.!?]+/g) || [char.visualDescription];
+    const coreDesc = descSentences.slice(0, 2).join(' ').trim();
+    if (coreDesc) parts.push(coreDesc);
+
+    // Compact face/clothing tags if available
+    if (char.facialTags) {
+        parts.push(`Face: ${char.facialTags}.`);
+    }
+
+    // Style anchor so the model knows the rendering context
+    parts.push(`Rendered in ${visualStyle.toLowerCase()} art style.`);
+
+    return parts.join(' ');
+}
+
+/**
+ * Enrich an array of CharacterProfile objects by populating the coreAnchors field.
+ * Call after character extraction and before image generation.
+ *
+ * @param characters - Array of CharacterProfile (already extracted)
+ * @param visualStyle - Current project art style
+ * @returns New array with coreAnchors populated on each character
+ */
+export function enrichCharactersWithCoreAnchors(
+    characters: CharacterProfile[],
+    visualStyle: string = "Cinematic"
+): CharacterProfile[] {
+    return characters.map(char => ({
+        ...char,
+        coreAnchors: buildCoreAnchors(char, visualStyle),
+    }));
+}
+
+/**
  * Generate reference sheets for all characters in a cast.
- * 
+ *
  * @param characters - Array of CharacterProfile objects
  * @param sessionId - Session ID for cloud autosave
  * @returns Updated CharacterProfile array with referenceImageUrl populated
