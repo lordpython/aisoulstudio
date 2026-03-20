@@ -25,8 +25,8 @@ describe('Encoder Strategy', () => {
     });
 
     it('should use consistent quality values', () => {
-      expect(ENCODING_SPEC.quality.nvenc.cq).toBe(21);
-      expect(ENCODING_SPEC.quality.libx264.crf).toBe(21);
+      expect(ENCODING_SPEC.quality.nvenc.cq).toBe(19);
+      expect(ENCODING_SPEC.quality.libx264.crf).toBe(18);
     });
   });
 
@@ -37,9 +37,9 @@ describe('Encoder Strategy', () => {
       expect(args).toContain('-c:v');
       expect(args).toContain('libx264');
       expect(args).toContain('-preset');
-      expect(args).toContain('fast');
+      expect(args).toContain('medium');
       expect(args).toContain('-crf');
-      expect(args).toContain('21');
+      expect(args).toContain('18');
       // Color space settings
       expect(args).toContain('-colorspace');
       expect(args).toContain('bt709');
@@ -53,9 +53,9 @@ describe('Encoder Strategy', () => {
       expect(args).toContain('-c:v');
       expect(args).toContain('h264_nvenc');
       expect(args).toContain('-preset');
-      expect(args).toContain('p4');
+      expect(args).toContain('p5');
       expect(args).toContain('-cq');
-      expect(args).toContain('21');
+      expect(args).toContain('19');
     });
 
     it('should return correct args for h264_qsv', () => {
