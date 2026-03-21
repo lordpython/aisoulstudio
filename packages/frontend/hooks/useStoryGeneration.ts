@@ -1797,6 +1797,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
         try {
             const screenplayScenes = state.script?.scenes || [];
+            const totalScenes = state.breakdown.length;
 
             // Step A: Generate voiceover scripts from screenplay action text.
             // This rewrites camera directions into spoken narration with delivery markers.
