@@ -33,7 +33,7 @@ import { AudioUploadForm, VisualPreview, SceneThumbnails } from '@/components/vi
 
 // Feature Components
 import { TimelinePlayer } from '@/components/TimelinePlayer';
-import { QuickExport } from '@/components/QuickExport';
+import { QuickExport, type QuickExportConfig } from '@/components/QuickExport';
 import { ErrorState } from '@/components/ui/ErrorState';
 
 // Services
@@ -324,7 +324,7 @@ export default function VisualizerScreen() {
   }, [handleSeek]);
 
   const handleExport = useCallback(async (
-    config: { presetId: string; width: number; height: number; orientation: 'landscape' | 'portrait'; quality: string },
+    config: QuickExportConfig,
     onProgress?: (percent: number) => void
   ) => {
     if (!songData || !hasVisuals) {
@@ -338,6 +338,9 @@ export default function VisualizerScreen() {
       (p) => onProgress?.(p.progress),
       {
         orientation: config.orientation,
+        width: config.width,
+        height: config.height,
+        quality: config.quality,
         useModernEffects: true,
         transitionType: 'dissolve',
         transitionDuration: 1.5,

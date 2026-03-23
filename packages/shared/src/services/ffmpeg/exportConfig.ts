@@ -45,8 +45,21 @@ export type ExportProgress = {
 
 export type ProgressCallback = (progress: ExportProgress) => void;
 
+export type ExportQualityPreset = "draft" | "standard" | "high";
+
+export type RenderAsset = {
+    time: number;
+    type: "image" | "video";
+    element: HTMLImageElement | HTMLVideoElement;
+    /** Native duration of the video asset in seconds (for freeze-frame on short clips) */
+    nativeDuration?: number;
+};
+
 export interface ExportConfig {
     orientation: "landscape" | "portrait";
+    width?: number;
+    height?: number;
+    quality?: ExportQualityPreset;
     useModernEffects: boolean;
     syncOffsetMs: number;
     fadeOutBeforeCut: boolean;
@@ -85,21 +98,12 @@ export interface ExportConfig {
     assemblyRules?: FormatAssemblyRules;
 }
 
-
-
-export type RenderAsset = {
-    time: number;
-    type: "image" | "video";
-    element: HTMLImageElement | HTMLVideoElement;
-    /** Native duration of the video asset in seconds (for freeze-frame on short clips) */
-    nativeDuration?: number;
-};
-
 /**
  * Default export configuration for cloud rendering
  */
 export const DEFAULT_EXPORT_CONFIG: ExportConfig = {
     orientation: "landscape",
+    quality: "high",
     useModernEffects: true,
     syncOffsetMs: -50,
     fadeOutBeforeCut: true,
@@ -122,6 +126,34 @@ export const DEFAULT_EXPORT_CONFIG: ExportConfig = {
         wordReveal: true,
     },
 };
+
+export function getExportDimensions(config: Pick<ExportConfig, "orientation" | "width" | "height">): {
+    width: number;
+    height: number;
+} {
+    if (config.width && config.height) {
+        return {
+            width: config.width,
+            height: config.height,
+        };
+    }
+
+    return config.orientation === "portrait"
+        ? { width: 1080, height: 1920 }
+        : { width: 1920, height: 1080 };
+}
+
+export function getExportQualityValue(quality: ExportQualityPreset | undefined): number {
+    switch (quality) {
+        case "draft":
+            return 28;
+        case "standard":
+            return 21;
+        case "high":
+        default:
+            return 18;
+    }
+}
 
 /**
  * Merge user config with defaults

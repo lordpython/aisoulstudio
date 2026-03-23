@@ -22,7 +22,15 @@ import { runProductionAgent } from '@/services/ai/productionAgent';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';
-import { narrateScene, narrateAllShots, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
+import {
+    narrateScene,
+    narrateAllShots,
+    createAudioUrl,
+    DEAPI_TTS_MODELS,
+    type NarratorConfig,
+    type TTSProvider,
+    type DeApiTtsModel,
+} from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
 import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
@@ -122,6 +130,13 @@ const STORAGE_KEY = 'ai_soul_studio_story_state';
 const SESSION_KEY = 'ai_soul_studio_story_session';
 const USER_ID_KEY = 'ai_soul_studio_story_user_id';
 const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
+
+/**
+ * Number of consecutive animation failures that triggers the circuit breaker
+ * and aborts the remaining batch. Prevents hammering a dead or rate-limited server.
+ * 3 consecutive failures → abort (each failure already retries at the service level).
+ */
+const ANIMATION_CIRCUIT_BREAKER_THRESHOLD = 3;
 
 /**
  * Strip markdown and metadata artifacts from narration text.
@@ -407,6 +422,8 @@ export function useStoryGeneration(projectId?: string | null) {
         script: null,
         characters: [],
         shotlist: [],
+        ttsProvider: 'gemini',
+        ttsModel: DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN,
     };
 
     const [state, setState] = useState<StoryState>(initialState);
@@ -1247,6 +1264,14 @@ export function useStoryGeneration(projectId?: string | null) {
         }));
     }, []);
 
+    const updateTtsSettings = useCallback((provider: TTSProvider, model?: DeApiTtsModel) => {
+        setState(prev => ({
+            ...prev,
+            ttsProvider: provider,
+            ttsModel: model ?? prev.ttsModel ?? DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN,
+        }));
+    }, []);
+
     /**
      * Generate storyboard visuals for all scenes or a specific scene.
      * This enables per-scene control over visual generation.
@@ -1533,7 +1558,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 // Process results in post-execution loop (cloud upload + shotlist mutation NOT inside execute())
                 for (const result of geminiResults) {
                     if (!result.success || !result.data) continue;
-                    const shot = shotsNeedingVisuals.find(s => s?.id === result.taskId);
+                    const shot = shotsNeedingVisuals.find((s: StoryShot) => s.id === result.taskId);
                     if (!shot) continue;
                     await processShotResult(shot, result.data.imageUrl);
                     storyboardStatus[result.taskId] = 'success';
@@ -1724,63 +1749,6 @@ export function useStoryGeneration(projectId?: string | null) {
     }, [state.breakdown, state.scenesWithVisuals]);
 
     /**
-     * Get progress info for current stage
-     */
-    const getStageProgress = useCallback(() => {
-        const totalScenes = state.breakdown.length;
-        const scenesWithShots = state.scenesWithShots?.length || 0;
-        const scenesWithVisuals = state.scenesWithVisuals?.length || 0;
-
-        return {
-            totalScenes,
-            scenesWithShots,
-            scenesWithVisuals,
-            shotsComplete: scenesWithShots >= totalScenes,
-            visualsComplete: scenesWithVisuals >= totalScenes,
-        };
-    }, [state.breakdown, state.scenesWithShots, state.scenesWithVisuals]);
-
-    /**
-     * Clear any error state
-     */
-    const clearError = useCallback(() => {
-        setError(null);
-    }, []);
-
-    /**
-     * Check if we have a recovered session (from page refresh)
-     */
-    const hasRecoveredSession = useCallback(() => {
-        return state.currentStep !== 'idea' && state.breakdown.length > 0;
-    }, [state.currentStep, state.breakdown.length]);
-
-    /**
-     * Retry the last failed operation based on current step
-     */
-    const retryLastOperation = useCallback(async () => {
-        clearError();
-        switch (state.currentStep) {
-            case 'breakdown':
-                // Cannot retry breakdown without topic
-                break;
-            case 'script':
-                await generateScreenplay();
-                break;
-            case 'characters':
-                await generateCharacters();
-                break;
-            case 'shots':
-                await generateShots();
-                break;
-            case 'storyboard':
-                await generateVisuals();
-                break;
-            default:
-                break;
-        }
-    }, [state.currentStep, clearError, generateScreenplay, generateCharacters, generateShots, generateVisuals]);
-
-    /**
      * Step 6: Generate per-shot narration (TTS).
      * Uses narrateAllShots() for per-shot audio segments, with resume logic to skip
      * already-narrated shots. Falls back to voiceover scripts → scene action → description.
@@ -1834,9 +1802,13 @@ export function useStoryGeneration(projectId?: string | null) {
                 screenplayScenes[0]?.heading || '',
             ].join(' ');
             const detectedLang = detectLanguage(sampleSources);
+
+            // Load TTS settings from state
             const narratorConfig: NarratorConfig = {
                 videoPurpose: 'storytelling',
                 ...(detectedLang === 'ar' ? { language: 'ar' as const } : {}),
+                ...(state.ttsProvider && { provider: state.ttsProvider }),
+                ...(state.ttsModel && { deapiModel: state.ttsModel as DeApiTtsModel }),
             };
 
             // Resume logic: identify shots already narrated
@@ -1978,9 +1950,11 @@ export function useStoryGeneration(projectId?: string | null) {
         });
 
         try {
-            const animatedShots: StoryState['animatedShots'] = [
-                ...(state.animatedShots || [])
-            ];
+            // Build a Map keyed by shotId for O(1) upsert — converted to array before pushState.
+            // Using a Map avoids in-place mutation of the accumulated array.
+            const animatedShotsMap = new Map<string, AnimatedShot>(
+                (state.animatedShots || []).map((a: AnimatedShot) => [a.shotId, a])
+            );
 
             const useDeApi = isDeApiConfigured();
 
@@ -2004,6 +1978,9 @@ export function useStoryGeneration(projectId?: string | null) {
                     }
                 }
             }
+
+            let consecutiveFailures = 0;
+            const completedShotIds = new Set<string>();
 
             for (let i = 0; i < shotsToAnimate.length; i++) {
                 const shot = shotsToAnimate[i];
@@ -2142,35 +2119,42 @@ export function useStoryGeneration(projectId?: string | null) {
 
                     // Store with target duration from narration (Issue 6)
                     const targetDuration = shotTargetDurations.get(shot.id) || motionConfig.frames / 30;
-                    const existingIdx = animatedShots.findIndex((a: AnimatedShot) => a.shotId === shot.id);
                     const animatedShot = {
                         shotId: shot.id,
                         videoUrl,
                         duration: targetDuration,
                     };
+                    // Immutable upsert via Map — no array mutation
+                    animatedShotsMap.set(shot.id, animatedShot);
 
-                    if (existingIdx >= 0) {
-                        animatedShots[existingIdx] = animatedShot;
-                    } else {
-                        animatedShots.push(animatedShot);
-                    }
-
-                    // Clear per-shot progress on success (Feature 4)
-                    setProcessingShots(prev => {
-                        const next = new Map(prev);
-                        next.delete(shot.id);
-                        return next;
-                    });
+                    // Accumulate completed shot ID for batch cleanup (Fix #4)
+                    completedShotIds.add(shot.id);
+                    consecutiveFailures = 0;
                 } catch (err) {
                     console.error(`Failed to animate shot ${shot.id}:`, err);
-                    // Clear per-shot progress on failure (Feature 4)
-                    setProcessingShots(prev => {
-                        const next = new Map(prev);
-                        next.delete(shot.id);
-                        return next;
-                    });
+                    // Accumulate failed shot ID for batch cleanup (Fix #4)
+                    completedShotIds.add(shot.id);
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= ANIMATION_CIRCUIT_BREAKER_THRESHOLD) {
+                        console.error('[useStoryGeneration] Circuit breaker triggered, aborting animation batch');
+                        break;
+                    }
                 }
             }
+
+            // Batch-clear all completed/failed shot progress in a single setState (Fix #4)
+            if (completedShotIds.size > 0) {
+                setProcessingShots(prev => {
+                    const next = new Map(prev);
+                    for (const id of completedShotIds) {
+                        next.delete(id);
+                    }
+                    return next;
+                });
+            }
+
+            // Materialise the immutable array from the Map accumulator
+            const animatedShots = Array.from(animatedShotsMap.values());
 
             setProgress({ message: 'Finalizing animations...', percent: 95 });
 
@@ -2424,6 +2408,30 @@ export function useStoryGeneration(projectId?: string | null) {
         return state.shotlist.every((s: ShotlistEntry) => state.shotsWithAnimation?.includes(s.id));
     }, [state.shotlist, state.shotsWithAnimation]);
 
+    const getStageProgress = useCallback(() => {
+        const totalScenes = state.breakdown.length;
+        const scenesWithShots = state.scenesWithShots?.length || 0;
+        const scenesWithVisuals = state.scenesWithVisuals?.length || 0;
+
+        return {
+            totalScenes,
+            scenesWithShots,
+            scenesWithVisuals,
+            shotsComplete: totalScenes > 0 && scenesWithShots >= totalScenes,
+            visualsComplete: totalScenes > 0 && scenesWithVisuals >= totalScenes,
+        };
+    }, [state.breakdown.length, state.scenesWithShots, state.scenesWithVisuals]);
+
+    const clearError = useCallback(() => {
+        setError(null);
+    }, []);
+
+    const retryLastOperation = useCallback(() => {
+        setError(null);
+    }, []);
+
+    const hasRecoveredSession = Boolean(sessionId);
+
     /**
      * Load a story from Firestore by session ID
      */
@@ -2438,11 +2446,9 @@ export function useStoryGeneration(projectId?: string | null) {
                 return false;
             }
 
-            // Initialize cloud storage for media
             setSessionId(cloudSessionId);
             await cloudAutosave.initSession(cloudSessionId);
 
-            // Apply the loaded state
             pushState(cloudState);
             setProgress({ message: 'Story loaded', percent: 100 });
             console.log(`[useStoryGeneration] Loaded story ${cloudSessionId} from cloud`);
@@ -2522,7 +2528,7 @@ export function useStoryGeneration(projectId?: string | null) {
         isProcessing,
         error,
         progress,
-        processingShots, // Batch animation progress tracking (Feature 4)
+        processingShots,
         generateBreakdown,
         generateScreenplay,
         generateCharacters,
@@ -2539,7 +2545,6 @@ export function useStoryGeneration(projectId?: string | null) {
         redo,
         canUndo: past.length > 0,
         canRedo: future.length > 0,
-        // Storyboarder.ai-style workflow functions
         lockStory,
         updateVisualStyle,
         updateAspectRatio,
@@ -2547,32 +2552,27 @@ export function useStoryGeneration(projectId?: string | null) {
         updateImageProvider,
         updateStyleConsistency,
         updateBgRemoval,
-        // New step-by-step generation methods
+        updateTtsSettings,
         generateShots,
         generateVisuals,
-        regenerateShotVisual, // Storyboarder.ai-style per-shot refresh
-        updateShot,           // Merge metadata edits from Shot Editor Modal
-        reorderShots,         // Drag-to-reorder shots with undo support
-        // Narration, Animation, and Export methods
+        regenerateShotVisual,
+        updateShot,
+        reorderShots,
         generateNarration,
         animateShots,
         exportFinalVideo,
         downloadVideo,
-        // Progress tracking helpers
         allScenesHaveShots,
         allScenesHaveVisuals,
         allScenesHaveNarration,
         allShotsHaveAnimation,
         getStageProgress,
-        // Error handling
         clearError,
         retryLastOperation,
         hasRecoveredSession,
-        // Cloud sync
         loadFromCloud,
         saveToCloud,
         isSyncAvailable: isSyncAvailable(),
-        // Template and project management
         applyTemplate,
         importProject,
     };

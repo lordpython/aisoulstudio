@@ -212,7 +212,9 @@ export function createCloudRouter(
             }
 
             const [metadata] = await file.getMetadata();
-            const contentType = metadata.contentType || 'application/octet-stream';
+            const contentType = typeof metadata.contentType === 'string' && metadata.contentType
+                ? metadata.contentType
+                : 'application/octet-stream';
             const totalSize = Number(metadata.size || 0);
             const range = req.headers.range;
 
@@ -244,7 +246,9 @@ export function createCloudRouter(
                 res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
                 res.setHeader('Content-Length', chunkSize.toString());
 
-                file.createReadStream({ start, end })
+                const createRangeReadStream = file.createReadStream as unknown as (options?: { start?: number; end?: number }) => NodeJS.ReadableStream;
+
+                createRangeReadStream({ start, end })
                     .on('error', (err) => {
                         cloudLog.error('File proxy range stream error:', err);
                         if (!res.headersSent) res.status(500).end();

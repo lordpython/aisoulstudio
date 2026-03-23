@@ -6,7 +6,7 @@ import multer from 'multer';
 import { sanitizeId, getSessionDir, cleanupSession, MAX_FILE_SIZE, MAX_SINGLE_FILE, MAX_FILES, generateJobId } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/logger.js';
 import { jobQueue } from '../services/jobQueue/index.js';
-import { getSelectedEncoder, getEncoderInfo, getEncoderArgs, ENCODING_SPEC } from '../services/encoding/encoderStrategy.js';
+import { getSelectedEncoder, getEncoderInfo, getEncoderArgs } from '../services/encoding/encoderStrategy.js';
 import { validateSessionFrames, validateFrameSizes } from '../services/validation/frameValidator.js';
 import { verifyOutputQuality, quickValidate } from '../services/validation/qualityVerifier.js';
 import { RenderJob, JobProgress, FrameChecksum } from '../types/renderJob.js';
@@ -20,6 +20,11 @@ const deprecatedCancelRoute = createDeprecatedRouteMiddleware(
 );
 
 const router = Router();
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 // Encoder selection is handled by encoderStrategy.ts (initialized in server/index.ts)
 
@@ -90,12 +95,18 @@ router.post('/init', uploadAudio.single('audio'), async (req: Request, res: Resp
       throw new Error('Failed to generate session ID');
     }
 
-    const { totalFrames, fps = 24 } = req.body;
+    const { totalFrames, fps = 24, width, height, quality } = req.body;
+    const widthValue = parseOptionalNumber(width);
+    const heightValue = parseOptionalNumber(height);
+    const qualityValue = parseOptionalNumber(quality);
 
     // Create a job for this session
     const job = await jobQueue.createJob(request.sessionId, {
       fps: parseInt(fps, 10),
       encoder: getSelectedEncoder(),
+      width: widthValue,
+      height: heightValue,
+      quality: qualityValue,
     });
 
     // Track session → job mapping
@@ -159,7 +170,10 @@ router.post('/chunk', uploadFrames.array('frames'), (req: Request, res: Response
  * Client should subscribe to SSE for progress.
  */
 router.post('/finalize', async (req: Request, res: Response) => {
-  const { sessionId: rawSessionId, fps = 24, totalFrames, sync = false } = req.body;
+  const { sessionId: rawSessionId, fps = 24, totalFrames, sync = false, width, height, quality } = req.body;
+  const widthValue = parseOptionalNumber(width);
+  const heightValue = parseOptionalNumber(height);
+  const qualityValue = parseOptionalNumber(quality);
 
   if (!rawSessionId) {
     res.status(400).json({ error: 'Missing sessionId' });
@@ -187,9 +201,22 @@ router.post('/finalize', async (req: Request, res: Response) => {
     job = await jobQueue.createJob(sessionId, {
       fps: parseInt(fps, 10),
       encoder: getSelectedEncoder(),
+      width: widthValue,
+      height: heightValue,
+      quality: qualityValue,
     });
     jobId = job.jobId;
     sessionJobs.set(sessionId, jobId);
+  } else {
+    const currentQuality = job.config.quality ?? 21;
+    job.config = {
+      ...job.config,
+      fps: parseInt(fps, 10),
+      encoder: getSelectedEncoder(),
+      width: widthValue ?? job.config.width,
+      height: heightValue ?? job.config.height,
+      quality: qualityValue ?? currentQuality,
+    };
   }
 
   // Set total frames
@@ -225,7 +252,7 @@ router.post('/finalize', async (req: Request, res: Response) => {
   // For backward compatibility: if sync=true, use the old synchronous approach
   if (sync === true || sync === 'true') {
     // Legacy synchronous encoding
-    return handleSyncFinalize(req, res, sessionId, sessionDir, fps);
+    return handleSyncFinalize(req, res, sessionId, sessionDir, fps, qualityValue ?? job.config.quality ?? 21);
   }
 
   // Queue job for async processing
@@ -253,7 +280,8 @@ async function handleSyncFinalize(
   res: Response,
   sessionId: string,
   sessionDir: string,
-  fps: number
+  fps: number,
+  quality: number
 ): Promise<void> {
   const audioPath = path.join(sessionDir, 'audio.mp3');
   const outputPath = path.join(sessionDir, 'output.mp4');
@@ -267,7 +295,7 @@ async function handleSyncFinalize(
     }
 
     const encoder = getSelectedEncoder();
-    const encoderArgs = getEncoderArgs(encoder);
+    const encoderArgs = getEncoderArgs(encoder, quality);
 
     const ffmpegArgs = [
       '-framerate', String(fps),

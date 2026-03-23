@@ -14,23 +14,17 @@ import {
     ExportConfig,
     ExportProgress,
     ProgressCallback,
-    RenderAsset,
     SERVER_URL,
-    DEFAULT_EXPORT_CONFIG,
     mergeExportConfig,
+    getExportDimensions,
+    getExportQualityValue,
 } from "./exportConfig";
 import { preloadAssets, clearFrameCache, type AssetLoadProgress } from "./assetLoader";
 import { renderFrameToCanvas } from "./frameRenderer";
 import { cloudAutosave } from "../cloudStorageService";
 import { saveExportRecord } from "../projectService";
 import { subscribeToJob, isSSESupported, JobProgress } from "./sseClient";
-import { generateBatchChecksums, isChecksumSupported, FrameChecksum } from "./checksumGenerator";
 
-// Rendering constants
-const RENDER_WIDTH_LANDSCAPE = 1920;
-const RENDER_HEIGHT_LANDSCAPE = 1080;
-const RENDER_WIDTH_PORTRAIT = 1080;
-const RENDER_HEIGHT_PORTRAIT = 1920;
 const FPS = 24;
 const JPEG_QUALITY = 0.98;      // Prioritize visual fidelity for final exports
 const BATCH_SIZE = 96;          // Doubled batch size for fewer HTTP round-trips
@@ -64,8 +58,8 @@ export async function exportVideoWithFFmpeg(
 ): Promise<ExportResult> {
     const { cloudSessionId, userId, projectId } = options;
     const mergedConfig = mergeExportConfig(config);
-    const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
-    const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
+    const { width: renderWidth, height: renderHeight } = getExportDimensions(mergedConfig);
+    const qualityValue = getExportQualityValue(mergedConfig.quality);
 
     onProgress({
         stage: "preparing",
@@ -108,6 +102,11 @@ export async function exportVideoWithFFmpeg(
     // 3. Initialize Session
     const initFormData = new FormData();
     initFormData.append("audio", audioBlob, "audio.mp3");
+    initFormData.append("fps", String(FPS));
+    initFormData.append("width", String(renderWidth));
+    initFormData.append("height", String(renderHeight));
+    initFormData.append("quality", String(qualityValue));
+    initFormData.append("totalFrames", String(Math.ceil(audioBuffer.duration * FPS)));
 
     const initRes = await fetch(`${SERVER_URL}/api/export/init`, {
         method: "POST",
@@ -158,8 +157,8 @@ export async function exportVideoWithFFmpeg(
 
     // 5. Create canvas
     const canvas = document.createElement("canvas");
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     applyPolyfills(ctx);
 
@@ -189,8 +188,8 @@ export async function exportVideoWithFFmpeg(
 
         await renderFrameToCanvas(
             ctx,
-            WIDTH,
-            HEIGHT,
+            renderWidth,
+            renderHeight,
             currentTime,
             assets,
             songData.parsedSubtitles,
@@ -284,6 +283,9 @@ export async function exportVideoWithFFmpeg(
             sessionId,
             fps: FPS,
             totalFrames,
+            width: renderWidth,
+            height: renderHeight,
+            quality: qualityValue,
             sync: !useAsyncEncoding,
         }),
     });
@@ -385,7 +387,7 @@ export async function exportVideoWithFFmpeg(
                     const aspectRatio = mergedConfig.orientation === 'landscape' ? '16:9' : '9:16';
                     await saveExportRecord(projectId, {
                         format: 'mp4',
-                        quality: 'high',
+                        quality: mergedConfig.quality || 'standard',
                         aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                         cloudUrl,
                         fileSize: videoBlob.size,
@@ -413,8 +415,8 @@ export async function exportVideoClientSide(
 ): Promise<ExportResult> {
     const { cloudSessionId, userId, projectId } = options;
     const mergedConfig = mergeExportConfig(config);
-    const WIDTH = mergedConfig.orientation === "landscape" ? RENDER_WIDTH_LANDSCAPE : RENDER_WIDTH_PORTRAIT;
-    const HEIGHT = mergedConfig.orientation === "landscape" ? RENDER_HEIGHT_LANDSCAPE : RENDER_HEIGHT_PORTRAIT;
+    const { width: renderWidth, height: renderHeight } = getExportDimensions(mergedConfig);
+    const qualityValue = getExportQualityValue(mergedConfig.quality);
 
     onProgress({
         stage: "loading",
@@ -547,8 +549,8 @@ export async function exportVideoClientSide(
 
     // 4. Create canvas
     const canvas = document.createElement("canvas");
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     applyPolyfills(ctx);
 
@@ -561,8 +563,8 @@ export async function exportVideoClientSide(
 
         await renderFrameToCanvas(
             ctx,
-            WIDTH,
-            HEIGHT,
+            renderWidth,
+            renderHeight,
             currentTime,
             assets,
             songData.parsedSubtitles,
@@ -624,10 +626,10 @@ export async function exportVideoClientSide(
         "256k",
         "-pix_fmt",
         "yuv420p",
-        "-vf", `scale=${WIDTH}:${HEIGHT}:flags=lanczos,setsar=1`,
+        "-vf", `scale=${renderWidth}:${renderHeight}:flags=lanczos,setsar=1`,
         "-shortest",
         "-preset", "medium",
-        "-crf", "18",
+        "-crf", String(qualityValue),
         "output.mp4",
     ]);
 

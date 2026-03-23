@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
 import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
+import type { ExportQualityPreset } from '@/services/ffmpeg/exportConfig';
 import type { ScreenplayScene, StoryState, ShotlistEntry } from '@/types';
 import { AppState } from '@/types';
 import { getEffectiveLegacyTone } from '@/services/tripletUtils';
@@ -84,6 +85,18 @@ export function parseStudioParams(searchParams: URLSearchParams): StudioParams {
     topic: topic || undefined,
     projectId: projectId || undefined,
   };
+}
+
+export function canOpenStudioEditor(input: {
+  pipelineScreenplayCount?: number;
+  storyBreakdownCount?: number;
+  contentPlanSceneCount?: number;
+}): boolean {
+  return Boolean(
+    input.pipelineScreenplayCount ||
+    input.storyBreakdownCount ||
+    input.contentPlanSceneCount
+  );
 }
 
 function normalizePipelineScenes(value: unknown): ScreenplayScene[] {
@@ -176,9 +189,11 @@ export default function StudioScreen() {
     setTopic,
     targetAudience,
     setTargetAudience,
+    videoPurpose,
     setTargetDuration,
     setVideoPurpose,
     setVisualStyle,
+    visualStyle,
     startProduction,
     reset,
     visuals,
@@ -187,6 +202,8 @@ export default function StudioScreen() {
     updateScenes,
     generateMusic,
     generateLyrics,
+    createMusicVideo,
+    generateCover,
     musicState,
     selectTrack,
     addMusicToTimeline,
@@ -196,12 +213,17 @@ export default function StudioScreen() {
     qualityReport,
     playingSceneId,
     browseSfx,
+    mixAudio,
     setPreferredCameraAngle,
     setPreferredLightingMood,
     uploadAudio,
     uploadAndCover,
     addVocals,
     addInstrumental,
+    checkPromptQuality,
+    improvePrompt,
+    getQualityHistoryData,
+    getQualityTrend,
     veoVideoCount,
     setVeoVideoCount,
     topic,
@@ -239,6 +261,9 @@ export default function StudioScreen() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const timelineAudioRef = useRef<HTMLAudioElement>(null);
   const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
+  // Ref tracks the current blob URL so the useEffect cleanup can revoke it
+  // without calling setState (calling setState in cleanup triggers a React warning).
+  const mergedAudioUrlRef = useRef<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const paramsAppliedRef = useRef(false);
@@ -429,12 +454,22 @@ export default function StudioScreen() {
         new Uint8Array(wavBuffer, WAV_HEADER_SIZE).set(mergedPcm);
 
         const mergedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-        setMergedAudioUrl(URL.createObjectURL(mergedBlob));
+        // Revoke previous blob URL before creating a new one to prevent memory leaks
+        if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
+        const newUrl = URL.createObjectURL(mergedBlob);
+        mergedAudioUrlRef.current = newUrl;
+        setMergedAudioUrl(newUrl);
       } catch (err) {
         console.error('Failed to merge audio:', err);
       }
     };
     mergeAudio();
+    return () => {
+      // Revoke via ref — avoids calling setState during cleanup (anti-pattern)
+      if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
+      mergedAudioUrlRef.current = null;
+      setMergedAudioUrl(null);
+    };
   }, [contentPlan, narrationSegments]);
 
   // Handle preview playback
@@ -546,52 +581,49 @@ export default function StudioScreen() {
 
     try {
       const agentResponse: AgentResponse = await studioAgent.processMessage(userInput);
+      const action = agentResponse.action;
       const messageUpdate: { content: string; quickActions?: QuickAction[] } = {
         content: agentResponse.message,
         quickActions: agentResponse.quickActions || []
       };
 
-      switch (agentResponse.action.type) {
+      switch (action.type) {
         case 'generate_music': {
-          const params = agentResponse.action.params as { prompt?: string; style?: string; title?: string; instrumental?: boolean; customMode?: boolean };
+          const params = action.params;
           updateLastMessage(messageUpdate);
           generateMusic({
-            prompt: params.prompt ?? "",
+            prompt: params.prompt ?? '',
             style: params.style,
             title: params.title,
             instrumental: params.instrumental,
             customMode: params.customMode,
-            model: 'V5'
+            model: (params.model || 'V5') as 'V4' | 'V4_5' | 'V4_5PLUS' | 'V4_5ALL' | 'V5'
           });
           trackMusicGeneration();
           setShowMusic(true);
           break;
         }
         case 'create_video': {
-          const params = agentResponse.action.params as { topic: string; duration?: number; style?: string; projectId?: string };
+          const videoParams = action.params;
           updateLastMessage(messageUpdate);
-          setTopic(params.topic);
-          setTargetDuration(params.duration || 60);
-          setVisualStyle(params.style || 'Cinematic');
+          setTopic(videoParams.topic);
+          setTargetDuration(videoParams.duration || 60);
+          setVisualStyle(videoParams.style || 'Cinematic');
           setVideoPurpose('documentary');
-
-          // Track video creation with actual params
           trackVideoCreation({
-            style: params.style || 'Cinematic',
-            duration: params.duration || 60
+            style: videoParams.style || 'Cinematic',
+            duration: videoParams.duration || 60,
           });
-
           startProduction({
             sessionId: sessionId || project?.cloudSessionId,
-            projectId: params.projectId,
             skipNarration: false,
-            targetDuration: params.duration || 60,
-            visualStyle: params.style || 'Cinematic',
+            targetDuration: videoParams.duration || 60,
+            visualStyle: videoParams.style || 'Cinematic',
             contentPlannerConfig: {
               videoPurpose: 'documentary',
-              visualStyle: params.style || 'Cinematic',
-            }
-          }, params.topic);
+              visualStyle: videoParams.style || 'Cinematic',
+            },
+          }, videoParams.topic);
           break;
         }
         case 'export_video': {
@@ -599,15 +631,153 @@ export default function StudioScreen() {
           updateLastMessage(messageUpdate);
           break;
         }
-        case 'reset': {
-          handleReset();
+        case 'modify_settings': {
+          const settings = action.settings;
+          if (typeof settings.targetAudience === 'string') setTargetAudience(settings.targetAudience);
+          if (typeof settings.style === 'string') setVisualStyle(settings.style);
+          if (typeof settings.duration === 'number') setTargetDuration(settings.duration);
+          if (typeof settings.mood === 'string') setVideoPurpose(settings.mood as typeof videoPurpose);
+          if (typeof settings.cameraAngle === 'string') setPreferredCameraAngle(settings.cameraAngle);
+          if (typeof settings.lightingMood === 'string') setPreferredLightingMood(settings.lightingMood);
+
+          const applied = [
+            typeof settings.targetAudience === 'string' ? `audience: ${settings.targetAudience}` : null,
+            typeof settings.style === 'string' ? `style: ${settings.style}` : null,
+            typeof settings.duration === 'number' ? `duration: ${settings.duration}s` : null,
+            typeof settings.cameraAngle === 'string' ? `camera: ${settings.cameraAngle}` : null,
+            typeof settings.lightingMood === 'string' ? `lighting: ${settings.lightingMood}` : null,
+          ].filter(Boolean).join(', ');
+
+          updateLastMessage({
+            content: applied
+              ? `Updated settings (${applied}).`
+              : 'I can update audience, style, duration, camera angle, and lighting right now.',
+            quickActions: messageUpdate.quickActions,
+          });
+          break;
+        }
+        case 'show_preview': {
+          updateLastMessage(messageUpdate);
+          if (contentPlan) {
+            setShowTimeline(true);
+          } else {
+            addMessage('assistant', 'Create a video first so I can show you a preview.');
+          }
+          break;
+        }
+        case 'add_vocals': {
+          updateLastMessage(messageUpdate);
+          setMusicModalMode('remix');
+          setShowMusic(true);
+          await addVocals({
+            uploadUrl: action.params.uploadUrl,
+            prompt: action.params.prompt,
+            title: contentPlan?.title || topic || 'With Vocals',
+            model: 'V4_5PLUS',
+          });
+          addMessage('assistant', 'Vocals remix started in the music panel.');
+          break;
+        }
+        case 'generate_cover': {
+          updateLastMessage(messageUpdate);
+          setMusicModalMode('remix');
+          setShowMusic(true);
+          const taskId = action.params.taskId || musicState.taskId;
+          if (!taskId) {
+            addMessage('assistant', 'Generate a track first so I can create a cover.');
+            break;
+          }
+          await generateCover(taskId);
+          addMessage('assistant', 'Cover generation started.');
+          break;
+        }
+        case 'create_music_video': {
+          updateLastMessage(messageUpdate);
+          setMusicModalMode('remix');
+          setShowMusic(true);
+          const selectedTrack = musicState.generatedTracks.find((track) => track.id === musicState.selectedTrackId) || musicState.generatedTracks[0] || null;
+          const taskId = action.params.taskId || musicState.taskId;
+          const audioId = action.params.audioId || selectedTrack?.id;
+          if (!taskId || !audioId) {
+            addMessage('assistant', 'Generate and select a track first so I can create a music video.');
+            break;
+          }
+          await createMusicVideo(taskId, audioId);
+          addMessage('assistant', 'Music video generation started.');
+          break;
+        }
+        case 'mix_audio': {
+          updateLastMessage(messageUpdate);
+          if (!contentPlan || narrationSegments.length === 0) {
+            addMessage('assistant', 'Generate narration first so I can mix the audio.');
+            break;
+          }
+          const params = action.params;
+          const mixedBlob = await mixAudio(contentPlan, narrationSegments, {
+            includeSfx: params.includeSfx,
+            includeMusic: params.includeMusic,
+          });
+          if (mixedBlob) {
+            if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
+            const nextUrl = URL.createObjectURL(mixedBlob);
+            mergedAudioUrlRef.current = nextUrl;
+            setMergedAudioUrl(nextUrl);
+            setShowTimeline(true);
+            addMessage('assistant', 'Audio mix updated.');
+          }
+          break;
+        }
+        case 'show_quality_history': {
+          updateLastMessage(messageUpdate);
+          const history = getQualityHistoryData();
+          const trend = getQualityTrend();
+          if (!history.length) {
+            addMessage('assistant', 'No quality history is available yet. Generate a quality report first.');
+            break;
+          }
+          addMessage(
+            'assistant',
+            trend
+              ? `Quality history: ${history.length} reports. Trend: ${trend.trend}. Average overall score: ${Math.round(trend.avgOverall)}/100.`
+              : `Quality history: ${history.length} reports.`
+          );
+          break;
+        }
+        case 'refine_prompt': {
+          updateLastMessage(messageUpdate);
+          const params = action.params;
+          if (!params.promptText) {
+            addMessage('assistant', 'I need a prompt to refine.');
+            break;
+          }
+          const intent = params.intent === 'more_detailed' || params.intent === 'more_cinematic' || params.intent === 'shorten'
+            ? params.intent
+            : 'auto';
+          const result = await improvePrompt(params.promptText, intent);
+          setInput(result.refinedPrompt);
+          addMessage('assistant', `Refined prompt:\n${result.refinedPrompt}`);
+          break;
+        }
+        case 'lint_prompt': {
+          updateLastMessage(messageUpdate);
+          const params = action.params;
+          if (!params.promptText) {
+            addMessage('assistant', 'I need a prompt to lint.');
+            break;
+          }
+          const issues = checkPromptQuality(params.promptText, topic);
+          addMessage(
+            'assistant',
+            issues.length === 0
+              ? 'No major prompt issues found.'
+              : `Prompt issues:\n- ${issues.map((issue) => issue.message).join('\n- ')}`
+          );
           break;
         }
         case 'browse_sfx': {
-          const params = agentResponse.action.params as { category: string };
           updateLastMessage(messageUpdate);
           try {
-            const sound = await browseSfx(params.category);
+            const sound = await browseSfx(action.params.category);
             if (sound) {
               addMessage('assistant', `Found SFX: "${sound.name}" (${sound.duration.toFixed(1)}s)`);
             }
@@ -618,9 +788,8 @@ export default function StudioScreen() {
           break;
         }
         case 'set_camera_style': {
-          const params = agentResponse.action.params as { angle?: string; lighting?: string };
-          if (params.angle) setPreferredCameraAngle(params.angle);
-          if (params.lighting) setPreferredLightingMood(params.lighting);
+          if (action.params.angle) setPreferredCameraAngle(action.params.angle);
+          if (action.params.lighting) setPreferredLightingMood(action.params.lighting);
           updateLastMessage(messageUpdate);
           break;
         }
@@ -629,22 +798,76 @@ export default function StudioScreen() {
             setShowQuality(true);
             updateLastMessage(messageUpdate);
           } else {
-            updateLastMessage({ content: t('common.error') });
+            addMessage('assistant', 'Generate a quality report first.');
           }
           break;
         }
-        default: {
+        case 'respond': {
           updateLastMessage(messageUpdate);
+          break;
+        }
+        case 'ask_clarification': {
+          updateLastMessage({
+            content: [messageUpdate.content, action.question].filter(Boolean).join('\n\n'),
+            quickActions: messageUpdate.quickActions,
+          });
+          break;
+        }
+        case 'reset': {
+          handleReset();
+          break;
         }
       }
     } catch (err) {
       console.error('Agent error:', err);
       updateLastMessage({ content: t('errors.generic') });
+    } finally {
+      setTyping(false);
+      setIsProcessing(false);
     }
-
-    setTyping(false);
-    setIsProcessing(false);
-  }, [input, isProcessing, addMessage, updateLastMessage, setTyping, setTopic, setTargetDuration, setVisualStyle, setVideoPurpose, startProduction, handleReset, browseSfx, setPreferredCameraAngle, setPreferredLightingMood, qualityReport, generateMusic, t, setShowMusic, setShowExport, setShowQuality]);
+  }, [
+    input,
+    isProcessing,
+    addMessage,
+    updateLastMessage,
+    setTyping,
+    generateMusic,
+    trackMusicGeneration,
+    trackVideoCreation,
+    startProduction,
+    sessionId,
+    project?.cloudSessionId,
+    setTopic,
+    setTargetDuration,
+    setVisualStyle,
+    setVideoPurpose,
+    setTargetAudience,
+    setPreferredCameraAngle,
+    setPreferredLightingMood,
+    setShowExport,
+    setShowMusic,
+    setShowTimeline,
+    setShowQuality,
+    setMusicModalMode,
+    contentPlan,
+    narrationSegments,
+    mergedAudioUrl,
+    musicState,
+    browseSfx,
+    mixAudio,
+    generateCover,
+    createMusicVideo,
+    addVocals,
+    checkPromptQuality,
+    improvePrompt,
+    getQualityHistoryData,
+    getQualityTrend,
+    qualityReport,
+    topic,
+    t,
+    handleReset,
+    videoPurpose,
+  ]);
 
   const handleQuickAction = useCallback(async (action: { type: string; params?: Record<string, unknown> }) => {
     if (isProcessing) return;
@@ -695,10 +918,9 @@ export default function StudioScreen() {
           break;
         }
         case 'ask_clarification': {
-          // Handle clarification requests - just send the message
-          const params = action.params as { message?: string } | undefined;
-          if (params?.message) {
-            setInput(params.message);
+          const clarificationAction = action as { type: 'ask_clarification'; question?: string };
+          if (clarificationAction.question) {
+            setInput(clarificationAction.question);
           }
           break;
         }
@@ -741,7 +963,7 @@ export default function StudioScreen() {
   }, [messages, recordFeedback]);
 
   const handleExport = useCallback(async (
-    config: { presetId: string; width: number; height: number; orientation: 'landscape' | 'portrait'; quality: string },
+    config: { presetId: string; width: number; height: number; orientation: 'landscape' | 'portrait'; quality: ExportQualityPreset },
     onProgress?: (percent: number) => void
   ) => {
     if (!contentPlan || narrationSegments.length === 0 || !mergedAudioUrl) {
@@ -804,6 +1026,9 @@ export default function StudioScreen() {
       (p) => onProgress?.(p.progress),
       {
         orientation: config.orientation,
+        width: config.width,
+        height: config.height,
+        quality: config.quality,
         useModernEffects: true,
         transitionType: 'dissolve',
         transitionDuration: 1.5,
@@ -938,7 +1163,7 @@ export default function StudioScreen() {
       ? storedState.shotlist
       : buildFallbackShotlist(screenplay, partialResults.visuals);
 
-    const narrationSegments = Array.isArray(partialResults.narrationSegments)
+    const importedNarrationSegments = Array.isArray(partialResults.narrationSegments)
       ? partialResults.narrationSegments.flatMap((segment: any) => {
         const audioUrl = typeof segment?.audioUrl === 'string' && segment.audioUrl
           ? segment.audioUrl
@@ -967,7 +1192,7 @@ export default function StudioScreen() {
       || 'Imported Story';
 
     const importedState: StoryState = {
-      currentStep: narrationSegments?.length ? 'narration' : shotlist.length > 0 ? 'storyboard' : 'script',
+      currentStep: importedNarrationSegments?.length ? 'narration' : shotlist.length > 0 ? 'storyboard' : 'script',
       breakdown: screenplay,
       script: {
         title: importedTopic,
@@ -981,9 +1206,9 @@ export default function StudioScreen() {
       imageProvider: storyHook.state.imageProvider || 'gemini',
       scenesWithShots: Array.from(new Set(shotlist.map((shot) => shot.sceneId))),
       scenesWithVisuals: Array.from(new Set(shotlist.filter((shot) => Boolean(shot.imageUrl)).map((shot) => shot.sceneId))),
-      ...(narrationSegments?.length ? {
-        narrationSegments,
-        scenesWithNarration: Array.from(new Set(narrationSegments.map((segment: { sceneId: string }) => segment.sceneId))),
+      ...(importedNarrationSegments?.length ? {
+        narrationSegments: importedNarrationSegments,
+        scenesWithNarration: Array.from(new Set(importedNarrationSegments.map((segment: { sceneId: string }) => segment.sceneId))),
       } : {}),
     };
 
@@ -998,74 +1223,80 @@ export default function StudioScreen() {
   const handleOpenInEditor = useCallback(() => {
     const editorStore = useVideoEditorStore.getState();
     editorStore.reset();
-
-    // Create Tracks
     editorStore.addTrack('video', 'Visuals');
     editorStore.addTrack('audio', 'Voiceover');
 
-    let visuals: any[] = [];
-    let narrations: any[] = [];
-    let breakdown: any[] = [];
+    const pipelineResults = formatPipelineHook.result?.success ? formatPipelineHook.result.partialResults : null;
+    const editorVisuals: any[] = pipelineResults?.visuals?.length
+      ? pipelineResults.visuals
+      : storyHook.state.shotlist?.length
+        ? storyHook.state.shotlist
+        : visuals;
+    const editorNarrations: any[] = pipelineResults?.narrationSegments?.length
+      ? pipelineResults.narrationSegments
+      : storyHook.state.narrationSegments?.length
+        ? storyHook.state.narrationSegments
+        : narrationSegments;
+    const editorBreakdown: any[] = pipelineResults?.screenplay?.length
+      ? pipelineResults.screenplay
+      : storyHook.state.breakdown?.length
+        ? storyHook.state.breakdown
+        : contentPlan?.scenes || [];
 
-    if (formatPipelineHook.result?.success) {
-      const pr = formatPipelineHook.result.partialResults;
-      visuals = pr?.visuals || [];
-      narrations = pr?.narrationSegments || [];
-      breakdown = pr?.screenplay || [];
-    } else {
-      visuals = storyHook.state.scenesWithVisuals || [];
-      narrations = storyHook.state.narrationSegments || [];
-      breakdown = storyHook.state.breakdown || [];
+    if (editorBreakdown.length === 0) {
+      return;
     }
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       const state = useVideoEditorStore.getState();
-      const videoTrack = state.tracks.find(t => t.type === 'video');
-      const audioTrack = state.tracks.find(t => t.type === 'audio');
+      const videoTrack = state.tracks.find((track) => track.type === 'video');
+      const audioTrack = state.tracks.find((track) => track.type === 'audio');
 
       let currentTime = 0;
-      breakdown.forEach((scene: any, idx: number) => {
-        const visual = visuals.find((v: any) => v.sceneId === scene.id || v.sceneId === scene.sceneId);
-        const narration = narrations.find((n: any) => n.sceneId === scene.id || n.sceneId === scene.sceneId);
+      editorBreakdown.forEach((scene: any, idx: number) => {
+        const sceneId = scene.id || scene.sceneId;
+        const visual = editorVisuals.find((item: any) => (item.sceneId || item.id || item.promptId) === sceneId);
+        const narration = editorNarrations.find((item: any) => item.sceneId === sceneId);
         const duration = narration?.audioDuration || scene.duration || 5;
 
-        if (visual && videoTrack) {
+        if (visual?.imageUrl && videoTrack) {
           state.addClip({
             trackId: videoTrack.id,
             type: 'video',
             startTime: currentTime,
-            duration: duration,
+            duration,
             name: scene.heading || `Scene ${idx + 1}`,
             sourceUrl: visual.imageUrl,
             thumbnailUrl: visual.imageUrl,
             inPoint: 0,
-            outPoint: duration
+            outPoint: duration,
           });
         }
 
         if (narration && audioTrack) {
-          const url = narration.audioBlob ? URL.createObjectURL(narration.audioBlob) : narration.audioUrl;
-          if (url) {
+          const narrationUrl = narration.audioBlob ? URL.createObjectURL(narration.audioBlob) : narration.audioUrl;
+          if (typeof narrationUrl === 'string' && narrationUrl.length > 0) {
             state.addClip({
               trackId: audioTrack.id,
               type: 'audio',
               startTime: currentTime,
-              duration: duration,
+              duration,
               name: `Voiceover ${idx + 1}`,
-              sourceUrl: url,
+              sourceUrl: narrationUrl,
               inPoint: 0,
-              outPoint: duration
+              outPoint: duration,
             });
           }
         }
+
         currentTime += duration;
       });
 
-      if (mergedAudioUrl) {
+      if (typeof mergedAudioUrl === 'string' && mergedAudioUrl.length > 0) {
         editorStore.addTrack('audio', 'Music');
-        setTimeout(() => {
+        window.setTimeout(() => {
           const state2 = useVideoEditorStore.getState();
-          const musicTrack = [...state2.tracks].reverse().find(t => t.type === 'audio' && t.name === 'Music');
+          const musicTrack = [...state2.tracks].reverse().find((track) => track.type === 'audio' && track.name === 'Music');
           if (musicTrack) {
             state2.addClip({
               trackId: musicTrack.id,
@@ -1075,7 +1306,7 @@ export default function StudioScreen() {
               name: 'Background Music',
               sourceUrl: mergedAudioUrl,
               inPoint: 0,
-              outPoint: currentTime
+              outPoint: currentTime,
             });
           }
         }, 0);
@@ -1083,18 +1314,15 @@ export default function StudioScreen() {
 
       setStudioMode('editor');
     }, 50);
-  }, [formatPipelineHook.result, storyHook.state, mergedAudioUrl]);
+  }, [formatPipelineHook.result, storyHook.state, visuals, narrationSegments, contentPlan, mergedAudioUrl]);
 
-  // Auto-transition to Editor upon format pipeline completion
-  useEffect(() => {
-    if (!formatPipelineHook.isRunning && formatPipelineHook.result?.success) {
-      const resultHash = (params.projectId || 'fp') + '_' + (formatPipelineHook.result.partialResults?.totalDuration || Date.now());
-      if (lastProcessedResultRef.current !== resultHash) {
-        lastProcessedResultRef.current = resultHash;
-        handleOpenInEditor();
-      }
-    }
-  }, [formatPipelineHook.isRunning, formatPipelineHook.result, handleOpenInEditor, params.projectId]);
+  const canOpenEditor = useMemo(() => {
+    return canOpenStudioEditor({
+      pipelineScreenplayCount: formatPipelineHook.result?.partialResults?.screenplay?.length,
+      storyBreakdownCount: storyHook.state.breakdown?.length,
+      contentPlanSceneCount: contentPlan?.scenes.length,
+    });
+  }, [formatPipelineHook.result, storyHook.state.breakdown, contentPlan]);
 
   // Quick actions for welcome state
   const quickActionItems = useMemo(() => [
@@ -1136,10 +1364,14 @@ export default function StudioScreen() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setStudioMode('editor')}
+          onClick={handleOpenInEditor}
+          disabled={!canOpenEditor}
           className={cn(
             "h-7 px-3 text-[10px] uppercase font-bold transition-all",
-            studioMode === 'editor' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
+            studioMode === 'editor'
+              ? "bg-primary text-primary-foreground shadow-lg"
+              : "text-muted-foreground hover:text-foreground",
+            !canOpenEditor && "opacity-50 cursor-not-allowed hover:text-muted-foreground"
           )}
         >
           Editor
@@ -1296,7 +1528,7 @@ export default function StudioScreen() {
       onBack={() => navigate('/')}
       headerActions={headerActions}
       contentClassName={cn("py-8", studioMode === 'story' && "p-0 h-full")}
-      maxWidth={studioMode === 'story' ? 'full' : '3xl'}
+      maxWidth={studioMode === 'story' || viewMode === 'advanced' ? 'full' : '3xl'}
       footer={
         studioMode === 'chat' ? (
           <ChatInput
@@ -1391,6 +1623,7 @@ export default function StudioScreen() {
             onUpdateImageProvider={storyHook.updateImageProvider}
             onUpdateStyleConsistency={storyHook.updateStyleConsistency}
             onUpdateBgRemoval={storyHook.updateBgRemoval}
+            onUpdateTtsSettings={storyHook.updateTtsSettings}
             // Error handling
             error={storyHook.error}
             onClearError={storyHook.clearError}
@@ -1576,26 +1809,14 @@ export default function StudioScreen() {
           <SettingsModal
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
-            contentType={params.mode === 'music' ? 'music' : 'story'}
-            onContentTypeChange={() => { }}
-            videoPurpose={params.mode === 'video' ? 'documentary' : 'music_video'}
-            onVideoPurposeChange={(purpose) => {
-              if (purpose !== 'documentary') setVideoPurpose(purpose);
-            }}
+            videoPurpose={videoPurpose}
+            onVideoPurposeChange={setVideoPurpose}
             targetAudience={targetAudience}
             onTargetAudienceChange={setTargetAudience}
-            generationMode={params.mode === 'music' ? 'image' : 'video'}
-            onGenerationModeChange={() => { }}
-            videoProvider="veo"
-            onVideoProviderChange={() => { }}
             veoVideoCount={veoVideoCount}
             onVeoVideoCountChange={setVeoVideoCount}
-            aspectRatio="16:9"
-            onAspectRatioChange={() => { }}
-            selectedStyle={params.style || 'Cinematic'}
-            onStyleChange={(style: string) => setVisualStyle(style)}
-            globalSubject=""
-            onGlobalSubjectChange={() => { }}
+            selectedStyle={visualStyle || params.style || 'Cinematic'}
+            onStyleChange={setVisualStyle}
           />
         </>
       )}

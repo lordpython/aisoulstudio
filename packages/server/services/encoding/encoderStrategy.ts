@@ -268,17 +268,18 @@ export function getFallbackChain(primary: EncoderType): EncoderType[] {
 /**
  * Build encoder-specific FFmpeg arguments
  */
-export function getEncoderArgs(encoder: EncoderType): string[] {
+export function getEncoderArgs(encoder: EncoderType, quality?: number): string[] {
   const args: string[] = ['-c:v', encoder];
 
-  const quality = ENCODING_SPEC.quality;
+  const qualitySpecs = ENCODING_SPEC.quality;
+  const effectiveQuality = quality ?? qualitySpecs.libx264.crf;
 
   switch (encoder) {
     case 'h264_nvenc':
       args.push(
-        '-preset', quality.nvenc.preset,
+        '-preset', qualitySpecs.nvenc.preset,
         '-rc', 'vbr',
-        '-cq', String(quality.nvenc.cq),
+        '-cq', String(effectiveQuality),
         '-b:v', '12M',
         '-maxrate', '18M',
         '-bufsize', '24M'
@@ -287,18 +288,18 @@ export function getEncoderArgs(encoder: EncoderType): string[] {
 
     case 'h264_qsv':
       args.push(
-        '-preset', quality.qsv.preset,
-        '-global_quality', String(quality.qsv.cq),
+        '-preset', qualitySpecs.qsv.preset,
+        '-global_quality', String(effectiveQuality),
         '-look_ahead', '1'
       );
       break;
 
     case 'h264_amf':
       args.push(
-        '-quality', quality.amf.preset,
+        '-quality', qualitySpecs.amf.preset,
         '-rc', 'vbr_latency',
-        '-qp_i', String(quality.amf.cq),
-        '-qp_p', String(quality.amf.cq + 2)
+        '-qp_i', String(effectiveQuality),
+        '-qp_p', String(effectiveQuality + 2)
       );
       break;
 
@@ -306,8 +307,8 @@ export function getEncoderArgs(encoder: EncoderType): string[] {
     default:
       const cpuCount = Math.max(2, os.cpus().length - 2);
       args.push(
-        '-preset', quality.libx264.preset,
-        '-crf', String(quality.libx264.crf),
+        '-preset', qualitySpecs.libx264.preset,
+        '-crf', String(effectiveQuality),
         '-tune', 'film',
         '-threads', String(cpuCount)
       );

@@ -1,5 +1,6 @@
 import { cloudAutosave } from "./cloudStorageService";
 import { enhanceImg2ImgPrompt } from "./deapiPromptService";
+import { DEAPI_TTS_MODELS } from "./narratorService";
 
 const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 const PROXY_BASE = "/api/deapi/proxy"; // Server-side proxy to bypass CORS
@@ -437,14 +438,16 @@ async function pollRequest(requestId: string, onProgress?: (progress: number, pr
 const getDeApiDimensions = (
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
 ): { width: number; height: number } => {
-  // DeAPI supports up to 768px and requires dimensions divisible by 32
+  // DeAPI supports up to 768px and requires dimensions divisible by 8.
+  // img2video additionally requires a minimum of 512px on each dimension.
   switch (aspectRatio) {
     case "16:9":
-      // Landscape: 768 x 432 (close to 16:9 ratio, divisible by 8)
-      return { width: 768, height: 432 };
+      // Landscape: 768 x 512 (divisible by 8; 512 is the DeAPI img2video minimum height)
+      return { width: 768, height: 512 };
     case "9:16":
-      // Portrait: 432 x 768 (close to 9:16 ratio, divisible by 8)
-      return { width: 432, height: 768 };
+      // Portrait: 512 x 768 (divisible by 8; 512 meets DeAPI img2video minimum width)
+      // Using 512 instead of 432 to satisfy the 512px minimum without silent clamping
+      return { width: 512, height: 768 };
     case "1:1":
       // Square: 768 x 768
       return { width: 768, height: 768 };
@@ -735,11 +738,20 @@ export const animateImageWithDeApi = async (
     ? Math.round(options.targetDurationSeconds * 24)
     : (motionFrameMap[motionStrength] || 121);
 
+  // Safety clamp: DeAPI img2video requires a minimum of 512px on each dimension.
+  // getDeApiDimensions() should already satisfy this — if the clamp fires, the
+  // aspect ratio has been silently altered and getDeApiDimensions() needs fixing.
+  const safeWidth = Math.max(width, 512);
+  const safeHeight = Math.max(height, 512);
+  if (safeWidth !== width || safeHeight !== height) {
+    console.warn(`[DeAPI] Dimension clamp applied: ${width}x${height} → ${safeWidth}x${safeHeight}. Update getDeApiDimensions() to fix at source.`);
+  }
+
   formData.append("first_frame_image", imageBlob, "frame0.png");
   formData.append("prompt", prompt);
   formData.append("frames", frames.toString());
-  formData.append("width", width.toString());
-  formData.append("height", height.toString());
+  formData.append("width", safeWidth.toString());
+  formData.append("height", safeHeight.toString());
   formData.append("fps", "24");
   formData.append("model", DEFAULT_VIDEO_MODEL);
   formData.append("guidance", "0"); // Distilled model does not support CFG
@@ -757,7 +769,7 @@ export const animateImageWithDeApi = async (
     formData.append("webhook_url", options.webhook_url);
   }
 
-  console.log(`[DeAPI] Submitting img2video request: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+  console.log(`[DeAPI] Submitting img2video request: ${safeWidth}x${safeHeight}, prompt: ${prompt.substring(0, 50)}...`);
 
   // 2. Submit Request
   // Browser uses dedicated proxy endpoint that handles FormData properly
@@ -887,6 +899,140 @@ export const animateImageWithDeApi = async (
       reject(new Error("Failed to convert video to base64"));
     reader.readAsDataURL(vidBlob);
   });
+};
+
+/**
+ * Generates audio using DeAPI's Qwen3 VoiceDesign model.
+ * 
+ * @param text - Text to convert to speech (max 5000 chars, min 10)
+ * @param directorNote - Voice style/persona prompt for voice design
+ * @param language - Language for synthesis (capitalized, e.g., "English", "Arabic")
+ * @param model - DeAPI TTS model to use (defaults to Qwen3 VoiceDesign)
+ * @returns Audio blob as MP3
+ */
+export async function generateDeapiQwenTTS(
+    text: string, 
+    directorNote: string, 
+    language: string = "English",
+    model: string = "Qwen3_TTS_12Hz_1_7B_VoiceDesign"
+): Promise<Blob> {
+    if (!isDeApiConfigured()) {
+        throw new Error(
+            "DeAPI API key is not configured on the server.\n\n" +
+            "To use DeAPI TTS:\n" +
+            "1. Get an API key from https://deapi.ai\n" +
+            "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+            "3. Restart the development server (npm run dev:all)"
+        );
+    }
+
+    // Qwen limits: max 5000 chars, min 10
+    const safeText = text.length < 10 ? text.padEnd(10, ' ') : text.slice(0, 5000);
+
+    const payload = {
+        model: model,
+        task_type: "txt2audio",
+        input: {
+            text: safeText,
+            // Since supports_voice_design is true, we pass the style/persona as the voice prompt
+            voice_prompt: directorNote 
+        },
+        config: {
+            lang: language,
+            speed: 1, // JSON says max 1, min 1
+            format: "mp3",
+            sample_rate: 24000
+        }
+    };
+
+    console.log(`[DeAPI TTS] Generating speech with model ${model}: "${safeText.substring(0, 50)}..."`);
+    console.log(`[DeAPI TTS] Voice prompt: "${directorNote}"`);
+
+    // Call your existing DeAPI proxy/fetcher here
+    const response = await withExponentialBackoff(async () => {
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+
+        // Only add Authorization header for direct API calls (not proxy)
+        if (!isBrowser) {
+            headers.Authorization = `Bearer ${API_KEY}`;
+            headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0";
+        }
+
+        const apiEndpoint = isBrowser ? '/api/deapi/proxy/predict' : `${DEAPI_DIRECT_BASE}/predict`;
+        
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `DeAPI TTS request failed (${response.status})`;
+            
+            try {
+                const errorJson = JSON.parse(errorText);
+                if (errorJson.message) errorMessage = `DeAPI TTS: ${errorJson.message}`;
+                else if (errorJson.error) errorMessage = `DeAPI TTS: ${errorJson.error}`;
+            } catch {
+                if (errorText) errorMessage = `DeAPI TTS: ${errorText.substring(0, 200)}`;
+            }
+            
+            throw new Error(errorMessage);
+        }
+
+        return response;
+    });
+
+    // Convert the returned audio buffer to a Blob
+    const arrayBuffer = await response.arrayBuffer();
+    console.log(`[DeAPI TTS] Received ${arrayBuffer.byteLength} bytes of MP3 audio`);
+    return new Blob([arrayBuffer], { type: 'audio/mpeg' });
+}
+
+/**
+ * Get available DeAPI TTS models with descriptions
+ */
+export const getDeApiTtsModels = () => ({
+    [DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN]: {
+        name: "Qwen3 VoiceDesign",
+        description: "12Hz 1.7B model with voice design capabilities",
+        supportsVoiceDesign: true,
+        maxChars: 5000,
+        minChars: 10,
+        languages: ["English", "Arabic", "Chinese", "Spanish", "French", "German", "Russian", "Japanese", "Korean"],
+        sampleRate: 24000,
+        format: "mp3"
+    },
+    // Add more models here as they become available
+});
+
+/**
+ * Helper to map language codes to DeAPI's capitalized format
+ */
+export const mapLanguageToDeApiFormat = (languageCode?: string): string => {
+    if (!languageCode || languageCode === 'auto') return "English";
+    
+    const langMap: Record<string, string> = {
+        'en': 'English',
+        'ar': 'Arabic', 
+        'zh': 'Chinese',
+        'es': 'Spanish',
+        'fr': 'French',
+        'de': 'German',
+        'ru': 'Russian',
+        'ja': 'Japanese',
+        'ko': 'Korean',
+        'hi': 'Hindi',
+        'tr': 'Turkish',
+        'fa': 'Persian',
+        'ur': 'Urdu',
+        'he': 'Hebrew'
+    };
+    
+    return langMap[languageCode] || "English";
 };
 
 /**

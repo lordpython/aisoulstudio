@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppState, SongData, GeneratedImage, AssetType, ImagePrompt, SubtitleItem } from "@/types";
 import {
   transcribeAudioWithWordTiming,
@@ -25,6 +25,8 @@ import { calculateOptimalAssets } from "@/services/assetCalculatorService";
 export function useLyricLens() {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [songData, setSongData] = useState<SongData | null>(null);
+  // Track the current audio blob URL so it can be revoked when replaced or cleared
+  const audioBlobUrlRef = useRef<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [contentType, setContentType] = useState<"music" | "story">("music");
@@ -66,7 +68,11 @@ export function useLyricLens() {
       setAppState(AppState.PROCESSING_AUDIO);
 
       // 1. Setup local preview
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+      }
       const audioUrl = URL.createObjectURL(file);
+      audioBlobUrlRef.current = audioUrl;
       const partialData: SongData = {
         fileName: file.name,
         audioUrl,
@@ -425,6 +431,10 @@ export function useLyricLens() {
   };
 
   const resetApp = () => {
+    if (audioBlobUrlRef.current) {
+      URL.revokeObjectURL(audioBlobUrlRef.current);
+      audioBlobUrlRef.current = null;
+    }
     setAppState(AppState.IDLE);
     setSongData(null);
     setPendingFile(null);

@@ -485,14 +485,36 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        const response = await fetch(`https://api.deapi.ai/api/v1/client/prompt/${type}`, {
-            method: 'POST',
-            headers: {
+        // DeAPI requires multipart/form-data for video and image2image prompt
+        // enhancement endpoints, but JSON for image and speech endpoints.
+        const multipartTypes = ['video', 'image2image'];
+        const useMultipart = multipartTypes.includes(type);
+
+        let fetchBody: BodyInit;
+        let fetchHeaders: Record<string, string>;
+
+        if (useMultipart) {
+            const formData = new FormData();
+            formData.append('prompt', prompt);
+            fetchBody = formData;
+            // Do NOT set Content-Type manually — fetch sets it with the boundary
+            fetchHeaders = {
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+                'Accept': 'application/json',
+            };
+        } else {
+            fetchBody = JSON.stringify({ prompt });
+            fetchHeaders = {
                 'Authorization': `Bearer ${DEAPI_API_KEY}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-            },
-            body: JSON.stringify({ prompt }),
+            };
+        }
+
+        const response = await fetch(`https://api.deapi.ai/api/v1/client/prompt/${type}`, {
+            method: 'POST',
+            headers: fetchHeaders,
+            body: fetchBody,
         });
 
         const data = await response.json();

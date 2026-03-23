@@ -34,7 +34,7 @@ temp
 
 # Kiro
 .kiro/
-
+.windsurf/
 # Environment files
 .env
 .env.local

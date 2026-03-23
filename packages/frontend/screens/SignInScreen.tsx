@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -235,18 +235,21 @@ function NeuralBackground() {
 
 export default function SignInScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading, error, signInWithGoogle, signInWithEmail, createAccount, clearError, isAuthenticated } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const redirectTo = (location.state as { from?: string } | null)?.from || '/';
+
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate('/', { replace: true });
+      navigate(redirectTo, { replace: true });
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, redirectTo]);
 
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);

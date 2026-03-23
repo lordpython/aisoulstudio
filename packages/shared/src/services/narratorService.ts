@@ -21,6 +21,7 @@ import { logAICall } from "./aiLogService";
 import { getEffectiveTriplet, getEffectiveLegacyTone } from "./tripletUtils";
 import { tripletToPromptFragments } from "./prompt/vibeLibrary";
 import { convertMarkersToDirectorNote } from "./tts/deliveryMarkers";
+import { generateDeapiQwenTTS, mapLanguageToDeApiFormat } from "./deapiService";
 
 // --- TTS Throttling (mutex-safe for parallel callers) ---
 // Gemini TTS has rate limits; enforce minimum delay between calls via a promise-chain mutex.
@@ -55,6 +56,23 @@ async function acquireTtsSlot(): Promise<() => void> {
         setTimeout(releaseCallback, TTS_INTER_CALL_DELAY_MS);
     };
 }
+
+// --- TTS Provider Configuration ---
+
+/**
+ * Available TTS providers
+ */
+export type TTSProvider = 'gemini' | 'deapi_qwen';
+
+/**
+ * Available DeAPI TTS models
+ */
+export const DEAPI_TTS_MODELS = {
+  QWEN3_VOICE_DESIGN: "Qwen3_TTS_12Hz_1_7B_VoiceDesign",
+  // Add more models here as they become available
+} as const;
+
+export type DeApiTtsModel = typeof DEAPI_TTS_MODELS[keyof typeof DEAPI_TTS_MODELS];
 
 // --- Voice Configuration ---
 
@@ -176,6 +194,10 @@ export interface NarratorConfig {
     styleOverride?: StylePrompt;
     /** Content language - affects voice selection for multilingual support */
     language?: LanguageCode;
+    /** TTS provider to use ('gemini' or 'deapi_qwen') */
+    provider?: TTSProvider;
+    /** DeAPI TTS model (when using deapi_qwen provider) */
+    deapiModel?: DeApiTtsModel;
 }
 
 /**
@@ -199,10 +221,17 @@ const LANGUAGE_VOICE_MAP: Partial<Record<string, TTSVoice>> = {
     'he': TTS_VOICES.AOEDE,   // Hebrew
 };
 
-const DEFAULT_CONFIG: Required<Omit<NarratorConfig, 'styleOverride' | 'language'>> & { styleOverride?: StylePrompt; language?: LanguageCode } = {
+const DEFAULT_CONFIG: Required<Omit<NarratorConfig, 'styleOverride' | 'language' | 'provider' | 'deapiModel'>> & { 
+    styleOverride?: StylePrompt; 
+    language?: LanguageCode; 
+    provider?: TTSProvider;
+    deapiModel?: DeApiTtsModel;
+} = {
     model: MODELS.TTS,
     defaultVoice: TTS_VOICES.KORE,
     videoPurpose: "documentary",
+    provider: "gemini",
+    deapiModel: DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN,
 };
 
 // --- Multi-Voice Dialogue Support ---
@@ -683,7 +712,22 @@ export const synthesizeSpeech = traceAsync(
 
         const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-        // Format text with style prompt (Director's Note) for Gemini 2.5 TTS
+        // Build the director's note (used by both Gemini and Qwen)
+        const directorNote = buildDirectorNote(resolvedConfig.stylePrompt);
+
+        // --- NEW: Route to DeAPI Qwen3 ---
+        if (mergedConfig.provider === 'deapi_qwen') {
+            console.log(`[Narrator] Routing to DeAPI Qwen3 TTS...`);
+            
+            // Map LanguageCode to Qwen's specific capitalized string requirements
+            const qwenLang = mapLanguageToDeApiFormat(mergedConfig.language);
+            
+            return await withRetry(() => 
+                generateDeapiQwenTTS(text, directorNote, qwenLang, mergedConfig.deapiModel)
+            , 3, 2000, 2);
+        }
+
+        // --- EXISTING: Route to Gemini ---
         const styledText = formatTextWithStyle(text, resolvedConfig.stylePrompt);
 
         console.log(`[Narrator] Synthesizing speech: "${text.substring(0, 50)}..." with voice ${resolvedConfig.voiceName}`);

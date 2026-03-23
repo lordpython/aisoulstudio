@@ -1,13 +1,6 @@
 import React from "react";
 import {
-  Music,
-  Speech,
-  Smartphone,
-  Monitor,
   Sparkles,
-  Film,
-  Zap,
-  Target,
   User,
   X,
   Settings,
@@ -27,29 +20,18 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { motion, AnimatePresence } from "framer-motion";
 import { ART_STYLES, VIDEO_PURPOSES, type VideoPurpose } from "@/constants";
 // cn utility removed - not used in this component
 
 export interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  contentType: "music" | "story";
   videoPurpose: VideoPurpose;
-  generationMode: "image" | "video";
-  videoProvider: "veo" | "deapi";
   veoVideoCount: number;
-  aspectRatio: string;
   selectedStyle: string;
-  globalSubject: string;
-  onContentTypeChange: (type: "music" | "story") => void;
   onVideoPurposeChange: (purpose: VideoPurpose) => void;
-  onGenerationModeChange: (mode: "image" | "video") => void;
-  onVideoProviderChange: (provider: "veo" | "deapi") => void;
   onVeoVideoCountChange: (count: number) => void;
-  onAspectRatioChange: (ratio: string) => void;
   onStyleChange: (style: string) => void;
-  onGlobalSubjectChange: (subject: string) => void;
   targetAudience?: string;
   onTargetAudienceChange?: (audience: string) => void;
 }
@@ -74,24 +56,14 @@ const SettingRow = ({ icon: Icon, label, children }: { icon: React.ElementType, 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
-  contentType,
   videoPurpose,
-  generationMode,
-  videoProvider,
-  veoVideoCount,
-  aspectRatio,
   selectedStyle,
-  globalSubject,
-  onContentTypeChange,
+  targetAudience,
   onVideoPurposeChange,
-  onGenerationModeChange,
-  onVideoProviderChange,
-  onVeoVideoCountChange,
-  onAspectRatioChange,
   onStyleChange,
-  targetAudience, // Added prop
-  onTargetAudienceChange, // Added prop
-  onGlobalSubjectChange,
+  onTargetAudienceChange,
+  veoVideoCount,
+  onVeoVideoCountChange,
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -115,31 +87,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <section className="space-y-4">
             <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest px-1">Core Settings</h3>
 
-            <SettingRow icon={contentType === "music" ? Music : Speech} label="Content Mode">
-              <Select value={contentType} onValueChange={onContentTypeChange}>
-                <SelectTrigger className="h-9 bg-black/20 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="music">Music Video</SelectItem>
-                  <SelectItem value="story">Story / Speech</SelectItem>
-                </SelectContent>
-              </Select>
+            <SettingRow icon={User} label="Target Audience">
+              <Input
+                value={targetAudience || ""}
+                onChange={(e) => onTargetAudienceChange?.(e.target.value)}
+                placeholder="e.g. Children, Professionals, General"
+                className="h-9 bg-black/20 border-white/10"
+              />
             </SettingRow>
 
-            <SettingRow icon={aspectRatio === "16:9" ? Monitor : Smartphone} label="Aspect Ratio">
-              <Select value={aspectRatio} onValueChange={onAspectRatioChange}>
-                <SelectTrigger className="h-9 bg-black/20 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="16:9">16:9 Landscape</SelectItem>
-                  <SelectItem value="9:16">9:16 Portrait</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingRow>
-
-            <SettingRow icon={Target} label="Video Purpose">
+            <SettingRow icon={Settings} label="Video Purpose">
               <Select value={videoPurpose} onValueChange={onVideoPurposeChange}>
                 <SelectTrigger className="h-9 bg-black/20 border-white/10">
                   <SelectValue />
@@ -153,69 +110,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </SelectContent>
               </Select>
             </SettingRow>
-            <SettingRow icon={User} label="Target Audience">
-              <Input
-                value={targetAudience || ""}
-                onChange={(e) => onTargetAudienceChange?.(e.target.value)}
-                placeholder="e.g. Children, Professionals, General"
-                className="h-9 bg-black/20 border-white/10"
-              />
-            </SettingRow>
           </section>
 
           {/* Section: Output Pipeline */}
           <section className="space-y-4">
             <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest px-1">Rendering Engine</h3>
 
-            <SettingRow icon={Film} label="Output Format">
-              <Select value={generationMode} onValueChange={onGenerationModeChange}>
-                <SelectTrigger className="h-9 bg-black/20 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">Static Images</SelectItem>
-                  <SelectItem value="video">Motion Loops</SelectItem>
-                </SelectContent>
-              </Select>
+            <SettingRow icon={Video} label="Pro Video Scenes">
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  value={veoVideoCount}
+                  onChange={(e) => onVeoVideoCountChange(Number(e.target.value))}
+                  className="w-24 h-2 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+                />
+                <span className="text-sm font-mono w-6 text-center">{veoVideoCount}</span>
+              </div>
             </SettingRow>
-
-            <AnimatePresence>
-              {generationMode === "video" && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                >
-                  <SettingRow icon={Zap} label="Video Engine">
-                    <Select value={videoProvider} onValueChange={onVideoProviderChange}>
-                      <SelectTrigger className="h-9 bg-black/20 border-white/10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="veo">Google Veo (Premium)</SelectItem>
-                        <SelectItem value="deapi">DeAPI (Fast)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </SettingRow>
-
-                  {videoProvider === "veo" && (
-                    <SettingRow icon={Video} label="Pro Video Scenes">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min="0"
-                          max="5"
-                          value={veoVideoCount}
-                          onChange={(e) => onVeoVideoCountChange(Number(e.target.value))}
-                          className="w-24 h-2 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-                        />
-                        <span className="text-sm font-mono w-6 text-center">{veoVideoCount}</span>
-                      </div>
-                    </SettingRow>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </section>
 
           {/* Section: Aesthetics */}
@@ -233,15 +146,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ))}
                 </SelectContent>
               </Select>
-            </SettingRow>
-
-            <SettingRow icon={User} label="Main Subject">
-              <Input
-                value={globalSubject}
-                onChange={(e) => onGlobalSubjectChange(e.target.value)}
-                placeholder="e.g. A red robot"
-                className="h-9 bg-black/20 border-white/10"
-              />
             </SettingRow>
           </section>
 

@@ -24,11 +24,13 @@ import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { ExportOptionsPanel } from './ExportOptionsPanel';
 import { useLanguage } from '@/i18n/useLanguage';
 import { FormatSelector } from '@/components/FormatSelector';
+import { TTSEngineSelector } from '@/components/TTSEngineSelector';
 import { PipelineProgress } from '@/components/PipelineProgress';
 import { CheckpointApproval } from '@/components/CheckpointApproval';
 import { ReferenceDocumentUpload } from '@/components/ReferenceDocumentUpload';
 import { formatRegistry } from '@/services/formatRegistry';
 import type { UseFormatPipelineReturn } from '@/hooks/useFormatPipeline';
+import type { TTSProvider, DeApiTtsModel } from '@/services/narratorService';
 
 interface StageProgress {
     totalScenes: number;
@@ -76,6 +78,7 @@ interface StoryWorkspaceProps {
     onReorderShots?: (fromIndex: number, toIndex: number) => void;
     onUpdateShot?: (shotId: string, updates: Partial<ShotlistEntry>) => void;
     onGenerateNarration?: () => void;
+    onUpdateTtsSettings?: (provider: TTSProvider, model?: DeApiTtsModel) => void;
     onAnimateShots?: (shotIndex?: number) => void;
     onExportFinalVideo?: () => Promise<Blob | null | undefined>;
     onDownloadVideo?: () => void;
@@ -161,6 +164,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onReorderShots,
     onUpdateShot,
     onGenerateNarration,
+    onUpdateTtsSettings,
     onAnimateShots,
     onExportFinalVideo,
     onDownloadVideo,
@@ -972,6 +976,15 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                     <p className="text-zinc-500 text-sm mb-6">
                                         {t('story.narrationDescription')}
                                     </p>
+                                    {onUpdateTtsSettings && (
+                                        <div className="mb-6">
+                                            <TTSEngineSelector
+                                                onSelect={onUpdateTtsSettings}
+                                                defaultProvider={storyState.ttsProvider || 'gemini'}
+                                                defaultModel={storyState.ttsModel as DeApiTtsModel | undefined}
+                                            />
+                                        </div>
+                                    )}
                                     <div className="space-y-4">
                                         {storyState.narrationSegments?.map((segment, idx) => (
                                             <div
