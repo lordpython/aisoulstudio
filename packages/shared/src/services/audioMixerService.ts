@@ -218,11 +218,21 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
 
   // First, fetch and decode the main narration to get total duration
   const tempContext = new AudioContext({ sampleRate });
-  const narrationBuffer = await fetchAndDecodeAudio(tempContext, narrationUrl);
+  let narrationBuffer: AudioBuffer | null;
+  try {
+    narrationBuffer = await fetchAndDecodeAudio(tempContext, narrationUrl);
+  } catch (err) {
+    await tempContext.close().catch(() => {});
+    throw err;
+  }
 
   if (!narrationBuffer) {
+    await tempContext.close().catch(() => {});
     throw new Error("Failed to load narration audio");
   }
+
+  // tempContext only needed for the initial decode — close it now
+  await tempContext.close().catch(() => {});
 
   const totalDuration = narrationBuffer.duration;
   const totalSamples = Math.ceil(totalDuration * sampleRate);
@@ -360,9 +370,6 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
   // Convert to WAV
   const wavBlob = audioBufferToWav(renderedBuffer);
   console.log(`[AudioMixer] Mix complete: ${(wavBlob.size / 1024 / 1024).toFixed(2)} MB`);
-
-  // Cleanup
-  await tempContext.close();
 
   return wavBlob;
 }

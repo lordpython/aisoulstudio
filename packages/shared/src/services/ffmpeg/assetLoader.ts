@@ -370,27 +370,50 @@ export interface AssetLoadProgress {
     success: boolean;
 }
 
+/** Maximum concurrent asset loads during preload */
+const PRELOAD_CONCURRENCY = 4;
+
 /**
- * Preload all assets (images/videos) for a song
- * Returns sorted array of RenderAssets ready for frame rendering
+ * Run tasks with bounded concurrency, preserving result order.
+ */
+async function withBoundedConcurrency<T>(
+    tasks: Array<() => Promise<T>>,
+    limit: number
+): Promise<T[]> {
+    const results: T[] = new Array(tasks.length);
+    let next = 0;
+
+    async function worker(): Promise<void> {
+        while (next < tasks.length) {
+            const i = next++;
+            results[i] = await tasks[i]!();
+        }
+    }
+
+    await Promise.all(
+        Array.from({ length: Math.min(limit, tasks.length) }, worker)
+    );
+    return results;
+}
+
+/**
+ * Preload all assets (images/videos) for a song.
+ * Returns sorted array of RenderAssets ready for frame rendering.
  *
- * Enhanced with:
- * - Proper error handling with fallback placeholders
- * - Detailed progress reporting
- * - Video dimension validation
+ * Improvements over the sequential version:
+ * - Pre-indexes generatedImages by promptId for O(1) lookup
+ * - Loads up to PRELOAD_CONCURRENCY assets in parallel
  */
 export async function preloadAssets(
     songData: SongData,
     onProgress?: (progress: AssetLoadProgress) => void
 ): Promise<RenderAsset[]> {
-    const assets: RenderAsset[] = [];
-
     // Sort prompts by timestamp
     const sortedPrompts = [...songData.prompts].sort(
         (a, b) => (a.timestampSeconds || 0) - (b.timestampSeconds || 0)
     );
 
-    // Debug: Log timestamp distribution
+    // Debug: log timestamp distribution
     const timestamps = sortedPrompts.map(p => p.timestampSeconds || 0);
     const uniqueTimestamps = new Set(timestamps);
     console.log(`[AssetLoader] Prompt timestamps: ${sortedPrompts.length} prompts, ${uniqueTimestamps.size} unique times`);
@@ -401,81 +424,95 @@ export async function preloadAssets(
         }
     }
 
+    // Pre-index generatedImages by promptId for O(1) lookup
+    const generatedByPromptId = new Map(
+        songData.generatedImages.map((g) => [g.promptId, g])
+    );
+
     const total = sortedPrompts.length;
     let loaded = 0;
 
-    for (const prompt of sortedPrompts) {
-        const generated = songData.generatedImages.find(
-            (g) => g.promptId === prompt.id
-        );
+    // Build one task per prompt that has a generated asset
+    type SlotResult = RenderAsset | null;
+    const tasks: Array<() => Promise<SlotResult>> = sortedPrompts.map((prompt) => async (): Promise<SlotResult> => {
+        const generated = generatedByPromptId.get(prompt.id);
+        if (!generated) {
+            loaded++;
+            return null;
+        }
 
-        if (generated) {
-            const isVideo = generated.type === "video";
-            // Prefer cached blob URL over original URL (prevents expired URL issues)
-            const assetUrl = generated.cachedBlobUrl || generated.imageUrl;
+        const isVideo = generated.type === "video";
+        const assetUrl = generated.cachedBlobUrl || generated.imageUrl;
 
+        onProgress?.({
+            loaded,
+            total,
+            currentAsset: assetUrl,
+            type: isVideo ? "video" : "image",
+            success: true,
+        });
+
+        let result: SlotResult = null;
+        try {
+            if (isVideo) {
+                const element = await loadVideoAsset(assetUrl);
+                const nativeDuration =
+                    element.duration && isFinite(element.duration) ? element.duration : undefined;
+                result = {
+                    time: prompt.timestampSeconds || 0,
+                    type: "video",
+                    element,
+                    nativeDuration,
+                };
+                console.log(
+                    `[AssetLoader] ✓ Video loaded for scene ${prompt.id} (${nativeDuration?.toFixed(1) ?? "unknown"}s)` +
+                    `${generated.cachedBlobUrl ? " (from cache)" : ""}`
+                );
+            } else {
+                const element = await loadImageAsset(assetUrl);
+                result = {
+                    time: prompt.timestampSeconds || 0,
+                    type: "image",
+                    element,
+                };
+            }
+        } catch (error) {
+            console.warn(
+                `[AssetLoader] ✗ Failed to load ${isVideo ? "video" : "image"} for prompt ${prompt.id}:`,
+                error
+            );
+            const placeholder = createPlaceholderImage(1280, 720, `Scene ${prompt.id} unavailable`);
+            result = {
+                time: prompt.timestampSeconds || 0,
+                type: "image",
+                element: placeholder as unknown as HTMLImageElement,
+            };
             onProgress?.({
                 loaded,
                 total,
                 currentAsset: assetUrl,
                 type: isVideo ? "video" : "image",
-                success: true,
+                success: false,
             });
-
-            try {
-
-                if (isVideo) {
-                    const element = await loadVideoAsset(assetUrl);
-                    // Capture native duration for freeze-frame support (Issue 6)
-                    const nativeDuration = element.duration && isFinite(element.duration) ? element.duration : undefined;
-                    assets.push({
-                        time: prompt.timestampSeconds || 0,
-                        type: "video",
-                        element,
-                        nativeDuration,
-                    });
-                    console.log(`[AssetLoader] ✓ Video asset loaded for scene ${prompt.id} (native duration: ${nativeDuration?.toFixed(1) || 'unknown'}s)${generated.cachedBlobUrl ? ' (from cache)' : ''}`);
-                } else {
-                    const element = await loadImageAsset(assetUrl);
-                    assets.push({
-                        time: prompt.timestampSeconds || 0,
-                        type: "image",
-                        element,
-                    });
-                }
-            } catch (error) {
-                console.warn(`[AssetLoader] ✗ Failed to load ${isVideo ? 'video' : 'image'} for prompt ${prompt.id}:`, error);
-
-                // Create placeholder for failed assets
-                const placeholder = createPlaceholderImage(1280, 720, `Scene ${prompt.id} unavailable`);
-                assets.push({
-                    time: prompt.timestampSeconds || 0,
-                    type: "image", // Fallback to image type
-                    element: placeholder as unknown as HTMLImageElement,
-                });
-
-                onProgress?.({
-                    loaded,
-                    total,
-                    currentAsset: assetUrl,
-                    type: isVideo ? "video" : "image",
-                    success: false,
-                });
-            }
         }
 
         loaded++;
-    }
+        return result;
+    });
 
-    // Log final asset times for debugging
+    const slots = await withBoundedConcurrency(tasks, PRELOAD_CONCURRENCY);
+    const assets = slots.filter((s): s is RenderAsset => s !== null);
+
+    // Log final distribution
     const assetTimes = assets.map(a => a.time);
     const uniqueAssetTimes = new Set(assetTimes);
-    console.log(`[AssetLoader] Preloaded ${assets.length} assets (${assets.filter(a => a.type === 'video').length} videos)`);
-    console.log(`[AssetLoader] Asset time distribution: ${uniqueAssetTimes.size} unique times, range: ${Math.min(...assetTimes)}s - ${Math.max(...assetTimes)}s`);
-    
-    if (uniqueAssetTimes.size === 1 && assets.length > 1) {
-        console.error(`[AssetLoader] BUG: All ${assets.length} assets have same time (${assetTimes[0]}s)! Check timestampSeconds calculation.`);
+    console.log(`[AssetLoader] Preloaded ${assets.length} assets (${assets.filter(a => a.type === "video").length} videos)`);
+    if (assetTimes.length > 0) {
+        console.log(`[AssetLoader] Asset time distribution: ${uniqueAssetTimes.size} unique times, range: ${Math.min(...assetTimes)}s - ${Math.max(...assetTimes)}s`);
+        if (uniqueAssetTimes.size === 1 && assets.length > 1) {
+            console.error(`[AssetLoader] BUG: All ${assets.length} assets have same time (${assetTimes[0]}s)! Check timestampSeconds calculation.`);
+        }
     }
-    
+
     return assets;
 }
