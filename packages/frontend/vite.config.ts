@@ -127,18 +127,27 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            "vendor-genai": ["@google/genai"],
-            "vendor-motion": ["framer-motion"],
-            "vendor-radix": [
-              "@radix-ui/react-dialog",
-              "@radix-ui/react-dropdown-menu",
-              "@radix-ui/react-select",
-              "@radix-ui/react-scroll-area",
-              "@radix-ui/react-slider",
-              "@radix-ui/react-switch",
-              "@radix-ui/react-progress",
-            ],
+          manualChunks(id) {
+            // Vendor: Google Generative AI SDK
+            if (id.includes("node_modules/@google/genai")) {
+              return "vendor-genai";
+            }
+            // Vendor: Framer Motion
+            if (id.includes("node_modules/framer-motion")) {
+              return "vendor-motion";
+            }
+            // Vendor: Radix UI primitives
+            if (id.includes("node_modules/@radix-ui")) {
+              return "vendor-radix";
+            }
+            // Vendor: Firebase — large SDK (~345 kB) isolated so app chunks
+            // that don't need Firebase don't pay its full bundle cost.
+            if (
+              id.includes("node_modules/firebase") ||
+              id.includes("node_modules/@firebase")
+            ) {
+              return "vendor-firebase";
+            }
           },
         },
       },
