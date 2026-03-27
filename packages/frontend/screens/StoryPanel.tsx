@@ -78,8 +78,11 @@ export function StoryPanel({
             // Breakdown → Script: Generate full screenplay
             storyHook.generateScreenplay();
           } else if (step === 'script') {
-            // Script → Characters: Generate character profiles
-            // Note: Lock is handled separately via onLockStory
+            // Script → Style: Pick visual style BEFORE generating characters
+            // Style must be selected first so character enrichment uses the correct style
+            storyHook.setStep('style');
+          } else if (step === 'style') {
+            // Style → Characters: Generate character profiles with the chosen style applied
             storyHook.generateCharacters();
           } else if (step === 'characters') {
             // Characters → Shots: Generate shot breakdown
@@ -92,10 +95,7 @@ export function StoryPanel({
               storyHook.setStep('script');
             }
           } else if (step === 'shots') {
-            // Shots → Style: Move to visual style selection
-            storyHook.setStep('style');
-          } else if (step === 'style') {
-            // Style → Storyboard: Generate storyboard visuals
+            // Shots → Storyboard: Generate storyboard visuals (style already selected)
             storyHook.generateVisuals();
           }
         }}

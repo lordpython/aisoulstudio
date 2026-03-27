@@ -806,6 +806,10 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const generateCharacters = useCallback(async () => {
         if (!sessionId) return;
+        if (!state.visualStyle) {
+            setError('Please select a visual style before generating characters');
+            return;
+        }
         setIsProcessing(true);
         setError(null);
         setProgress({ message: 'Extracting and visualizing characters...', percent: 60 });
@@ -851,6 +855,11 @@ export function useStoryGeneration(projectId?: string | null) {
         const char = state.characters.find((c: CharacterProfile) => c.id === characterId);
         if (!char) {
             setError(`Character not found: ${characterId}`);
+            return;
+        }
+
+        if (!state.visualStyle) {
+            setError('Please select a visual style before generating character portraits');
             return;
         }
 
@@ -1281,6 +1290,10 @@ export function useStoryGeneration(projectId?: string | null) {
     const generateVisuals = useCallback(async (sceneIndex?: number) => {
         if (!state.shots || state.shots.length === 0) {
             setError('Shots must be generated before creating visuals');
+            return;
+        }
+        if (!state.visualStyle) {
+            setError('Please select a visual style before generating visuals');
             return;
         }
 
@@ -1758,6 +1771,11 @@ export function useStoryGeneration(projectId?: string | null) {
             setError('Visuals must be generated before creating narration');
             return;
         }
+        const allShotsHaveImages = state.shotlist.every((s: ShotlistEntry) => s.imageUrl);
+        if (!allShotsHaveImages) {
+            setError('All shots must have visuals before generating narration');
+            return;
+        }
 
         setIsProcessing(true);
         setError(null);
@@ -1925,6 +1943,10 @@ export function useStoryGeneration(projectId?: string | null) {
     const animateShots = useCallback(async (shotIndex?: number) => {
         if (!state.shotlist || state.shotlist.length === 0) {
             setError('Visuals must be generated before animation');
+            return;
+        }
+        if (!state.narrationSegments || state.narrationSegments.length === 0) {
+            setError('Narration must be generated before animating shots');
             return;
         }
 
@@ -2182,6 +2204,11 @@ export function useStoryGeneration(projectId?: string | null) {
     const exportFinalVideo = useCallback(async () => {
         if (!state.narrationSegments || state.narrationSegments.length === 0) {
             setError('Narration must be generated before export');
+            return;
+        }
+        const allShotsHaveImages = state.shotlist?.every((s: ShotlistEntry) => s.imageUrl) ?? false;
+        if (!allShotsHaveImages) {
+            setError('Cannot export: some shots are missing visuals');
             return;
         }
 
