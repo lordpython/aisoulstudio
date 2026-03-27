@@ -133,7 +133,8 @@ export function buildCoreAnchors(char: CharacterProfile, visualStyle: string = "
     parts.push(`${char.name}:`);
 
     // First 2 sentences of visualDescription for compact physical identity
-    const descSentences = char.visualDescription.match(/[^.!?]+[.!?]+/g) || [char.visualDescription];
+    const rawDesc = char.visualDescription ?? '';
+    const descSentences = rawDesc.match(/[^.!?]+[.!?]+/g) || [rawDesc];
     const coreDesc = descSentences.slice(0, 2).join(' ').trim();
     if (coreDesc) parts.push(coreDesc);
 
@@ -189,7 +190,7 @@ export async function generateAllCharacterReferences(
         try {
             const referenceUrl = await generateCharacterReference(
                 char.name,
-                char.visualDescription,
+                char.visualDescription ?? '',
                 sessionId,
                 style,
             );

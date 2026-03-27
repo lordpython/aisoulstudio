@@ -594,7 +594,7 @@ async function generateCharacterReferences(
             // neutral background, studio lighting).
             const charGuide = buildImageStyleGuide({
                 scene: `Character Design Sheet for "${char.name}"`,
-                subjects: [{ type: "person", description: char.visualDescription, pose: "front view and three-quarter view, full body" }],
+                subjects: [{ type: "person", description: char.visualDescription ?? '', pose: "front view and three-quarter view, full body" }],
                 style,
                 background: "neutral white background",
                 lighting: { source: "studio softbox", quality: "soft diffused", direction: "rim light accent" },
@@ -603,7 +603,7 @@ async function generateCharacterReferences(
             });
 
             const referenceUrl = await generateImageFromPrompt(
-                char.visualDescription,  // fallback text (unused when prebuiltGuide is set)
+                char.visualDescription ?? '',  // fallback text (unused when prebuiltGuide is set)
                 style,
                 char.name,
                 "1:1",

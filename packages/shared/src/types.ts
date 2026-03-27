@@ -115,16 +115,54 @@ export type CameraMovement =
   | "pull-back";
 
 /**
- * Character definition for visual consistency across scenes
+ * Unified character type covering both video-mode (ContentPlan) and story-mode (StoryState) usage.
+ *
+ * Video-mode fields (from the former CharacterDefinition):
+ *   - appearance, clothing, distinguishingFeatures, consistencyKey
+ *
+ * Story-mode fields (from the former CharacterProfile):
+ *   - id, role, visualDescription, facialTags, referenceImageUrl, coreAnchors
+ *
+ * All video-mode-specific and story-mode-specific fields are optional so the
+ * type is valid in both contexts.
  */
-export interface CharacterDefinition {
+export interface Character {
   name: string;
-  appearance: string; // Detailed physical description
-  clothing: string; // Specific garments and colors
-  distinguishingFeatures?: string; // Scars, tattoos, jewelry, etc.
-  /** Compact 5-word visual anchor for image prompts, e.g. "10yo wiry boy, messy black hair" */
+  // Video-mode specific (ContentPlan / ContentPlanner agent)
+  /** Detailed physical description (video mode) */
+  appearance?: string;
+  /** Specific garments and colors (video mode) */
+  clothing?: string;
+  /** Scars, tattoos, jewelry, etc. (video mode) */
+  distinguishingFeatures?: string;
+  /** Compact 5-word visual anchor for image prompts, e.g. "10yo wiry boy, messy black hair" (video mode) */
   consistencyKey?: string;
+  // Story-mode specific (StoryState / story pipeline)
+  /** Unique identifier (story mode) */
+  id?: string;
+  /** Character role in the story, e.g. "protagonist" (story mode) */
+  role?: string;
+  /** The "Golden Prompt" visual description for consistency (story mode) */
+  visualDescription?: string;
+  /** 5-keyword compact face/clothing tags for prompt anchoring (story mode) */
+  facialTags?: string;
+  /** Generated reference sheet image URL (story mode) */
+  referenceImageUrl?: string;
+  /**
+   * 30-50 word structured visual identity anchor for prompt injection.
+   * Format: "[name]: [first 2 sentences of visualDescription]. Face: [facialTags]. Rendered in [style] art style."
+   * Built by enrichCharactersWithCoreAnchors() after character extraction.
+   * Injected as "CHARACTERS IN FRAME:" prefix in image prompts for consistency.
+   * (story mode)
+   */
+  coreAnchors?: string;
 }
+
+/** @deprecated Use {@link Character} directly. Kept for backwards compatibility. */
+export type CharacterDefinition = Character;
+
+/** @deprecated Use {@link Character} directly. Kept for backwards compatibility. */
+export type CharacterProfile = Character;
 
 /**
  * Scene structure produced by ContentPlanner
@@ -164,7 +202,7 @@ export interface ContentPlan {
   scenes: Scene[];
   overallTone: string;
   /** Character definitions for visual consistency */
-  characters?: CharacterDefinition[];
+  characters?: Character[];
 }
 
 /**
@@ -444,24 +482,6 @@ export interface QuickAction {
 // --- Story Mode Types ---
 
 /**
- * Character profile for visual consistency across story scenes
- */
-export interface CharacterProfile {
-  id: string;
-  name: string;
-  role: string;
-  visualDescription: string; // The "Golden Prompt" for consistency
-  facialTags?: string; // 5-keyword compact face/clothing tags for prompt anchoring
-  referenceImageUrl?: string; // Generated "Sheet" for the character
-  /** 30-50 word structured visual identity anchor for prompt injection.
-   * Format: "[name]: [first 2 sentences of visualDescription]. Face: [facialTags]. Rendered in [style] art style."
-   * Built by enrichCharactersWithCoreAnchors() after character extraction.
-   * Injected as "CHARACTERS IN FRAME:" prefix in image prompts for consistency.
-   */
-  coreAnchors?: string;
-}
-
-/**
  * Screenplay scene in standard format
  */
 export interface ScreenplayScene {
@@ -563,7 +583,7 @@ export interface StoryState {
   currentStep: StoryStep;
   breakdown: ScreenplayScene[];
   script: { title: string; scenes: ScreenplayScene[] } | null;
-  characters: CharacterProfile[];
+  characters: Character[];
   shotlist: ShotlistEntry[];
   consistencyReports?: Record<string, ConsistencyReport>; // characterId -> report
 

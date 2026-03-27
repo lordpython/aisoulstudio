@@ -497,7 +497,7 @@ export const verifyCharacterConsistencyTool = tool(
         };
 
         // Detect language for report
-        const language = detectLanguage(characterToVerify.visualDescription + ' ' + characterToVerify.name);
+        const language = detectLanguage((characterToVerify.visualDescription ?? '') + ' ' + characterToVerify.name);
 
         const report = await verifyCharacterConsistency(imageUrls, characterToVerify, language);
 

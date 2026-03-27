@@ -861,7 +861,7 @@ export function useStoryGeneration(projectId?: string | null) {
         try {
             const referenceUrl = await generateCharacterReference(
                 char.name,
-                char.visualDescription,
+                char.visualDescription ?? '',
                 sessionId,
                 state.visualStyle || 'Cinematic',
             );
