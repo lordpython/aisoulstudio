@@ -23,6 +23,11 @@ export const routes: RouteConfig[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/projects/new',
+    title: 'nav.newProject',
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/studio',
     title: 'nav.studio',
     meta: { preserveState: true },

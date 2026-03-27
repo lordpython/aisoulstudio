@@ -139,7 +139,7 @@ export class FormatRegistry {
         'Sale/Offer',
         'Testimonial'
       ],
-      checkpointCount: 2,
+      checkpointCount: 3,
       concurrencyLimit: 3,
       requiresResearch: false,
       supportedLanguages: ['ar', 'en']
@@ -191,7 +191,7 @@ export class FormatRegistry {
         'Health',
         'Skills Training'
       ],
-      checkpointCount: 3,
+      checkpointCount: 4,
       concurrencyLimit: 4,
       requiresResearch: true,
       supportedLanguages: ['ar', 'en']
@@ -215,7 +215,7 @@ export class FormatRegistry {
         'Teaser',
         'Reaction'
       ],
-      checkpointCount: 2,
+      checkpointCount: 3,
       concurrencyLimit: 3,
       requiresResearch: false,
       supportedLanguages: ['ar', 'en']

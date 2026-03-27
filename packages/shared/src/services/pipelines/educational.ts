@@ -21,6 +21,7 @@ import {
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
 import { CheckpointSystem } from '../checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import type { LanguageCode } from '../../constants';
 import { generateImageFromPrompt } from '../imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import {
@@ -120,6 +121,19 @@ export class EducationalPipeline implements FormatPipeline {
 
       log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
+      // Checkpoint 1: Research Approval — user can reject before script generation
+      const researchApproval = await checkpoints.createCheckpoint('research-and-sources', {
+        sourceCount: researchResult.sources.length,
+        confidence: researchResult.confidence,
+        topics: researchResult.sources.map(s => s.title).slice(0, 5),
+        summaryPreview: researchResult.summary.slice(0, 300),
+      });
+      if (!researchApproval.approved) {
+        log.info('Research rejected by user');
+        checkpoints.dispose();
+        return { success: false, error: 'Research rejected by user', partialResults: { research: researchResult } };
+      }
+
       // ----------------------------------------------------------------
       // Phase 2: Script with learning objectives — Requirements 5.1, 5.2
       // ----------------------------------------------------------------
@@ -156,6 +170,11 @@ export class EducationalPipeline implements FormatPipeline {
         charactersPresent: [],
       }));
 
+      if (screenplay.length === 0) {
+        checkpoints.dispose();
+        return { success: false, error: 'Script generation returned no scenes' };
+      }
+
       const wordCount = countScriptWords(screenplay);
       const durationCheck = validateDurationConstraint(wordCount, metadata);
       if (!durationCheck.valid) {
@@ -179,7 +198,7 @@ export class EducationalPipeline implements FormatPipeline {
       };
       storyModeStore.set(sessionId, state);
 
-      // Checkpoint 1: Learning Structure — Requirement 5.5
+      // Checkpoint 2: Learning Structure — Requirement 5.5
       const structureApproval = await checkpoints.createCheckpoint('learning-structure', {
         scenes: screenplay.map(s => ({
           heading: s.heading,
@@ -243,6 +262,10 @@ export class EducationalPipeline implements FormatPipeline {
         .filter(r => r.success && r.data)
         .map(r => r.data!);
 
+      const failedVisualCount = visualResults.filter(r => !r.success).length;
+      if (failedVisualCount > 0) {
+        log.warn(`${failedVisualCount} visual(s) failed to generate`);
+      }
       log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
 
       // Update state with visuals
@@ -261,9 +284,13 @@ export class EducationalPipeline implements FormatPipeline {
       state.updatedAt = Date.now();
       storyModeStore.set(sessionId, state);
 
-      // Checkpoint 2: Visual Aids — Requirement 5.5
+      // Checkpoint 3: Visual Aids — Requirement 5.5
       const visualApproval = await checkpoints.createCheckpoint('visual-aids', {
-        visuals: visuals.map(v => ({ imageUrl: v.imageUrl, sceneId: v.sceneId })),
+        visuals: visuals.map(v => ({
+          imageUrl: v.imageUrl,
+          sceneId: v.sceneId,
+          overlay: v.overlay,
+        })),
         visualCount: visuals.length,
         totalScenes: screenplay.length,
       });
@@ -291,12 +318,13 @@ export class EducationalPipeline implements FormatPipeline {
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
         videoPurpose: 'educational',
-        language: language as any,
+        language: language as LanguageCode,
         styleOverride: voiceConfig.stylePrompt,
       };
 
       const narrationSegments: NarrationSegment[] = [];
       for (const scene of scenes) {
+        if (cancelled) break;
         try {
           const segment = await narrateScene(scene, narratorConfig, sessionId);
           narrationSegments.push(segment);
@@ -322,7 +350,7 @@ export class EducationalPipeline implements FormatPipeline {
         sceneDurations,
       });
 
-      // Checkpoint 3: Final Assembly — Requirement 5.5
+      // Checkpoint 4: Final Assembly — Requirement 5.5
       const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
         sceneCount: screenplay.length,
         visualCount: visuals.length,
@@ -345,6 +373,7 @@ export class EducationalPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
 
       log.info(`Educational pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, ${chapters.length} chapters`);
 
@@ -365,6 +394,7 @@ export class EducationalPipeline implements FormatPipeline {
 
     } catch (error) {
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
       const msg = error instanceof Error ? error.message : String(error);
       log.error('Educational pipeline failed:', msg);
       return { success: false, error: msg };

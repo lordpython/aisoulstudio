@@ -20,6 +20,7 @@ import {
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
 import { CheckpointSystem } from '../checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import type { LanguageCode } from '../../constants';
 import { generateImageFromPrompt } from '../imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import { buildAssemblyRules, buildCTAMarker, validateCTAPosition } from '../ffmpeg/formatAssembly';
@@ -55,6 +56,7 @@ const ScreenplaySchema = z.object({
       text: z.string().min(1),
     })),
   })).min(2).max(5),
+  ctaText: z.string().describe('A short, punchy call-to-action (e.g. "Shop Now", "Try Free Today", "Learn More"). Max 6 words.'),
 });
 
 // ============================================================================
@@ -126,6 +128,11 @@ export class AdvertisementPipeline implements FormatPipeline {
         charactersPresent: [],
       }));
 
+      if (screenplay.length === 0) {
+        checkpoints.dispose();
+        return { success: false, error: 'Script generation returned no scenes' };
+      }
+
       // Duration validation
       const wordCount = countScriptWords(screenplay);
       const durationCheck = validateDurationConstraint(wordCount, metadata);
@@ -133,9 +140,8 @@ export class AdvertisementPipeline implements FormatPipeline {
         log.warn(`Duration constraint: ${durationCheck.message}`);
       }
 
-      // Extract CTA from final scene dialogue
-      const finalScene = screenplay[screenplay.length - 1];
-      const ctaText = finalScene?.dialogue[finalScene.dialogue.length - 1]?.text ?? 'Learn More';
+      // CTA comes from the dedicated schema field — no fragile last-line extraction
+      const ctaText = screenplayResult.ctaText || 'Learn More';
 
       // Persist state
       const state: StoryModeState = {
@@ -215,7 +221,23 @@ export class AdvertisementPipeline implements FormatPipeline {
         .filter(r => r.success && r.data)
         .map(r => r.data!);
 
+      const failedVisualCount = visualResults.filter(r => !r.success).length;
+      if (failedVisualCount > 0) {
+        log.warn(`${failedVisualCount} visual(s) failed to generate`);
+      }
       log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
+
+      // Checkpoint 2: Visual Review — allows user to reject visuals before TTS
+      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+        visualCount: visuals.length,
+        totalScenes: screenplay.length,
+        visuals: visuals.map(v => ({ sceneId: v.sceneId, imageUrl: v.imageUrl })),
+      });
+      if (!visualApproval.approved) {
+        log.info('Visuals rejected by user');
+        checkpoints.dispose();
+        return { success: false, error: 'Visuals rejected by user', partialResults: { screenplay, visuals } };
+      }
 
       // Update state
       state.shotlist = visuals.map((v, i) => ({
@@ -251,12 +273,13 @@ export class AdvertisementPipeline implements FormatPipeline {
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
         videoPurpose: 'commercial',
-        language: language as any,
+        language: language as LanguageCode,
         styleOverride: voiceConfig.stylePrompt,
       };
 
       const narrationSegments: NarrationSegment[] = [];
       for (const scene of scenes) {
+        if (cancelled) break;
         try {
           const segment = await narrateScene(scene, narratorConfig, sessionId);
           narrationSegments.push(segment);
@@ -286,7 +309,7 @@ export class AdvertisementPipeline implements FormatPipeline {
         ctaText,
       });
 
-      // Checkpoint 2: Final Preview — Requirement 4.5
+      // Checkpoint 3: Final Preview — Requirement 4.5
       const finalApproval = await checkpoints.createCheckpoint('final-preview', {
         sceneCount: screenplay.length,
         visualCount: visuals.length,
@@ -311,6 +334,7 @@ export class AdvertisementPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
 
       log.info(`Advertisement pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, CTA="${ctaText}"`);
 
@@ -329,6 +353,7 @@ export class AdvertisementPipeline implements FormatPipeline {
 
     } catch (error) {
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
       const msg = error instanceof Error ? error.message : String(error);
       log.error('Advertisement pipeline failed:', msg);
       return { success: false, error: msg };

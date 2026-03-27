@@ -21,6 +21,7 @@ import {
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
 import { CheckpointSystem } from '../checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import type { LanguageCode } from '../../constants';
 import { generateImageFromPrompt } from '../imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import { buildAssemblyRules } from '../ffmpeg/formatAssembly';
@@ -127,6 +128,11 @@ export class ShortsPipeline implements FormatPipeline {
         charactersPresent: [],
       }));
 
+      if (screenplay.length === 0) {
+        checkpoints.dispose();
+        return { success: false, error: 'Script generation returned no scenes' };
+      }
+
       const wordCount = countScriptWords(screenplay);
       const durationCheck = validateDurationConstraint(wordCount, metadata);
       if (!durationCheck.valid) {
@@ -207,6 +213,10 @@ export class ShortsPipeline implements FormatPipeline {
         .filter(r => r.success && r.data)
         .map(r => r.data!);
 
+      const failedVisualCount = visualResults.filter(r => !r.success).length;
+      if (failedVisualCount > 0) {
+        log.warn(`${failedVisualCount} visual(s) failed to generate`);
+      }
       log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
 
       // Update state
@@ -224,6 +234,18 @@ export class ShortsPipeline implements FormatPipeline {
       state.currentStep = 'shotlist';
       state.updatedAt = Date.now();
       storyModeStore.set(sessionId, state);
+
+      // Checkpoint 2: Visual Review (9:16) — allows user to reject before TTS
+      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+        visualCount: visuals.length,
+        totalScenes: screenplay.length,
+        visuals: visuals.map(v => ({ sceneId: v.sceneId, imageUrl: v.imageUrl })),
+      });
+      if (!visualApproval.approved) {
+        log.info('Visuals rejected by user');
+        checkpoints.dispose();
+        return { success: false, error: 'Visuals rejected by user', partialResults: { screenplay, visuals } };
+      }
 
       // ----------------------------------------------------------------
       // Phase 3: Audio generation — Requirements 6.1
@@ -243,12 +265,13 @@ export class ShortsPipeline implements FormatPipeline {
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
         videoPurpose: 'social_short',
-        language: language as any,
+        language: language as LanguageCode,
         styleOverride: voiceConfig.stylePrompt,
       };
 
       const narrationSegments: NarrationSegment[] = [];
       for (const scene of scenes) {
+        if (cancelled) break;
         try {
           const segment = await narrateScene(scene, narratorConfig, sessionId);
           narrationSegments.push(segment);
@@ -267,7 +290,7 @@ export class ShortsPipeline implements FormatPipeline {
       const totalDuration = narrationSegments.reduce((sum, s) => sum + s.audioDuration, 0);
       const assemblyRules = buildAssemblyRules(FORMAT_ID, { totalDuration });
 
-      // Checkpoint 2: Final Assembly — Requirement 6.5
+      // Checkpoint 3: Final Assembly — Requirement 6.5
       const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
         sceneCount: screenplay.length,
         visualCount: visuals.length,
@@ -290,6 +313,7 @@ export class ShortsPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
 
       log.info(`Shorts pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals (9:16)`);
 
@@ -308,6 +332,7 @@ export class ShortsPipeline implements FormatPipeline {
 
     } catch (error) {
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
       const msg = error instanceof Error ? error.message : String(error);
       log.error('Shorts pipeline failed:', msg);
       return { success: false, error: msg };

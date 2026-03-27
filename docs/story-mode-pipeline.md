@@ -247,22 +247,28 @@ For each storyboard frame:
 
 ### What happens (server-side FFmpeg)
 
-1. All assets are assembled into the export payload:
-   - Animated video clips (or still images if not animated)
-   - Narration WAV blobs merged in scene order
-   - Subtitle cues (from narration transcripts, paginated to ~120 chars each)
-   - Optional background music
-2. The payload is sent to the Express server in three HTTP calls:
-   - `POST /api/export/init` — initialise job, upload audio
-   - `POST /api/export/chunk` — upload each visual frame
-   - `POST /api/export/finalize` — trigger FFmpeg render
-3. Progress flows back via **SSE** (`/api/export/events/:jobId`) — the UI shows a progress bar with stages: `loading → preparing → rendering → encoding → complete`.
-4. The finished MP4 blob is downloaded to the user's device.
+1. **Asset preloading** (`assetLoader.ts`):
+   - Images/videos are loaded and validated for zero-dimension checks
+   - Video frames are cached with LRU eviction (TTL: 30s, budget: 384MB)
+   - Scene timing info is prepared for SFX mixing
+2. **Export initialization** (`exportUpload.ts`):
+   - `POST /api/export/init` — initialise server job, upload audio blobs and metadata
+   - Returns sessionId for subsequent chunk uploads
+3. **Frame batching & upload**:
+   - `POST /api/export/chunk` — upload visual frame batches (with automatic retries on transient 408/429/500-504 errors)
+   - Backoff: exponential delay up to 3 retry attempts per batch
+4. **Video rendering**:
+   - `POST /api/export/finalize` — trigger FFmpeg rendering on server
+5. **Progress tracking** via **SSE** (`/api/export/events/:jobId`):
+   - Stages: `loading → preparing → rendering → encoding → complete`
+   - SSE subscription must outlive blob download (unsubscribe after download completes, not before)
+6. The finished MP4 blob is downloaded to the user's device.
 
 **Export config options** (set in `ExportOptionsPanel` or `QuickExport`):
-- Orientation (landscape / portrait)
+- Orientation (landscape / portrait) — validated at merge
 - Transition type (dissolve, cut, fade)
-- Transition duration
+- Transition duration (ms) — validated to be in valid range
+- Sync offset (ms) — validates audio/video sync timing
 - Content mode (`story` — uses 34px subtitle font vs. 42px for music)
 
 > **Mobile note:** On real iOS/Android devices, set `VITE_SERVER_URL=http://<your-pc-ip>:3001` in `.env.local` before building — the device needs the LAN address to reach the server.
@@ -330,6 +336,10 @@ If you want to change the pipeline behaviour, here are the key locations:
 | Subtitle max length (~120 chars) | `useStoryGeneration.ts` narration handler |
 | Visual style options | `StyleSelector.tsx` |
 | Export transitions | `DEFAULT_EXPORT_CONFIG` in `exportConfig.ts` |
+| Video frame cache TTL | `FRAME_CACHE_TTL_MS` in `assetLoader.ts` (default: 30s) |
+| Video frame cache budget | `MAX_CACHE_BYTES` in `assetLoader.ts` (default: 384MB) |
+| Export upload retries | `MAX_UPLOAD_RETRIES` in `exportUpload.ts` (default: 3 attempts) |
+| SSE reconnect timeout | `subscribeToJob()` in `sseClient.ts` (default: 30s idle) |
 | Image generation model | `MODELS.IMAGE` in `shared/apiClient.ts` |
 | Text generation model | `MODELS.TEXT` in `shared/apiClient.ts` |
 | Prompt templates | `services/prompt/templates/movie-animation/*.txt` |

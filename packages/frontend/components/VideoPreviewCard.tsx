@@ -121,7 +121,7 @@ export function VideoPreviewCard({
   useEffect(() => {
     if (!videoRef.current || selfManaged) return;
     if (isPlaying) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch((e) => console.error('[VideoPreviewCard] Video play failed:', e));
     } else {
       videoRef.current.pause();
     }
@@ -160,7 +160,7 @@ export function VideoPreviewCard({
   const handlePlayPause = useCallback(() => {
     if (selfManaged && videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch((e) => console.error('[VideoPreviewCard] Video play failed:', e));
       } else {
         videoRef.current.pause();
       }
@@ -465,8 +465,8 @@ export function VideoPreviewCard({
                           muted
                           playsInline
                           crossOrigin="anonymous"
-                          onMouseOver={e => e.currentTarget.play()}
-                          onMouseOut={e => e.currentTarget.pause()}
+                          onMouseOver={e => { e.currentTarget.play().catch(() => {}); }}
+                          onMouseOut={e => { e.currentTarget.pause(); }}
                         />
                       );
                     }

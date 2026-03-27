@@ -31,6 +31,25 @@ import { persistExport } from "./exportPersistence";
 const FPS = 24;
 const BATCH_SIZE = 96;
 
+async function deleteWasmFiles(ffmpeg: FFmpeg, fileNames: string[]): Promise<void> {
+    for (const fileName of fileNames) {
+        try {
+            await ffmpeg.deleteFile(fileName);
+        } catch (error) {
+            console.warn(`[FFmpeg WASM] Failed to delete ${fileName}:`, error);
+        }
+    }
+}
+
+function getWasmEncodingProgress(frameNumber: number, totalFrames: number): number {
+    if (totalFrames <= 0) {
+        return 80;
+    }
+
+    const normalized = Math.max(0, Math.min(frameNumber / totalFrames, 1));
+    return 80 + Math.round(normalized * 20);
+}
+
 export interface ExportOptions {
     cloudSessionId?: string;
     userId?: string;
@@ -57,19 +76,19 @@ export async function exportVideoWithFFmpeg(
     const { width, height } = getExportDimensions(mergedConfig);
     const qualityValue = getExportQualityValue(mergedConfig.quality);
 
-    onProgress({ stage: "preparing", progress: 0, message: "Analyzing audio..." });
+    onProgress({ stage: "preparing", progress: 0, message: "Analyzing audio...", renderedAt: Date.now() });
 
     const prepared = await prepareAudio(songData, mergedConfig, (msg) =>
-        onProgress({ stage: "preparing", progress: 0, message: msg })
+        onProgress({ stage: "preparing", progress: 0, message: msg, renderedAt: Date.now() })
     );
     const { audioBlob, frequencyDataArray, duration, totalFrames, audioContext } = prepared;
 
     try {
-        onProgress({ stage: "preparing", progress: 10, message: "Initializing render session..." });
+        onProgress({ stage: "preparing", progress: 10, message: "Initializing render session...", renderedAt: Date.now() });
         const sessionId = await initExportSession(audioBlob, FPS, width, height, qualityValue, totalFrames);
 
-        onProgress({ stage: "preparing", progress: 20, message: "Loading high-res assets..." });
-        const assets = await preloadAssets(songData, (p) => {
+        onProgress({ stage: "preparing", progress: 20, message: "Loading high-res assets...", renderedAt: Date.now() });
+        const assets = await preloadAssets(songData, { width, height }, (p) => {
             onProgress({
                 stage: "preparing",
                 progress: 20 + Math.round((p.loaded / p.total) * 10),
@@ -77,6 +96,7 @@ export async function exportVideoWithFFmpeg(
                 currentAssetIndex: p.loaded,
                 totalAssets: p.total,
                 currentAssetType: p.type,
+                renderedAt: Date.now(),
             });
         });
 
@@ -91,6 +111,7 @@ export async function exportVideoWithFFmpeg(
                 : "Rendering cinematic frames...",
             totalFrames,
             totalAssets: assets.length,
+            renderedAt: Date.now(),
         });
 
         // Render + upload pipeline: render frames while concurrently uploading batches
@@ -131,6 +152,7 @@ export async function exportVideoWithFFmpeg(
                     totalFrames: total,
                     currentAssetType: currentAsset?.type,
                     isSeekingVideo: currentAsset?.type === "video",
+                    renderedAt: Date.now(),
                 });
             },
         });
@@ -142,13 +164,13 @@ export async function exportVideoWithFFmpeg(
             await uploadFrameBatch(sessionId, frameBuffer);
         }
 
-        onProgress({ stage: "encoding", progress: 90, message: "Queuing video encoding..." });
+        onProgress({ stage: "encoding", progress: 90, message: "Queuing video encoding...", renderedAt: Date.now() });
 
         const videoBlob = await finalizeAndDownload(
             sessionId, FPS, totalFrames, width, height, qualityValue, onProgress
         );
 
-        onProgress({ stage: "complete", progress: 100, message: "Export complete!" });
+        onProgress({ stage: "complete", progress: 100, message: "Export complete!", renderedAt: Date.now() });
 
         const cloudUrl = await persistExport(
             cloudSessionId, videoBlob, mergedConfig, userId, projectId, duration, "[FFmpeg]"
@@ -176,7 +198,7 @@ export async function exportVideoClientSide(
     const { width, height } = getExportDimensions(mergedConfig);
     const qualityValue = getExportQualityValue(mergedConfig.quality);
 
-    onProgress({ stage: "loading", progress: 0, message: "Loading FFmpeg Core..." });
+    onProgress({ stage: "loading", progress: 0, message: "Loading FFmpeg Core...", renderedAt: Date.now() });
 
     const ffmpeg = new FFmpeg();
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
@@ -191,18 +213,18 @@ export async function exportVideoClientSide(
         throw new Error("Failed to load FFmpeg. Check browser compatibility.");
     }
 
-    onProgress({ stage: "preparing", progress: 0, message: "Analyzing audio..." });
+    onProgress({ stage: "preparing", progress: 0, message: "Analyzing audio...", renderedAt: Date.now() });
 
     const prepared = await prepareAudio(songData, mergedConfig, (msg) =>
-        onProgress({ stage: "preparing", progress: 5, message: msg })
+        onProgress({ stage: "preparing", progress: 5, message: msg, renderedAt: Date.now() })
     );
     const { audioBlob, frequencyDataArray, duration, totalFrames, audioContext } = prepared;
 
     try {
         await ffmpeg.writeFile("audio.wav", await fetchFile(audioBlob));
 
-        onProgress({ stage: "preparing", progress: 20, message: "Loading high-res assets..." });
-        const assets = await preloadAssets(songData, (p) => {
+        onProgress({ stage: "preparing", progress: 20, message: "Loading high-res assets...", renderedAt: Date.now() });
+        const assets = await preloadAssets(songData, { width, height }, (p) => {
             onProgress({
                 stage: "preparing",
                 progress: 20 + Math.round((p.loaded / p.total) * 10),
@@ -210,6 +232,7 @@ export async function exportVideoClientSide(
                 currentAssetIndex: p.loaded,
                 totalAssets: p.total,
                 currentAssetType: p.type,
+                renderedAt: Date.now(),
             });
         });
 
@@ -224,60 +247,94 @@ export async function exportVideoClientSide(
                 : "Rendering frames...",
             totalFrames,
             totalAssets: assets.length,
+            renderedAt: Date.now(),
         });
 
-        await runRenderPipeline({
-            width,
-            height,
-            totalFrames,
-            duration,
-            assets,
-            subtitles: songData.parsedSubtitles,
-            frequencyDataArray,
-            config: mergedConfig,
-            async onFrame(blob, _frame, name) {
-                await ffmpeg.writeFile(name, await fetchFile(blob));
-            },
-            onProgress(frame, total, dur, currentAsset) {
-                onProgress({
-                    stage: "rendering",
-                    progress: Math.round((frame / total) * 80),
-                    message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(dur)}s`,
-                    currentFrame: frame,
-                    totalFrames: total,
-                    currentAssetType: currentAsset?.type,
-                    isSeekingVideo: currentAsset?.type === "video",
-                });
-            },
+        let lastEncodingFrame = -1;
+        ffmpeg.on("log", ({ message }) => {
+            const match = message.match(/frame=\s*(\d+)/);
+            if (!match) {
+                return;
+            }
+
+            const frameNumber = Number(match[1]);
+            if (!Number.isFinite(frameNumber) || frameNumber <= lastEncodingFrame) {
+                return;
+            }
+
+            lastEncodingFrame = frameNumber;
+            onProgress({
+                stage: "encoding",
+                progress: getWasmEncodingProgress(frameNumber, totalFrames),
+                message: `Encoding MP4 (WASM): frame ${Math.min(frameNumber, totalFrames)}/${totalFrames}`,
+                currentFrame: Math.min(frameNumber, totalFrames),
+                totalFrames,
+                renderedAt: Date.now(),
+            });
         });
 
-        onProgress({ stage: "encoding", progress: 85, message: "Encoding MP4 (WASM)..." });
-
-        await ffmpeg.exec([
-            "-framerate", String(FPS),
-            "-i", "frame%06d.jpg",
-            "-i", "audio.wav",
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-b:a", "256k",
-            "-pix_fmt", "yuv420p",
-            "-vf", `scale=${width}:${height}:flags=lanczos,setsar=1`,
-            "-shortest",
-            "-preset", "medium",
-            "-crf", String(qualityValue),
-            "output.mp4",
-        ]);
-
-        onProgress({ stage: "complete", progress: 100, message: "Done!" });
-
-        const data = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
-        const videoBlob = new Blob([data.slice()], { type: "video/mp4" });
-
-        const cloudUrl = await persistExport(
-            cloudSessionId, videoBlob, mergedConfig, userId, projectId, duration, "[FFmpeg WASM]"
+        const frameFileNames = Array.from(
+            { length: totalFrames },
+            (_unused, index) => `frame${index.toString().padStart(6, "0")}.jpg`
         );
 
-        return { blob: videoBlob, cloudUrl };
+        try {
+            await runRenderPipeline({
+                width,
+                height,
+                totalFrames,
+                duration,
+                assets,
+                subtitles: songData.parsedSubtitles,
+                frequencyDataArray,
+                config: mergedConfig,
+                async onFrame(blob, _frame, name) {
+                    await ffmpeg.writeFile(name, await fetchFile(blob));
+                },
+                onProgress(frame, total, dur, currentAsset) {
+                    onProgress({
+                        stage: "rendering",
+                        progress: Math.round((frame / total) * 80),
+                        message: `Rendering ${Math.floor(frame / FPS)}s / ${Math.floor(dur)}s`,
+                        currentFrame: frame,
+                        totalFrames: total,
+                        currentAssetType: currentAsset?.type,
+                        isSeekingVideo: currentAsset?.type === "video",
+                        renderedAt: Date.now(),
+                    });
+                },
+            });
+
+            onProgress({ stage: "encoding", progress: 85, message: "Encoding MP4 (WASM)...", renderedAt: Date.now() });
+
+            await ffmpeg.exec([
+                "-framerate", String(FPS),
+                "-i", "frame%06d.jpg",
+                "-i", "audio.wav",
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-b:a", "256k",
+                "-pix_fmt", "yuv420p",
+                "-vf", `scale=${width}:${height}:flags=lanczos,setsar=1`,
+                "-shortest",
+                "-preset", "medium",
+                "-crf", String(qualityValue),
+                "output.mp4",
+            ]);
+
+            const data = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
+            const videoBlob = new Blob([data.slice()], { type: "video/mp4" });
+
+            onProgress({ stage: "complete", progress: 100, message: "Done!", renderedAt: Date.now() });
+
+            const cloudUrl = await persistExport(
+                cloudSessionId, videoBlob, mergedConfig, userId, projectId, duration, "[FFmpeg WASM]"
+            );
+
+            return { blob: videoBlob, cloudUrl };
+        } finally {
+            await deleteWasmFiles(ffmpeg, ["audio.wav", "output.mp4", ...frameFileNames]);
+        }
     } finally {
         clearFrameCache();
         audioContext.close().catch(() => {});

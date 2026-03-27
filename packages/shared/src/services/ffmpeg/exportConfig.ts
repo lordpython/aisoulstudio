@@ -5,7 +5,8 @@
  * Extracted from ffmpegService.ts for modularity.
  */
 
-import { TransitionType, VideoFormat, FormatAssemblyRules } from "../../types";
+import { TransitionType, VideoFormat, FormatAssemblyRules, VideoSFXPlan } from "../../types";
+import type { SceneAudioInfo } from "../audioMixerService";
 import { getServerBaseUrl } from "../serverBaseUrl";
 
 /**
@@ -33,6 +34,8 @@ export type ExportProgress = {
     currentFrame?: number;
     /** Total frames to render */
     totalFrames?: number;
+    /** Epoch milliseconds when the progress event was emitted */
+    renderedAt?: number;
     /** Current asset type being processed */
     currentAssetType?: "image" | "video";
     /** Current asset index */
@@ -48,9 +51,13 @@ export type ProgressCallback = (progress: ExportProgress) => void;
 export type ExportQualityPreset = "draft" | "standard" | "high";
 
 export type RenderAsset = {
+    id: string;
     time: number;
     type: "image" | "video";
     element: HTMLImageElement | HTMLVideoElement;
+    naturalWidth: number;
+    naturalHeight: number;
+    baseScale: number;
     /** Native duration of the video asset in seconds (for freeze-frame on short clips) */
     nativeDuration?: number;
 };
@@ -85,11 +92,11 @@ export interface ExportConfig {
     };
 
     // SFX configuration
-    sfxPlan?: import("../../types").VideoSFXPlan | null;
+    sfxPlan?: VideoSFXPlan | null;
     sfxMasterVolume?: number; // 0-1, default: 1.0
     musicMasterVolume?: number; // 0-1, default: 0.5
     /** Scene timing info for SFX mixing */
-    sceneTimings?: import("../audioMixerService").SceneAudioInfo[];
+    sceneTimings?: SceneAudioInfo[];
 
     // Format-specific assembly (Task 10.1)
     /** Video format identifier — drives format-specific assembly rules */
@@ -156,14 +163,32 @@ export function getExportQualityValue(quality: ExportQualityPreset | undefined):
 }
 
 /**
- * Merge user config with defaults
+ * Merge user config with defaults, validating required fields.
  */
 export function mergeExportConfig(config?: Partial<ExportConfig>): ExportConfig {
     if (!config) return DEFAULT_EXPORT_CONFIG;
 
+    const orientation =
+        config.orientation === "landscape" || config.orientation === "portrait"
+            ? config.orientation
+            : DEFAULT_EXPORT_CONFIG.orientation;
+
+    const transitionDuration =
+        typeof config.transitionDuration === "number" && config.transitionDuration >= 0
+            ? config.transitionDuration
+            : DEFAULT_EXPORT_CONFIG.transitionDuration;
+
+    const syncOffsetMs =
+        typeof config.syncOffsetMs === "number" && isFinite(config.syncOffsetMs)
+            ? config.syncOffsetMs
+            : DEFAULT_EXPORT_CONFIG.syncOffsetMs;
+
     return {
         ...DEFAULT_EXPORT_CONFIG,
         ...config,
+        orientation,
+        transitionDuration,
+        syncOffsetMs,
         visualizerConfig: config.visualizerConfig
             ? { ...DEFAULT_EXPORT_CONFIG.visualizerConfig!, ...config.visualizerConfig }
             : DEFAULT_EXPORT_CONFIG.visualizerConfig,

@@ -9,7 +9,7 @@
 import { SongData } from "../../types";
 import { applyPolyfills } from "../../lib/utils";
 import { ExportConfig, RenderAsset } from "./exportConfig";
-import { renderFrameToCanvas } from "./frameRenderer";
+import { renderFrameToCanvas, type RenderFrameState } from "./frameRenderer";
 
 const FPS = 24;
 const JPEG_QUALITY = 0.98;
@@ -39,6 +39,42 @@ export interface RenderPipelineOptions {
         duration: number,
         currentAsset: RenderAsset | undefined
     ) => void;
+}
+
+type RenderSurface = {
+    canvas: HTMLCanvasElement | OffscreenCanvas;
+    ctx: CanvasRenderingContext2D;
+};
+
+function createRenderSurface(width: number, height: number): RenderSurface {
+    const canvas: HTMLCanvasElement | OffscreenCanvas = typeof OffscreenCanvas !== "undefined"
+        ? new OffscreenCanvas(width, height)
+        : document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
+    applyPolyfills(ctx);
+
+    return { canvas, ctx };
+}
+
+async function canvasToBlob(canvas: HTMLCanvasElement | OffscreenCanvas): Promise<Blob> {
+    if (typeof OffscreenCanvas !== "undefined" && canvas instanceof OffscreenCanvas) {
+        return canvas.convertToBlob({ type: "image/jpeg", quality: JPEG_QUALITY });
+    }
+
+    return new Promise<Blob>((resolve, reject) => {
+        (canvas as HTMLCanvasElement).toBlob((blob) => {
+            if (!blob) {
+                reject(new Error("Failed to encode frame blob"));
+                return;
+            }
+
+            resolve(blob);
+        }, "image/jpeg", JPEG_QUALITY);
+    });
 }
 
 /**
@@ -76,20 +112,29 @@ export async function runRenderPipeline(options: RenderPipelineOptions): Promise
         onProgress,
     } = options;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-    applyPolyfills(ctx);
+    const surfaces = [createRenderSurface(width, height), createRenderSurface(width, height)];
+    const renderState: RenderFrameState = { assetIndex: 0, subtitleIndex: 0 };
 
     let previousFreqData: Uint8Array | null = null;
+    let pendingEncode: Promise<Blob> | null = null;
+    let pendingFrameIndex = -1;
+    let pendingFrameName = "";
 
     for (let frame = 0; frame < totalFrames; frame++) {
         const currentTime = frame / FPS;
         const freqData = frequencyDataArray[frame] || new Uint8Array(128).fill(0);
+        const surfaceIndex = frame % 2;
+        const surface = surfaces[surfaceIndex]!;
+
+        if (frame > 0) {
+            const previousSurface = surfaces[1 - surfaceIndex]!;
+            pendingEncode = canvasToBlob(previousSurface.canvas);
+            pendingFrameIndex = frame - 1;
+            pendingFrameName = `frame${pendingFrameIndex.toString().padStart(6, "0")}.jpg`;
+        }
 
         await renderFrameToCanvas(
-            ctx,
+            surface.ctx,
             width,
             height,
             currentTime,
@@ -97,20 +142,27 @@ export async function runRenderPipeline(options: RenderPipelineOptions): Promise
             subtitles,
             freqData,
             previousFreqData,
-            config
+            config,
+            renderState
         );
 
         previousFreqData = freqData;
 
-        const blob = await new Promise<Blob>((resolve) => {
-            canvas.toBlob((b) => resolve(b!), "image/jpeg", JPEG_QUALITY);
-        });
-
-        const frameName = `frame${frame.toString().padStart(6, "0")}.jpg`;
-        await onFrame(blob, frame, frameName);
+        if (pendingEncode) {
+            const blob = await pendingEncode;
+            await onFrame(blob, pendingFrameIndex, pendingFrameName);
+            pendingEncode = null;
+        }
 
         if (frame % FPS === 0) {
-            onProgress(frame, totalFrames, duration, findActiveAsset(assets, currentTime));
+            onProgress(frame, totalFrames, duration, assets[renderState.assetIndex]);
         }
+    }
+
+    if (totalFrames > 0) {
+        const finalFrameIndex = totalFrames - 1;
+        const finalSurface = surfaces[finalFrameIndex % 2]!;
+        const finalBlob = await canvasToBlob(finalSurface.canvas);
+        await onFrame(finalBlob, finalFrameIndex, `frame${finalFrameIndex.toString().padStart(6, "0")}.jpg`);
     }
 }

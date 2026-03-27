@@ -28,13 +28,27 @@ const VIDEO_SEEK_TIMEOUT_MS = 2000;
  * Cache for extracted video frames to avoid re-seeking
  * Key: `${videoSrc}:${frameIndex}` where frameIndex = Math.floor(time * FPS)
  */
-const videoFrameCache = new Map<string, ImageBitmap>();
+type CachedFrameEntry = {
+    bitmap: ImageBitmap;
+    bytes: number;
+    cachedAt: number;
+};
 
-/** Maximum cache size (frames) to prevent memory issues */
-const MAX_CACHE_SIZE = 500;
+const videoFrameCache = new Map<string, CachedFrameEntry>();
+
+/** Maximum cache size in bytes to prevent memory issues */
+const MAX_CACHE_BYTES = 384 * 1024 * 1024;
+
+/** TTL for cached frames in milliseconds */
+const FRAME_CACHE_TTL_MS = 30_000;
+
+/** Approximate bytes per pixel for RGBA ImageBitmap memory estimates */
+const BYTES_PER_PIXEL = 4;
 
 /** FPS used for frame cache key calculation */
 const CACHE_FPS = 24;
+
+let cachedFrameBytes = 0;
 
 /**
  * Get cache key for a video frame
@@ -49,43 +63,114 @@ function getFrameCacheKey(videoSrc: string, time: number): string {
  */
 export function getCachedFrame(videoSrc: string, time: number): ImageBitmap | null {
     const key = getFrameCacheKey(videoSrc, time);
-    return videoFrameCache.get(key) || null;
+    const entry = videoFrameCache.get(key);
+    if (!entry) {
+        return null;
+    }
+
+    // Move to the end of the insertion order to preserve LRU semantics.
+    videoFrameCache.delete(key);
+    videoFrameCache.set(key, entry);
+
+    return entry.bitmap;
+}
+
+function estimateBitmapBytes(bitmap: ImageBitmap): number {
+    return Math.max(1, bitmap.width) * Math.max(1, bitmap.height) * BYTES_PER_PIXEL;
+}
+
+function evictExpiredEntries(): void {
+    const now = Date.now();
+    for (const [key, entry] of videoFrameCache) {
+        if (now - entry.cachedAt > FRAME_CACHE_TTL_MS) {
+            videoFrameCache.delete(key);
+            cachedFrameBytes -= entry.bytes;
+            try {
+                entry.bitmap.close();
+            } catch (_e) {
+                // ignore
+            }
+        }
+    }
+}
+
+function evictFrameEntries(bytesNeeded: number): void {
+    evictExpiredEntries();
+    while (videoFrameCache.size > 0 && cachedFrameBytes + bytesNeeded > MAX_CACHE_BYTES) {
+        const oldestKey = videoFrameCache.keys().next().value as string | undefined;
+        if (!oldestKey) {
+            break;
+        }
+
+        const oldest = videoFrameCache.get(oldestKey);
+        videoFrameCache.delete(oldestKey);
+
+        if (oldest) {
+            cachedFrameBytes -= oldest.bytes;
+            try {
+                oldest.bitmap.close();
+            } catch (error) {
+                console.warn(`[AssetLoader] Failed to close cached bitmap for ${oldestKey}:`, error);
+            }
+        }
+    }
 }
 
 /**
  * Cache a video frame
  */
 export function cacheFrame(videoSrc: string, time: number, bitmap: ImageBitmap): void {
-    // Evict oldest entries if cache is full
-    if (videoFrameCache.size >= MAX_CACHE_SIZE) {
-        const firstKey = videoFrameCache.keys().next().value;
-        if (firstKey) {
-            const oldBitmap = videoFrameCache.get(firstKey);
-            oldBitmap?.close(); // Release ImageBitmap memory
-            videoFrameCache.delete(firstKey);
+    const key = getFrameCacheKey(videoSrc, time);
+    const bytes = estimateBitmapBytes(bitmap);
+
+    // If this frame is larger than the entire cache budget, let the caller use it
+    // directly without retaining a cached copy.
+    if (bytes > MAX_CACHE_BYTES) {
+        return;
+    }
+
+    const existing = videoFrameCache.get(key);
+    if (existing) {
+        videoFrameCache.delete(key);
+        cachedFrameBytes -= existing.bytes;
+        try {
+            existing.bitmap.close();
+        } catch (error) {
+            console.warn(`[AssetLoader] Failed to replace cached bitmap for ${key}:`, error);
         }
     }
 
-    const key = getFrameCacheKey(videoSrc, time);
-    videoFrameCache.set(key, bitmap);
+    evictFrameEntries(bytes);
+
+    if (cachedFrameBytes + bytes > MAX_CACHE_BYTES) {
+        return;
+    }
+
+    videoFrameCache.set(key, { bitmap, bytes, cachedAt: Date.now() });
+    cachedFrameBytes += bytes;
 }
 
 /**
  * Clear all cached frames (call after export completes)
  */
 export function clearFrameCache(): void {
-    for (const bitmap of videoFrameCache.values()) {
-        bitmap.close();
+    for (const entry of videoFrameCache.values()) {
+        try {
+            entry.bitmap.close();
+        } catch (error) {
+            console.warn("[AssetLoader] Failed to close cached bitmap during clear:", error);
+        }
     }
     videoFrameCache.clear();
+    cachedFrameBytes = 0;
     console.log("[AssetLoader] Frame cache cleared");
 }
 
 /**
  * Get cache statistics for debugging
  */
-export function getFrameCacheStats(): { size: number; maxSize: number } {
-    return { size: videoFrameCache.size, maxSize: MAX_CACHE_SIZE };
+export function getFrameCacheStats(): { size: number; bytes: number; maxBytes: number; maxSize: number } {
+    return { size: videoFrameCache.size, bytes: cachedFrameBytes, maxBytes: MAX_CACHE_BYTES, maxSize: MAX_CACHE_BYTES };
 }
 
 // --- Image Loading ---
@@ -106,6 +191,10 @@ export async function loadImageAsset(url: string, timeoutMs = ASSET_LOAD_TIMEOUT
 
         img.onload = () => {
             clearTimeout(timeout);
+            if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+                reject(new Error(`Invalid image dimensions (${img.naturalWidth}x${img.naturalHeight}): ${url}`));
+                return;
+            }
             resolve();
         };
         img.onerror = (e) => {
@@ -406,6 +495,7 @@ async function withBoundedConcurrency<T>(
  */
 export async function preloadAssets(
     songData: SongData,
+    renderDimensions?: { width: number; height: number },
     onProgress?: (progress: AssetLoadProgress) => void
 ): Promise<RenderAsset[]> {
     // Sort prompts by timestamp
@@ -458,10 +548,19 @@ export async function preloadAssets(
                 const element = await loadVideoAsset(assetUrl);
                 const nativeDuration =
                     element.duration && isFinite(element.duration) ? element.duration : undefined;
+                const naturalWidth = element.videoWidth;
+                const naturalHeight = element.videoHeight;
+                const baseScale = renderDimensions
+                    ? Math.max(renderDimensions.width / naturalWidth, renderDimensions.height / naturalHeight)
+                    : 0;
                 result = {
+                    id: prompt.id,
                     time: prompt.timestampSeconds || 0,
                     type: "video",
                     element,
+                    naturalWidth,
+                    naturalHeight,
+                    baseScale,
                     nativeDuration,
                 };
                 console.log(
@@ -470,10 +569,19 @@ export async function preloadAssets(
                 );
             } else {
                 const element = await loadImageAsset(assetUrl);
+                const naturalWidth = element.naturalWidth || element.width;
+                const naturalHeight = element.naturalHeight || element.height;
+                const baseScale = renderDimensions
+                    ? Math.max(renderDimensions.width / naturalWidth, renderDimensions.height / naturalHeight)
+                    : 0;
                 result = {
+                    id: prompt.id,
                     time: prompt.timestampSeconds || 0,
                     type: "image",
                     element,
+                    naturalWidth,
+                    naturalHeight,
+                    baseScale,
                 };
             }
         } catch (error) {
@@ -483,9 +591,15 @@ export async function preloadAssets(
             );
             const placeholder = createPlaceholderImage(1280, 720, `Scene ${prompt.id} unavailable`);
             result = {
+                id: prompt.id,
                 time: prompt.timestampSeconds || 0,
                 type: "image",
                 element: placeholder as unknown as HTMLImageElement,
+                naturalWidth: placeholder.width,
+                naturalHeight: placeholder.height,
+                baseScale: renderDimensions
+                    ? Math.max(renderDimensions.width / placeholder.width, renderDimensions.height / placeholder.height)
+                    : 0,
             };
             onProgress?.({
                 loaded,

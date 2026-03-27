@@ -18,6 +18,7 @@ const HomeScreen = lazy(() => import('../screens/HomeScreen'));
 const StudioScreen = lazy(() => import('../screens/StudioScreen'));
 const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
 const ProjectsScreen = lazy(() => import('../screens/ProjectsScreen'));
+const NewProjectScreen = lazy(() => import('../screens/NewProjectScreen'));
 const GradientGeneratorScreen = lazy(() => import('../screens/GradientGeneratorScreen'));
 const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
 const SignInScreen = lazy(() => import('../screens/SignInScreen'));
@@ -46,6 +47,9 @@ export function AppRouter() {
 
             {/* Projects route - user's project dashboard */}
             <Route path="/projects" element={<ProjectsScreen />} />
+
+            {/* New Project wizard */}
+            <Route path="/projects/new" element={<NewProjectScreen />} />
 
             {/* Studio route - unified creation workspace */}
             <Route path="/studio" element={<StudioScreen />} />

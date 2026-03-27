@@ -28,7 +28,16 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
 import type { ExportQualityPreset } from '@/services/ffmpeg/exportConfig';
-import type { ScreenplayScene, StoryState, ShotlistEntry } from '@/types';
+import type {
+  ScreenplayScene,
+  StoryState,
+  ShotlistEntry,
+  ContentPlan,
+  Scene,
+  NarrationSegment,
+  GeneratedImage,
+  StoryNarrationSegment,
+} from '@/types';
 import { AppState } from '@/types';
 import { getEffectiveLegacyTone } from '@/services/tripletUtils';
 
@@ -132,6 +141,60 @@ function buildFallbackShotlist(screenplay: ScreenplayScene[], visuals: unknown):
       imageUrl: candidate.imageUrl,
     };
   });
+}
+
+type StudioTestExportPayload = {
+  config: {
+    presetId: string;
+    width: number;
+    height: number;
+    orientation: 'landscape' | 'portrait';
+    quality: ExportQualityPreset;
+  };
+  title?: string;
+  sceneCount: number;
+  narrationCount: number;
+  hasMergedAudio: boolean;
+};
+
+type StudioTestApi = {
+  seedExportReadyState: () => Promise<void>;
+  setExportInterceptor: (interceptor: ((payload: StudioTestExportPayload) => Promise<void> | void) | null) => void;
+};
+
+type StudioTestWindow = Window & {
+  __studioTestApi?: StudioTestApi;
+};
+
+function createTestWavBlob(durationSeconds: number): Blob {
+  const sampleRate = 24000;
+  const bytesPerSample = 2;
+  const headerSize = 44;
+  const totalSamples = Math.max(1, Math.floor(sampleRate * durationSeconds));
+  const pcmSize = totalSamples * bytesPerSample;
+  const wavBuffer = new ArrayBuffer(headerSize + pcmSize);
+  const view = new DataView(wavBuffer);
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + pcmSize, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, pcmSize, true);
+
+  return new Blob([wavBuffer], { type: 'audio/wav' });
 }
 
 // ============================================================
@@ -261,6 +324,7 @@ export default function StudioScreen() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const timelineAudioRef = useRef<HTMLAudioElement>(null);
   const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
+  const exportInterceptorRef = useRef<((payload: StudioTestExportPayload) => Promise<void> | void) | null>(null);
   // Ref tracks the current blob URL so the useEffect cleanup can revoke it
   // without calling setState (calling setState in cleanup triggers a React warning).
   const mergedAudioUrlRef = useRef<string | null>(null);
@@ -471,6 +535,104 @@ export default function StudioScreen() {
       setMergedAudioUrl(null);
     };
   }, [contentPlan, narrationSegments]);
+
+  const seedExportReadyState = useCallback(async () => {
+    const mockContentPlan: Parameters<typeof setContentPlan>[0] = {
+      title: 'Playwright Export Demo',
+      totalDuration: 18,
+      targetAudience: 'General audience',
+      overallTone: 'Cinematic',
+      scenes: [
+        {
+          id: 'scene-1',
+          name: 'Opening',
+          duration: 6,
+          visualDescription: 'Golden sunrise over a futuristic city skyline',
+          narrationScript: 'The city wakes under a quiet golden dawn.',
+          emotionalTone: 'dramatic',
+          instructionTriplet: {
+            primaryEmotion: 'euphoric-wonder',
+            cinematicDirection: 'slow-push-in',
+            environmentalAtmosphere: 'golden-hour-decay',
+          },
+        },
+        {
+          id: 'scene-2',
+          name: 'Middle',
+          duration: 6,
+          visualDescription: 'Close-up of neon reflections on glass and rain',
+          narrationScript: 'Reflections and rain turn motion into memory.',
+          emotionalTone: 'dramatic',
+          instructionTriplet: {
+            primaryEmotion: 'bittersweet-longing',
+            cinematicDirection: 'tracking-shot',
+            environmentalAtmosphere: 'ethereal-echo',
+          },
+        },
+        {
+          id: 'scene-3',
+          name: 'Ending',
+          duration: 6,
+          visualDescription: 'Wide shot of lights stretching into the horizon',
+          narrationScript: 'Night settles as the horizon keeps glowing.',
+          emotionalTone: 'dramatic',
+          instructionTriplet: {
+            primaryEmotion: 'stoic-resignation',
+            cinematicDirection: 'pull-back',
+            environmentalAtmosphere: 'cathedral-reverb',
+          },
+        },
+      ],
+    };
+
+    const posterImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9p2z7L8AAAAASUVORK5CYII=';
+    const mockVisuals: Parameters<typeof setVisuals>[0] = mockContentPlan.scenes.map((scene) => ({
+      promptId: scene.id,
+      sceneId: scene.id,
+      imageUrl: posterImage,
+      type: 'image',
+      generatedWithVeo: false,
+    }));
+    const mockNarrationSegments: Parameters<typeof setNarrationSegments>[0] = mockContentPlan.scenes.map((scene) => ({
+      sceneId: scene.id,
+      audioBlob: createTestWavBlob(scene.duration),
+      audioDuration: scene.duration,
+      transcript: scene.narrationScript,
+    }));
+    const mergedBlob = createTestWavBlob(mockContentPlan.totalDuration);
+
+    if (mergedAudioUrlRef.current) {
+      URL.revokeObjectURL(mergedAudioUrlRef.current);
+    }
+
+    const nextMergedAudioUrl = URL.createObjectURL(mergedBlob);
+    mergedAudioUrlRef.current = nextMergedAudioUrl;
+
+    setContentPlan(mockContentPlan);
+    setVisuals(mockVisuals);
+    setNarrationSegments(mockNarrationSegments);
+    setMergedAudioUrl(nextMergedAudioUrl);
+    setAppState(AppState.READY);
+    setShowExport(false);
+  }, [setAppState, setContentPlan, setNarrationSegments, setShowExport, setVisuals]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const studioWindow = window as StudioTestWindow;
+    studioWindow.__studioTestApi = {
+      seedExportReadyState,
+      setExportInterceptor: (interceptor) => {
+        exportInterceptorRef.current = interceptor;
+      },
+    };
+
+    return () => {
+      delete studioWindow.__studioTestApi;
+    };
+  }, [seedExportReadyState]);
 
   // Handle preview playback
   useEffect(() => {
@@ -970,6 +1132,19 @@ export default function StudioScreen() {
       throw new Error('Video not ready for export');
     }
 
+    if (import.meta.env.DEV && exportInterceptorRef.current) {
+      onProgress?.(30);
+      await exportInterceptorRef.current({
+        config,
+        title: contentPlan.title,
+        sceneCount: contentPlan.scenes.length,
+        narrationCount: narrationSegments.length,
+        hasMergedAudio: Boolean(mergedAudioUrl),
+      });
+      onProgress?.(100);
+      return;
+    }
+
     await flushSession();
 
     let currentTime = 0;
@@ -1114,7 +1289,7 @@ export default function StudioScreen() {
     }));
 
     // Set the data
-    setContentPlan(mockContentPlan as any);
+    setContentPlan(mockContentPlan as ContentPlan);
     setVisuals(mockVisuals);
     setNarrationSegments(mockNarrationSegments);
     setAppState(AppState.READY);
@@ -1164,11 +1339,12 @@ export default function StudioScreen() {
       : buildFallbackShotlist(screenplay, partialResults.visuals);
 
     const importedNarrationSegments = Array.isArray(partialResults.narrationSegments)
-      ? partialResults.narrationSegments.flatMap((segment: any) => {
-        const audioUrl = typeof segment?.audioUrl === 'string' && segment.audioUrl
-          ? segment.audioUrl
-          : segment?.audioBlob instanceof Blob
-            ? URL.createObjectURL(segment.audioBlob)
+      ? partialResults.narrationSegments.flatMap((segment: NarrationSegment | StoryNarrationSegment) => {
+        const seg = segment as NarrationSegment & StoryNarrationSegment;
+        const audioUrl = typeof seg?.audioUrl === 'string' && seg.audioUrl
+          ? seg.audioUrl
+          : seg?.audioBlob instanceof Blob
+            ? URL.createObjectURL(seg.audioBlob)
             : '';
 
         if (!audioUrl) {
@@ -1176,10 +1352,10 @@ export default function StudioScreen() {
         }
 
         return [{
-          sceneId: String(segment.sceneId || ''),
+          sceneId: String(seg.sceneId || ''),
           audioUrl,
-          duration: Number(segment.audioDuration ?? segment.duration ?? 0),
-          text: String(segment.transcript ?? segment.text ?? ''),
+          duration: Number(seg.audioDuration ?? seg.duration ?? 0),
+          text: String(seg.transcript ?? seg.text ?? ''),
         }];
       })
       : undefined;
@@ -1227,17 +1403,17 @@ export default function StudioScreen() {
     editorStore.addTrack('audio', 'Voiceover');
 
     const pipelineResults = formatPipelineHook.result?.success ? formatPipelineHook.result.partialResults : null;
-    const editorVisuals: any[] = pipelineResults?.visuals?.length
+    const editorVisuals: (GeneratedImage | ShotlistEntry)[] = pipelineResults?.visuals?.length
       ? pipelineResults.visuals
       : storyHook.state.shotlist?.length
         ? storyHook.state.shotlist
         : visuals;
-    const editorNarrations: any[] = pipelineResults?.narrationSegments?.length
+    const editorNarrations: (NarrationSegment | StoryNarrationSegment)[] = pipelineResults?.narrationSegments?.length
       ? pipelineResults.narrationSegments
       : storyHook.state.narrationSegments?.length
         ? storyHook.state.narrationSegments
         : narrationSegments;
-    const editorBreakdown: any[] = pipelineResults?.screenplay?.length
+    const editorBreakdown: (ScreenplayScene | Scene)[] = pipelineResults?.screenplay?.length
       ? pipelineResults.screenplay
       : storyHook.state.breakdown?.length
         ? storyHook.state.breakdown
@@ -1253,11 +1429,16 @@ export default function StudioScreen() {
       const audioTrack = state.tracks.find((track) => track.type === 'audio');
 
       let currentTime = 0;
-      editorBreakdown.forEach((scene: any, idx: number) => {
-        const sceneId = scene.id || scene.sceneId;
-        const visual = editorVisuals.find((item: any) => (item.sceneId || item.id || item.promptId) === sceneId);
-        const narration = editorNarrations.find((item: any) => item.sceneId === sceneId);
-        const duration = narration?.audioDuration || scene.duration || 5;
+      editorBreakdown.forEach((scene: ScreenplayScene | Scene, idx: number) => {
+        const sceneAny = scene as ScreenplayScene & Scene;
+        const sceneId = sceneAny.id;
+        const visual = editorVisuals.find((item: GeneratedImage | ShotlistEntry) => {
+          const v = item as GeneratedImage & ShotlistEntry;
+          return (v.sceneId || v.promptId || v.id) === sceneId;
+        });
+        const narration = editorNarrations.find((item: NarrationSegment | StoryNarrationSegment) => item.sceneId === sceneId);
+        const narrationAny = narration as (NarrationSegment & StoryNarrationSegment) | undefined;
+        const duration = narrationAny?.audioDuration ?? narrationAny?.duration ?? sceneAny.duration ?? 5;
 
         if (visual?.imageUrl && videoTrack) {
           state.addClip({
@@ -1265,7 +1446,7 @@ export default function StudioScreen() {
             type: 'video',
             startTime: currentTime,
             duration,
-            name: scene.heading || `Scene ${idx + 1}`,
+            name: sceneAny.heading || `Scene ${idx + 1}`,
             sourceUrl: visual.imageUrl,
             thumbnailUrl: visual.imageUrl,
             inPoint: 0,
@@ -1274,7 +1455,7 @@ export default function StudioScreen() {
         }
 
         if (narration && audioTrack) {
-          const narrationUrl = narration.audioBlob ? URL.createObjectURL(narration.audioBlob) : narration.audioUrl;
+          const narrationUrl = narrationAny?.audioBlob ? URL.createObjectURL(narrationAny.audioBlob) : narrationAny?.audioUrl;
           if (typeof narrationUrl === 'string' && narrationUrl.length > 0) {
             state.addClip({
               trackId: audioTrack.id,

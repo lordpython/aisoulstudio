@@ -1657,6 +1657,29 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                                 alt="Checkpoint output preview"
                                                 className="w-full h-full object-cover"
                                             />
+                                        ) : d.sourceCount != null ? (
+                                            <div className="h-full w-full overflow-y-auto p-4 text-left">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="px-2 py-0.5 rounded bg-blue-900/60 border border-blue-700/50 text-[11px] font-mono text-blue-300">{d.sourceCount as number} sources</span>
+                                                    {d.confidence != null && <span className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[11px] font-mono text-zinc-400">{Math.round((d.confidence as number) * 100)}% confidence</span>}
+                                                </div>
+                                                {Array.isArray(d.topics) && (d.topics as string[]).length > 0 && (
+                                                    <div className="mb-3">
+                                                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5">Topics covered</p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {(d.topics as string[]).map((t, i) => (
+                                                                <span key={i} className="px-2 py-0.5 rounded-sm bg-zinc-800/80 border border-zinc-700/60 text-[11px] text-zinc-300">{t}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {d.summaryPreview != null && (
+                                                    <div>
+                                                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5">Research summary</p>
+                                                        <p className="text-xs text-zinc-400 leading-relaxed">{d.summaryPreview as string}</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         ) : (
                                             <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
                                                 Waiting for generated output...
@@ -1669,7 +1692,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                 </div>
 
                                 <div className="px-4 py-2 border-t border-blue-900/40 bg-[#091a37] flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                                    <span>{timelineItems.length || visuals?.length || 0} clips</span>
+                                    <span>{d.sourceCount != null ? `${d.sourceCount as number} sources` : `${timelineItems.length || visuals?.length || 0} clips`}</span>
                                     <span>{d.totalDuration != null ? `${Math.round(d.totalDuration as number)}s total` : 'Checkpoint output'}</span>
                                 </div>
 

@@ -77,9 +77,9 @@ describe('Frame Renderer', () => {
     };
 
     const mockAssets: RenderAsset[] = [
-        { time: 0, type: 'image', element: {} as any },
-        { time: 5, type: 'image', element: {} as any },
-        { time: 10, type: 'image', element: {} as any },
+        { id: 'scene-0', time: 0, type: 'image', element: {} as any, naturalWidth: 1920, naturalHeight: 1080, baseScale: 1.7777777778 },
+        { id: 'scene-1', time: 5, type: 'image', element: {} as any, naturalWidth: 1920, naturalHeight: 1080, baseScale: 1.7777777778 },
+        { id: 'scene-2', time: 10, type: 'image', element: {} as any, naturalWidth: 1920, naturalHeight: 1080, baseScale: 1.7777777778 },
     ];
 
     it('should clear background with black', async () => {

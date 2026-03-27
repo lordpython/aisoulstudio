@@ -272,7 +272,13 @@ export function getEncoderArgs(encoder: EncoderType, quality?: number): string[]
   const args: string[] = ['-c:v', encoder];
 
   const qualitySpecs = ENCODING_SPEC.quality;
-  const effectiveQuality = quality ?? qualitySpecs.libx264.crf;
+  const encoderDefaults: Record<string, number> = {
+    h264_nvenc: qualitySpecs.nvenc.cq,
+    h264_qsv:  qualitySpecs.qsv.cq,
+    h264_amf:  qualitySpecs.amf.cq,
+    libx264:   qualitySpecs.libx264.crf,
+  };
+  const effectiveQuality = quality ?? encoderDefaults[encoder] ?? qualitySpecs.libx264.crf;
 
   switch (encoder) {
     case 'h264_nvenc':

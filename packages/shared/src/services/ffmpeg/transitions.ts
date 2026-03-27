@@ -27,19 +27,43 @@ function easeInOutCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+const EASING_LUT_SIZE = 1024;
+const EASING_LUT = Array.from(
+    { length: EASING_LUT_SIZE },
+    (_unused, index) => easeInOutCubic(index / (EASING_LUT_SIZE - 1))
+);
+
+function sampleEase(t: number): number {
+    if (t <= 0) return EASING_LUT[0] ?? 0;
+    if (t >= 1) return EASING_LUT[EASING_LUT_SIZE - 1] ?? 1;
+
+    const scaled = t * (EASING_LUT_SIZE - 1);
+    const low = Math.floor(scaled);
+    const high = Math.min(EASING_LUT_SIZE - 1, low + 1);
+    const frac = scaled - low;
+    const lowValue = EASING_LUT[low] ?? 0;
+    const highValue = EASING_LUT[high] ?? 1;
+    return lowValue + (highValue - lowValue) * frac;
+}
+
 /**
  * Get deterministic but varied Ken Burns movement based on asset index/time.
  * Uses better hash distribution across 10 movements.
  */
-function getKenBurnsMovement(assetTime: number): KenBurnsMovement {
+function getKenBurnsMovement(assetId: string): KenBurnsMovement {
     const movements: KenBurnsMovement[] = [
         'zoom_in', 'zoom_out',
         'pan_left', 'pan_right', 'pan_up', 'pan_down',
         'zoom_in_pan_left', 'zoom_in_pan_right',
         'zoom_out_pan_up', 'zoom_out_pan_down',
     ];
-    // Better hash: multiply by prime for more spread across sequential times
-    const index = Math.floor(assetTime * 7.3) % movements.length;
+    let hash = 2166136261;
+    for (let i = 0; i < assetId.length; i++) {
+        hash ^= assetId.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    const index = Math.abs(hash) % movements.length;
     return movements[index] || 'zoom_in';
 }
 
@@ -68,16 +92,8 @@ export async function drawAsset(
     let drawWidth: number;
     let drawHeight: number;
     const element = asset.element;
-
-    // Get natural dimensions
-    const naturalWidth =
-        asset.type === "video"
-            ? (element as HTMLVideoElement).videoWidth
-            : (element as HTMLImageElement).width;
-    const naturalHeight =
-        asset.type === "video"
-            ? (element as HTMLVideoElement).videoHeight
-            : (element as HTMLImageElement).height;
+    const naturalWidth = asset.naturalWidth;
+    const naturalHeight = asset.naturalHeight;
 
     // Validate dimensions (fallback for edge cases)
     if (naturalWidth === 0 || naturalHeight === 0) {
@@ -108,15 +124,17 @@ export async function drawAsset(
     }
 
     // Base scale to cover canvas
-    const baseScale = Math.max(width / naturalWidth, height / naturalHeight);
+    const baseScale = asset.baseScale > 0
+        ? asset.baseScale
+        : Math.max(width / naturalWidth, height / naturalHeight);
     
     if (useModernEffects) {
         // Get varied Ken Burns movement based on asset timing
-        const movement = getKenBurnsMovement(asset.time);
+        const movement = getKenBurnsMovement(asset.id);
         const intensity = 0.18; // 18% movement range (was 12%)
         const panDistance = 80; // pixels for pan movements (was 40)
         // Apply ease-in-out for organic camera motion
-        const p = easeInOutCubic(progress);
+        const p = sampleEase(progress);
 
         switch (movement) {
             case 'zoom_in':
@@ -283,13 +301,11 @@ export async function applyTransition(context: TransitionContext): Promise<void>
 
             // Draw current (zooming in and fading out)
             const element = currentAsset.element;
-            const naturalWidth = currentAsset.type === "video"
-                ? (element as HTMLVideoElement).videoWidth
-                : (element as HTMLImageElement).width;
-            const naturalHeight = currentAsset.type === "video"
-                ? (element as HTMLVideoElement).videoHeight
-                : (element as HTMLImageElement).height;
-            const scale = Math.max(width / naturalWidth, height / naturalHeight);
+            const naturalWidth = currentAsset.naturalWidth;
+            const naturalHeight = currentAsset.naturalHeight;
+            const scale = currentAsset.baseScale > 0
+                ? currentAsset.baseScale
+                : Math.max(width / naturalWidth, height / naturalHeight);
             const drawWidth = naturalWidth * scale;
             const drawHeight = naturalHeight * scale;
             const x = (width - drawWidth) / 2;

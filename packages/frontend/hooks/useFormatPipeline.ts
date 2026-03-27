@@ -8,12 +8,13 @@
  * movie-animation is excluded — it delegates to the existing useStoryGeneration hook.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { VideoFormat, CheckpointState } from '@/types';
 import type { IndexedDocument } from '@/services/documentParser';
 import type { PipelineCallbacks, PipelineResult } from '@/services/formatRouter';
 import { formatRouter } from '@/services/formatRouter';
 import { formatRegistry } from '@/services/formatRegistry';
+import { detectLanguage } from '@/services/languageDetector';
 import type { CheckpointSystem } from '@/services/checkpointSystem';
 import type { ExecutionProgress } from '@/services/parallelExecutionEngine';
 import type { PipelineTask } from '@/components/PipelineProgress';
@@ -101,6 +102,16 @@ export function useFormatPipeline(): UseFormatPipelineReturn {
   // Refs for bridging callbacks to React state
   const checkpointSystemRef = useRef<CheckpointSystem | null>(null);
   const cancelFnRef = useRef<(() => void) | null>(null);
+
+  // Dispose checkpoint system if the consumer navigates away mid-pipeline
+  useEffect(() => {
+    return () => {
+      if (checkpointSystemRef.current) {
+        checkpointSystemRef.current.dispose();
+        checkpointSystemRef.current = null;
+      }
+    };
+  }, []);
 
   const setFormat = useCallback((format: VideoFormat) => {
     setSelectedFormat(format);
@@ -215,7 +226,7 @@ export function useFormatPipeline(): UseFormatPipelineReturn {
           formatId: selectedFormat,
           idea,
           genre: selectedGenre ?? undefined,
-          language: 'en', // TODO: detect from idea
+          language: detectLanguage(idea),
           referenceDocuments: referenceDocuments.length > 0 ? referenceDocuments : undefined,
           userId,
           projectId,

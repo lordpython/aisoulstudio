@@ -8,7 +8,7 @@
  * Requirements: 8.1–8.6
  */
 
-import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
+import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene, EmotionalTone } from '../../types';
 import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
 import { formatRegistry } from '../formatRegistry';
 import {
@@ -21,6 +21,7 @@ import {
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
 import { CheckpointSystem } from '../checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import type { LanguageCode } from '../../constants';
 import { generateImageFromPrompt } from '../imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import {
@@ -52,6 +53,20 @@ const GENRE_BPM: Record<string, number> = {
   'Country': 100,
   'Indie': 110,
   'Ambient': 60,
+};
+
+// Maps music genre to the closest emotional tone for narrator delivery
+const GENRE_TONE: Record<string, EmotionalTone> = {
+  'Pop': 'friendly',
+  'Rock': 'dramatic',
+  'Hip Hop': 'urgent',
+  'Electronic': 'urgent',
+  'Jazz': 'calm',
+  'Classical': 'calm',
+  'R&B': 'friendly',
+  'Country': 'friendly',
+  'Indie': 'calm',
+  'Ambient': 'calm',
 };
 
 // ============================================================================
@@ -145,6 +160,11 @@ export class MusicVideoPipeline implements FormatPipeline {
         charactersPresent: [],
       }));
 
+      if (screenplay.length === 0) {
+        checkpoints.dispose();
+        return { success: false, error: 'Script generation returned no scenes' };
+      }
+
       const lyrics = screenplay.map(s => ({
         section: s.heading,
         lines: s.dialogue.map(d => d.text),
@@ -193,7 +213,7 @@ export class MusicVideoPipeline implements FormatPipeline {
         })),
         lyrics: lyrics.map(l => ({
           section: l.section,
-          lineCount: l.lines.length,
+          lines: l.lines,
         })),
         bpm,
         estimatedDuration,
@@ -250,6 +270,10 @@ export class MusicVideoPipeline implements FormatPipeline {
         .filter(r => r.success && r.data)
         .map(r => r.data!);
 
+      const failedVisualCount = visualResults.filter(r => !r.success).length;
+      if (failedVisualCount > 0) {
+        log.warn(`${failedVisualCount} visual(s) failed to generate`);
+      }
       log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
 
       // Align visual transitions to beats — Requirement 8.6
@@ -277,9 +301,11 @@ export class MusicVideoPipeline implements FormatPipeline {
 
       // Checkpoint 2: Visual Preview — Requirement 8.5
       const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
-        visuals: visuals.map(v => ({
+        visuals: visuals.map((v, i) => ({
           sceneId: v.sceneId,
           imageUrl: v.imageUrl,
+          section: lyrics[i]?.section ?? '',
+          lines: lyrics[i]?.lines ?? [],
         })),
         visualCount: visuals.length,
         totalScenes: screenplay.length,
@@ -305,19 +331,20 @@ export class MusicVideoPipeline implements FormatPipeline {
         duration: estimatedDuration / screenplay.length,
         visualDescription: s.action,
         narrationScript: s.dialogue.map(d => d.text).join('\n'),
-        emotionalTone: 'friendly',
+        emotionalTone: GENRE_TONE[request.genre ?? 'Pop'] ?? 'friendly',
       }));
 
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
         videoPurpose: 'music_video',
-        language: language as any,
+        language: language as LanguageCode,
         styleOverride: voiceConfig.stylePrompt,
       };
 
       const narrationSegments: NarrationSegment[] = [];
       for (const scene of scenes) {
+        if (cancelled) break;
         try {
           const segment = await narrateScene(scene, narratorConfig, sessionId);
           narrationSegments.push(segment);
@@ -363,6 +390,7 @@ export class MusicVideoPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
 
       log.info(`Music Video pipeline complete: ${screenplay.length} sections, ${visuals.length} visuals, ${beatMetadata.beats.length} beats`);
 
@@ -383,6 +411,7 @@ export class MusicVideoPipeline implements FormatPipeline {
 
     } catch (error) {
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
       const msg = error instanceof Error ? error.message : String(error);
       log.error('Music Video pipeline failed:', msg);
       return { success: false, error: msg };

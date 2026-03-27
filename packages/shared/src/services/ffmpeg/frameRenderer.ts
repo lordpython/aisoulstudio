@@ -9,9 +9,16 @@ import { SongData } from "../../types";
 import { LAYOUT_PRESETS } from "../../constants/layout";
 import { isRTL, reshapeArabicText } from "../../lib/utils";
 import { ExportConfig, RenderAsset } from "./exportConfig";
+import { seekVideoToTime } from "./assetLoader";
 import { renderTextWithWipe } from "./textRenderer";
 import { renderVisualizerLayer } from "./visualizer";
 import { drawAsset, applyTransition } from "./transitions";
+
+export interface RenderFrameState {
+    assetIndex: number;
+    subtitleIndex: number;
+    preseekedAssetIndex?: number;
+}
 
 /**
  * Get zone bounds from normalized coordinates
@@ -29,6 +36,55 @@ function getZoneBounds(
     };
 }
 
+function findActiveAssetIndex(assets: RenderAsset[], currentTime: number, startIndex: number): number {
+    if (assets.length === 0) {
+        return 0;
+    }
+
+    let currentIndex = Math.max(0, Math.min(startIndex, assets.length - 1));
+
+    while (currentIndex < assets.length - 1 && currentTime >= assets[currentIndex + 1]!.time) {
+        currentIndex++;
+    }
+
+    while (currentIndex > 0 && currentTime < assets[currentIndex]!.time) {
+        currentIndex--;
+    }
+
+    return currentIndex;
+}
+
+function findActiveSubtitleIndex(
+    subtitles: SongData["parsedSubtitles"],
+    adjustedTime: number,
+    startIndex: number
+): { activeIndex: number; cursorIndex: number } {
+    if (subtitles.length === 0) {
+        return { activeIndex: -1, cursorIndex: 0 };
+    }
+
+    let currentIndex = Math.max(0, Math.min(startIndex, subtitles.length - 1));
+
+    while (currentIndex < subtitles.length && adjustedTime > subtitles[currentIndex]!.endTime) {
+        currentIndex++;
+    }
+
+    if (currentIndex >= subtitles.length) {
+        return { activeIndex: -1, cursorIndex: subtitles.length - 1 };
+    }
+
+    while (currentIndex > 0 && adjustedTime < subtitles[currentIndex]!.startTime) {
+        currentIndex--;
+    }
+
+    const candidate = subtitles[currentIndex];
+    if (!candidate || adjustedTime < candidate.startTime || adjustedTime > candidate.endTime) {
+        return { activeIndex: -1, cursorIndex: currentIndex };
+    }
+
+    return { activeIndex: currentIndex, cursorIndex: currentIndex };
+}
+
 /**
  * Render a complete frame to canvas
  */
@@ -41,7 +97,8 @@ export async function renderFrameToCanvas(
     subtitles: SongData["parsedSubtitles"],
     frequencyData: Uint8Array | null,
     previousFrequencyData: Uint8Array | null,
-    config: ExportConfig
+    config: ExportConfig,
+    state?: RenderFrameState
 ): Promise<void> {
     // 1. Background (Black)
     ctx.fillStyle = "#000";
@@ -60,18 +117,15 @@ export async function renderFrameToCanvas(
     };
 
     // 2. Visual Layer with Ken Burns & Transitions
-    let currentIndex = 0;
-    for (let i = 0; i < assets.length; i++) {
-        const asset = assets[i];
-        if (asset && currentTime >= asset.time) {
-            currentIndex = i;
-        } else {
-            break;
-        }
+    const currentIndex = findActiveAssetIndex(assets, currentTime, state?.assetIndex ?? 0);
+    if (state) {
+        state.assetIndex = currentIndex;
     }
 
     const currentAsset = assets[currentIndex];
     const nextAsset = assets[currentIndex + 1];
+    const TRANSITION_DURATION = config.transitionDuration || 1.5;
+    const PRESEEK_WINDOW_SECONDS = 1.5;
 
     // Calculate duration of current slide
     const slideStartTime = currentAsset?.time ?? 0;
@@ -79,8 +133,18 @@ export async function renderFrameToCanvas(
     const slideDuration = slideEndTime - slideStartTime;
     const slideProgress = (currentTime - slideStartTime) / slideDuration;
 
+    if (
+        nextAsset?.type === "video" &&
+        nextAsset.element &&
+        nextAsset.time - currentTime <= TRANSITION_DURATION + PRESEEK_WINDOW_SECONDS &&
+        state &&
+        state.preseekedAssetIndex !== currentIndex + 1
+    ) {
+        state.preseekedAssetIndex = currentIndex + 1;
+        void seekVideoToTime(nextAsset.element as HTMLVideoElement, Math.max(0, nextAsset.time)).catch(() => {});
+    }
+
     if (currentAsset?.element) {
-        const TRANSITION_DURATION = config.transitionDuration || 1.5;
         const timeUntilNext = nextAsset ? nextAsset.time - currentTime : Infinity;
         const isTransitioning = timeUntilNext < TRANSITION_DURATION && nextAsset;
 
@@ -136,9 +200,11 @@ export async function renderFrameToCanvas(
 
     // 5. Subtitles
     const adjustedTime = currentTime + config.syncOffsetMs / 1000;
-    const activeSub = subtitles.find(
-        (s) => adjustedTime >= s.startTime && adjustedTime <= s.endTime
-    );
+    const subtitleResult = findActiveSubtitleIndex(subtitles, adjustedTime, state?.subtitleIndex ?? 0);
+    if (state) {
+        state.subtitleIndex = subtitleResult.cursorIndex;
+    }
+    const activeSub = subtitleResult.activeIndex >= 0 ? subtitles[subtitleResult.activeIndex] : undefined;
 
     let subtitleOpacity = 1.0;
     if (config.fadeOutBeforeCut) {

@@ -22,6 +22,7 @@ import {
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
 import { CheckpointSystem, type CheckpointApproval } from '../checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import type { LanguageCode } from '../../constants';
 import { generateImageFromPrompt } from '../imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import { buildAssemblyRules } from '../ffmpeg/formatAssembly';
@@ -153,6 +154,11 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
         charactersPresent: [],
       }));
 
+      if (screenplay.length === 0) {
+        checkpoints.dispose();
+        return { success: false, error: 'Script generation returned no scenes' };
+      }
+
       // Duration validation
       const wordCount = countScriptWords(screenplay);
       const durationCheck = validateDurationConstraint(wordCount, metadata);
@@ -235,6 +241,10 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
         .filter(r => r.success && r.data)
         .map(r => r.data!);
 
+      const failedVisualCount = visualResults.filter(r => !r.success).length;
+      if (failedVisualCount > 0) {
+        log.warn(`${failedVisualCount} visual(s) failed to generate`);
+      }
       log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
 
       // Update state with visuals
@@ -277,6 +287,7 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       const voiceoverMap = await generateVoiceoverScripts(
         screenplay,
         breakdownResult.acts.map(a => a.emotionalHook),
+        language,
       );
 
       // Convert screenplay to Scene[] for narrator service
@@ -292,13 +303,14 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
       const narratorConfig: NarratorConfig = {
         defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'documentary',
-        language: language as any,
+        videoPurpose: 'educational',
+        language: language as LanguageCode,
         styleOverride: voiceConfig.stylePrompt,
       };
 
       const narrationSegments: NarrationSegment[] = [];
       for (const scene of scenes) {
+        if (cancelled) break;
         try {
           const segment = await narrateScene(scene, narratorConfig, sessionId);
           narrationSegments.push(segment);
@@ -340,6 +352,7 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
       storyModeStore.set(sessionId, state);
 
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
 
       log.info(`YouTube Narrator pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, ${narrationSegments.length} narrations`);
 
@@ -358,6 +371,7 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
 
     } catch (error) {
       checkpoints.dispose();
+      storyModeStore.delete(sessionId);
       const msg = error instanceof Error ? error.message : String(error);
       log.error('YouTube Narrator pipeline failed:', msg);
       return { success: false, error: msg };

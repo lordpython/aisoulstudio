@@ -15,9 +15,6 @@ import {
   Plus,
   Search,
   Folder,
-  Video,
-  Film,
-  AudioWaveform,
   Star,
   Clock,
   Grid3X3,
@@ -42,16 +39,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   listUserProjects,
   deleteProject,
   toggleFavorite,
-  createProject,
   type Project,
   type ProjectType,
 } from '@/services/projectService';
@@ -61,36 +51,6 @@ type SortField = 'updatedAt' | 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
 type FilterType = 'all' | ProjectType;
 type ViewMode = 'grid' | 'list';
-
-const CREATE_OPTIONS: Array<{
-  type: ProjectType;
-  icon: typeof Video;
-  titleKey: string;
-  gradient: string;
-  iconColor: string;
-}> = [
-  {
-    type: 'production',
-    icon: Video,
-    titleKey: 'projects.createVideo',
-    gradient: 'from-primary/80 to-primary/40',
-    iconColor: 'text-primary',
-  },
-  {
-    type: 'story',
-    icon: Film,
-    titleKey: 'projects.createStory',
-    gradient: 'from-accent/80 to-accent/40',
-    iconColor: 'text-accent',
-  },
-  {
-    type: 'visualizer',
-    icon: AudioWaveform,
-    titleKey: 'projects.createVisualizer',
-    gradient: 'from-ring/80 to-ring/40',
-    iconColor: 'text-ring',
-  },
-];
 
 export default function ProjectsScreen() {
   const { t, isRTL } = useLanguage();
@@ -107,10 +67,9 @@ export default function ProjectsScreen() {
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [isCreating, setIsCreating] = useState(false);
 
   // Check authentication
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Redirect to sign in if not authenticated (only after auth check completes)
   useEffect(() => {
@@ -205,40 +164,8 @@ export default function ProjectsScreen() {
   }, [projects]);
 
   // Handlers
-  const handleCreateProject = async (type: ProjectType) => {
-    setIsCreating(true);
-
-    try {
-      const title =
-        type === 'production'
-          ? 'New Video'
-          : type === 'story'
-            ? 'New Story'
-            : 'New Visualizer';
-
-      const project = await createProject({
-        title,
-        type,
-      });
-
-      if (project) {
-        // Navigate to the appropriate screen with the new project
-        const routes: Record<ProjectType, string> = {
-          production: '/studio?mode=video',
-          story: '/studio?mode=story',
-          visualizer: '/visualizer',
-        };
-
-        const route = routes[type];
-        const separator = route.includes('?') ? '&' : '?';
-        navigate(`${route}${separator}projectId=${project.id}`);
-      }
-    } catch (err) {
-      console.error('[ProjectsScreen] Failed to create project:', err);
-      setError(t('projects.createError') || 'Failed to create project');
-    } finally {
-      setIsCreating(false);
-    }
+  const handleCreateProject = () => {
+    navigate('/projects/new');
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -327,45 +254,14 @@ export default function ProjectsScreen() {
                 </p>
               </div>
 
-              {/* Create New Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    disabled={isCreating}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
-                  >
-                    {isCreating ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Plus className="w-4 h-4 mr-2" />
-                    )}
-                    {t('projects.create') || 'Create New'}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {CREATE_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={option.type}
-                        onClick={() => handleCreateProject(option.type)}
-                        className="cursor-pointer"
-                      >
-                        <div
-                          className={cn(
-                            'w-8 h-8 rounded-lg flex items-center justify-center mr-3',
-                            'bg-gradient-to-br',
-                            option.gradient
-                          )}
-                        >
-                          <Icon className="w-4 h-4 text-white" />
-                        </div>
-                        {t(option.titleKey) || option.type}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Create New Button */}
+              <Button
+                onClick={handleCreateProject}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {t('projects.create') || 'Create New'}
+              </Button>
             </motion.div>
 
             {/* Error Display */}
@@ -609,22 +505,13 @@ export default function ProjectsScreen() {
                         {t('projects.emptyHint') ||
                           'Create your first project to get started'}
                       </p>
-                      <div className="flex justify-center gap-3">
-                        {CREATE_OPTIONS.map((option) => {
-                          const Icon = option.icon;
-                          return (
-                            <Button
-                              key={option.type}
-                              variant="outline"
-                              onClick={() => handleCreateProject(option.type)}
-                              className="bg-secondary border-border hover:bg-muted hover:border-primary/30 transition-all"
-                            >
-                              <Icon className={cn("w-4 h-4 mr-2", option.iconColor)} />
-                              {t(option.titleKey) || option.type}
-                            </Button>
-                          );
-                        })}
-                      </div>
+                      <Button
+                        onClick={handleCreateProject}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        {t('projects.create') || 'Create New'}
+                      </Button>
                     </>
                   )}
                 </motion.div>

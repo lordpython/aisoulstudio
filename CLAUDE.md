@@ -108,6 +108,37 @@ Firestore rejects `undefined` values — always sanitize with a JSON round-trip 
 
 Two modes: browser-side WASM (`@ffmpeg/ffmpeg`) and server-side via the `/api/export` endpoints. WASM isn't available in Capacitor WebViews — use server-side export there. Dev server intentionally omits COOP/COEP headers to avoid breaking Firebase Auth popups.
 
+### Memory Management & Asset Caching
+
+**Video Frame Cache** (`assetLoader.ts`):
+- LRU cache for video frames to avoid repeated seeking (24fps frame index granularity)
+- 384MB budget with TTL eviction (30s idle → expired entries removed)
+- Call `clearFrameCache()` after export completes to free resources
+- `getCachedFrame()` auto-promotes frames to end of LRU on access
+
+**Export Upload** (`exportUpload.ts`):
+- Retries frame batch uploads on transient errors (408, 429, 500, 502, 503, 504)
+- SSE subscription must outlive blob download — unsubscribe _after_ download completes
+- Progress events flow via `subscribeToJob()` which handles 30s idle reconnect
+
+**Export Config Validation** (`exportConfig.ts`):
+- `mergeExportConfig()` validates orientation (landscape/portrait), transitionDuration (ms), and syncOffsetMs (ms)
+- Zero-dimension validation in image/video loaders prevents invalid textures
+
+### Frontend Resource Cleanup
+
+**TimelinePlayer** (`components/TimelinePlayer.tsx`):
+- Unmount cleanup cancels pending animation frames
+- AudioContext properly closed on component unmount to release audio device
+
+**useFormatPipeline** (`hooks/useFormatPipeline.ts`):
+- CheckpointSystem disposed when hook unmounts (mid-pipeline navigation safety)
+- Prevents dangling listeners on disposed pipelines
+
+**VideoPreviewCard** (`components/VideoPreviewCard.tsx`):
+- Video play errors logged to console (not silenced) for debugging
+- Thumbnail strip supports bidirectional scroll for scene navigation
+
 ## Key Gotchas
 
 - **Imagen API**: `seed` param is not supported — remove it before calling `imageService.ts`.
@@ -118,3 +149,10 @@ Two modes: browser-side WASM (`@ffmpeg/ffmpeg`) and server-side via the `/api/ex
 - **Studio URL modes**: `parseStudioParams()` in `StudioScreen.tsx` parses `?mode=video|music|story`.
 - **Vertex AI auth**: Server requires `gcloud auth application-default login` and `GOOGLE_CLOUD_PROJECT` set. Falls back to `VITE_GEMINI_API_KEY` for direct API key auth.
 - **Mobile builds**: Set `CAPACITOR_BUILD=true` env var to switch Vite `base` to `"./"` for relative asset paths.
+- **Export config validation**: `mergeExportConfig()` in `exportConfig.ts` validates `orientation`, `transitionDuration`, and `syncOffsetMs` — ensure values are in expected ranges.
+- **SSE unsubscribe timing**: In `exportUpload.ts`, unsubscribe from SSE progress _after_ blob download completes, not before — race condition safety.
+- **Video frame cache TTL**: `assetLoader.ts` evicts frames after 30 seconds idle (configurable via `FRAME_CACHE_TTL_MS`). Check cache stats with `getFrameCacheStats()` for memory pressure.
+- **Zero-dimension assets**: `loadImageAsset()` rejects images with zero width/height; `loadVideoAsset()` validates video dimensions before caching frames.
+- **Frontend cleanup effects**: Components using AudioContext or animation frames must clean up on unmount — see `TimelinePlayer.tsx` and `useFormatPipeline.ts` for patterns.
+- **Silenced play() errors**: `VideoPreviewCard.tsx` logs video play failures to console instead of silencing them — check browser logs for playback issues.
+- **Pipeline language casting**: All 7 format pipelines cast `language` to `LanguageCode` type at narration call sites — import `LanguageCode` from `'../../constants'`.

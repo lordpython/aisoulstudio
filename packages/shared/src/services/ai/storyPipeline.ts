@@ -500,6 +500,7 @@ Focus on characters with significant presence. Each character must have all 4 fi
 export async function generateVoiceoverScripts(
     scenes: ScreenplayScene[],
     emotionalHooks?: string[],
+    language?: 'ar' | 'en',
 ): Promise<Map<string, string>> {
     log.info(`Generating voiceover scripts for ${scenes.length} scenes`);
 
@@ -531,7 +532,7 @@ RULES:
 3. Keep roughly the same length as the original action text (±20%)
 4. Do NOT include character dialogue — only the narrator's voiceover
 5. Do NOT include scene headings, metadata labels, or markdown formatting
-6. Write in the same language as the original (if Arabic, write Arabic voiceover)
+6. ${language === 'ar' ? 'Write ALL voiceovers in Arabic. Use natural Modern Standard Arabic suitable for spoken narration.' : 'Write the voiceovers in English.'}
 
 DELIVERY MARKERS — Insert these where appropriate for natural spoken pacing:
 - [pause: beat] — After a dramatic reveal or scene transition

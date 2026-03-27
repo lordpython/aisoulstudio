@@ -121,6 +121,19 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   // Only enable visualizer for music mode
   const showVisualizer = contentMode === "music";
 
+  // Cleanup AudioContext and animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     // Skip visualizer setup for story mode
     if (!showVisualizer) {
@@ -410,7 +423,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   useEffect(() => {
     if (audioRef.current) {
       if (isPlaying) {
-        audioRef.current.play().catch((e) => console.error("Play error:", e));
+        audioRef.current.play().catch((e) => { if (e?.name !== 'AbortError') console.error("Play error:", e); });
       } else {
         audioRef.current.pause();
       }

@@ -20,9 +20,7 @@ import {
   Camera,
   Music,
   Newspaper,
-  ChevronRight,
   ArrowRight,
-  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VideoFormat, FormatMetadata } from '@/types';
@@ -81,8 +79,6 @@ export function FormatSelector({
   onExecute,
   isProcessing = false,
 }: FormatSelectorProps) {
-  const [showExecutionError, setShowExecutionError] = useState(false);
-
   const allFormats = useMemo(() => formatRegistry.getAllFormats(), []);
 
   const selectedFormatMetadata = useMemo(
@@ -100,16 +96,6 @@ export function FormatSelector({
   const placeholder = selectedFormat
     ? FORMAT_PLACEHOLDERS[selectedFormat]
     : 'Select a format above to get started...';
-
-  // Property 45: Prevent execution without format
-  const handleExecuteClick = () => {
-    if (!selectedFormat) {
-      setShowExecutionError(true);
-      setTimeout(() => setShowExecutionError(false), 3000);
-      return;
-    }
-    onExecute();
-  };
 
   const canExecute = !!selectedFormat && idea.trim().length > 0 && !isProcessing;
 
@@ -241,8 +227,8 @@ export function FormatSelector({
         <div className="relative">
           <button
             type="button"
-            onClick={handleExecuteClick}
-            disabled={isProcessing}
+            onClick={onExecute}
+            disabled={!canExecute}
             className={cn(
               'w-full flex items-center justify-center gap-3 px-8 py-3 rounded-sm font-mono text-sm font-medium transition-colors duration-200',
               canExecute
@@ -263,20 +249,14 @@ export function FormatSelector({
             )}
           </button>
 
-          {/* Execution prevention error */}
-          <AnimatePresence>
-            {showExecutionError && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="absolute top-full left-0 right-0 mt-2 flex items-center gap-2 text-xs text-red-400 font-mono"
-              >
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>Please select a format before starting production</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!canExecute && !isProcessing && (
+            <p className="text-xs text-muted-foreground text-center mt-1">
+              {!selectedFormat
+                ? 'Select a format to continue'
+                : 'Enter your idea to continue'}
+            </p>
+          )}
+
         </div>
       </div>
     </div>
