@@ -28,6 +28,15 @@ export const routes: RouteConfig[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/projects/:projectId',
+    title: 'nav.project',
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/story/:projectId',
+    title: 'nav.story',
+  },
+  {
     path: '/studio',
     title: 'nav.studio',
     meta: { preserveState: true },
@@ -45,13 +54,25 @@ export const routes: RouteConfig[] = [
     path: '/settings',
     title: 'nav.settings',
   },
+  {
+    path: '/signin',
+    title: 'nav.signIn',
+  },
+  {
+    path: '/help',
+    title: 'nav.help',
+  },
 ];
 
 /**
- * Get route config by path
+ * Get route config by path. Handles both exact and parameterized paths.
  */
 export function getRouteByPath(path: string): RouteConfig | undefined {
-  return routes.find((route) => route.path === path);
+  return routes.find((route) => {
+    if (route.path === path) return true;
+    const pattern = route.path.replace(/:[^/]+/g, '[^/]+');
+    return new RegExp(`^${pattern}$`).test(path);
+  });
 }
 
 /**

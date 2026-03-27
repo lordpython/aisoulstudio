@@ -33,7 +33,7 @@ import {
   SubagentContext,
   SubagentResult,
 } from "./index";
-import { productionTools } from "../productionAgent";
+import { productionTools } from "../production";
 
 // Environment detection - cloud upload only available in Node.js
 const isNode = typeof window === 'undefined';

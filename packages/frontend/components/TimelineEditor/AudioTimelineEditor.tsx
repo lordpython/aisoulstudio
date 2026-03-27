@@ -171,6 +171,16 @@ export interface AudioTimelineEditorProps {
   onImportImage?: (file: MediaFile) => void;
   /** Callback when subtitles are imported */
   onImportSubtitles?: (cues: SubtitleCue[]) => void;
+  /** Callback when narration text for a scene is updated */
+  onUpdateTrackText?: (sceneId: string, text: string) => void;
+  /** Callback to trigger audio regeneration for a scene */
+  onGenerateAudio?: (sceneId: string) => void;
+  /** Callback to add a new voiceover track */
+  onAddVoiceoverTrack?: () => void;
+  /** Callback to add a new SFX track */
+  onAddSfxTrack?: () => void;
+  /** Callback to add a new subtitle track */
+  onAddSubtitleTrack?: () => void;
 }
 
 // --- Constants ---
@@ -224,6 +234,11 @@ export function AudioTimelineEditor({
   onImportVideo,
   onImportImage,
   onImportSubtitles,
+  onUpdateTrackText,
+  onGenerateAudio,
+  onAddVoiceoverTrack,
+  onAddSfxTrack,
+  onAddSubtitleTrack,
   "data-testid": dataTestId,
 }: AudioTimelineEditorProps) {
   // --- Internal State ---
@@ -419,50 +434,50 @@ export function AudioTimelineEditor({
 
   /**
    * Handle text update for a track.
-   * Currently a no-op as tracks are derived from scenes.
-   * Future: Could update scene narration scripts.
+   * Narration text is per-scene, so updates are keyed by selectedSceneId.
    */
   const handleUpdateTrackText = useCallback(
-    (trackId: string, text: string) => {
-      // TODO: Implement track text editing
-      // This would need to update the scene's narrationScript
-      console.log("[AudioTimelineEditor] Track text update:", trackId, text);
+    (_trackId: string, text: string) => {
+      if (onUpdateTrackText && selectedSceneId) {
+        onUpdateTrackText(selectedSceneId, text);
+      }
     },
-    []
+    [onUpdateTrackText, selectedSceneId]
   );
 
   /**
    * Handle generate audio request for a track.
-   * Currently a no-op - would trigger narration generation.
+   * Delegates to the parent with the currently selected scene ID.
    */
-  const handleGenerateAudio = useCallback((trackId: string) => {
-    // TODO: Implement audio generation trigger
-    console.log("[AudioTimelineEditor] Generate audio for track:", trackId);
-  }, []);
+  const handleGenerateAudio = useCallback(
+    (_trackId: string) => {
+      if (onGenerateAudio && selectedSceneId) {
+        onGenerateAudio(selectedSceneId);
+      }
+    },
+    [onGenerateAudio, selectedSceneId]
+  );
 
   /**
    * Handle adding a new voiceover track.
    */
   const handleAddVoiceoverTrack = useCallback(() => {
-    // TODO: Implement adding new voiceover track
-    console.log("[AudioTimelineEditor] Add voiceover track");
-  }, []);
+    onAddVoiceoverTrack?.();
+  }, [onAddVoiceoverTrack]);
 
   /**
    * Handle adding a new SFX track.
    */
   const handleAddSfxTrack = useCallback(() => {
-    // TODO: Implement adding new SFX track
-    console.log("[AudioTimelineEditor] Add SFX track");
-  }, []);
+    onAddSfxTrack?.();
+  }, [onAddSfxTrack]);
 
   /**
    * Handle adding a new subtitle track.
    */
   const handleAddSubtitleTrack = useCallback(() => {
-    // TODO: Implement adding new subtitle track
-    console.log("[AudioTimelineEditor] Add subtitle track");
-  }, []);
+    onAddSubtitleTrack?.();
+  }, [onAddSubtitleTrack]);
 
   /**
    * Handle opening the import modal.

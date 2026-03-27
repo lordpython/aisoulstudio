@@ -66,7 +66,7 @@ const DEFAULT_LARGE_SKIP = 5; // 5 seconds
 /**
  * Keyboard shortcut reference map for UI display
  */
-const SHORTCUTS: Record<string, string> = {
+export const SHORTCUTS: Record<string, string> = {
   'Space / K': 'Play/Pause',
   '← / J': 'Rewind 1 second',
   '→ / L': 'Forward 1 second',

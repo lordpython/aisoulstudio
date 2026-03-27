@@ -24,7 +24,7 @@ import {
 import { SongData, GeneratedImage, VideoSFXPlan, SubtitleItem } from "../../types";
 import { getSubtitles, type SubtitleResult } from "./subtitleTools";
 import { getMixedAudio, type MixedAudioResult } from "./audioMixingTools";
-import { productionStore } from "../ai/productionAgent";
+import { productionStore } from "../ai/production";
 import { concatenateNarrationSegments } from "./audioUtils";
 
 // --- Types ---

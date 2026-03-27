@@ -18,7 +18,7 @@ import type {
     StoryNarrationSegment,
     AnimatedShot,
 } from '@/types';
-import { runProductionAgent } from '@/services/ai/productionAgent';
+import { runProductionAgent } from '@/services/ai/production';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';

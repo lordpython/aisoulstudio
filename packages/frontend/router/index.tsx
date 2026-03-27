@@ -10,6 +10,8 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Navigate,
+  useParams,
 } from 'react-router-dom';
 import { RouteLayout } from './RouteLayout';
 
@@ -22,7 +24,18 @@ const NewProjectScreen = lazy(() => import('../screens/NewProjectScreen'));
 const GradientGeneratorScreen = lazy(() => import('../screens/GradientGeneratorScreen'));
 const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
 const SignInScreen = lazy(() => import('../screens/SignInScreen'));
+const HelpScreen = lazy(() => import('../screens/HelpScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
+
+function ProjectRoute() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/studio?projectId=${projectId}`} replace />;
+}
+
+function StoryRoute() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/studio?projectId=${projectId}&mode=story`} replace />;
+}
 
 // Loading fallback component
 function LoadingFallback() {
@@ -51,6 +64,12 @@ export function AppRouter() {
             {/* New Project wizard */}
             <Route path="/projects/new" element={<NewProjectScreen />} />
 
+            {/* Direct project access — redirects to /studio?projectId=... */}
+            <Route path="/projects/:projectId" element={<ProjectRoute />} />
+
+            {/* Story mode direct access — redirects to /studio?projectId=...&mode=story */}
+            <Route path="/story/:projectId" element={<StoryRoute />} />
+
             {/* Studio route - unified creation workspace */}
             <Route path="/studio" element={<StudioScreen />} />
 
@@ -62,6 +81,9 @@ export function AppRouter() {
 
             {/* Settings route - API key management */}
             <Route path="/settings" element={<SettingsScreen />} />
+
+            {/* Help route - keyboard shortcuts & documentation */}
+            <Route path="/help" element={<HelpScreen />} />
 
             {/* Sign-in route - authentication page */}
             <Route path="/signin" element={<SignInScreen />} />

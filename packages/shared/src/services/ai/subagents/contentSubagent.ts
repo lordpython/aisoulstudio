@@ -31,7 +31,7 @@ import {
   SubagentContext,
   SubagentResult,
 } from "./index";
-import { productionStore, productionTools } from "../productionAgent";
+import { productionStore, productionTools } from "../production";
 import { knowledgeBase } from "../rag/knowledgeBase";
 import { AI_CONFIG } from "../config";
 

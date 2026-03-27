@@ -1,17 +1,18 @@
 /**
  * useVideoProductionRefactored Hook
- * 
+ *
  * Refactored version of useVideoProduction that combines focused hooks.
  * This replaces the massive 987-line hook with a clean composition pattern.
- * 
+ *
  * Flow: Topic Input → ContentPlanner → Narrator → Visuals → SFX → Editor → Export
  */
 
-import { useCallback } from "react";
-import { AppState } from "@/types";
-import { ProductionConfig } from "@/services/agentOrchestrator";
+import { useState, useCallback } from "react";
+import { AppState, ContentPlan, Scene, ValidationResult } from "@/types";
+import { ProductionConfig, ProductionProgress } from "@/services/agentOrchestrator";
 import { generateContentPlan, ContentPlannerConfig } from "@/services/contentPlannerService";
 import { initializeProductionSession } from "@/services/ai/production/store";
+import { VideoPurpose, LanguageCode } from "@/constants";
 import {
     getProductionSessionSnapshot,
     hydrateProductionSessionSnapshot,
@@ -21,7 +22,6 @@ import {
 } from "@/services/productionApi";
 
 // Import focused hooks
-import { useVideoProductionCore } from "./useVideoProductionCore";
 import { useVideoNarration } from "./useVideoNarration";
 import { useVideoVisuals } from "./useVideoVisuals";
 import { useVideoQuality } from "./useVideoQuality";
@@ -73,39 +73,49 @@ function mapProductionEventToAppState(event: ProductionEvent): AppState {
 }
 
 export function useVideoProductionRefactored() {
-    // Core state and configuration
-    const coreHook = useVideoProductionCore();
+    // Core state
+    const [appState, setAppState] = useState<AppState>(AppState.IDLE);
+    const [topic, setTopic] = useState("");
+    const [contentPlan, setContentPlan] = useState<ContentPlan | null>(null);
+    const [validation, setValidation] = useState<ValidationResult | null>(null);
+    const [progress, setProgress] = useState<ProductionProgress | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    // Config state
+    const [targetDuration, setTargetDuration] = useState(60);
+    const [targetAudience, setTargetAudience] = useState("General audience");
+    const [videoPurpose, setVideoPurpose] = useState<VideoPurpose>("documentary");
+    const [visualStyle, setVisualStyle] = useState("Cinematic");
+    const [language, setLanguage] = useState<LanguageCode>("auto");
+    const [useAgentMode, setUseAgentMode] = useState(true);
+    const [veoVideoCount, setVeoVideoCount] = useState(1);
+
+    const updateScenes = useCallback((scenes: Scene[]) => {
+        if (!contentPlan) return;
+        const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+        setContentPlan({ ...contentPlan, scenes, totalDuration });
+    }, [contentPlan]);
 
     // Narration management with proper callbacks
     const narrationHook = useVideoNarration(
-        coreHook.contentPlan,
-        coreHook.videoPurpose,
-        coreHook.setProgress,
-        coreHook.setError,
-        coreHook.setContentPlan
+        contentPlan,
+        videoPurpose,
+        setProgress,
+        setError,
+        setContentPlan
     );
 
     // Visual generation and management
     const visualsHook = useVideoVisuals();
 
     // Quality monitoring with proper callbacks
-    const qualityHook = useVideoQuality(
-        coreHook.setProgress,
-        coreHook.setError
-    );
+    const qualityHook = useVideoQuality(setProgress, setError);
 
     // SFX and audio mixing with proper callbacks
-    const sfxHook = useVideoSFX(
-        coreHook.setProgress,
-        coreHook.setError
-    );
+    const sfxHook = useVideoSFX(setProgress, setError);
 
     // Prompt quality tools
-    const promptToolsHook = useVideoPromptTools(
-        coreHook.contentPlan,
-        coreHook.visualStyle,
-        coreHook.topic
-    );
+    const promptToolsHook = useVideoPromptTools(contentPlan, visualStyle, topic);
 
     // Music generation (Suno API)
     const musicHook = useSunoMusic();
@@ -114,30 +124,28 @@ export function useVideoProductionRefactored() {
      * Start the full production pipeline
      */
     const startProduction = useCallback(async (config?: CoreStudioProductionConfig, topicOverride?: string) => {
-        const effectiveTopic = topicOverride || coreHook.topic;
+        const effectiveTopic = topicOverride || topic;
 
         if (!effectiveTopic.trim()) {
-            coreHook.setError("Please enter a topic");
+            setError("Please enter a topic");
             return;
         }
 
-        // Update topic state if override provided
         if (topicOverride) {
-            coreHook.setTopic(topicOverride);
+            setTopic(topicOverride);
         }
 
-        coreHook.setError(null);
-        coreHook.setProgress(null);
+        setError(null);
+        setProgress(null);
 
-        // Calculate scene count from duration (1 scene per ~12 seconds, min 3)
-        const effectiveDuration = config?.targetDuration ?? coreHook.targetDuration;
+        const effectiveDuration = config?.targetDuration ?? targetDuration;
         const requestSessionId = config?.sessionId;
 
         try {
             if (requestSessionId) {
                 await initializeProductionSession(requestSessionId, {
-                    contentPlan: coreHook.contentPlan,
-                    validation: coreHook.validation,
+                    contentPlan,
+                    validation,
                     narrationSegments: narrationHook.narrationSegments,
                     visuals: visualsHook.visuals,
                     sfxPlan: sfxHook.sfxPlan,
@@ -145,19 +153,19 @@ export function useVideoProductionRefactored() {
                 });
             }
 
-            coreHook.setAppState(AppState.CONTENT_PLANNING);
+            setAppState(AppState.CONTENT_PLANNING);
 
-            const mode = coreHook.useAgentMode ? 'agent' : 'orchestrator';
+            const mode = useAgentMode ? 'agent' : 'orchestrator';
             const { runId, sessionId } = await startProductionRun({
                 sessionId: requestSessionId,
                 projectId: config?.projectId,
                 topic: effectiveTopic,
                 targetDuration: effectiveDuration,
-                targetAudience: coreHook.targetAudience,
-                visualStyle: config?.visualStyle ?? coreHook.visualStyle,
-                videoPurpose: coreHook.videoPurpose,
-                language: coreHook.language,
-                veoVideoCount: coreHook.veoVideoCount,
+                targetAudience,
+                visualStyle: config?.visualStyle ?? visualStyle,
+                videoPurpose,
+                language,
+                veoVideoCount,
                 animateVisuals: config?.animateVisuals,
                 mode,
             });
@@ -168,14 +176,14 @@ export function useVideoProductionRefactored() {
                 unsubscribe = subscribeToProductionRun(
                     runId,
                     (event) => {
-                        coreHook.setProgress({
+                        setProgress({
                             stage: event.stage as any,
                             progress: event.progress ?? (event.isComplete ? 100 : 0),
                             message: event.message,
                             currentScene: event.currentScene,
                             totalScenes: event.totalScenes,
                         });
-                        coreHook.setAppState(mapProductionEventToAppState(event));
+                        setAppState(mapProductionEventToAppState(event));
 
                         if (!event.isComplete) {
                             return;
@@ -201,11 +209,11 @@ export function useVideoProductionRefactored() {
 
             await initializeProductionSession(sessionId, hydratedState);
 
-            coreHook.setContentPlan(hydratedState.contentPlan);
+            setContentPlan(hydratedState.contentPlan);
             narrationHook.setNarrationSegments(hydratedState.narrationSegments);
             visualsHook.setVisuals(hydratedState.visuals);
             sfxHook.setSfxPlan(hydratedState.sfxPlan);
-            coreHook.setValidation(snapshot.validation);
+            setValidation(snapshot.validation);
 
             if (hydratedState.contentPlan && snapshot.validation) {
                 const report = qualityHook.generateAndSaveQualityReport(
@@ -213,70 +221,55 @@ export function useVideoProductionRefactored() {
                     hydratedState.narrationSegments,
                     hydratedState.sfxPlan,
                     snapshot.validation,
-                    coreHook.videoPurpose
+                    videoPurpose
                 );
                 console.log(`[useVideoProduction] Backend Mode Quality Report: ${report.overallScore}/100`);
             }
 
             if (!snapshot.isComplete || snapshot.errors.length > 0) {
-                coreHook.setError(`Production completed with issues (score: ${snapshot.qualityScore || snapshot.validation?.score || 0})`);
+                setError(`Production completed with issues (score: ${snapshot.qualityScore || snapshot.validation?.score || 0})`);
             }
 
-            coreHook.setProgress({
-                stage: "complete",
-                progress: 100,
-                message: "Production complete!",
-            });
-            coreHook.setAppState(AppState.READY);
+            setProgress({ stage: "complete", progress: 100, message: "Production complete!" });
+            setAppState(AppState.READY);
         } catch (err) {
             console.error("[useVideoProduction] Pipeline failed:", err);
-            coreHook.setError(err instanceof Error ? err.message : String(err));
-            coreHook.setAppState(AppState.ERROR);
+            setError(err instanceof Error ? err.message : String(err));
+            setAppState(AppState.ERROR);
         }
-    }, [coreHook, narrationHook, visualsHook, sfxHook, qualityHook]);
+    }, [topic, contentPlan, validation, targetDuration, targetAudience, visualStyle, videoPurpose, language, veoVideoCount, useAgentMode, narrationHook, visualsHook, sfxHook, qualityHook]);
 
     /**
      * Generate content plan only (without narration)
      */
     const generatePlan = useCallback(async (config?: Partial<ContentPlannerConfig>) => {
-        if (!coreHook.topic.trim()) {
-            coreHook.setError("Please enter a topic");
+        if (!topic.trim()) {
+            setError("Please enter a topic");
             return;
         }
 
-        coreHook.setError(null);
-        coreHook.setAppState(AppState.CONTENT_PLANNING);
-        coreHook.setProgress({
-            stage: "content_planning",
-            progress: 0,
-            message: "Generating video plan...",
-        });
+        setError(null);
+        setAppState(AppState.CONTENT_PLANNING);
+        setProgress({ stage: "content_planning", progress: 0, message: "Generating video plan..." });
 
         try {
-            const effectiveDuration = config?.targetDuration ?? coreHook.targetDuration;
-            const plan = await generateContentPlan(coreHook.topic, {
+            const effectiveDuration = config?.targetDuration ?? targetDuration;
+            const plan = await generateContentPlan(topic, {
                 targetDuration: effectiveDuration,
                 sceneCount: Math.max(3, Math.floor(effectiveDuration / 12)),
-                targetAudience: coreHook.targetAudience,
-                config: {
-                    videoPurpose: coreHook.videoPurpose,
-                    visualStyle: coreHook.visualStyle,
-                },
+                targetAudience,
+                config: { videoPurpose, visualStyle },
             });
 
-            coreHook.setContentPlan(plan);
-            coreHook.setProgress({
-                stage: "content_planning",
-                progress: 100,
-                message: `Created ${plan.scenes.length} scenes`,
-            });
-            coreHook.setAppState(AppState.READY);
+            setContentPlan(plan);
+            setProgress({ stage: "content_planning", progress: 100, message: `Created ${plan.scenes.length} scenes` });
+            setAppState(AppState.READY);
         } catch (err) {
             console.error("[useVideoProduction] Plan generation failed:", err);
-            coreHook.setError(err instanceof Error ? err.message : String(err));
-            coreHook.setAppState(AppState.ERROR);
+            setError(err instanceof Error ? err.message : String(err));
+            setAppState(AppState.ERROR);
         }
-    }, [coreHook]);
+    }, [topic, targetDuration, targetAudience, videoPurpose, visualStyle]);
 
     /**
      * Add the selected music track to the timeline
@@ -292,11 +285,7 @@ export function useVideoProductionRefactored() {
         console.log(`[useVideoProduction] Adding track "${selectedTrack.title}" to timeline`);
 
         sfxHook.setSfxPlan(prev => {
-            const basePlan = prev || {
-                scenes: [],
-                backgroundMusic: null,
-                masterVolume: 1.0,
-            };
+            const basePlan = prev || { scenes: [], backgroundMusic: null, masterVolume: 1.0 };
 
             return {
                 ...basePlan,
@@ -314,13 +303,18 @@ export function useVideoProductionRefactored() {
      * Reset all state
      */
     const reset = useCallback(() => {
-        coreHook.resetCore();
+        setAppState(AppState.IDLE);
+        setTopic("");
+        setContentPlan(null);
+        setValidation(null);
+        setProgress(null);
+        setError(null);
         narrationHook.resetNarration();
         visualsHook.resetVisuals();
         qualityHook.resetQuality();
         sfxHook.resetSFX();
         musicHook.resetMusicState();
-    }, [coreHook, narrationHook, visualsHook, qualityHook, sfxHook, musicHook]);
+    }, [narrationHook, visualsHook, qualityHook, sfxHook, musicHook]);
 
     return {
         // Music generation state (Prioritized)
@@ -337,47 +331,47 @@ export function useVideoProductionRefactored() {
         uploadAudio: musicHook.uploadAudio,
 
         // Core State
-        appState: coreHook.appState,
-        topic: coreHook.topic,
-        contentPlan: coreHook.contentPlan,
+        appState,
+        topic,
+        contentPlan,
         narrationSegments: narrationHook.narrationSegments,
         visuals: visualsHook.visuals,
         sfxPlan: sfxHook.sfxPlan,
-        validation: coreHook.validation,
+        validation,
         qualityReport: qualityHook.qualityReport,
-        progress: coreHook.progress,
-        error: coreHook.error,
+        progress,
+        error,
         playingSceneId: narrationHook.playingSceneId,
 
         // Config
-        targetDuration: coreHook.targetDuration,
-        targetAudience: coreHook.targetAudience,
-        videoPurpose: coreHook.videoPurpose,
-        visualStyle: coreHook.visualStyle,
-        language: coreHook.language,
-        useAgentMode: coreHook.useAgentMode,
-        setTargetDuration: coreHook.setTargetDuration,
-        setTargetAudience: coreHook.setTargetAudience,
-        setVideoPurpose: coreHook.setVideoPurpose,
-        setVisualStyle: coreHook.setVisualStyle,
-        setLanguage: coreHook.setLanguage,
-        setUseAgentMode: coreHook.setUseAgentMode,
-        veoVideoCount: coreHook.veoVideoCount,
-        setVeoVideoCount: coreHook.setVeoVideoCount,
+        targetDuration,
+        targetAudience,
+        videoPurpose,
+        visualStyle,
+        language,
+        useAgentMode,
+        setTargetDuration,
+        setTargetAudience,
+        setVideoPurpose,
+        setVisualStyle,
+        setLanguage,
+        setUseAgentMode,
+        veoVideoCount,
+        setVeoVideoCount,
 
         // Actions
-        setTopic: coreHook.setTopic,
+        setTopic,
         startProduction,
         generatePlan,
         generateNarration: narrationHook.generateNarration,
         regenerateSceneNarration: narrationHook.regenerateSceneNarration,
         runValidation: () => qualityHook.runValidation(
-            coreHook.contentPlan as any,
+            contentPlan as any,
             narrationHook.narrationSegments,
             visualsHook.visuals
         ),
         addMusicToTimeline,
-        updateScenes: coreHook.updateScenes,
+        updateScenes,
         playNarration: narrationHook.playNarration,
         reset,
 
@@ -388,11 +382,11 @@ export function useVideoProductionRefactored() {
 
         // Test/Debug setters (for loading saved sessions)
         setVisuals: visualsHook.setVisuals,
-        setContentPlan: coreHook.setContentPlan,
+        setContentPlan,
         setNarrationSegments: narrationHook.setNarrationSegments,
         setSfxPlan: sfxHook.setSfxPlan,
-        setValidation: coreHook.setValidation,
-        setAppState: coreHook.setAppState,
+        setValidation,
+        setAppState,
 
         // SFX & Freesound
         browseSfx: sfxHook.browseSfx,
