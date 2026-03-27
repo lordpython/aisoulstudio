@@ -209,11 +209,11 @@ For each scene, provide an "instructionTriplet" with 3 axes of creative directio
    Available: ${atmosphereVibes.slice(0, 15).join(', ')}...
 
 Example:
-"instructionTriplet": {
+"instructionTriplet": {{
   "primaryEmotion": "visceral-dread",
   "cinematicDirection": "slow-push-in",
   "environmentalAtmosphere": "foggy-ruins"
-}
+}}
 
 You may ALSO provide "emotionalTone" as a fallback (one of: professional, dramatic, friendly, urgent, calm).
 If you provide instructionTriplet, it takes precedence.`;

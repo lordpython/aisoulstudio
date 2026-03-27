@@ -1,24 +1,26 @@
 /**
  * Studio Screen - Unified creation workspace
  *
- * Refactored to use extracted components for better maintainability.
+ * Thin shell that handles URL parsing, mode routing, shared state/hooks,
+ * and Suspense wrapping. Mode-specific UI is delegated to lazy-loaded panels:
+ *   - VideoProductionPanel (chat/video mode)
+ *   - StoryPanel (story mode)
+ *   - MusicPanel (editor mode)
+ *
  * Requirements: 6.1-6.6, 2.5, 1.5, 9.1, 9.4
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   Video,
   Music as MusicIcon,
   Image as ImageIcon,
   Download,
   RotateCcw,
-  Wand2,
   BarChart3,
   Edit3,
   Layers,
-  Upload,
   Settings,
   Loader2,
 } from 'lucide-react';
@@ -43,30 +45,30 @@ import { getEffectiveLegacyTone } from '@/services/tripletUtils';
 
 // Layout & UI Components
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
-import { SlidePanel } from '@/components/ui/SlidePanel';
 
 // Chat Components
-import { MessageBubble, ChatInput, QuickActions, type ChatMessage } from '@/components/chat';
+import { ChatInput, type ChatMessage } from '@/components/chat';
 
 // Feature Components
-import { QuickExport } from '@/components/QuickExport';
-import { VideoPreviewCard } from '@/components/VideoPreviewCard';
 import { studioAgent, type AgentResponse, type QuickAction } from '@/services/ai/studioAgent';
-import QualityDashboard from '@/components/QualityDashboard';
-import SceneEditor from '@/components/SceneEditor';
-import MusicGeneratorModal from '@/components/MusicGeneratorModal';
-import { SettingsModal } from '@/components/SettingsModal';
-import { GraphiteTimeline } from '@/components/TimelineEditor';
 import { useAppStore } from '@/stores';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { useFormatPipeline } from '@/hooks/useFormatPipeline';
 import { useProjectSession } from '@/hooks/useProjectSession';
 import { getCurrentUser } from '@/services/firebase/authService';
 import { storyModeStore } from '@/services/ai/production/store';
-import { StoryWorkspace } from '@/components/story';
-import { StoryWorkspaceErrorBoundary } from '@/components/story/StoryWorkspaceErrorBoundary';
-import { VideoEditor } from '@/components/VideoEditor';
 import { useVideoEditorStore } from '@/components/VideoEditor/hooks/useVideoEditorStore';
+
+// Lazy-loaded panels
+const VideoProductionPanel = React.lazy(() =>
+  import('./VideoProductionPanel').then((m) => ({ default: m.VideoProductionPanel }))
+);
+const StoryPanel = React.lazy(() =>
+  import('./StoryPanel').then((m) => ({ default: m.StoryPanel }))
+);
+const MusicPanel = React.lazy(() =>
+  import('./MusicPanel').then((m) => ({ default: m.MusicPanel }))
+);
 
 // ============================================================
 // Types & Helpers
@@ -1726,281 +1728,105 @@ export default function StudioScreen() {
         ) : null
       }
     >
-      {studioMode === 'editor' ? (
-        <VideoEditor className="h-full" />
-      ) : studioMode === 'story' ? (
-        <StoryWorkspaceErrorBoundary
-          storyState={storyHook.state}
-          onRestore={() => {
-            // Restore from version history or last saved state
-            console.log('[StoryWorkspace] Restoring from last saved state');
-            // The version history system already handles auto-save
-          }}
-        >
-          <StoryWorkspace
-            storyState={storyHook.state}
-            initialTopic={storyInitialTopic || topic || ''}
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      }>
+        {studioMode === 'editor' ? (
+          <MusicPanel className="h-full" />
+        ) : studioMode === 'story' ? (
+          <StoryPanel
+            storyHook={storyHook}
+            storyInitialTopic={storyInitialTopic}
+            topic={topic}
             formatPipelineHook={formatPipelineHook}
             onFormatExecute={handleFormatExecute}
             onOpenInEditor={handleOpenInEditor}
             onContinueFromFormatPipeline={handleContinueFromFormatPipeline}
-            onGenerateIdea={(storyTopic, genre) => {
-              setStoryInitialTopic(storyTopic);
-              storyHook.updateGenre(genre);
-              storyHook.generateBreakdown(storyTopic, genre);
-            }}
-            onExportScript={storyHook.exportScreenplay}
-            onRegenerateScene={storyHook.regenerateScene}
-            onVerifyConsistency={storyHook.verifyConsistency}
-            onGenerateScreenplay={storyHook.generateScreenplay}
-            onGenerateCharacters={storyHook.generateCharacters}
-            onGenerateCharacterImage={storyHook.generateCharacterImage}
-            onUndo={storyHook.undo}
-            onRedo={storyHook.redo}
-            canUndo={storyHook.canUndo}
-            canRedo={storyHook.canRedo}
-            onNextStep={() => {
-              const step = storyHook.state.currentStep;
-              const isLocked = storyHook.state.isLocked;
-
-              if (step === 'idea') {
-                // Idea → Breakdown: Generate story outline
-                storyHook.generateBreakdown(storyInitialTopic || topic || "A generic story", "Drama");
-              } else if (step === 'breakdown') {
-                // Breakdown → Script: Generate full screenplay
-                storyHook.generateScreenplay();
-              } else if (step === 'script') {
-                // Script → Characters: Generate character profiles
-                // Note: Lock is handled separately via onLockStory
-                storyHook.generateCharacters();
-              } else if (step === 'characters') {
-                // Characters → Shots: Generate shot breakdown
-                // Story must be locked at this point
-                if (isLocked) {
-                  storyHook.generateShots();
-                } else {
-                  // Shouldn't happen, but fallback to showing lock dialog
-                  console.warn('Story should be locked before generating shots');
-                  storyHook.setStep('script');
-                }
-              } else if (step === 'shots') {
-                // Shots → Style: Move to visual style selection
-                storyHook.setStep('style');
-              } else if (step === 'style') {
-                // Style → Storyboard: Generate storyboard visuals
-                storyHook.generateVisuals();
-              }
-            }}
-            onGenerateShots={storyHook.generateShots}
-            onGenerateVisuals={storyHook.generateVisuals}
-            stageProgress={storyHook.getStageProgress()}
-            isProcessing={storyHook.isProcessing}
-            progress={storyHook.progress}
-            processingShots={storyHook.processingShots}
-            // Storyboarder.ai-style workflow props
-            onLockStory={storyHook.lockStory}
-            onUpdateVisualStyle={storyHook.updateVisualStyle}
-            onUpdateAspectRatio={storyHook.updateAspectRatio}
-            onUpdateImageProvider={storyHook.updateImageProvider}
-            onUpdateStyleConsistency={storyHook.updateStyleConsistency}
-            onUpdateBgRemoval={storyHook.updateBgRemoval}
-            onUpdateTtsSettings={storyHook.updateTtsSettings}
-            // Error handling
-            error={storyHook.error}
-            onClearError={storyHook.clearError}
-            onRetry={storyHook.retryLastOperation}
-            onUpdateShot={storyHook.updateShot}
-            // Narration, Animation, and Export
-            onGenerateNarration={storyHook.generateNarration}
-            onAnimateShots={storyHook.animateShots}
-            onExportFinalVideo={storyHook.exportFinalVideo}
-            onDownloadVideo={storyHook.downloadVideo}
-            allScenesHaveNarration={storyHook.allScenesHaveNarration}
-            allShotsHaveAnimation={storyHook.allShotsHaveAnimation}
-            // Drag-to-reorder shots
-            onReorderShots={storyHook.reorderShots}
-            // Template and project management
-            projectId={storyHook.sessionId ?? undefined}
-            onApplyTemplate={storyHook.applyTemplate}
-            onImportProject={storyHook.importProject}
+            onSetStudioMode={setStudioMode}
+            onSetStoryInitialTopic={setStoryInitialTopic}
           />
-        </StoryWorkspaceErrorBoundary>
-      ) : (
-        <>
-          {/* Welcome State */}
-          {messages.length === 1 && !contentPlan && (
-            <div className="text-center mb-12 pt-12">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-primary/20 to-accent/20 border border-border flex items-center justify-center" aria-hidden="true">
-                <Wand2 className="w-8 h-8 text-primary" />
-              </div>
-              <h1 className="text-3xl font-light text-white mb-3">{t('studio.placeholder')}</h1>
-            </div>
-          )}
-
-          {/* Messages */}
-          <div className="space-y-6" role="log" aria-live="polite" aria-label="Chat messages">
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                isRTL={isRTL}
-                onQuickAction={handleQuickAction}
-                onFeedback={handleFeedback}
-              />
-            ))}
-            {error && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm max-w-2xl mx-auto" role="alert">
-                {error}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Video Preview Card */}
-          {contentPlan && (
-            <VideoPreviewCard
-              scenes={contentPlan.scenes}
-              visualsMap={visualsMap}
-              currentSceneIndex={currentSceneIndex}
-              onSceneSelect={setCurrentSceneIndex}
-              isPlaying={isPlaying}
-              onPlayPause={() => setIsPlaying(!isPlaying)}
-              isReady={isVideoReady ?? false}
-              totalDuration={totalDuration}
-              scenesLabel={t('studio.scenes')}
-              doneLabel={t('common.done')}
-              isRTL={isRTL}
-              className="mt-8 mb-4"
-            />
-          )}
-
-          {/* Timeline Editor (Requirement 6.3) */}
-          {showTimeline && contentPlan && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="mt-4"
-            >
-              <GraphiteTimeline
-                scenes={contentPlan.scenes}
-                visuals={visualsMap}
-                narrationSegments={narrationSegments}
-                currentTime={playbackTime}
-                duration={totalDuration}
-                isPlaying={isPlaying}
-                onPlayPause={handleTimelinePlayPause}
-                onSeek={handleTimelineSeek}
-                onSceneSelect={handleSceneSelect}
-                selectedSceneId={selectedSceneId}
-                projectName={contentPlan.title}
-                sfxPlan={sfxPlan}
-                className="rounded-xl overflow-hidden border border-white/5"
-              />
-              <audio
-                ref={timelineAudioRef}
-                src={mergedAudioUrl || undefined}
-                onTimeUpdate={(e) => setPlaybackTime(e.currentTarget.currentTime)}
-                onEnded={() => setIsPlaying(false)}
-              />
-            </motion.div>
-          )}
-
-          {/* Quick Actions */}
-          {messages.length === 1 && !contentPlan && (
-            <>
-              <QuickActions
-                actions={quickActionItems}
-                onSelect={(action) => setInput(action.prompt || '')}
-                isRTL={isRTL}
-              />
-              <div className="flex justify-center">
-                <button
-                  onClick={() => {
-                    setMusicModalMode('remix');
-                    setShowMusic(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition-all"
-                >
-                  <Upload className="w-4 h-4 text-primary" />
-                  {t('common.upload')}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Modals & Panels */}
-          <MusicGeneratorModal
-            open={showMusic}
-            onClose={() => {
+        ) : (
+          <VideoProductionPanel
+            t={t}
+            isRTL={isRTL}
+            messages={messages}
+            messagesEndRef={messagesEndRef}
+            error={error}
+            contentPlan={contentPlan}
+            visualsMap={visualsMap}
+            narrationSegments={narrationSegments}
+            isVideoReady={isVideoReady}
+            totalDuration={totalDuration}
+            currentSceneIndex={currentSceneIndex}
+            onSceneSelect={setCurrentSceneIndex}
+            isPlaying={isPlaying}
+            onPlayPause={() => setIsPlaying(!isPlaying)}
+            showTimeline={showTimeline}
+            playbackTime={playbackTime}
+            selectedSceneId={selectedSceneId}
+            timelineAudioRef={timelineAudioRef}
+            mergedAudioUrl={mergedAudioUrl}
+            onTimelinePlayPause={handleTimelinePlayPause}
+            onTimelineSeek={handleTimelineSeek}
+            onTimelineSceneSelect={handleSceneSelect}
+            sfxPlan={sfxPlan}
+            quickActionItems={quickActionItems}
+            onSetInput={setInput}
+            onSetMusicModalMode={setMusicModalMode}
+            onQuickAction={handleQuickAction}
+            onFeedback={handleFeedback}
+            onExport={handleExport}
+            showExport={showExport}
+            onCloseExport={() => setShowExport(false)}
+            showQuality={showQuality}
+            onCloseQuality={() => setShowQuality(false)}
+            showSceneEditor={showSceneEditor}
+            onCloseSceneEditor={() => setShowSceneEditor(false)}
+            showMusic={showMusic}
+            onCloseMusic={() => {
               setShowMusic(false);
               setMusicModalMode('generate');
             }}
+            onOpenMusic={() => setShowMusic(true)}
+            showSettings={showSettings}
+            onCloseSettings={() => setShowSettings(false)}
+            musicModalMode={musicModalMode}
+            updateScenes={updateScenes}
+            playNarration={playNarration}
+            regenerateSceneNarration={regenerateSceneNarration}
+            playingSceneId={playingSceneId}
+            getAudioUrlMap={getAudioUrlMap}
             musicState={musicState}
-            onGenerateMusic={generateMusic}
-            onGenerateLyrics={generateLyrics}
-            onSelectTrack={selectTrack}
+            generateMusic={generateMusic}
+            generateLyrics={generateLyrics}
+            selectTrack={selectTrack}
+            addMusicToTimeline={addMusicToTimeline}
+            refreshCredits={refreshCredits}
+            uploadAudio={uploadAudio}
+            uploadAndCover={uploadAndCover}
+            addVocals={addVocals}
+            addInstrumental={addInstrumental}
             onAddToTimeline={() => {
               addMusicToTimeline();
               setShowTimeline(true);
             }}
-            onRefreshCredits={refreshCredits}
-            onUploadAudio={uploadAudio}
-            onUploadAndCover={uploadAndCover}
-            onAddVocals={addVocals}
-            onAddInstrumental={addInstrumental}
-            initialMode={musicModalMode}
-          />
-
-          {qualityReport && (
-            <QualityDashboard
-              report={qualityReport}
-              isOpen={showQuality}
-              onClose={() => setShowQuality(false)}
-            />
-          )}
-
-          <SlidePanel
-            isOpen={showSceneEditor && !!contentPlan}
-            onClose={() => setShowSceneEditor(false)}
-            title={t('studio.edit')}
-            isRTL={isRTL}
-          >
-            {contentPlan && (
-              <SceneEditor
-                scenes={contentPlan.scenes}
-                onChange={updateScenes}
-                onPlayNarration={playNarration}
-                onRegenerateNarration={regenerateSceneNarration}
-                playingSceneId={playingSceneId}
-                visuals={visualsMap}
-                narrationUrls={getAudioUrlMap()}
-              />
-            )}
-          </SlidePanel>
-
-          <QuickExport
-            isOpen={showExport}
-            onClose={() => setShowExport(false)}
-            onExport={handleExport}
-            videoTitle={contentPlan?.title}
-            duration={totalDuration}
-          />
-
-          <SettingsModal
-            isOpen={showSettings}
-            onClose={() => setShowSettings(false)}
+            onAudioTimeUpdate={(time) => setPlaybackTime(time)}
+            onAudioEnded={() => setIsPlaying(false)}
+            qualityReport={qualityReport}
             videoPurpose={videoPurpose}
             onVideoPurposeChange={setVideoPurpose}
             targetAudience={targetAudience}
             onTargetAudienceChange={setTargetAudience}
             veoVideoCount={veoVideoCount}
             onVeoVideoCountChange={setVeoVideoCount}
-            selectedStyle={visualStyle || params.style || 'Cinematic'}
+            visualStyle={visualStyle}
+            paramsStyle={params.style}
             onStyleChange={setVisualStyle}
           />
-        </>
-      )}
+        )}
+      </Suspense>
     </ScreenLayout>
   );
 }
