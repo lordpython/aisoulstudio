@@ -1,7 +1,11 @@
 /**
  * Story Tools for Production Agent
- * 
- * Tools for story mode workflow: breakdown, screenplay, characters, shotlist, and consistency verification.
+ *
+ * Tools for the step-by-step story mode workflow:
+ * breakdown → screenplay → characters → shotlist → voiceover
+ *
+ * All prompt text is sourced from the template system (loadTemplate/substituteVariables)
+ * to stay in sync with storyPipeline.ts. No inline duplicate prompts.
  */
 
 import { z } from "zod";
@@ -16,31 +20,34 @@ import { verifyCharacterConsistency } from "../../../visualConsistencyService";
 import { type ScreenplayScene, type CharacterProfile } from "../../../../types";
 import { toCharacterInputs } from "../../../prompt/imageStyleGuide";
 import { detectLanguage } from "../../../languageDetector";
+import { loadTemplate, substituteVariables } from "../../../prompt/templateLoader";
+import { buildBreakdownPrompt, generateVoiceoverScripts } from "../../storyPipeline";
 
 const log = agentLogger.child('Production');
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Strip markdown formatting from LLM-generated text.
- * Removes **bold**, *italic*, # headings, `code`, and bullet markers.
  */
 function stripMarkdown(text: string): string {
     return text
-        .replace(/#{1,6}\s+/g, '')          // # headings
-        .replace(/\*\*([^*]*?)\*\*/g, '$1') // **bold** → content
-        .replace(/\*([^*]*?)\*/g, '$1')     // *italic* → content
-        .replace(/`([^`]*?)`/g, '$1')       // `code` → content
-        .replace(/^\s*[-*+]\s+/gm, '')      // bullet markers
-        .replace(/\s{2,}/g, ' ')            // collapse whitespace
+        .replace(/#{1,6}\s+/g, '')
+        .replace(/\*\*([^*]*?)\*\*/g, '$1')
+        .replace(/\*([^*]*?)\*/g, '$1')
+        .replace(/`([^`]*?)`/g, '$1')
+        .replace(/^\s*[-*+]\s+/gm, '')
+        .replace(/\s{2,}/g, ' ')
         .trim();
 }
 
 /**
- * Detect if a string looks like a scene heading (INT./EXT.) rather than a character name.
- * LLMs sometimes put scene headings in the speaker field.
+ * Detect if a string looks like a scene heading rather than a character name.
  */
 function isSceneHeading(text: string): boolean {
     const trimmed = text.trim();
-    // Scene headings start with INT./EXT., or the field has more than 4 words (it's a description, not a name)
     return /^(INT\.|EXT\.)/i.test(trimmed)
         || trimmed.length > 30
         || trimmed.split(/\s+/).length > 4;
@@ -48,7 +55,6 @@ function isSceneHeading(text: string): boolean {
 
 /**
  * Filter out invalid dialogue entries where the LLM confused speaker/description fields.
- * Keeps only entries with short, valid speaker names and non-empty text.
  */
 function sanitizeDialogue(
     entries: Array<{ speaker: string; text: string }>
@@ -57,7 +63,6 @@ function sanitizeDialogue(
         .map(d => {
             if (!d.speaker || !d.text) return null;
             if (isSceneHeading(d.speaker)) {
-                // Recover: treat the misplaced content as Narrator text
                 const rescuedText = d.text && d.text.trim().length > 5 ? d.text : d.speaker;
                 return { speaker: 'Narrator', text: stripMarkdown(rescuedText) };
             }
@@ -66,19 +71,88 @@ function sanitizeDialogue(
         .filter((d): d is { speaker: string; text: string } => d !== null && d.text.trim().length > 0);
 }
 
-// --- Generate Breakdown Tool ---
+/**
+ * Infer a story genre from the topic text using keyword matching.
+ * Falls back to 'Drama' when no clear genre signal is detected.
+ */
+function detectGenreFromTopic(topic: string): string {
+    const lower = topic.toLowerCase();
+    if (/\b(horror|scary|terror|monster|ghost|haunted|nightmare)\b/.test(lower)) return 'Horror';
+    if (/\b(comedy|funny|humor|laugh|joke|comic|parody|satire)\b/.test(lower)) return 'Comedy';
+    if (/\b(romance|love|relationship|wedding|couple|heartbreak)\b/.test(lower)) return 'Romance';
+    if (/\b(action|fight|battle|war|adventure|quest|hero|mission)\b/.test(lower)) return 'Action-Adventure';
+    if (/\b(sci-fi|science fiction|space|future|robot|ai|alien|galaxy|cyberpunk)\b/.test(lower)) return 'Science Fiction';
+    if (/\b(fantasy|magic|dragon|wizard|kingdom|mythical|legend|fairy)\b/.test(lower)) return 'Fantasy';
+    if (/\b(thriller|mystery|detective|crime|suspect|murder|conspiracy|heist)\b/.test(lower)) return 'Thriller';
+    if (/\b(animation|animated|cartoon|anime|pixar)\b/.test(lower)) return 'Animation';
+    if (/\b(children|kids|family|fairy tale|bedtime)\b/.test(lower)) return 'Family';
+    if (/\b(biography|biopic|true story|real events|history)\b/.test(lower)) return 'Biographical Drama';
+    return 'Drama';
+}
+
+/**
+ * Score the quality of the current story state (0–100).
+ * Used by validateStoryTool to decide whether to retry.
+ */
+function scoreStoryQuality(state: StoryModeState): { score: number; suggestions: string[] } {
+    const suggestions: string[] = [];
+    let score = 100;
+
+    // Breakdown quality
+    if (!state.breakdown || state.breakdown.length < 80) {
+        score -= 35;
+        suggestions.push('Breakdown is too short. Regenerate with a more specific topic.');
+    } else {
+        const actCount = (
+            state.breakdown.match(/(?:Act|Chapter|مشهد|الفصل)\s*[0-9\u0660-\u0669]+/gi) || []
+        ).length;
+        if (actCount < 3) {
+            score -= 20;
+            suggestions.push(`Only ${actCount} acts detected — story needs 3–5 distinct acts. Regenerate breakdown.`);
+        }
+        const avgWordsPerAct = state.breakdown.split(/\s+/).length / Math.max(actCount, 1);
+        if (avgWordsPerAct < 15) {
+            score -= 10;
+            suggestions.push('Act descriptions are very brief. Consider a more detailed breakdown.');
+        }
+    }
+
+    // Screenplay quality
+    if (!state.screenplay || state.screenplay.length === 0) {
+        if (state.currentStep !== 'breakdown') {
+            score -= 30;
+            suggestions.push('No screenplay yet. Call create_screenplay first.');
+        }
+    } else {
+        if (state.screenplay.length < 3) {
+            score -= 20;
+            suggestions.push(`Only ${state.screenplay.length} scenes — minimum is 3. Regenerate screenplay.`);
+        }
+        const avgActionWords = state.screenplay.reduce(
+            (sum, s) => sum + s.action.split(/\s+/).filter(Boolean).length, 0
+        ) / state.screenplay.length;
+        if (avgActionWords < 15) {
+            score -= 15;
+            suggestions.push('Scene action lines are too short. Regenerate screenplay with more vivid descriptions.');
+        }
+    }
+
+    return { score: Math.max(0, score), suggestions };
+}
+
+// ---------------------------------------------------------------------------
+// Tool: generate_breakdown
+// ---------------------------------------------------------------------------
 
 export const generateBreakdownTool = tool(
     async ({ topic, sessionId }) => {
         const id = sessionId || `story_${Date.now()}`;
         log.info(` Generating story breakdown for: ${topic}`);
 
-        // Validate API key
         if (!GEMINI_API_KEY) {
-            log.error(' GEMINI_API_KEY is not configured');
             return JSON.stringify({
                 success: false,
-                error: 'GEMINI_API_KEY is not configured. Please set VITE_GEMINI_API_KEY in your .env.local file.',
+                error: 'GEMINI_API_KEY is not configured.',
             });
         }
 
@@ -89,38 +163,18 @@ export const generateBreakdownTool = tool(
             maxRetries: 2,
         });
 
-        // Detect language to use appropriate prompt and markers
-        const isArabicTopic = detectLanguage(topic) === 'ar';
+        const genre = detectGenreFromTopic(topic);
+        const detectedLang = detectLanguage(topic);
 
-        const prompt = isArabicTopic
-            ? `أنت خبير تطوير قصص. قبل الكتابة، حدّد:
-- البطل وهدفه الرئيسي
-- الصراع الأساسي الذي يواجهه
-- القوس العاطفي: كيف يتغير البطل من البداية إلى النهاية؟
-
-ثم أنشئ تفصيلًا سرديًا لقصة فيديو عن: "${topic}".
-قسّمها إلى 3-5 فصول أو مشاهد متميزة. لكل فصل، قدّم:
-1. العنوان (بعد كلمة "مشهد" ورقمه، مثال: مشهد ١: العنوان) — اجعله محددًا ومرتبطًا بحدث فعلي
-2. السرد: جملتان تصفان ما يحدث بصريًا بدقة — اذكر الشخصيات والأحداث الملموسة (لا تستخدم عناوين مثل "الخطاف العاطفي" أو "النقطة السردية" — اكتب السرد مباشرة)
-
-نسّق كقائمة مرقّمة باستخدام الأرقام العربية (١، ٢، ٣...). تجنب العناوين المبهمة مثل "البداية" أو "الصراع".`
-            : `You are a story development expert.
-
-Before writing, identify:
-- The protagonist and their central desire or goal
-- The core conflict they face
-- The emotional arc from opening to resolution
-
-Then create a narrative breakdown for a video story about: "${topic}".
-Divide it into 3-5 distinct acts or chapters. For each act, provide:
-1. Title — Specific to a story moment (avoid generic labels like "Introduction" or "Conflict")
-2. NARRATIVE: 2-3 sentences describing what happens visually — name characters, describe specific events and locations (do NOT include labels like "Emotional Hook:" or "Key Beat:" — write the narrative directly)
-
-Format as a structured numbered list. Be specific — avoid vague phrases like "things escalate" or "challenges arise".`;
+        // Use the canonical template — same prompt as storyPipeline.ts
+        const prompt = buildBreakdownPrompt(topic, {
+            formatId: 'movie-animation',
+            genre,
+            language: detectedLang,
+        });
 
         let breakdown: string;
         try {
-            log.info(' Invoking Gemini API for story breakdown...');
             const response = await withAILogging(
                 id,
                 'breakdown',
@@ -130,14 +184,10 @@ Format as a structured numbered list. Be specific — avoid vague phrases like "
                 (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
             );
             breakdown = response.content as string;
-            log.info(' Story breakdown generated successfully');
+            log.info(' Story breakdown generated');
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            log.error(` Failed to generate story breakdown: ${errorMessage}`);
-            return JSON.stringify({
-                success: false,
-                error: `Failed to generate story breakdown: ${errorMessage}`,
-            });
+            const msg = error instanceof Error ? error.message : String(error);
+            return JSON.stringify({ success: false, error: `Breakdown generation failed: ${msg}` });
         }
 
         const state: StoryModeState = storyModeStore.get(id) || {
@@ -151,33 +201,40 @@ Format as a structured numbered list. Be specific — avoid vague phrases like "
             updatedAt: Date.now(),
         };
 
+        state.topic = topic;
         state.breakdown = breakdown;
+        state.genre = genre;
         state.currentStep = 'breakdown';
         state.updatedAt = Date.now();
         storyModeStore.set(id, state);
 
-        // Return minimal info - full breakdown is stored in state
+        const actMatches = breakdown.match(/(?:Act|Chapter|مشهد|الفصل)\s*[0-9\u0660-\u0669]+/gi);
+        const actCount = actMatches?.length || 3;
+
         return JSON.stringify({
             success: true,
             sessionId: id,
-            actCount: breakdown.split(/Act \d+|Chapter \d+/i).length - 1 || 3,
-            message: `Story breakdown created with narrative structure. Use sessionId="${id}" for next steps.`,
+            genre,
+            actCount,
+            message: `Story breakdown created (${genre}, ${actCount} acts). Use sessionId="${id}" for next steps.`,
         });
     },
     {
         name: "generate_breakdown",
-        description: "Step 1: Generate a narrative breakdown/outline for the story topic.",
+        description: "Step 1: Generate a narrative breakdown/outline for the story topic. Returns sessionId and detected genre.",
         schema: StoryModeSchema,
     }
 );
 
-// --- Create Screenplay Tool ---
+// ---------------------------------------------------------------------------
+// Tool: create_screenplay
+// ---------------------------------------------------------------------------
 
 export const createScreenplayTool = tool(
     async ({ sessionId }) => {
         if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
         const state = storyModeStore.get(sessionId);
-        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+        if (!state) return JSON.stringify({ success: false, error: "Session not found. Call generate_breakdown first." });
 
         log.info(` Creating screenplay for: ${sessionId}`);
 
@@ -188,65 +245,35 @@ export const createScreenplayTool = tool(
             maxRetries: 2,
         });
 
-        // Detect language to use appropriate scene markers
         const isArabicContent = detectLanguage(state.breakdown) === 'ar';
+        const genre = state.genre ?? detectGenreFromTopic(state.topic);
 
-        // Count the actual number of acts in the breakdown so the screenplay
-        // LLM generates exactly one scene per act (prevents count mismatch).
+        // Count acts from the stored breakdown text
         const actMarkers = state.breakdown.match(
             /(?:^|\n)\s*(?:مشهد|المشهد|SCENE|Act|Chapter|الفصل)\s*[0-9\u0660-\u0669\u06F0-\u06F9]+/gi
         );
-        // Fallback: count numbered list items (١. / 1. / ١- etc.)
         const listMarkers = !actMarkers?.length
             ? state.breakdown.match(/(?:^|\n)\s*[0-9\u0660-\u0669\u06F0-\u06F9]+[.\-)]/gm)
             : null;
         const actCount = Math.min(Math.max((actMarkers?.length || listMarkers?.length || 3), 3), 8);
         log.info(` Breakdown has ${actCount} acts → requesting ${actCount} screenplay scenes`);
 
-        const prompt = isArabicContent
-            ? `اكتب سيناريو سينمائي قصير بناءً على هذا التفصيل:
-${state.breakdown}
-
-نسّق كل مشهد كالتالي:
-- مشهد [الرقم]: [العنوان]
-- الحدث: [الوصف]
-- الحوار: [الشخصية]: [النص]
-
-قواعد مهمة لسطر الحدث:
-- أسطر الحدث تصف ما تراه الكاميرا، وليس المشاعر الداخلية.
-- ستُستخدم كتعليق صوتي — اجعلها حية وسينمائية.
-- صِف التفاصيل الحسية: الأصوات، الملمس، الحركة، الضوء، اللون.
-- لا تستخدم تنسيق markdown (بدون ** أو * أو # أو backticks).
-
-حدّد ${actCount} مشاهد بالضبط — مشهد واحد لكل فصل من الفصول أعلاه.`
-            : `Write a short cinematic screenplay based on this breakdown:
-${state.breakdown}
-
-Format each scene with:
-- SCENE [Number]: [Heading]
-- ACTION: [Description]
-- DIALOGUE: [Character]: [Text]
-
-IMPORTANT — ACTION LINE RULES:
-- ACTION lines describe what the CAMERA SEES, not internal emotions.
-- These lines will be used as voiceover narration — make them vivid and cinematic.
-- BAD: "He felt fear." / "She was overwhelmed with sadness."
-- GOOD: "His hands trembled. The door creaked open, revealing darkness." / "Tears rolled down her cheeks as rain hammered the window."
-- Describe sensory details: sounds, textures, movement, light, color.
-- NEVER use markdown formatting (no **, *, #, or backticks).
-
-DIALOGUE RULES (CRITICAL):
-- DIALOGUE format: [Character Name]: [Spoken line]
-- Character Name must be 1-4 words ONLY — a person's name, nothing else.
-- VALID: "Faisal: What happened here?" / "Old Man: Listen carefully."
-- INVALID: "Faisal walks forward: ..." / "The hero, overwhelmed: ..." — these will corrupt the scene.
-- If there is no specific speaker, use "Narrator" as the name.
-
-Write exactly ${actCount} scenes — one scene per act above.`;
+        // Use the canonical screenplay template
+        const template = loadTemplate('movie-animation', 'screenplay');
+        const prompt = substituteVariables(template, {
+            idea: state.topic,
+            genre,
+            language_instruction: isArabicContent
+                ? 'Write the screenplay in Arabic.'
+                : 'Write the screenplay in English.',
+            research: '',
+            references: '',
+            breakdown: state.breakdown,
+            actCount: String(actCount),
+        });
 
         let scriptText: string;
         try {
-            log.info(' Invoking Gemini API for screenplay...');
             const response = await withAILogging(
                 sessionId,
                 'screenplay',
@@ -256,50 +283,41 @@ Write exactly ${actCount} scenes — one scene per act above.`;
                 (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
             );
             scriptText = stripMarkdown(response.content as string);
-            log.info(' Screenplay generated successfully');
+            log.info(' Screenplay generated');
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            log.error(` Failed to create screenplay: ${errorMessage}`);
-            return JSON.stringify({
-                success: false,
-                error: `Failed to create screenplay: ${errorMessage}`,
-            });
+            const msg = error instanceof Error ? error.message : String(error);
+            return JSON.stringify({ success: false, error: `Screenplay generation failed: ${msg}` });
         }
 
-        // Simple parser for the draft screenplay
-        // Supports English "SCENE 1:" and Arabic "مشهد ١:" / "المشهد ١:" markers
-        // with ASCII digits (0-9), Arabic-Indic (٠-٩), and Extended Arabic-Indic (۰-۹)
+        // Parse screenplay text into ScreenplayScene[]
         const scenes: ScreenplayScene[] = [];
-        const sceneBlocks = scriptText.split(/(?:SCENE|مشهد|المشهد)\s+[0-9\u0660-\u0669\u06F0-\u06F9]+\s*:/i).filter(b => b.trim());
+        const sceneBlocks = scriptText.split(
+            /(?:SCENE|مشهد|المشهد)\s+[0-9\u0660-\u0669\u06F0-\u06F9]+\s*:/i
+        ).filter(b => b.trim());
 
         sceneBlocks.forEach((block, i) => {
             const lines = block.split('\n').filter(l => l.trim());
             const heading = lines[0] || 'Untitled Scene';
-            // Match ACTION:/الحدث: prefix regardless of residual markdown wrapping
             const actionPattern = /^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:/i;
             const dialogueLabelPattern = /^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*:/i;
             const actionLines = lines.filter(l => actionPattern.test(l.trim()));
             const dialogueLines = lines.filter(l => {
                 const trimmed = l.trim();
-                // Skip action lines and bare labels
                 if (actionPattern.test(trimmed)) return false;
                 if (dialogueLabelPattern.test(trimmed)) return false;
                 return trimmed.includes(':');
             });
 
-            // Extract action text, stripping label prefix (English or Arabic)
             const actionText = actionLines
                 .map(l => l.replace(/^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:\s*/i, '').trim())
                 .join(' ');
 
-            // Extract character names from dialogue speakers and name mentions in action
             const speakers = dialogueLines
                 .map(l => {
                     const [speaker] = l.split(':');
                     return (speaker || '').replace(/^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*/i, '').trim();
                 })
                 .filter(s => s && s.length > 0 && s.length < 50);
-            const uniqueCharacters = [...new Set(speakers)];
 
             const rawDialogue = dialogueLines.map(l => {
                 const [speaker, ...text] = l.split(':');
@@ -312,7 +330,7 @@ Write exactly ${actCount} scenes — one scene per act above.`;
                 heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE|الحدث|الحوار)(\*{0,2})\s*:/gi, '').trim(),
                 action: actionText,
                 dialogue: sanitizeDialogue(rawDialogue),
-                charactersPresent: uniqueCharacters,
+                charactersPresent: [...new Set(speakers)],
             });
         });
 
@@ -321,7 +339,6 @@ Write exactly ${actCount} scenes — one scene per act above.`;
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        // Return minimal info - full screenplay is stored in state
         return JSON.stringify({
             success: true,
             sceneCount: scenes.length,
@@ -336,7 +353,9 @@ Write exactly ${actCount} scenes — one scene per act above.`;
     }
 );
 
-// --- Generate Characters Tool ---
+// ---------------------------------------------------------------------------
+// Tool: generate_characters
+// ---------------------------------------------------------------------------
 
 export const generateCharactersTool = tool(
     async ({ sessionId }) => {
@@ -359,7 +378,6 @@ export const generateCharactersTool = tool(
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
-        // Return minimal info - full characters are stored in state
         return JSON.stringify({
             success: true,
             characterCount: charactersWithRefs.length,
@@ -375,7 +393,9 @@ export const generateCharactersTool = tool(
     }
 );
 
-// --- Generate Shotlist Tool ---
+// ---------------------------------------------------------------------------
+// Tool: generate_shotlist
+// ---------------------------------------------------------------------------
 
 export const generateShotlistTool = tool(
     async ({ sessionId }) => {
@@ -391,7 +411,8 @@ export const generateShotlistTool = tool(
         try {
             const { breakAllScenesIntoShots, mapShotsToShotlistEntries } = await import("../../shotBreakdownAgent");
 
-            const genre = 'Drama'; // Default genre; ideally passed from session state
+            // Use detected genre instead of hardcoded 'Drama'
+            const genre = state.genre ?? detectGenreFromTopic(state.topic);
             const characterInputs = toCharacterInputs(state.characters);
 
             const shotBreakdownResult = await breakAllScenesIntoShots(
@@ -409,7 +430,9 @@ export const generateShotlistTool = tool(
 
             const generatedSceneIds = new Set(shots.map(shot => shot.sceneId));
             const failedSceneSet = new Set(shotBreakdownResult.failedSceneIds);
-            const failedSceneCount = state.screenplay.filter(scene => failedSceneSet.has(scene.id) || !generatedSceneIds.has(scene.id)).length;
+            const failedSceneCount = state.screenplay.filter(
+                scene => failedSceneSet.has(scene.id) || !generatedSceneIds.has(scene.id)
+            ).length;
 
             state.shotlist = shots;
             state.currentStep = 'shotlist';
@@ -423,15 +446,12 @@ export const generateShotlistTool = tool(
             return JSON.stringify({
                 success: true,
                 shotCount: shots.length,
-                message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes.${warning}`,
+                genre,
+                message: `Generated ${shots.length} shots across ${state.screenplay.length} scenes (genre: ${genre}).${warning}`,
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            log.error(` Failed to generate shotlist: ${errorMessage}`);
-            return JSON.stringify({
-                success: false,
-                error: `Failed to generate shotlist: ${errorMessage}`,
-            });
+            const msg = error instanceof Error ? error.message : String(error);
+            return JSON.stringify({ success: false, error: `Shotlist generation failed: ${msg}` });
         }
     },
     {
@@ -441,24 +461,113 @@ export const generateShotlistTool = tool(
     }
 );
 
-// --- Verify Character Consistency Tool ---
+// ---------------------------------------------------------------------------
+// Tool: generate_voiceover
+// ---------------------------------------------------------------------------
+
+export const generateVoiceoverTool = tool(
+    async ({ sessionId }) => {
+        if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
+        const state = storyModeStore.get(sessionId);
+        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+        if (!state.screenplay || state.screenplay.length === 0) {
+            return JSON.stringify({ success: false, error: "Screenplay required. Call create_screenplay first." });
+        }
+
+        log.info(` Generating voiceover scripts for: ${sessionId} (${state.screenplay.length} scenes)`);
+
+        const language = detectLanguage(state.breakdown) === 'ar' ? 'ar' : 'en';
+
+        // Extract emotional hooks from the breakdown text (best-effort)
+        const hookPattern = /(?:Emotional Hook|Hook|emotion)\s*:?\s*([^\n]{10,80})/gi;
+        const emotionalHooks: string[] = [];
+        let hookMatch;
+        while ((hookMatch = hookPattern.exec(state.breakdown)) !== null) {
+            emotionalHooks.push(hookMatch[1]!.trim());
+        }
+
+        const voiceoverMap = await generateVoiceoverScripts(
+            state.screenplay,
+            emotionalHooks.length > 0 ? emotionalHooks : undefined,
+            language,
+        );
+
+        const voiceovers: Record<string, string> = {};
+        voiceoverMap.forEach((script, sceneId) => { voiceovers[sceneId] = script; });
+
+        state.voiceovers = voiceovers;
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        log.info(` Voiceover scripts generated: ${voiceoverMap.size}/${state.screenplay.length}`);
+
+        return JSON.stringify({
+            success: true,
+            voiceoverCount: voiceoverMap.size,
+            sceneCount: state.screenplay.length,
+            language,
+            message: `Generated ${voiceoverMap.size} voiceover scripts with delivery markers. Ready for TTS narration.`,
+        });
+    },
+    {
+        name: "generate_voiceover",
+        description: "Step 4.5: Generate optimized voiceover narration scripts from screenplay scenes, with delivery markers ([pause], [emphasis], [whisper], etc.) for natural TTS speech. Call after generate_shotlist.",
+        schema: z.object({ sessionId: z.string() }),
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: validate_story
+// ---------------------------------------------------------------------------
+
+export const validateStoryTool = tool(
+    async ({ sessionId }) => {
+        if (!sessionId) return JSON.stringify({ success: false, error: "sessionId required" });
+        const state = storyModeStore.get(sessionId);
+        if (!state) return JSON.stringify({ success: false, error: "Session not found" });
+
+        const { score, suggestions } = scoreStoryQuality(state);
+        const needsImprovement = score < 70;
+
+        return JSON.stringify({
+            success: true,
+            score,
+            needsImprovement,
+            canRetry: needsImprovement,
+            currentStep: state.currentStep,
+            genre: state.genre,
+            actCount: (state.breakdown.match(/(?:Act|Chapter|مشهد|الفصل)\s*[0-9\u0660-\u0669]+/gi) || []).length,
+            sceneCount: state.screenplay?.length ?? 0,
+            suggestions,
+            message: needsImprovement
+                ? `Quality score: ${score}/100. Issues found — see suggestions.`
+                : `Quality score: ${score}/100. Story looks good!`,
+        });
+    },
+    {
+        name: "validate_story",
+        description: "Check story quality (0–100 score). If score < 70 and canRetry is true, regenerate the step indicated in suggestions. Call after generate_breakdown or create_screenplay.",
+        schema: z.object({ sessionId: z.string() }),
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: verify_character_consistency
+// ---------------------------------------------------------------------------
 
 export const verifyCharacterConsistencyTool = tool(
     async ({ sessionId, characterName }) => {
         log.info(` Verifying consistency for ${characterName} in session ${sessionId}`);
 
-        // Try storyModeStore first
         const storyState = storyModeStore.get(sessionId);
         let profileFound: any = storyState?.characters?.find((c: any) => c.name === characterName);
         let imageUrls: string[] = [];
 
         if (storyState) {
-            // In Story Mode, shotlist entries have imageUrls
             imageUrls = storyState.shotlist
                 .filter((s: any) => s.imageUrl)
                 .map((s: any) => s.imageUrl);
         } else {
-            // Fallback to productionStore
             const pState = productionStore.get(sessionId);
             if (pState) {
                 profileFound = pState.contentPlan?.characters?.find(c => c.name === characterName);
@@ -476,18 +585,17 @@ export const verifyCharacterConsistencyTool = tool(
                 productionStore.get(sessionId)?.contentPlan?.characters?.map(c => c.name).join(", ") || "None";
             return JSON.stringify({
                 success: false,
-                error: `Character "${characterName}" not found in session ${sessionId}. Available: ${availableChars}`
+                error: `Character "${characterName}" not found. Available: ${availableChars}`
             });
         }
 
         if (imageUrls.length === 0) {
             return JSON.stringify({
                 success: false,
-                error: "No generated images found for verification. Generate visuals first."
+                error: "No generated images found. Generate visuals first."
             });
         }
 
-        // Map internal structure to CharacterProfile expected by service
         const characterToVerify: CharacterProfile = {
             id: profileFound.id || "unknown",
             name: profileFound.name,
@@ -496,20 +604,17 @@ export const verifyCharacterConsistencyTool = tool(
                 `${profileFound.appearance || ""} ${profileFound.clothing || ""}`
         };
 
-        // Detect language for report
-        const language = detectLanguage((characterToVerify.visualDescription ?? '') + ' ' + characterToVerify.name);
+        const language = detectLanguage(
+            (characterToVerify.visualDescription ?? '') + ' ' + characterToVerify.name
+        );
 
         const report = await verifyCharacterConsistency(imageUrls, characterToVerify, language);
 
-        return JSON.stringify({
-            success: true,
-            report
-        });
+        return JSON.stringify({ success: true, report });
     },
     {
         name: "verify_character_consistency",
-        description: "Verifies visual consistency of a character across all generated shots. Returns a report with a score and suggestions.",
+        description: "Verifies visual consistency of a character across all generated shots.",
         schema: VerifyCharacterConsistencySchema,
     }
 );
-

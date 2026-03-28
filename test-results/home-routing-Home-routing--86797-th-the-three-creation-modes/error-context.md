@@ -1,0 +1,108 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e5]:
+    - complementary [ref=e6]:
+      - generic [ref=e7]:
+        - button "Home" [ref=e9]:
+          - img [ref=e10]
+        - navigation "Main navigation" [ref=e14]:
+          - list [ref=e15]:
+            - listitem [ref=e16]:
+              - button "Home" [ref=e17]:
+                - img [ref=e19]
+                - generic [ref=e22]: Home
+            - listitem [ref=e23]:
+              - button "Projects" [ref=e24]:
+                - img [ref=e26]
+                - generic [ref=e28]: Files
+          - list [ref=e30]:
+            - listitem [ref=e31]:
+              - button "Studio" [ref=e32]:
+                - img [ref=e34]
+                - generic [ref=e37]: Studio
+            - listitem [ref=e38]:
+              - button "Quick Create" [ref=e39]:
+                - img [ref=e41]
+                - generic [ref=e43]: Quick
+            - listitem [ref=e44]:
+              - button "Gradient Generator" [ref=e45]:
+                - img [ref=e47]
+                - generic [ref=e53]: Color
+        - list [ref=e55]:
+          - listitem [ref=e56]:
+            - button "Help" [disabled]:
+              - generic:
+                - img
+              - generic: Help
+    - main [ref=e57]:
+      - generic [ref=e59]:
+        - banner "Main navigation" [ref=e60]:
+          - navigation "Main navigation" [ref=e61]:
+            - generic "LyricLens" [ref=e62]
+          - toolbar "Header actions" [ref=e63]:
+            - button "Sign In" [ref=e64]:
+              - img [ref=e65]
+              - generic [ref=e69]: Sign In
+            - 'button "Current language: English. Switch language" [ref=e70]':
+              - generic [ref=e71]: 🇺🇸
+              - generic [ref=e72]: English
+        - main "LyricLens" [active] [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]:
+              - generic [ref=e77]:
+                - img [ref=e78]
+                - generic [ref=e81]: AI-Powered Studio
+              - heading "LyricLens" [level=1] [ref=e82]
+              - paragraph [ref=e83]: AI-Powered Video Production
+            - navigation "Main navigation" [ref=e84]:
+              - list [ref=e85]:
+                - listitem "Create Video — Generate stunning videos from text or topics" [ref=e86]:
+                  - generic [ref=e87]:
+                    - img [ref=e89]
+                    - img [ref=e93]
+                    - generic [ref=e96]:
+                      - heading "Create Video" [level=3] [ref=e97]
+                      - paragraph [ref=e98]: Generate stunning videos from text or topics
+                      - generic [ref=e99]:
+                        - generic [ref=e100]: AI Narration
+                        - generic [ref=e101]: Visual Generation
+                        - generic [ref=e102]: Background Music
+                    - generic [ref=e104]:
+                      - generic [ref=e105]: Enter
+                      - img [ref=e106]
+                - listitem "Generate Music — Create AI-powered music tracks" [ref=e108]:
+                  - generic [ref=e109]:
+                    - img [ref=e111]
+                    - img [ref=e115]
+                    - generic [ref=e119]:
+                      - heading "Generate Music" [level=3] [ref=e120]
+                      - paragraph [ref=e121]: Create AI-powered music tracks
+                      - generic [ref=e122]:
+                        - generic [ref=e123]: Full Songs
+                        - generic [ref=e124]: Instrumentals
+                        - generic [ref=e125]: Custom Lyrics
+                    - generic [ref=e127]:
+                      - generic [ref=e128]: Enter
+                      - img [ref=e129]
+                - listitem "Visualizer — Create lyric videos from audio files" [ref=e131]:
+                  - generic [ref=e132]:
+                    - img [ref=e134]
+                    - img [ref=e138]
+                    - generic [ref=e140]:
+                      - heading "Visualizer" [level=3] [ref=e141]
+                      - paragraph [ref=e142]: Create lyric videos from audio files
+                      - generic [ref=e143]:
+                        - generic [ref=e144]: Lyric Sync
+                        - generic [ref=e145]: Visual Effects
+                        - generic [ref=e146]: Custom Timing
+                    - generic [ref=e148]:
+                      - generic [ref=e149]: Enter
+                      - img [ref=e150]
+        - generic [ref=e152]: Aisoul Studio
+  - region "Notifications (F8)":
+    - list
+```

@@ -21,27 +21,28 @@ export function RouteLayout() {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
 
-  // Update document title when route changes
   useEffect(() => {
     const routeConfig = getRouteByPath(location.pathname);
     if (routeConfig) {
-      const translatedTitle = t(routeConfig.title);
-      document.title = `${translatedTitle} | LyricLens`;
+      document.title = `${t(routeConfig.title)} | Aisoul Studio`;
     } else {
-      document.title = 'LyricLens';
+      document.title = 'Aisoul Studio';
     }
   }, [location.pathname, t]);
 
   return (
     <div className={cn('flex min-h-screen', isRTL && 'flex-row-reverse')}>
-      {/* Sidebar Navigation */}
+      {/* Fixed-width sidebar strip */}
       <aside
-        className="w-16 shrink-0 bg-[#0a0a0f]/80 backdrop-blur-xl border-white/5 z-30"
-        style={{ borderInlineEnd: '1px solid rgba(255,255,255,0.05)' }}
+        className={cn(
+          'w-[60px] shrink-0 h-screen sticky top-0 z-30',
+          'bg-[oklch(0.04_0.01_240)]',
+          isRTL
+            ? 'border-l border-[oklch(0.14_0.03_240)]'
+            : 'border-r border-[oklch(0.14_0.03_240)]',
+        )}
       >
-        <div className="sticky top-0 h-screen py-4 px-2">
-          <Sidebar />
-        </div>
+        <Sidebar />
       </aside>
 
       {/* Main Content */}

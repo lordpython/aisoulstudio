@@ -61,7 +61,6 @@ export default defineConfig(({ mode }) => {
           "/projects",
           "/studio",
           "/visualizer",
-          "/settings",
           "/signin",
         ],
         exclude: ["/404", "/api/*"],

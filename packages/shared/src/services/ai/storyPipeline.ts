@@ -307,37 +307,22 @@ async function generateBreakdown(
 ): Promise<{ acts: { title: string; emotionalHook: string; narrativeBeat: string }[] }> {
     log.info('Step 1: Generating breakdown from topic');
 
+    const opts: FormatAwareGenerationOptions = {
+        formatId: formatOptions?.formatId ?? 'movie-animation',
+        genre: formatOptions?.genre ?? '',
+        language: formatOptions?.language,
+        researchSummary: formatOptions?.researchSummary,
+        researchCitations: formatOptions?.researchCitations,
+        referenceContent: formatOptions?.referenceContent,
+    };
+
     const model = new ChatGoogleGenerativeAI({
         model: MODELS.TEXT,
         apiKey: GEMINI_API_KEY,
         temperature: 0.7,
     }).withStructuredOutput(BreakdownSchema);
 
-    // Use format-aware template when format options are provided; otherwise use the
-    // legacy hardcoded prompt for backward compatibility with non-format-aware callers.
-    let prompt: string;
-    if (formatOptions?.formatId) {
-        prompt = buildBreakdownPrompt(topic, formatOptions);
-    } else {
-        prompt = `You are a story development expert.
-
-Before writing, silently identify:
-- Protagonist and their central desire or goal
-- Core conflict they face (internal or external)
-- Emotional arc: how does the protagonist change from start to finish?
-- One key turning point per act
-
-Then create a narrative breakdown for a short video story about:
-"${topic}"
-
-Divide into 3-5 acts. For each act provide:
-1. Title - A compelling act title referencing a specific story moment (not generic like "Introduction")
-2. Emotional Hook - The dominant emotion the audience should feel in this act (grief, awe, tension, triumph...)
-3. Narrative Beat - The specific story event or revelation that drives this act forward (name characters, describe the action)
-
-Keep each field concise (1-2 sentences max). Be specific — avoid vague labels like "conflict begins" or "things get harder".`;
-    }
-
+    const prompt = buildBreakdownPrompt(topic, opts);
     const result = await model.invoke(prompt);
     log.info(`Breakdown complete: ${result.acts.length} acts`);
     return result;
@@ -353,50 +338,25 @@ async function generateScreenplay(
 ): Promise<ScreenplayScene[]> {
     log.info('Step 2: Generating screenplay from breakdown');
 
+    const opts: FormatAwareGenerationOptions = {
+        formatId: formatOptions?.formatId ?? 'movie-animation',
+        genre: formatOptions?.genre ?? '',
+        language: formatOptions?.language,
+        researchSummary: formatOptions?.researchSummary,
+        researchCitations: formatOptions?.researchCitations,
+        referenceContent: formatOptions?.referenceContent,
+    };
+
     const model = new ChatGoogleGenerativeAI({
         model: MODELS.TEXT,
         apiKey: GEMINI_API_KEY,
         temperature: 0.7,
     }).withStructuredOutput(ScreenplaySchema);
 
-    // Use format-aware template when format options are provided
-    let prompt: string;
-    if (formatOptions?.formatId) {
-        prompt = buildScreenplayPrompt(breakdownActs, formatOptions);
-    } else {
-        // Legacy hardcoded prompt for backward compatibility
-        const breakdownText = breakdownActs.map((act, i) =>
-            `Act ${i + 1}: ${act.title}\n- Hook: ${act.emotionalHook}\n- Beat: ${act.narrativeBeat}`
-        ).join('\n\n');
-
-        prompt = `Write a short screenplay based on this outline:
-
-${breakdownText}
-
-Create 3-8 scenes. For each scene:
-1. Heading - Location/time (e.g., "INT. SPACESHIP - DAY")
-2. Action - Visual description of what happens
-3. Dialogue - Character lines (if any)
-
-DIALOGUE RULES (CRITICAL — schema will reject violations):
-- "speaker" must be the character's NAME ONLY — 1 to 4 words maximum (e.g., "Faisal", "Old Man", "Narrator").
-- "speaker" must NEVER contain scene descriptions, emotions, or actions. MAX 30 characters.
-- "text" is the spoken/narrated line — it must NEVER be empty.
-- If there is no specific speaker, use "Narrator" as the speaker name.
-- NEVER put visual descriptions or action text in the "speaker" field.
-
-VALID example:
-{"speaker": "Faisal", "text": "What happened to this place?"}
-
-INVALID example (will break the system):
-{"speaker": "Faisal walks through the crumbling market, eyes wide with disbelief", "text": ""}
-
-Keep action descriptions vivid but concise.`;
-    }
-
+    const prompt = buildScreenplayPrompt(breakdownActs, opts);
     const result = await model.invoke(prompt);
 
-    // Map to ScreenplayScene format
+    // Map to ScreenplayScene format with speaker repair
     const scenes: ScreenplayScene[] = result.scenes.map((s, i) => ({
         id: `scene_${i}`,
         sceneNumber: i + 1,
@@ -404,23 +364,16 @@ Keep action descriptions vivid but concise.`;
         action: s.action,
         dialogue: s.dialogue
             .map(d => {
-                // Repair: detect when the LLM put a visual description in the speaker field.
-                // A character name is 1-4 words at most. If it's longer, the fields are swapped.
                 const speakerWords = d.speaker.trim().split(/\s+/).length;
                 const speakerTooLong = speakerWords > 4 || d.speaker.length > 30;
-
                 if (speakerTooLong) {
-                    log.warn(`[generateScreenplay] Misaligned speaker field detected ("${d.speaker.substring(0, 50)}...") — recovering as Narrator`);
-                    // If text is also empty/short, rescue the description as the spoken text
-                    const rescuedText = d.text && d.text.trim().length > 5
-                        ? d.text
-                        : d.speaker; // fall back to the misplaced content
+                    log.warn(`[generateScreenplay] Misaligned speaker field detected — recovering as Narrator`);
+                    const rescuedText = d.text && d.text.trim().length > 5 ? d.text : d.speaker;
                     return { speaker: 'Narrator', text: cleanForTTS(rescuedText) };
                 }
-
                 return { speaker: d.speaker, text: cleanForTTS(d.text) };
             })
-            .filter(d => d.text.trim().length > 0), // drop empty-text entries
+            .filter(d => d.text.trim().length > 0),
         charactersPresent: [],
     }));
 
@@ -905,9 +858,24 @@ export async function runStoryPipeline(
         state.updatedAt = Date.now();
         storyModeStore.set(sessionId, state);
 
+        // Step 3.5: Generate voiceover scripts (text → delivery-marked narration)
+        onProgress?.({ stage: 'voiceover', message: 'Writing voiceover scripts...', progress: 50 });
+        const emotionalHooks = breakdown.acts.map(a => a.emotionalHook);
+        const detectedLang: 'ar' | 'en' = formatOptions?.language
+            ?? (/[\u0600-\u06FF]/.test(topic) ? 'ar' : 'en');
+
+        const voiceoverMap = await generateVoiceoverScripts(screenplay, emotionalHooks, detectedLang);
+        const voiceovers: Record<string, string> = {};
+        voiceoverMap.forEach((script, sceneId) => { voiceovers[sceneId] = script; });
+
+        state.voiceovers = voiceovers;
+        state.updatedAt = Date.now();
+        storyModeStore.set(sessionId, state);
+
+        log.info(`Voiceover scripts generated: ${voiceoverMap.size}/${screenplay.length}`);
+
         // Step 4: Generate scene visuals (art step — establishes the visual style)
         // Bridge: carry emotional hooks from breakdown acts to visual generation
-        const emotionalHooks = breakdown.acts.map(a => a.emotionalHook);
 
         let visualCount = 0;
         if (generateVisuals) {

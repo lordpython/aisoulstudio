@@ -51,10 +51,6 @@ export const routes: RouteConfig[] = [
     title: 'nav.gradientGenerator',
   },
   {
-    path: '/settings',
-    title: 'nav.settings',
-  },
-  {
     path: '/signin',
     title: 'nav.signIn',
   },

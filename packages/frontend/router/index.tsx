@@ -22,7 +22,6 @@ const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
 const ProjectsScreen = lazy(() => import('../screens/ProjectsScreen'));
 const NewProjectScreen = lazy(() => import('../screens/NewProjectScreen'));
 const GradientGeneratorScreen = lazy(() => import('../screens/GradientGeneratorScreen'));
-const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
 const SignInScreen = lazy(() => import('../screens/SignInScreen'));
 const HelpScreen = lazy(() => import('../screens/HelpScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
@@ -78,9 +77,6 @@ export function AppRouter() {
 
             {/* Gradient Generator route - CSS gradient creation tool */}
             <Route path="/gradient-generator" element={<GradientGeneratorScreen />} />
-
-            {/* Settings route - API key management */}
-            <Route path="/settings" element={<SettingsScreen />} />
 
             {/* Help route - keyboard shortcuts & documentation */}
             <Route path="/help" element={<HelpScreen />} />

@@ -34,5 +34,7 @@ export {
     createScreenplayTool,
     generateCharactersTool,
     generateShotlistTool,
+    generateVoiceoverTool,
+    validateStoryTool,
     verifyCharacterConsistencyTool,
 } from "./storyTools";

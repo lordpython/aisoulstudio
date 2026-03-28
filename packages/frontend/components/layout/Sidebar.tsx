@@ -1,239 +1,157 @@
 import React from "react";
-import { Music, Settings, Home, FolderOpen, HelpCircle, Bot, Zap, Palette } from "lucide-react";
+import { Home, FolderOpen, Bot, Zap, Palette, HelpCircle, Music } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLanguage } from "@/i18n/useLanguage";
 
-export interface SidebarProps {
-  // No props needed - navigation handled internally
-}
+export interface SidebarProps {}
 
-interface NavItemProps {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-  isActive?: boolean;
-  isDisabled?: boolean;
-  variant?: "default" | "primary" | "accent";
-  isRTL?: boolean;
-  t: (key: string) => string; // Add translation function
-}
-
-const NavItem = React.memo<NavItemProps>(({
-  icon,
-  label,
-  onClick,
-  isActive,
-  isDisabled,
-  variant = "default",
-  isRTL = false,
-  t,
-}) => {
-  const baseStyles = "relative flex items-center justify-center w-10 h-10 rounded-xl cursor-pointer transition-all duration-300 group";
-  const disabledStyles = "opacity-40 cursor-not-allowed pointer-events-none";
-
-  const variantStyles = {
-    default: cn(
-      "text-muted-foreground hover:text-foreground hover:bg-white/[0.08]",
-      isActive && "text-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]"
-    ),
-    primary: "bg-gradient-to-br from-primary to-purple-600 text-white shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-110",
-    accent: "text-accent-foreground bg-accent/10 border border-accent/20 hover:bg-accent/20 hover:border-accent/40",
-  };
-
-  // Handle keyboard activation
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === 'Enter' || e.key === ' ') && !isDisabled) {
-      e.preventDefault();
-      onClick?.();
-    }
-  };
-
-  const handleClick = () => {
-    if (!isDisabled) {
-      onClick?.();
-    }
-  };
-
-  return (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>
-        <motion.div
-          role="button"
-          tabIndex={isDisabled ? -1 : 0}
-          aria-label={label}
-          aria-pressed={isActive}
-          aria-disabled={isDisabled}
-          className={cn(
-            baseStyles, 
-            variantStyles[variant], 
-            isDisabled && disabledStyles,
-            // Add visible focus indicator (Addresses Design Review Issue #2)
-            "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cinema-spotlight)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--cinema-void)]"
-          )}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-          whileTap={isDisabled ? undefined : { scale: 0.9 }}
-          whileHover={isDisabled ? undefined : { scale: 1.05 }}
-        >
-          {icon}
-
-          {/* Active Indicator Dot - RTL aware positioning */}
-          {isActive && !isDisabled && (
-            <motion.div
-              layoutId="active-dot"
-              aria-hidden="true"
-              className={cn(
-                "absolute top-1 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]",
-                isRTL ? "-left-1" : "-right-1"
-              )}
-            />
-          )}
-        </motion.div>
-      </TooltipTrigger>
-      <TooltipContent
-        side={isRTL ? "left" : "right"}
-        sideOffset={16}
-        className="glass-panel border-white/10 text-xs font-medium tracking-wide"
-      >
-        {isDisabled ? `${label} (${t('common.comingSoon')})` : label}
-      </TooltipContent>
-    </Tooltip>
-  );
-});
-NavItem.displayName = "NavItem";
-
-// Navigation item configuration interface
 interface NavItemConfig {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
   labelKey: string;
+  miniLabel: string;
   route?: string;
-  variant?: "default" | "primary" | "accent";
+  variant?: "default" | "primary";
   isExact?: boolean;
 }
 
-// Active route detection function
 function isRouteActive(currentPath: string, itemRoute: string | undefined, isExact: boolean): boolean {
   if (!itemRoute) return false;
-  
-  if (isExact) {
-    return currentPath === itemRoute;
-  }
+  if (isExact) return currentPath === itemRoute;
   return currentPath.startsWith(itemRoute);
 }
+
+const TOP_NAV: NavItemConfig[] = [
+  { icon: Home, labelKey: "nav.home", miniLabel: "Home", route: "/", isExact: true },
+  { icon: FolderOpen, labelKey: "nav.projects", miniLabel: "Files", route: "/projects", isExact: true },
+];
+
+const TOOL_NAV: NavItemConfig[] = [
+  { icon: Bot, labelKey: "nav.studio", miniLabel: "Studio", route: "/studio", variant: "primary", isExact: false },
+  { icon: Zap, labelKey: "nav.quickCreate", miniLabel: "Quick", route: "/visualizer", isExact: false },
+  { icon: Palette, labelKey: "nav.gradientGenerator", miniLabel: "Color", route: "/gradient-generator", isExact: true },
+];
+
+const BOTTOM_NAV: NavItemConfig[] = [
+  { icon: HelpCircle, labelKey: "nav.help", miniLabel: "Help" },
+];
 
 export const Sidebar: React.FC<SidebarProps> = () => {
   const { isRTL, t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Navigation items configuration
-  const navItems: NavItemConfig[] = [
-    // Main navigation
-    { icon: Home, labelKey: 'nav.home', route: '/', variant: 'default', isExact: true },
-    { icon: FolderOpen, labelKey: 'nav.projects', route: '/projects', variant: 'default', isExact: true },
+  const renderNavItem = (item: NavItemConfig) => {
+    const Icon = item.icon;
+    const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
+    const isDisabled = !item.route;
+    const label = t(item.labelKey);
 
-    // Creation tools
-    { icon: Bot, labelKey: 'nav.studio', route: '/studio', variant: 'primary', isExact: false },
-    { icon: Zap, labelKey: 'nav.quickCreate', route: '/visualizer', variant: 'default', isExact: false },
-    { icon: Palette, labelKey: 'nav.gradientGenerator', route: '/gradient-generator', variant: 'default', isExact: true },
-  ];
-
-  // Bottom actions
-  const bottomNavItems: NavItemConfig[] = [
-    { icon: HelpCircle, labelKey: 'nav.help', route: undefined }, // disabled
-    { icon: Settings, labelKey: 'nav.settings', route: '/settings', variant: 'default', isExact: true },
-  ];
+    return (
+      <li key={item.labelKey}>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <button
+              onClick={!isDisabled ? () => navigate(item.route!) : undefined}
+              disabled={isDisabled}
+              aria-label={label}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex w-full flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2 transition-all group",
+                isActive ? "text-white" : "text-[oklch(0.48_0.03_240)] hover:text-white",
+                isDisabled && "opacity-40 cursor-not-allowed pointer-events-none",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+                  item.variant === "primary"
+                    ? "bg-gradient-to-br from-[oklch(0.70_0.15_190)] to-[oklch(0.55_0.22_260)] opacity-90 group-hover:opacity-100 group-hover:shadow-[0_0_16px_oklch(0.70_0.15_190/0.4)]"
+                    : isActive
+                    ? "bg-[oklch(0.16_0.04_240)]"
+                    : "group-hover:bg-[oklch(0.11_0.03_240)]",
+                )}
+              >
+                <Icon
+                  size={16}
+                  strokeWidth={1.6}
+                  className={cn(
+                    item.variant === "primary"
+                      ? "text-white"
+                      : isActive
+                      ? "text-white"
+                      : "text-[oklch(0.48_0.03_240)] group-hover:text-white",
+                  )}
+                />
+              </div>
+              <span
+                className={cn(
+                  "text-[9px] font-medium leading-none transition-colors",
+                  isActive
+                    ? "text-white"
+                    : "text-[oklch(0.40_0.02_240)] group-hover:text-[oklch(0.62_0.03_240)]",
+                )}
+              >
+                {item.miniLabel}
+              </span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side={isRTL ? "left" : "right"}
+            sideOffset={12}
+            className="text-xs font-medium"
+          >
+            {isDisabled ? `${label} (${t("common.comingSoon")})` : label}
+          </TooltipContent>
+        </Tooltip>
+      </li>
+    );
+  };
 
   return (
     <TooltipProvider>
-      <nav
-        className="flex flex-col items-center gap-6 py-2"
-        aria-label="Main navigation"
-        role="navigation"
-      >
-        {/* Logo Mark */}
-        <div className="mb-2 relative group cursor-pointer" aria-hidden="true">
-          <div className="absolute inset-0 bg-primary/40 blur-xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-purple-500 to-accent flex items-center justify-center shadow-lg shadow-primary/25">
-            <Music className="text-white w-5 h-5" />
-          </div>
+      <div className="flex flex-col h-full">
+        {/* Logo */}
+        <div className="flex h-14 flex-shrink-0 items-center justify-center border-b border-[oklch(0.14_0.03_240)]">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => navigate("/")}
+            className="flex h-8 w-8 items-center justify-center rounded-lg"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.75 0.15 80) 0%, oklch(0.60 0.18 50) 100%)",
+              boxShadow: "0 2px 16px oklch(0.75 0.15 80 / 0.3)",
+            }}
+            aria-label="Home"
+          >
+            <Music className="h-4 w-4 text-[oklch(0.10_0.02_240)]" />
+          </motion.button>
         </div>
 
-        {/* Main Nav */}
-        <div className="flex flex-col gap-3 w-full items-center">
-          {navItems.slice(0, 2).map((item) => {
-            const Icon = item.icon;
-            const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
-            const isDisabled = item.route === undefined;
+        {/* Main Navigation */}
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Main navigation" role="navigation">
+          <ul className="flex flex-col gap-0.5 px-1.5">
+            {TOP_NAV.map(renderNavItem)}
+          </ul>
 
-            return (
-              <NavItem
-                key={item.labelKey}
-                icon={<Icon size={20} strokeWidth={1.5} />}
-                label={t(item.labelKey)}
-                onClick={item.route ? () => navigate(item.route!) : undefined}
-                isActive={isActive}
-                isDisabled={isDisabled}
-                variant={item.variant}
-                isRTL={isRTL}
-                t={t}
-              />
-            );
-          })}
+          <div className="mx-2.5 my-2 h-px bg-[oklch(0.14_0.03_240)]" aria-hidden="true" />
+
+          <ul className="flex flex-col gap-0.5 px-1.5">
+            {TOOL_NAV.map(renderNavItem)}
+          </ul>
+        </nav>
+
+        {/* Bottom nav */}
+        <div className="flex-shrink-0 border-t border-[oklch(0.14_0.03_240)] py-2">
+          <ul className="flex flex-col gap-0.5 px-1.5">
+            {BOTTOM_NAV.map(renderNavItem)}
+          </ul>
         </div>
-
-        {/* Separator */}
-        <div className="w-8 h-[1px] bg-white/[0.08] rounded-full" role="separator" aria-hidden="true" />
-
-        {/* Creation Tools */}
-        <div className="flex flex-col gap-3 w-full items-center">
-          {navItems.slice(2).map((item) => {
-            const Icon = item.icon;
-            const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
-            const isDisabled = item.route === undefined;
-
-            return (
-              <NavItem
-                key={item.labelKey}
-                icon={<Icon size={20} strokeWidth={1.5} />}
-                label={t(item.labelKey)}
-                onClick={item.route ? () => navigate(item.route!) : undefined}
-                isActive={isActive}
-                isDisabled={isDisabled}
-                variant={item.variant}
-                isRTL={isRTL}
-                t={t}
-              />
-            );
-          })}
-        </div>
-
-        {/* Bottom Actions */}
-        <div className="mt-auto flex flex-col gap-3 w-full items-center pt-6">
-          {bottomNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isRouteActive(location.pathname, item.route, item.isExact ?? false);
-            const isDisabled = item.route === undefined;
-
-            return (
-              <NavItem
-                key={item.labelKey}
-                icon={<Icon size={20} strokeWidth={1.5} />}
-                label={t(item.labelKey)}
-                onClick={item.route ? () => navigate(item.route!) : undefined}
-                isActive={isActive}
-                isDisabled={isDisabled}
-                variant={item.variant}
-                isRTL={isRTL}
-                t={t}
-              />
-            );
-          })}
-        </div>
-      </nav>
+      </div>
     </TooltipProvider>
   );
 };
+
+export default Sidebar;

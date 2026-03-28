@@ -219,9 +219,7 @@ export default function ProjectsScreen() {
       {/* Content */}
       <div className="relative z-10 flex flex-col flex-1">
         {/* Header */}
-        <div className="p-4 md:p-6">
-          <Header />
-        </div>
+        <Header />
 
         {/* Main Content */}
         <main

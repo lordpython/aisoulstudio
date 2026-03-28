@@ -31,7 +31,10 @@
       "Bash(wc:*)",
       "Bash(tail:*)",
       "Bash(head:*)",
-      "Bash(cd \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\aisoulstudio\" && pnpm add)"
+      "Bash(cd \"C:\\\\Users\\\\noone\\\\Documents\\\\Projects\\\\aisoulstudio\" && pnpm add)",
+      "Bash(node -e \"require.resolve\\(''''@langchain/core/prompts''''\\)\")",
+      "Bash(sed -n '467,490p' /c/Users/noone/Documents/Projects/aisoulstudio/packages/shared/src/types.ts)",
+      "Bash(sed -n '644,680p' /c/Users/noone/Documents/Projects/aisoulstudio/packages/shared/src/types.ts)"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

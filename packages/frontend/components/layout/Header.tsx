@@ -74,9 +74,10 @@ export const Header: React.FC<HeaderProps> = ({
   const { user } = useAuth();
 
   return (
-    <header 
+    <header
       className={cn(
-        "glass-panel rounded-2xl h-16 px-6 flex items-center justify-between transition-all duration-500 hover:shadow-[0_0_30px_rgba(var(--primary),0.1)]",
+        "h-14 px-5 flex items-center justify-between",
+        "border-b border-[oklch(0.14_0.03_240)]",
         className
       )}
       role="banner"

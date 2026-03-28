@@ -50,10 +50,19 @@ NOTE: Music generation is NOT available in video production mode. Use the "Gener
 ### STORY (Step-by-Step Creative Workflow)
 **Dependencies: None - this is an alternative starting point for complex stories**
 **IMPORTANT: Story generation is a user-driven, step-by-step process. Each step requires user review and confirmation before proceeding to the next.**
-- generate_breakdown: Step 1: Create a narrative breakdown (3-5 acts) from a topic. Returns sessionId. **Wait for user to review before proceeding.**
+- generate_breakdown: Step 1: Create a narrative breakdown (3-5 acts) from a topic. Returns sessionId and detected genre. **Call validate_story after this step.**
+- validate_story: Check story quality (0-100). If score < 70, regenerate the flagged step. Call after generate_breakdown or create_screenplay.
 - create_screenplay: Step 2: Create a detailed screenplay from the breakdown. **Wait for user to review and lock before proceeding.**
-- generate_characters: Step 3: Extract characters from the screenplay and create visual profiles. **Wait for user to review before proceeding.**
-- generate_shotlist: Step 4: Create a detailed shotlist/storyboard from the screenplay and characters. **User controls per-scene generation.**
+- generate_characters: Step 3: Extract characters from the screenplay and create visual profiles.
+- generate_shotlist: Step 4: Create a detailed shotlist/storyboard. Uses auto-detected genre.
+- generate_voiceover: Step 4.5: Generate optimized voiceover narration scripts with delivery markers. Call after generate_shotlist and before TTS/animation.
+- verify_character_consistency: Step 5 (optional): Verify visual consistency of a character across generated shots.
+
+### STORY QUALITY LOOP
+After generate_breakdown:
+1. Call validate_story → returns score 0-100 and suggestions
+2. If score < 70 AND canRetry: regenerate the flagged step (generate_breakdown or create_screenplay)
+3. Repeat until score ≥ 70 OR user confirms to proceed anyway
 
 ### EXPORT (Final Output)
 **Dependencies: ENHANCEMENT group must complete first (or MEDIA if no enhancements)**

@@ -51,6 +51,8 @@ import {
     createScreenplayTool,
     generateCharactersTool,
     generateShotlistTool,
+    generateVoiceoverTool,
+    validateStoryTool,
     verifyCharacterConsistencyTool,
 } from "./tools/storyTools";
 
@@ -87,9 +89,11 @@ export const productionTools: StructuredTool[] = [
     markCompleteTool,
     // Story Mode tools (step-by-step, user-driven workflow)
     generateBreakdownTool,
+    validateStoryTool,
     createScreenplayTool,
     generateCharactersTool,
     generateShotlistTool,
+    generateVoiceoverTool,
 ];
 
 /**
@@ -97,9 +101,11 @@ export const productionTools: StructuredTool[] = [
  */
 export const storyModeTools: StructuredTool[] = [
     generateBreakdownTool,
+    validateStoryTool,
     createScreenplayTool,
     generateCharactersTool,
     generateShotlistTool,
+    generateVoiceoverTool,
 ];
 
 // --- Tool Map for Execution ---
@@ -260,6 +266,18 @@ export function registerProductionTools(): void {
         ToolGroup.CONTENT,
         generateShotlistTool,
         ["create_screenplay", "generate_characters"]
+    ));
+    toolRegistry.register(createToolDefinition(
+        validateStoryTool.name,
+        ToolGroup.CONTENT,
+        validateStoryTool,
+        ["generate_breakdown"]
+    ));
+    toolRegistry.register(createToolDefinition(
+        generateVoiceoverTool.name,
+        ToolGroup.CONTENT,
+        generateVoiceoverTool,
+        ["create_screenplay"]
     ));
 
     // Note: Utility tools (get_production_status, mark_complete) are not registered

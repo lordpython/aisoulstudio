@@ -153,6 +153,10 @@ export interface StoryModeState {
     formatId?: string; // Selected video format (youtube-narrator, advertisement, etc.)
     language?: 'ar' | 'en'; // Detected or selected language
     checkpoints?: import('../../../types').CheckpointState[]; // Checkpoint approval states
+    /** Generated voiceover scripts per scene (sceneId → script with delivery markers) */
+    voiceovers?: Record<string, string>;
+    /** Detected or inferred story genre (e.g., 'Drama', 'Thriller', 'Comedy') */
+    genre?: string;
 }
 
 /**
