@@ -7,6 +7,10 @@
  *   - StoryPanel (story mode)
  *   - MusicPanel (editor mode)
  *
+ * Heavy hooks (useVideoProductionRefactored, studioAgent, useStoryGeneration,
+ * useFormatPipeline) have been moved into their respective panels so they are
+ * excluded from this shell's chunk and are only loaded when the panel is used.
+ *
  * Requirements: 6.1-6.6, 2.5, 1.5, 9.1, 9.4
  */
 
@@ -27,37 +31,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
-import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
-import type { ExportQualityPreset } from '@/services/ffmpeg/exportConfig';
-import type {
-  ScreenplayScene,
-  StoryState,
-  ShotlistEntry,
-  ContentPlan,
-  Scene,
-  NarrationSegment,
-  GeneratedImage,
-  StoryNarrationSegment,
-} from '@/types';
-import { AppState } from '@/types';
-import { getEffectiveLegacyTone } from '@/services/tripletUtils';
+import { useAppStore } from '@/stores';
+import { useProjectSession } from '@/hooks/useProjectSession';
 
 // Layout & UI Components
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
 
 // Chat Components
-import { ChatInput, type ChatMessage } from '@/components/chat';
+import { ChatInput } from '@/components/chat';
 
-// Feature Components
-import { studioAgent, type AgentResponse, type QuickAction } from '@/services/ai/studioAgent';
-import { useAppStore } from '@/stores';
-import { useStoryGeneration } from '@/hooks/useStoryGeneration';
-import { useFormatPipeline } from '@/hooks/useFormatPipeline';
-import { useProjectSession } from '@/hooks/useProjectSession';
-import { getCurrentUser } from '@/services/firebase/authService';
-import { storyModeStore } from '@/services/ai/production/store';
-import { useVideoEditorStore } from '@/components/VideoEditor/hooks/useVideoEditorStore';
+// Types
+import { AppState } from '@/types';
+import type { ContentPlan, NarrationSegment, GeneratedImage } from '@/types';
+import type { VideoStateSnapshot } from './VideoProductionPanel';
 
 // Lazy-loaded panels
 const VideoProductionPanel = React.lazy(() =>
@@ -110,95 +97,6 @@ export function canOpenStudioEditor(input: {
   );
 }
 
-function normalizePipelineScenes(value: unknown): ScreenplayScene[] {
-  if (!Array.isArray(value)) return [];
-
-  return value.map((scene, index) => {
-    const candidate = (scene ?? {}) as Partial<ScreenplayScene>;
-    return {
-      id: candidate.id || `scene_${index}`,
-      sceneNumber: candidate.sceneNumber || index + 1,
-      heading: candidate.heading || `Scene ${index + 1}`,
-      action: candidate.action || '',
-      dialogue: Array.isArray(candidate.dialogue) ? candidate.dialogue : [],
-      charactersPresent: Array.isArray(candidate.charactersPresent) ? candidate.charactersPresent : [],
-    };
-  });
-}
-
-function buildFallbackShotlist(screenplay: ScreenplayScene[], visuals: unknown): ShotlistEntry[] {
-  if (!Array.isArray(visuals)) return [];
-
-  return visuals.map((visual, index) => {
-    const candidate = (visual ?? {}) as { sceneId?: string; imageUrl?: string };
-    return {
-      id: `shot_${index}`,
-      sceneId: candidate.sceneId || screenplay[index]?.id || `scene_${index}`,
-      shotNumber: index + 1,
-      description: screenplay[index]?.action || '',
-      cameraAngle: 'Eye-level',
-      movement: 'Static',
-      lighting: 'Natural',
-      dialogue: screenplay[index]?.dialogue?.[0]?.text || '',
-      imageUrl: candidate.imageUrl,
-    };
-  });
-}
-
-type StudioTestExportPayload = {
-  config: {
-    presetId: string;
-    width: number;
-    height: number;
-    orientation: 'landscape' | 'portrait';
-    quality: ExportQualityPreset;
-  };
-  title?: string;
-  sceneCount: number;
-  narrationCount: number;
-  hasMergedAudio: boolean;
-};
-
-type StudioTestApi = {
-  seedExportReadyState: () => Promise<void>;
-  setExportInterceptor: (interceptor: ((payload: StudioTestExportPayload) => Promise<void> | void) | null) => void;
-};
-
-type StudioTestWindow = Window & {
-  __studioTestApi?: StudioTestApi;
-};
-
-function createTestWavBlob(durationSeconds: number): Blob {
-  const sampleRate = 24000;
-  const bytesPerSample = 2;
-  const headerSize = 44;
-  const totalSamples = Math.max(1, Math.floor(sampleRate * durationSeconds));
-  const pcmSize = totalSamples * bytesPerSample;
-  const wavBuffer = new ArrayBuffer(headerSize + pcmSize);
-  const view = new DataView(wavBuffer);
-  const writeString = (offset: number, value: string) => {
-    for (let i = 0; i < value.length; i += 1) {
-      view.setUint8(offset + i, value.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + pcmSize, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * bytesPerSample, true);
-  view.setUint16(32, bytesPerSample, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, pcmSize, true);
-
-  return new Blob([wavBuffer], { type: 'audio/wav' });
-}
-
 // ============================================================
 // Main Component
 // ============================================================
@@ -220,18 +118,6 @@ export default function StudioScreen() {
     flushSession,
   } = useProjectSession(params.projectId);
 
-  // View mode toggle (Requirement 6.6)
-  const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
-  const [studioMode, setStudioMode] = useState<'chat' | 'story' | 'editor'>(
-    params.mode === 'story' ? 'story' : 'chat'
-  );
-
-  // Story Generation Hook - pass projectId so it resets state for new projects
-  const storyHook = useStoryGeneration(params.projectId);
-
-  // Format Pipeline Hook - for non-movie-animation format pipelines
-  const formatPipelineHook = useFormatPipeline();
-
   // Modal state (unified)
   const {
     showExport, setShowExport,
@@ -240,1284 +126,88 @@ export default function StudioScreen() {
     showMusic, setShowMusic,
     showTimeline, setShowTimeline,
   } = useModalState();
-  const [showSettings, setShowSettings] = useState(false);
 
-  const [musicModalMode, setMusicModalMode] = useState<'generate' | 'remix'>('generate');
+  // View mode toggle
+  const [viewMode, setViewMode] = useState<'simple' | 'advanced'>('simple');
+  const [studioMode, setStudioMode] = useState<'chat' | 'story' | 'editor'>(
+    params.mode === 'story' ? 'story' : 'chat'
+  );
 
-  // Video production hook
-  const {
-    appState,
-    contentPlan,
-    narrationSegments,
-    sfxPlan,
-    error,
-    setTopic,
-    targetAudience,
-    setTargetAudience,
-    videoPurpose,
-    setTargetDuration,
-    setVideoPurpose,
-    setVisualStyle,
-    visualStyle,
-    startProduction,
-    reset,
-    visuals,
-    getVisualsMap,
-    getAudioUrlMap,
-    updateScenes,
-    generateMusic,
-    generateLyrics,
-    createMusicVideo,
-    generateCover,
-    musicState,
-    selectTrack,
-    addMusicToTimeline,
-    refreshCredits,
-    regenerateSceneNarration,
-    playNarration,
-    qualityReport,
-    playingSceneId,
-    browseSfx,
-    mixAudio,
-    setPreferredCameraAngle,
-    setPreferredLightingMood,
-    uploadAudio,
-    uploadAndCover,
-    addVocals,
-    addInstrumental,
-    checkPromptQuality,
-    improvePrompt,
-    getQualityHistoryData,
-    getQualityTrend,
-    veoVideoCount,
-    setVeoVideoCount,
-    topic,
-    // Test/Debug setters
-    setVisuals,
-    setContentPlan,
-    setNarrationSegments,
-    setSfxPlan,
-    setValidation,
-    setAppState,
-  } = useVideoProductionRefactored();
-
-  // App Store - Chat & UI State (persistent)
-  const storeMessages = useAppStore((s) => s.messages);
-  const addMessage = useAppStore((s) => s.addMessage);
-  const clearMessages = useAppStore((s) => s.clearMessages);
-  const updateLastMessage = useAppStore((s) => s.updateLastMessage);
-  const setTyping = useAppStore((s) => s.setTyping);
-  const trackVideoCreation = useAppStore((s) => s.trackVideoCreation);
-  const trackMusicGeneration = useAppStore((s) => s.trackMusicGeneration);
-  const recordFeedback = useAppStore((s) => s.recordFeedback);
-
-  // Local UI state
-  const [input, setInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  // Story initial topic (shared between shell and StoryPanel)
   const [storyInitialTopic, setStoryInitialTopic] = useState(params.mode === 'story' ? (params.topic || '') : '');
 
-  // Video preview state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
-  const previewIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Settings modal
+  const [showSettings, setShowSettings] = useState(false);
+  const [musicModalMode, setMusicModalMode] = useState<'generate' | 'remix'>('generate');
 
-  // Timeline playback state
-  const [playbackTime, setPlaybackTime] = useState(0);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const timelineAudioRef = useRef<HTMLAudioElement>(null);
-  const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
-  const exportInterceptorRef = useRef<((payload: StudioTestExportPayload) => Promise<void> | void) | null>(null);
-  // Ref tracks the current blob URL so the useEffect cleanup can revoke it
-  // without calling setState (calling setState in cleanup triggers a React warning).
-  const mergedAudioUrlRef = useRef<string | null>(null);
+  // Chat input state (shared with VideoProductionPanel)
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [panelAppState, setPanelAppState] = useState<AppState>(AppState.IDLE);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const paramsAppliedRef = useRef(false);
-  const lastProcessedResultRef = useRef<string | null>(null);
+  // Lightweight video state snapshot (updated by VideoProductionPanel via callback)
+  const [videoStateSnapshot, setVideoStateSnapshot] = useState<VideoStateSnapshot>({
+    contentPlan: null,
+    isVideoReady: false,
+    topic: '',
+    visuals: [],
+    narrationSegments: [],
+    mergedAudioUrl: null,
+    qualityReport: null,
+  });
 
-  // ============================================================
-  // Effects
-  // ============================================================
+  // canOpenEditor updated by StoryPanel
+  const [canOpenEditor, setCanOpenEditor] = useState(false);
 
-  // Sync studioMode from URL params when navigating between projects
+  // Ref callbacks from VideoProductionPanel
+  const panelResetRef = useRef<(() => void) | null>(null);
+  const panelSubmitRef = useRef<(() => void) | null>(null);
+  const panelOpenInEditorRef = useRef<(() => void) | null>(null);
+
+  // ── Sync studioMode from URL params ──
   useEffect(() => {
     if (params.mode === 'story' && studioMode !== 'story') {
       setStudioMode('story');
     }
   }, [params.mode]);
 
-  // Apply URL parameters OR restore project state on mount (Requirement 2.5)
-  useEffect(() => {
-    if (paramsAppliedRef.current) return;
+  // ── Stable callbacks passed to panels ──
 
-    // Wait for project loading to complete if we have a projectId
-    if (params.projectId && isProjectLoading) return;
+  const handleVideoStateChange = useCallback((snapshot: VideoStateSnapshot) => {
+    setVideoStateSnapshot(snapshot);
+  }, []);
 
-    paramsAppliedRef.current = true;
+  const handleResetRef = useCallback((resetFn: () => void) => {
+    panelResetRef.current = resetFn;
+  }, []);
 
-    // If we have restored state from a project session, apply it
-    if (restoredState?.contentPlan) {
-      console.log('[StudioScreen] Restoring from project session');
-      setContentPlan(restoredState.contentPlan);
-      if (restoredState.visuals?.length) {
-        setVisuals(restoredState.visuals);
-      }
-      if (restoredState.narrationSegments?.length) {
-        setNarrationSegments(restoredState.narrationSegments);
-      }
-      if (restoredState.sfxPlan) {
-        setSfxPlan(restoredState.sfxPlan);
-      }
-      if (restoredState.validation) {
-        setValidation(restoredState.validation);
-      }
-      // Set topic from restored content plan
-      if (restoredState.contentPlan.title) {
-        setTopic(restoredState.contentPlan.title);
-      }
-      setAppState(AppState.READY);
-      return;
-    }
+  const handleSubmitRef = useCallback((submitFn: () => void) => {
+    panelSubmitRef.current = submitFn;
+  }, []);
 
-    // Apply project metadata as initial config (if project exists but no restored state)
-    if (project) {
-      if (project.topic) setTopic(project.topic);
-      if (project.style) setVisualStyle(project.style);
-    }
+  const handleCanOpenEditorChange = useCallback((canOpen: boolean) => {
+    setCanOpenEditor(canOpen);
+  }, []);
 
-    // Fall back to URL params for mode/style/topic
-    if (params.mode === 'video') {
-      if (params.style) setVisualStyle(params.style);
-      if (params.duration) setTargetDuration(params.duration);
-      setVideoPurpose('documentary');
+  const handleOpenInEditorRef = useCallback((fn: () => void) => {
+    panelOpenInEditorRef.current = fn;
+  }, []);
 
-      // Use project topic or URL param topic
-      const effectiveTopic = project?.topic || params.topic;
-      if (effectiveTopic && !restoredState?.contentPlan) {
-        setTopic(effectiveTopic);
-        addMessage('assistant', t('studio.generating'));
-        setTimeout(() => {
-          startProduction({
-            sessionId: sessionId || project?.cloudSessionId,
-            projectId: params.projectId,
-            skipNarration: false,
-            targetDuration: params.duration || 60,
-            visualStyle: params.style || project?.style || 'Cinematic',
-            contentPlannerConfig: {
-              videoPurpose: 'documentary',
-              visualStyle: params.style || project?.style || 'Cinematic',
-            }
-          }, effectiveTopic);
-        }, 500);
-      }
-    } else if (params.mode === 'story') {
-      // Apply topic from URL params or project for story mode
-      const storyTopic = project?.topic || params.topic;
-      if (storyTopic) {
-        setStoryInitialTopic(storyTopic);
-      }
-    } else if (params.mode === 'music') {
-      setShowMusic(true);
-    }
-  }, [params, isProjectLoading, project, restoredState, sessionId, setVisualStyle, setTargetDuration, setVideoPurpose, setTopic, startProduction, addMessage, t, setShowMusic, setContentPlan, setVisuals, setNarrationSegments, setSfxPlan, setValidation, setAppState]);
-
-  // Sync project metadata when production state changes
-  useEffect(() => {
-    if (!params.projectId || !project) return;
-
-    const updates: Record<string, unknown> = {};
-
-    if (contentPlan) {
-      updates.sceneCount = contentPlan.scenes.length;
-      updates.status = 'in_progress';
-    }
-
-    if (visuals.length > 0) {
-      updates.hasVisuals = true;
-      // Use first scene visual as thumbnail
-      const firstVisual = visuals.find(v => v.imageUrl);
-      if (firstVisual?.imageUrl) {
-        updates.thumbnailUrl = firstVisual.imageUrl;
-      }
-    }
-
-    if (narrationSegments.length > 0) {
-      updates.hasNarration = true;
-      updates.duration = narrationSegments.reduce((sum, n) => sum + n.audioDuration, 0);
-    }
-
-    if (sfxPlan?.generatedMusic?.audioUrl) {
-      updates.hasMusic = true;
-    }
-
-    if (appState === AppState.READY && contentPlan) {
-      updates.status = 'completed';
-    }
-
-    // Only sync if we have updates
-    if (Object.keys(updates).length > 0) {
-      syncProjectMetadata(updates);
-    }
-  }, [params.projectId, project, contentPlan, visuals, narrationSegments, sfxPlan, appState, syncProjectMetadata]);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [storeMessages]);
-
-  // Merge audio for timeline
-  useEffect(() => {
-    const mergeAudio = async () => {
-      if (!contentPlan || narrationSegments.length === 0) return;
-      try {
-        const orderedBlobs: Blob[] = [];
-        for (const scene of contentPlan.scenes) {
-          const narration = narrationSegments.find(n => n.sceneId === scene.id);
-          if (narration?.audioBlob) orderedBlobs.push(narration.audioBlob);
-        }
-        if (orderedBlobs.length === 0) return;
-
-        const sampleRate = 24000;
-        const bytesPerSample = 2;
-        const WAV_HEADER_SIZE = 44;
-        let totalPcmSize = 0;
-        const pcmDataArrays: Uint8Array[] = [];
-
-        for (const blob of orderedBlobs) {
-          const arrayBuffer = await blob.arrayBuffer();
-          const fullData = new Uint8Array(arrayBuffer);
-          const pcmData = fullData.slice(WAV_HEADER_SIZE);
-          pcmDataArrays.push(pcmData);
-          totalPcmSize += pcmData.length;
-        }
-
-        const mergedPcm = new Uint8Array(totalPcmSize);
-        let offset = 0;
-        for (const pcmData of pcmDataArrays) {
-          mergedPcm.set(pcmData, offset);
-          offset += pcmData.length;
-        }
-
-        const wavBuffer = new ArrayBuffer(WAV_HEADER_SIZE + totalPcmSize);
-        const view = new DataView(wavBuffer);
-        const writeString = (off: number, str: string) => {
-          for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
-        };
-
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + totalPcmSize, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * bytesPerSample, true);
-        view.setUint16(32, bytesPerSample, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, totalPcmSize, true);
-        new Uint8Array(wavBuffer, WAV_HEADER_SIZE).set(mergedPcm);
-
-        const mergedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-        // Revoke previous blob URL before creating a new one to prevent memory leaks
-        if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
-        const newUrl = URL.createObjectURL(mergedBlob);
-        mergedAudioUrlRef.current = newUrl;
-        setMergedAudioUrl(newUrl);
-      } catch (err) {
-        console.error('Failed to merge audio:', err);
-      }
-    };
-    mergeAudio();
-    return () => {
-      // Revoke via ref — avoids calling setState during cleanup (anti-pattern)
-      if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
-      mergedAudioUrlRef.current = null;
-      setMergedAudioUrl(null);
-    };
-  }, [contentPlan, narrationSegments]);
-
-  const seedExportReadyState = useCallback(async () => {
-    const mockContentPlan: Parameters<typeof setContentPlan>[0] = {
-      title: 'Playwright Export Demo',
-      totalDuration: 18,
-      targetAudience: 'General audience',
-      overallTone: 'Cinematic',
-      scenes: [
-        {
-          id: 'scene-1',
-          name: 'Opening',
-          duration: 6,
-          visualDescription: 'Golden sunrise over a futuristic city skyline',
-          narrationScript: 'The city wakes under a quiet golden dawn.',
-          emotionalTone: 'dramatic',
-          instructionTriplet: {
-            primaryEmotion: 'euphoric-wonder',
-            cinematicDirection: 'slow-push-in',
-            environmentalAtmosphere: 'golden-hour-decay',
-          },
-        },
-        {
-          id: 'scene-2',
-          name: 'Middle',
-          duration: 6,
-          visualDescription: 'Close-up of neon reflections on glass and rain',
-          narrationScript: 'Reflections and rain turn motion into memory.',
-          emotionalTone: 'dramatic',
-          instructionTriplet: {
-            primaryEmotion: 'bittersweet-longing',
-            cinematicDirection: 'tracking-shot',
-            environmentalAtmosphere: 'ethereal-echo',
-          },
-        },
-        {
-          id: 'scene-3',
-          name: 'Ending',
-          duration: 6,
-          visualDescription: 'Wide shot of lights stretching into the horizon',
-          narrationScript: 'Night settles as the horizon keeps glowing.',
-          emotionalTone: 'dramatic',
-          instructionTriplet: {
-            primaryEmotion: 'stoic-resignation',
-            cinematicDirection: 'pull-back',
-            environmentalAtmosphere: 'cathedral-reverb',
-          },
-        },
-      ],
-    };
-
-    const posterImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9p2z7L8AAAAASUVORK5CYII=';
-    const mockVisuals: Parameters<typeof setVisuals>[0] = mockContentPlan.scenes.map((scene) => ({
-      promptId: scene.id,
-      sceneId: scene.id,
-      imageUrl: posterImage,
-      type: 'image',
-      generatedWithVeo: false,
-    }));
-    const mockNarrationSegments: Parameters<typeof setNarrationSegments>[0] = mockContentPlan.scenes.map((scene) => ({
-      sceneId: scene.id,
-      audioBlob: createTestWavBlob(scene.duration),
-      audioDuration: scene.duration,
-      transcript: scene.narrationScript,
-    }));
-    const mergedBlob = createTestWavBlob(mockContentPlan.totalDuration);
-
-    if (mergedAudioUrlRef.current) {
-      URL.revokeObjectURL(mergedAudioUrlRef.current);
-    }
-
-    const nextMergedAudioUrl = URL.createObjectURL(mergedBlob);
-    mergedAudioUrlRef.current = nextMergedAudioUrl;
-
-    setContentPlan(mockContentPlan);
-    setVisuals(mockVisuals);
-    setNarrationSegments(mockNarrationSegments);
-    setMergedAudioUrl(nextMergedAudioUrl);
-    setAppState(AppState.READY);
-    setShowExport(false);
-  }, [setAppState, setContentPlan, setNarrationSegments, setShowExport, setVisuals]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const studioWindow = window as StudioTestWindow;
-    studioWindow.__studioTestApi = {
-      seedExportReadyState,
-      setExportInterceptor: (interceptor) => {
-        exportInterceptorRef.current = interceptor;
-      },
-    };
-
-    return () => {
-      delete studioWindow.__studioTestApi;
-    };
-  }, [seedExportReadyState]);
-
-  // Handle preview playback
-  useEffect(() => {
-    if (isPlaying && contentPlan) {
-      previewIntervalRef.current = setInterval(() => {
-        setCurrentSceneIndex(prev => (prev + 1) % contentPlan.scenes.length);
-      }, 3000);
-    } else {
-      if (previewIntervalRef.current) clearInterval(previewIntervalRef.current);
-    }
-    return () => {
-      if (previewIntervalRef.current) clearInterval(previewIntervalRef.current);
-    };
-  }, [isPlaying, contentPlan]);
-
-  // ============================================================
-  // Computed Values
-  // ============================================================
-
-  const messages: ChatMessage[] = useMemo(() => {
-    if (storeMessages.length === 0) {
-      return [{
-        id: 'welcome',
-        role: 'assistant' as const,
-        content: t('studio.placeholder'),
-        timestamp: Date.now(),
-      }];
-    }
-    return storeMessages as ChatMessage[];
-  }, [storeMessages, t]);
-
-  const isVideoReady = useMemo(() => {
-    return contentPlan && narrationSegments.length > 0 && appState === AppState.READY;
-  }, [contentPlan, narrationSegments, appState]);
-
-  const visualsMap = getVisualsMap();
-
-  const totalDuration = useMemo(() => {
-    return narrationSegments.reduce((sum, n) => sum + n.audioDuration, 0);
-  }, [narrationSegments]);
-
-  // ============================================================
-  // Handlers
-  // ============================================================
-
+  // Header "New Project" button handler — delegates to VideoProductionPanel's reset
   const handleReset = useCallback(() => {
-    reset();
-    clearMessages();
-    setCurrentSceneIndex(0);
-    setIsPlaying(false);
-    setShowTimeline(false);
-    setPlaybackTime(0);
-    setSelectedSceneId(null);
-    studioAgent.resetConversation();
-  }, [reset, clearMessages, setShowTimeline]);
+    panelResetRef.current?.();
+  }, []);
 
-  const handleTimelinePlayPause = useCallback(() => {
-    if (timelineAudioRef.current) {
-      if (isPlaying) timelineAudioRef.current.pause();
-      else timelineAudioRef.current.play();
-    }
-    setIsPlaying(prev => !prev);
-  }, [isPlaying]);
+  // ── Render helpers ──
 
-  const handleTimelineSeek = useCallback((time: number) => {
-    setPlaybackTime(time);
-    if (timelineAudioRef.current) timelineAudioRef.current.currentTime = time;
-    if (contentPlan) {
-      let elapsed = 0;
-      for (let i = 0; i < contentPlan.scenes.length; i++) {
-        const scene = contentPlan.scenes[i];
-        if (!scene) continue;
-        const sceneDuration = narrationSegments.find(n => n.sceneId === scene.id)?.audioDuration || scene.duration;
-        if (time < elapsed + sceneDuration) {
-          setCurrentSceneIndex(i);
-          break;
-        }
-        elapsed += sceneDuration;
-      }
-    }
-  }, [contentPlan, narrationSegments]);
+  const isVideoReady = videoStateSnapshot.isVideoReady;
+  const contentPlan = videoStateSnapshot.contentPlan;
+  const qualityReport = videoStateSnapshot.qualityReport;
 
-  const handleSceneSelect = useCallback((sceneId: string) => {
-    setSelectedSceneId(sceneId);
-    if (contentPlan) {
-      let elapsed = 0;
-      for (const scene of contentPlan.scenes) {
-        if (scene.id === sceneId) {
-          setPlaybackTime(elapsed);
-          if (timelineAudioRef.current) timelineAudioRef.current.currentTime = elapsed;
-          break;
-        }
-        const sceneDuration = narrationSegments.find(n => n.sceneId === scene.id)?.audioDuration || scene.duration;
-        elapsed += sceneDuration;
-      }
-    }
-  }, [contentPlan, narrationSegments]);
+  // App store for message count (used for "New Project" button visibility)
+  const storeMessages = useAppStore((s) => s.messages);
 
-  const handleSubmit = useCallback(async () => {
-    if (!input.trim() || isProcessing) return;
-
-    const userInput = input.trim();
-    addMessage('user', userInput);
-    setInput('');
-    setIsProcessing(true);
-    setTyping(true);
-    addMessage('assistant', t('common.loading'));
-
-    try {
-      const agentResponse: AgentResponse = await studioAgent.processMessage(userInput);
-      const action = agentResponse.action;
-      const messageUpdate: { content: string; quickActions?: QuickAction[] } = {
-        content: agentResponse.message,
-        quickActions: agentResponse.quickActions || []
-      };
-
-      switch (action.type) {
-        case 'generate_music': {
-          const params = action.params;
-          updateLastMessage(messageUpdate);
-          generateMusic({
-            prompt: params.prompt ?? '',
-            style: params.style,
-            title: params.title,
-            instrumental: params.instrumental,
-            customMode: params.customMode,
-            model: (params.model || 'V5') as 'V4' | 'V4_5' | 'V4_5PLUS' | 'V4_5ALL' | 'V5'
-          });
-          trackMusicGeneration();
-          setShowMusic(true);
-          break;
-        }
-        case 'create_video': {
-          const videoParams = action.params;
-          updateLastMessage(messageUpdate);
-          setTopic(videoParams.topic);
-          setTargetDuration(videoParams.duration || 60);
-          setVisualStyle(videoParams.style || 'Cinematic');
-          setVideoPurpose('documentary');
-          trackVideoCreation({
-            style: videoParams.style || 'Cinematic',
-            duration: videoParams.duration || 60,
-          });
-          startProduction({
-            sessionId: sessionId || project?.cloudSessionId,
-            skipNarration: false,
-            targetDuration: videoParams.duration || 60,
-            visualStyle: videoParams.style || 'Cinematic',
-            contentPlannerConfig: {
-              videoPurpose: 'documentary',
-              visualStyle: videoParams.style || 'Cinematic',
-            },
-          }, videoParams.topic);
-          break;
-        }
-        case 'export_video': {
-          setShowExport(true);
-          updateLastMessage(messageUpdate);
-          break;
-        }
-        case 'modify_settings': {
-          const settings = action.settings;
-          if (typeof settings.targetAudience === 'string') setTargetAudience(settings.targetAudience);
-          if (typeof settings.style === 'string') setVisualStyle(settings.style);
-          if (typeof settings.duration === 'number') setTargetDuration(settings.duration);
-          if (typeof settings.mood === 'string') setVideoPurpose(settings.mood as typeof videoPurpose);
-          if (typeof settings.cameraAngle === 'string') setPreferredCameraAngle(settings.cameraAngle);
-          if (typeof settings.lightingMood === 'string') setPreferredLightingMood(settings.lightingMood);
-
-          const applied = [
-            typeof settings.targetAudience === 'string' ? `audience: ${settings.targetAudience}` : null,
-            typeof settings.style === 'string' ? `style: ${settings.style}` : null,
-            typeof settings.duration === 'number' ? `duration: ${settings.duration}s` : null,
-            typeof settings.cameraAngle === 'string' ? `camera: ${settings.cameraAngle}` : null,
-            typeof settings.lightingMood === 'string' ? `lighting: ${settings.lightingMood}` : null,
-          ].filter(Boolean).join(', ');
-
-          updateLastMessage({
-            content: applied
-              ? `Updated settings (${applied}).`
-              : 'I can update audience, style, duration, camera angle, and lighting right now.',
-            quickActions: messageUpdate.quickActions,
-          });
-          break;
-        }
-        case 'show_preview': {
-          updateLastMessage(messageUpdate);
-          if (contentPlan) {
-            setShowTimeline(true);
-          } else {
-            addMessage('assistant', 'Create a video first so I can show you a preview.');
-          }
-          break;
-        }
-        case 'add_vocals': {
-          updateLastMessage(messageUpdate);
-          setMusicModalMode('remix');
-          setShowMusic(true);
-          await addVocals({
-            uploadUrl: action.params.uploadUrl,
-            prompt: action.params.prompt,
-            title: contentPlan?.title || topic || 'With Vocals',
-            model: 'V4_5PLUS',
-          });
-          addMessage('assistant', 'Vocals remix started in the music panel.');
-          break;
-        }
-        case 'generate_cover': {
-          updateLastMessage(messageUpdate);
-          setMusicModalMode('remix');
-          setShowMusic(true);
-          const taskId = action.params.taskId || musicState.taskId;
-          if (!taskId) {
-            addMessage('assistant', 'Generate a track first so I can create a cover.');
-            break;
-          }
-          await generateCover(taskId);
-          addMessage('assistant', 'Cover generation started.');
-          break;
-        }
-        case 'create_music_video': {
-          updateLastMessage(messageUpdate);
-          setMusicModalMode('remix');
-          setShowMusic(true);
-          const selectedTrack = musicState.generatedTracks.find((track) => track.id === musicState.selectedTrackId) || musicState.generatedTracks[0] || null;
-          const taskId = action.params.taskId || musicState.taskId;
-          const audioId = action.params.audioId || selectedTrack?.id;
-          if (!taskId || !audioId) {
-            addMessage('assistant', 'Generate and select a track first so I can create a music video.');
-            break;
-          }
-          await createMusicVideo(taskId, audioId);
-          addMessage('assistant', 'Music video generation started.');
-          break;
-        }
-        case 'mix_audio': {
-          updateLastMessage(messageUpdate);
-          if (!contentPlan || narrationSegments.length === 0) {
-            addMessage('assistant', 'Generate narration first so I can mix the audio.');
-            break;
-          }
-          const params = action.params;
-          const mixedBlob = await mixAudio(contentPlan, narrationSegments, {
-            includeSfx: params.includeSfx,
-            includeMusic: params.includeMusic,
-          });
-          if (mixedBlob) {
-            if (mergedAudioUrlRef.current) URL.revokeObjectURL(mergedAudioUrlRef.current);
-            const nextUrl = URL.createObjectURL(mixedBlob);
-            mergedAudioUrlRef.current = nextUrl;
-            setMergedAudioUrl(nextUrl);
-            setShowTimeline(true);
-            addMessage('assistant', 'Audio mix updated.');
-          }
-          break;
-        }
-        case 'show_quality_history': {
-          updateLastMessage(messageUpdate);
-          const history = getQualityHistoryData();
-          const trend = getQualityTrend();
-          if (!history.length) {
-            addMessage('assistant', 'No quality history is available yet. Generate a quality report first.');
-            break;
-          }
-          addMessage(
-            'assistant',
-            trend
-              ? `Quality history: ${history.length} reports. Trend: ${trend.trend}. Average overall score: ${Math.round(trend.avgOverall)}/100.`
-              : `Quality history: ${history.length} reports.`
-          );
-          break;
-        }
-        case 'refine_prompt': {
-          updateLastMessage(messageUpdate);
-          const params = action.params;
-          if (!params.promptText) {
-            addMessage('assistant', 'I need a prompt to refine.');
-            break;
-          }
-          const intent = params.intent === 'more_detailed' || params.intent === 'more_cinematic' || params.intent === 'shorten'
-            ? params.intent
-            : 'auto';
-          const result = await improvePrompt(params.promptText, intent);
-          setInput(result.refinedPrompt);
-          addMessage('assistant', `Refined prompt:\n${result.refinedPrompt}`);
-          break;
-        }
-        case 'lint_prompt': {
-          updateLastMessage(messageUpdate);
-          const params = action.params;
-          if (!params.promptText) {
-            addMessage('assistant', 'I need a prompt to lint.');
-            break;
-          }
-          const issues = checkPromptQuality(params.promptText, topic);
-          addMessage(
-            'assistant',
-            issues.length === 0
-              ? 'No major prompt issues found.'
-              : `Prompt issues:\n- ${issues.map((issue) => issue.message).join('\n- ')}`
-          );
-          break;
-        }
-        case 'browse_sfx': {
-          updateLastMessage(messageUpdate);
-          try {
-            const sound = await browseSfx(action.params.category);
-            if (sound) {
-              addMessage('assistant', `Found SFX: "${sound.name}" (${sound.duration.toFixed(1)}s)`);
-            }
-          } catch (err: unknown) {
-            const errMsg = err instanceof Error ? err.message : String(err);
-            addMessage('assistant', `SFX search failed: ${errMsg}`);
-          }
-          break;
-        }
-        case 'set_camera_style': {
-          if (action.params.angle) setPreferredCameraAngle(action.params.angle);
-          if (action.params.lighting) setPreferredLightingMood(action.params.lighting);
-          updateLastMessage(messageUpdate);
-          break;
-        }
-        case 'show_quality_report': {
-          if (qualityReport) {
-            setShowQuality(true);
-            updateLastMessage(messageUpdate);
-          } else {
-            addMessage('assistant', 'Generate a quality report first.');
-          }
-          break;
-        }
-        case 'respond': {
-          updateLastMessage(messageUpdate);
-          break;
-        }
-        case 'ask_clarification': {
-          updateLastMessage({
-            content: [messageUpdate.content, action.question].filter(Boolean).join('\n\n'),
-            quickActions: messageUpdate.quickActions,
-          });
-          break;
-        }
-        case 'reset': {
-          handleReset();
-          break;
-        }
-      }
-    } catch (err) {
-      console.error('Agent error:', err);
-      updateLastMessage({ content: t('errors.generic') });
-    } finally {
-      setTyping(false);
-      setIsProcessing(false);
-    }
-  }, [
-    input,
-    isProcessing,
-    addMessage,
-    updateLastMessage,
-    setTyping,
-    generateMusic,
-    trackMusicGeneration,
-    trackVideoCreation,
-    startProduction,
-    sessionId,
-    project?.cloudSessionId,
-    setTopic,
-    setTargetDuration,
-    setVisualStyle,
-    setVideoPurpose,
-    setTargetAudience,
-    setPreferredCameraAngle,
-    setPreferredLightingMood,
-    setShowExport,
-    setShowMusic,
-    setShowTimeline,
-    setShowQuality,
-    setMusicModalMode,
-    contentPlan,
-    narrationSegments,
-    mergedAudioUrl,
-    musicState,
-    browseSfx,
-    mixAudio,
-    generateCover,
-    createMusicVideo,
-    addVocals,
-    checkPromptQuality,
-    improvePrompt,
-    getQualityHistoryData,
-    getQualityTrend,
-    qualityReport,
-    topic,
-    t,
-    handleReset,
-    videoPurpose,
-  ]);
-
-  const handleQuickAction = useCallback(async (action: { type: string; params?: Record<string, unknown> }) => {
-    if (isProcessing) return;
-
-    setIsProcessing(true);
-    setTyping(true);
-    updateLastMessage({ quickActions: [] });
-
-    try {
-      switch (action.type) {
-        case 'create_video': {
-          const params = action.params as { topic: string; duration?: number; style?: string } | undefined;
-          if (!params?.topic) break;
-          addMessage('assistant', `🎬 Creating ${params.duration || 60}s ${params.style || 'Cinematic'} video...`);
-          setTopic(params.topic);
-          setTargetDuration(params.duration || 60);
-          setVisualStyle(params.style || 'Cinematic');
-          setVideoPurpose('documentary');
-
-          // Track video creation with actual params
-          trackVideoCreation({
-            style: params.style || 'Cinematic',
-            duration: params.duration || 60
-          });
-
-          startProduction({
-            skipNarration: false,
-            targetDuration: params.duration || 60,
-            visualStyle: params.style || 'Cinematic',
-            contentPlannerConfig: {
-              videoPurpose: 'documentary',
-              visualStyle: params.style || 'Cinematic',
-            }
-          }, params.topic);
-          break;
-        }
-        case 'generate_music': {
-          const params = action.params as { prompt?: string; style?: string; instrumental?: boolean } | undefined;
-          addMessage('assistant', `🎵 Creating ${params?.style || 'music'}...`);
-          generateMusic({
-            prompt: params?.prompt ?? "",
-            style: params?.style,
-            instrumental: params?.instrumental ?? true,
-            model: 'V5'
-          });
-          trackMusicGeneration();
-          setShowMusic(true);
-          break;
-        }
-        case 'ask_clarification': {
-          const clarificationAction = action as { type: 'ask_clarification'; question?: string };
-          if (clarificationAction.question) {
-            setInput(clarificationAction.question);
-          }
-          break;
-        }
-        default:
-          console.warn('Unknown quick action type:', action.type);
-      }
-    } catch (err) {
-      console.error('Quick action error:', err);
-      addMessage('assistant', t('errors.generic'));
-    }
-
-    setTyping(false);
-    setIsProcessing(false);
-  }, [isProcessing, addMessage, updateLastMessage, setTyping, setTopic, setTargetDuration, setVisualStyle, setVideoPurpose, startProduction, generateMusic, t, setShowMusic, setInput]);
-
-  // Feedback handler
-  const handleFeedback = useCallback((
-    messageId: string,
-    feedback: { helpful: boolean; rating: number; comment?: string }
-  ) => {
-    const messageIndex = messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) return;
-
-    const agentMessage = messages[messageIndex];
-    const userMessage = messages[messageIndex - 1];
-
-    if (!agentMessage) return;
-
-    recordFeedback({
-      messageId,
-      userMessage: userMessage?.content || '',
-      agentResponse: agentMessage.content,
-      helpful: feedback.helpful,
-      rating: feedback.rating,
-      comment: feedback.comment,
-      timestamp: Date.now(),
-    });
-
-    console.log('[Feedback] Recorded:', feedback.helpful ? '👍 Helpful' : '👎 Not helpful');
-  }, [messages, recordFeedback]);
-
-  const handleExport = useCallback(async (
-    config: { presetId: string; width: number; height: number; orientation: 'landscape' | 'portrait'; quality: ExportQualityPreset },
-    onProgress?: (percent: number) => void
-  ) => {
-    if (!contentPlan || narrationSegments.length === 0 || !mergedAudioUrl) {
-      throw new Error('Video not ready for export');
-    }
-
-    if (import.meta.env.DEV && exportInterceptorRef.current) {
-      onProgress?.(30);
-      await exportInterceptorRef.current({
-        config,
-        title: contentPlan.title,
-        sceneCount: contentPlan.scenes.length,
-        narrationCount: narrationSegments.length,
-        hasMergedAudio: Boolean(mergedAudioUrl),
-      });
-      onProgress?.(100);
-      return;
-    }
-
-    await flushSession();
-
-    let currentTime = 0;
-    const parsedSubtitles = contentPlan.scenes.map((scene, idx) => {
-      const narration = narrationSegments.find(n => n.sceneId === scene.id);
-      const duration = narration?.audioDuration || scene.duration;
-      const subtitle = {
-        id: idx + 1,
-        startTime: currentTime,
-        endTime: currentTime + duration,
-        text: narration?.transcript || scene.narrationScript,
-      };
-      currentTime += duration;
-      return subtitle;
-    });
-
-    const prompts = contentPlan.scenes.map((scene, idx) => ({
-      id: scene.id,
-      text: scene.visualDescription,
-      mood: getEffectiveLegacyTone(scene),
-      timestampSeconds: parsedSubtitles[idx]?.startTime || 0,
-    }));
-
-    // Use full visuals array to preserve type, cachedBlobUrl, etc.
-    const generatedImages = visuals.filter(v => v.imageUrl).map(v => ({
-      ...v,
-      // Prefer cached blob URL over original URL (prevents expired URL issues)
-      imageUrl: v.cachedBlobUrl || v.imageUrl,
-    }));
-
-    const songData = {
-      fileName: contentPlan.title || 'ai-video',
-      audioUrl: mergedAudioUrl,
-      srtContent: '',
-      parsedSubtitles,
-      prompts,
-      generatedImages,
-    };
-
-    const sceneTimings = contentPlan.scenes.map((scene, idx) => {
-      const narration = narrationSegments.find(n => n.sceneId === scene.id);
-      const subtitle = parsedSubtitles[idx];
-      return {
-        sceneId: scene.id,
-        startTime: subtitle?.startTime ?? 0,
-        duration: narration?.audioDuration || scene.duration,
-      };
-    });
-
-    const { exportVideoWithFFmpeg } = await import('@/services/ffmpeg/exporters');
-
-    const result = await exportVideoWithFFmpeg(
-      songData,
-      (p) => onProgress?.(p.progress),
-      {
-        orientation: config.orientation,
-        width: config.width,
-        height: config.height,
-        quality: config.quality,
-        useModernEffects: true,
-        transitionType: 'dissolve',
-        transitionDuration: 1.5,
-        contentMode: 'story',
-        sfxPlan,
-        sceneTimings,
-      },
-      // Pass export options for history tracking
-      {
-        projectId: params.projectId,
-        cloudSessionId: sessionId || project?.cloudSessionId,
-        userId: getCurrentUser()?.uid,
-      }
-    );
-
-    // Use blob from result (may include cloudUrl for cloud exports)
-    const blob = result.blob ?? result;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${contentPlan.title || 'video'}-${config.presetId}.mp4`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    if (params.projectId) {
-      syncProjectMetadata({
-        hasExport: true,
-        status: 'completed',
-      });
-    }
-  }, [contentPlan, narrationSegments, mergedAudioUrl, visuals, sfxPlan, params.projectId, project, sessionId, flushSession, syncProjectMetadata]);
-
-  // ============================================================
-  // TEST: Load saved media from local folder
-  // ============================================================
-  const loadTestMedia = useCallback(async () => {
-    const basePath = '/production_prod_1769364025193_ch60ee8c1';
-
-    // Create mock content plan
-    const mockContentPlan = {
-      title: 'زئير الفينيق: الثواني الأخيرة',
-      totalDuration: 78,
-      targetAudience: 'General audience',
-      overallTone: 'Cinematic',
-      scenes: [
-        { id: 'scene-1', name: 'الصمت قبل العاصفة', duration: 15, visualDescription: 'Scene 1', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'visceral-dread', cinematicDirection: 'slow-push-in', environmentalAtmosphere: 'desert-silence' } },
-        { id: 'scene-2', name: 'الاستيقاظ الداخلي', duration: 14, visualDescription: 'Scene 2', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'bittersweet-longing', cinematicDirection: 'close-up', environmentalAtmosphere: 'cathedral-reverb' } },
-        { id: 'scene-3', name: 'زئير الفينيق', duration: 16, visualDescription: 'Scene 3', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'euphoric-wonder', cinematicDirection: 'tracking-shot', environmentalAtmosphere: 'ethereal-echo' } },
-        { id: 'scene-4', name: 'الرمية المقدسة', duration: 17, visualDescription: 'Scene 4', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'seething-rage', cinematicDirection: 'handheld-float', environmentalAtmosphere: 'tension-drone' } },
-        { id: 'scene-5', name: 'الاحتراق والنصر', duration: 16, visualDescription: 'Scene 5', narrationScript: '', emotionalTone: 'dramatic' as const, instructionTriplet: { primaryEmotion: 'stoic-resignation', cinematicDirection: 'pull-back', environmentalAtmosphere: 'golden-hour-decay' } },
-      ],
-    };
-
-    // Create visuals from local video files
-    const mockVisuals = [
-      { promptId: 'scene-1', imageUrl: `${basePath}/video_clips/scene_0_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
-      { promptId: 'scene-2', imageUrl: `${basePath}/video_clips/scene_1_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
-      { promptId: 'scene-3', imageUrl: `${basePath}/video_clips/scene_2_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
-      { promptId: 'scene-4', imageUrl: `${basePath}/video_clips/scene_3_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
-      { promptId: 'scene-5', imageUrl: `${basePath}/video_clips/scene_4_veo.mp4`, type: 'video' as const, generatedWithVeo: true },
-    ];
-
-    // Create narration segments from local audio files
-    const mockNarrationSegments = await Promise.all([
-      { sceneId: 'scene-1', audioUrl: `${basePath}/audio/narration_scene-1.wav`, audioDuration: 13.9, transcript: 'Scene 1 narration' },
-      { sceneId: 'scene-2', audioUrl: `${basePath}/audio/narration_scene-2.wav`, audioDuration: 12.3, transcript: 'Scene 2 narration' },
-      { sceneId: 'scene-3', audioUrl: `${basePath}/audio/narration_scene-3.wav`, audioDuration: 14.3, transcript: 'Scene 3 narration' },
-      { sceneId: 'scene-4', audioUrl: `${basePath}/audio/narration_scene-4.wav`, audioDuration: 15.1, transcript: 'Scene 4 narration' },
-      { sceneId: 'scene-5', audioUrl: `${basePath}/audio/narration_scene-5.wav`, audioDuration: 14.8, transcript: 'Scene 5 narration' },
-    ].map(async (seg) => {
-      // Fetch audio and create blob
-      const response = await fetch(seg.audioUrl);
-      const blob = await response.blob();
-      return {
-        sceneId: seg.sceneId,
-        audioBlob: blob,
-        audioDuration: seg.audioDuration,
-        transcript: seg.transcript,
-      };
-    }));
-
-    // Set the data
-    setContentPlan(mockContentPlan as ContentPlan);
-    setVisuals(mockVisuals);
-    setNarrationSegments(mockNarrationSegments);
-    setAppState(AppState.READY);
-
-    console.log('[TEST] Loaded test media from local folder');
-    alert('Test media loaded! You can now export.');
-  }, [setContentPlan, setVisuals, setNarrationSegments, setAppState]);
-
-  // Handle format pipeline execution — delegates movie-animation to storyHook
-  const handleFormatExecute = useCallback(() => {
-    if (formatPipelineHook.selectedFormat === 'movie-animation') {
-      // Delegate to existing story generation pipeline
-      const idea = formatPipelineHook.idea || storyInitialTopic || topic || '';
-      const genre = formatPipelineHook.selectedGenre || 'Drama';
-      setStoryInitialTopic(idea);
-      storyHook.updateGenre(genre);
-      storyHook.generateBreakdown(idea, genre);
-    } else {
-      // Run format-specific pipeline
-      const user = getCurrentUser();
-      const userId = user?.uid ?? 'anonymous';
-      const projectId = params.projectId ?? `fp_${Date.now()}`;
-      formatPipelineHook.execute(userId, projectId);
-    }
-  }, [formatPipelineHook, storyHook, storyInitialTopic, topic, params.projectId]);
-
-  const handleContinueFromFormatPipeline = useCallback(() => {
-    if (!formatPipelineHook.result?.success) {
-      return;
-    }
-
-    const partialResults = formatPipelineHook.result.partialResults ?? {};
-    const pipelineSessionId = typeof partialResults.sessionId === 'string'
-      ? partialResults.sessionId
-      : undefined;
-    const storedState = pipelineSessionId ? storyModeStore.get(pipelineSessionId) : undefined;
-    const screenplay = normalizePipelineScenes(
-      storedState?.screenplay?.length ? storedState.screenplay : partialResults.screenplay,
-    );
-
-    if (screenplay.length === 0) {
-      return;
-    }
-
-    const shotlist = storedState?.shotlist?.length
-      ? storedState.shotlist
-      : buildFallbackShotlist(screenplay, partialResults.visuals);
-
-    const importedNarrationSegments = Array.isArray(partialResults.narrationSegments)
-      ? partialResults.narrationSegments.flatMap((segment: NarrationSegment | StoryNarrationSegment) => {
-        const seg = segment as NarrationSegment & StoryNarrationSegment;
-        const audioUrl = typeof seg?.audioUrl === 'string' && seg.audioUrl
-          ? seg.audioUrl
-          : seg?.audioBlob instanceof Blob
-            ? URL.createObjectURL(seg.audioBlob)
-            : '';
-
-        if (!audioUrl) {
-          return [];
-        }
-
-        return [{
-          sceneId: String(seg.sceneId || ''),
-          audioUrl,
-          duration: Number(seg.audioDuration ?? seg.duration ?? 0),
-          text: String(seg.transcript ?? seg.text ?? ''),
-        }];
-      })
-      : undefined;
-
-    const importedTopic = formatPipelineHook.idea
-      || storedState?.topic
-      || storyInitialTopic
-      || topic
-      || screenplay[0]?.heading
-      || 'Imported Story';
-
-    const importedState: StoryState = {
-      currentStep: importedNarrationSegments?.length ? 'narration' : shotlist.length > 0 ? 'storyboard' : 'script',
-      breakdown: screenplay,
-      script: {
-        title: importedTopic,
-        scenes: screenplay,
-      },
-      characters: storedState?.characters || [],
-      shotlist,
-      genre: formatPipelineHook.selectedGenre || storyHook.state.genre,
-      visualStyle: storyHook.state.visualStyle || params.style || 'Cinematic',
-      aspectRatio: partialResults.aspectRatio || storyHook.state.aspectRatio || '16:9',
-      imageProvider: storyHook.state.imageProvider || 'gemini',
-      scenesWithShots: Array.from(new Set(shotlist.map((shot) => shot.sceneId))),
-      scenesWithVisuals: Array.from(new Set(shotlist.filter((shot) => Boolean(shot.imageUrl)).map((shot) => shot.sceneId))),
-      ...(importedNarrationSegments?.length ? {
-        narrationSegments: importedNarrationSegments,
-        scenesWithNarration: Array.from(new Set(importedNarrationSegments.map((segment: { sceneId: string }) => segment.sceneId))),
-      } : {}),
-    };
-
-    setStoryInitialTopic(importedTopic);
-    storyHook.importProject(importedState, {
-      sessionId: pipelineSessionId ?? storyHook.sessionId ?? null,
-      topic: importedTopic,
-    });
-    setStudioMode('story');
-  }, [formatPipelineHook, storyHook, storyInitialTopic, topic, params.style]);
-
-  const handleOpenInEditor = useCallback(() => {
-    const editorStore = useVideoEditorStore.getState();
-    editorStore.reset();
-    editorStore.addTrack('video', 'Visuals');
-    editorStore.addTrack('audio', 'Voiceover');
-
-    const pipelineResults = formatPipelineHook.result?.success ? formatPipelineHook.result.partialResults : null;
-    const editorVisuals: (GeneratedImage | ShotlistEntry)[] = pipelineResults?.visuals?.length
-      ? pipelineResults.visuals
-      : storyHook.state.shotlist?.length
-        ? storyHook.state.shotlist
-        : visuals;
-    const editorNarrations: (NarrationSegment | StoryNarrationSegment)[] = pipelineResults?.narrationSegments?.length
-      ? pipelineResults.narrationSegments
-      : storyHook.state.narrationSegments?.length
-        ? storyHook.state.narrationSegments
-        : narrationSegments;
-    const editorBreakdown: (ScreenplayScene | Scene)[] = pipelineResults?.screenplay?.length
-      ? pipelineResults.screenplay
-      : storyHook.state.breakdown?.length
-        ? storyHook.state.breakdown
-        : contentPlan?.scenes || [];
-
-    if (editorBreakdown.length === 0) {
-      return;
-    }
-
-    window.setTimeout(() => {
-      const state = useVideoEditorStore.getState();
-      const videoTrack = state.tracks.find((track) => track.type === 'video');
-      const audioTrack = state.tracks.find((track) => track.type === 'audio');
-
-      let currentTime = 0;
-      editorBreakdown.forEach((scene: ScreenplayScene | Scene, idx: number) => {
-        const sceneAny = scene as ScreenplayScene & Scene;
-        const sceneId = sceneAny.id;
-        const visual = editorVisuals.find((item: GeneratedImage | ShotlistEntry) => {
-          const v = item as GeneratedImage & ShotlistEntry;
-          return (v.sceneId || v.promptId || v.id) === sceneId;
-        });
-        const narration = editorNarrations.find((item: NarrationSegment | StoryNarrationSegment) => item.sceneId === sceneId);
-        const narrationAny = narration as (NarrationSegment & StoryNarrationSegment) | undefined;
-        const duration = narrationAny?.audioDuration ?? narrationAny?.duration ?? sceneAny.duration ?? 5;
-
-        if (visual?.imageUrl && videoTrack) {
-          state.addClip({
-            trackId: videoTrack.id,
-            type: 'video',
-            startTime: currentTime,
-            duration,
-            name: sceneAny.heading || `Scene ${idx + 1}`,
-            sourceUrl: visual.imageUrl,
-            thumbnailUrl: visual.imageUrl,
-            inPoint: 0,
-            outPoint: duration,
-          });
-        }
-
-        if (narration && audioTrack) {
-          const narrationUrl = narrationAny?.audioBlob ? URL.createObjectURL(narrationAny.audioBlob) : narrationAny?.audioUrl;
-          if (typeof narrationUrl === 'string' && narrationUrl.length > 0) {
-            state.addClip({
-              trackId: audioTrack.id,
-              type: 'audio',
-              startTime: currentTime,
-              duration,
-              name: `Voiceover ${idx + 1}`,
-              sourceUrl: narrationUrl,
-              inPoint: 0,
-              outPoint: duration,
-            });
-          }
-        }
-
-        currentTime += duration;
-      });
-
-      if (typeof mergedAudioUrl === 'string' && mergedAudioUrl.length > 0) {
-        editorStore.addTrack('audio', 'Music');
-        window.setTimeout(() => {
-          const state2 = useVideoEditorStore.getState();
-          const musicTrack = [...state2.tracks].reverse().find((track) => track.type === 'audio' && track.name === 'Music');
-          if (musicTrack) {
-            state2.addClip({
-              trackId: musicTrack.id,
-              type: 'audio',
-              startTime: 0,
-              duration: currentTime,
-              name: 'Background Music',
-              sourceUrl: mergedAudioUrl,
-              inPoint: 0,
-              outPoint: currentTime,
-            });
-          }
-        }, 0);
-      }
-
-      setStudioMode('editor');
-    }, 50);
-  }, [formatPipelineHook.result, storyHook.state, visuals, narrationSegments, contentPlan, mergedAudioUrl]);
-
-  const canOpenEditor = useMemo(() => {
-    return canOpenStudioEditor({
-      pipelineScreenplayCount: formatPipelineHook.result?.partialResults?.screenplay?.length,
-      storyBreakdownCount: storyHook.state.breakdown?.length,
-      contentPlanSceneCount: contentPlan?.scenes.length,
-    });
-  }, [formatPipelineHook.result, storyHook.state.breakdown, contentPlan]);
-
-  // Quick actions for welcome state
-  const quickActionItems = useMemo(() => [
-    { icon: MusicIcon, label: t('home.createMusic'), prompt: 'Generate an upbeat synthwave track about city lights at night' },
-    { icon: Video, label: t('home.createVideo'), prompt: 'Create a cinematic travel video about exploring ancient Rome' },
-    { icon: ImageIcon, label: t('home.visualizer'), prompt: 'Generate a documentary about the journey of a coffee bean' },
-  ], [t]);
-
-  // ============================================================
-  // Render
-  // ============================================================
-
+  // ── Header actions ──
   const headerActions = (
     <div className="flex items-center gap-2" role="toolbar" aria-label="Studio actions">
       {/* Mode Toggle Selection */}
@@ -1547,7 +237,7 @@ export default function StudioScreen() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleOpenInEditor}
+          onClick={() => panelOpenInEditorRef.current?.()}
           disabled={!canOpenEditor}
           className={cn(
             "h-7 px-3 text-[10px] uppercase font-bold transition-all",
@@ -1600,7 +290,7 @@ export default function StudioScreen() {
       </Button>
 
       {/* Action buttons */}
-      {(messages.length > 1 || contentPlan) && (
+      {(storeMessages.length > 1 || contentPlan) && (
         <Button
           variant="ghost"
           size="sm"
@@ -1696,7 +386,7 @@ export default function StudioScreen() {
           <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center max-w-md">
             <p className="text-red-400 mb-4">{projectError}</p>
             <Button onClick={() => navigate('/projects')}>
-              {t('common.backToProjects') || 'Back to Projects'}
+              {t('common.back')}
             </Button>
           </div>
         </div>
@@ -1717,10 +407,10 @@ export default function StudioScreen() {
           <ChatInput
             value={input}
             onChange={setInput}
-            onSubmit={handleSubmit}
+            onSubmit={() => panelSubmitRef.current?.()}
             placeholder={t('studio.placeholder')}
-            disabled={appState !== AppState.IDLE}
-            isLoading={isProcessing || appState !== AppState.IDLE}
+            disabled={panelAppState !== AppState.IDLE}
+            isLoading={isProcessing || panelAppState !== AppState.IDLE}
             isRTL={isRTL}
             hintText={`${t('studio.send')}(Enter)`}
             inputId="studio-input"
@@ -1737,93 +427,52 @@ export default function StudioScreen() {
           <MusicPanel className="h-full" />
         ) : studioMode === 'story' ? (
           <StoryPanel
-            storyHook={storyHook}
+            projectId={params.projectId}
+            paramsStyle={params.style}
             storyInitialTopic={storyInitialTopic}
-            topic={topic}
-            formatPipelineHook={formatPipelineHook}
-            onFormatExecute={handleFormatExecute}
-            onOpenInEditor={handleOpenInEditor}
-            onContinueFromFormatPipeline={handleContinueFromFormatPipeline}
-            onSetStudioMode={setStudioMode}
             onSetStoryInitialTopic={setStoryInitialTopic}
+            onSetStudioMode={setStudioMode}
+            videoStateSnapshot={videoStateSnapshot}
+            onCanOpenEditorChange={handleCanOpenEditorChange}
+            onOpenInEditorRef={handleOpenInEditorRef}
           />
         ) : (
           <VideoProductionPanel
-            t={t}
-            isRTL={isRTL}
-            messages={messages}
-            messagesEndRef={messagesEndRef}
-            error={error}
-            contentPlan={contentPlan}
-            visualsMap={visualsMap}
-            narrationSegments={narrationSegments}
-            isVideoReady={isVideoReady}
-            totalDuration={totalDuration}
-            currentSceneIndex={currentSceneIndex}
-            onSceneSelect={setCurrentSceneIndex}
-            isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            showTimeline={showTimeline}
-            playbackTime={playbackTime}
-            selectedSceneId={selectedSceneId}
-            timelineAudioRef={timelineAudioRef}
-            mergedAudioUrl={mergedAudioUrl}
-            onTimelinePlayPause={handleTimelinePlayPause}
-            onTimelineSeek={handleTimelineSeek}
-            onTimelineSceneSelect={handleSceneSelect}
-            sfxPlan={sfxPlan}
-            quickActionItems={quickActionItems}
-            onSetInput={setInput}
-            onSetMusicModalMode={setMusicModalMode}
-            onQuickAction={handleQuickAction}
-            onFeedback={handleFeedback}
-            onExport={handleExport}
-            showExport={showExport}
-            onCloseExport={() => setShowExport(false)}
-            showQuality={showQuality}
-            onCloseQuality={() => setShowQuality(false)}
-            showSceneEditor={showSceneEditor}
-            onCloseSceneEditor={() => setShowSceneEditor(false)}
-            showMusic={showMusic}
-            onCloseMusic={() => {
-              setShowMusic(false);
-              setMusicModalMode('generate');
-            }}
-            onOpenMusic={() => setShowMusic(true)}
-            showSettings={showSettings}
-            onCloseSettings={() => setShowSettings(false)}
-            musicModalMode={musicModalMode}
-            updateScenes={updateScenes}
-            playNarration={playNarration}
-            regenerateSceneNarration={regenerateSceneNarration}
-            playingSceneId={playingSceneId}
-            getAudioUrlMap={getAudioUrlMap}
-            musicState={musicState}
-            generateMusic={generateMusic}
-            generateLyrics={generateLyrics}
-            selectTrack={selectTrack}
-            addMusicToTimeline={addMusicToTimeline}
-            refreshCredits={refreshCredits}
-            uploadAudio={uploadAudio}
-            uploadAndCover={uploadAndCover}
-            addVocals={addVocals}
-            addInstrumental={addInstrumental}
-            onAddToTimeline={() => {
-              addMusicToTimeline();
-              setShowTimeline(true);
-            }}
-            onAudioTimeUpdate={(time) => setPlaybackTime(time)}
-            onAudioEnded={() => setIsPlaying(false)}
-            qualityReport={qualityReport}
-            videoPurpose={videoPurpose}
-            onVideoPurposeChange={setVideoPurpose}
-            targetAudience={targetAudience}
-            onTargetAudienceChange={setTargetAudience}
-            veoVideoCount={veoVideoCount}
-            onVeoVideoCountChange={setVeoVideoCount}
-            visualStyle={visualStyle}
+            projectId={params.projectId}
+            sessionId={sessionId}
+            project={project}
+            restoredState={restoredState}
+            flushSession={flushSession}
+            syncProjectMetadata={syncProjectMetadata}
             paramsStyle={params.style}
-            onStyleChange={setVisualStyle}
+            paramsTopic={params.topic}
+            paramsDuration={params.duration}
+            paramsMode={params.mode}
+            isProjectLoading={isProjectLoading}
+            showExport={showExport}
+            setShowExport={setShowExport}
+            showQuality={showQuality}
+            setShowQuality={setShowQuality}
+            showSceneEditor={showSceneEditor}
+            setShowSceneEditor={setShowSceneEditor}
+            showMusic={showMusic}
+            setShowMusic={setShowMusic}
+            showTimeline={showTimeline}
+            setShowTimeline={setShowTimeline}
+            showSettings={showSettings}
+            setShowSettings={setShowSettings}
+            musicModalMode={musicModalMode}
+            setMusicModalMode={setMusicModalMode}
+            setStudioMode={setStudioMode}
+            onVideoStateChange={handleVideoStateChange}
+            onResetRef={handleResetRef}
+            onSubmitRef={handleSubmitRef}
+            input={input}
+            setInput={setInput}
+            isProcessing={isProcessing}
+            setIsProcessing={setIsProcessing}
+            appStateForFooter={panelAppState}
+            onAppStateChange={setPanelAppState}
           />
         )}
       </Suspense>
