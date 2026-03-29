@@ -19,7 +19,8 @@ async function openStudioFormatSelector(page: import('@playwright/test').Page) {
     localStorage.setItem('lyriclens-language', 'en');
   });
 
-  await page.goto('/studio?mode=story');
+  // waitUntil: 'networkidle' ensures lazy-loaded StoryPanel chunk has fully loaded
+  await page.goto('/studio?mode=story', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'What will you create?' })).toBeVisible();
 }
 

@@ -2,7 +2,8 @@
 
 import { expect, test } from '@playwright/test';
 
-const MAIN_NAV_SELECTOR = 'nav[aria-label="Main navigation"] button';
+// Mode cards have role="listitem" — scopes to the 3 creation mode buttons only
+const MAIN_NAV_SELECTOR = 'nav[aria-label="Main navigation"] button[role="listitem"]';
 
 async function useEnglishLocale(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {

@@ -464,62 +464,6 @@ export function mapErrorCodeToError(
   }
 }
 
-// --- Retry Logic ---
-
-/**
- * Retry utility with exponential backoff for handling transient errors.
- * 
- * - Retries on RateLimitError with exponential backoff
- * - Does NOT retry on InsufficientCreditsError (non-recoverable)
- * - Does NOT retry on other errors (to avoid masking issues)
- * 
- * @param fn - Async function to execute with retry logic
- * @param maxRetries - Maximum number of retry attempts (default: 3)
- * @param baseDelayMs - Base delay in milliseconds for exponential backoff (default: 1000)
- * @returns Result of the function on success
- * @throws The last error encountered after all retries exhausted, or non-retryable errors immediately
- */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelayMs: number = 1000
-): Promise<T> {
-  let lastError: Error | undefined;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-
-      // Don't retry on InsufficientCreditsError - it's not recoverable
-      if (error instanceof InsufficientCreditsError) {
-        console.log(`[Suno] InsufficientCreditsError - not retrying`);
-        throw error;
-      }
-
-      // Retry with exponential backoff on RateLimitError
-      if (error instanceof RateLimitError) {
-        if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt);
-          console.log(`[Suno] RateLimitError - retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        // Max retries exhausted for rate limit
-        console.log(`[Suno] RateLimitError - max retries (${maxRetries}) exhausted`);
-        throw error;
-      }
-
-      // Don't retry on other errors (MaintenanceError, SunoApiError, etc.)
-      throw error;
-    }
-  }
-
-  // This should never be reached, but TypeScript needs it
-  throw lastError!;
-}
-
 // --- API Functions ---
 
 /**

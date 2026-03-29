@@ -197,6 +197,9 @@ export const cloudAutosave = {
         body: JSON.stringify({ sessionId, userId })
       });
 
+      if (!response.ok) {
+        throw new Error(`Cloud init failed with HTTP ${response.status}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -257,6 +260,9 @@ export const cloudAutosave = {
           formData
         );
 
+        if (!response.ok) {
+          throw new Error(`Upload failed with HTTP ${response.status}`);
+        }
         const result = await response.json();
 
         if (result.success) {

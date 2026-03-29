@@ -11,8 +11,7 @@ import {
   generateMotionPrompt,
   VideoPurpose,
 } from "@/services/geminiService";
-import { generatePromptsWithLangChain } from "@/services/directorService";
-import { generatePromptsWithAgent } from "@/services/agentDirectorService";
+import { generatePromptsWithLangChain, generatePromptsWithAgent } from "@/services/directorService";
 import {
   animateImageWithDeApi,
   generateImageWithAspectRatio,

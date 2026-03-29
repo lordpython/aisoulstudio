@@ -666,12 +666,14 @@ export function VideoProductionPanel({
   // Expose submit handler to shell via a stable ref (ChatInput footer)
   // We use a ref trick: keep a mutable ref to the latest handleSubmit so the
   // shell's stable wrapper always calls the current version without re-registering.
-  const handleSubmitRef = useRef(handleSubmit);
+  // Initialized to null since handleSubmit is declared below; the effect below updates it.
+  const handleSubmitRef = useRef<typeof handleSubmit | null>(null);
   useEffect(() => {
     handleSubmitRef.current = handleSubmit;
   });
+
   useEffect(() => {
-    onSubmitRef(() => handleSubmitRef.current());
+    onSubmitRef(() => handleSubmitRef.current?.());
   }, [onSubmitRef]);
 
 const handleTimelinePlayPause = useCallback(() => {
