@@ -185,12 +185,15 @@ export default function NewProjectScreen() {
         className="absolute top-7 left-1/2 -translate-x-1/2 flex items-center gap-2"
       >
         {[1, 2].map((s) => (
-          <div
+          <motion.div
             key={s}
-            className={cn(
-              'h-1.5 rounded-full transition-all duration-300',
-              s === step ? 'w-6 bg-primary' : 'w-1.5 bg-border'
-            )}
+            animate={{
+              width: s === step ? 24 : 6,
+              backgroundColor: s === step ? 'var(--primary)' : 'var(--border)',
+              scale: s === step ? 1.1 : 1,
+            }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="h-1.5 rounded-full"
           />
         ))}
       </motion.div>
@@ -262,11 +265,19 @@ export default function NewProjectScreen() {
                 </p>
               </motion.div>
 
-              {error && (
-                <motion.p variants={itemVariants} className="text-sm text-destructive">
-                  {error}
-                </motion.p>
-              )}
+              <AnimatePresence>
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="text-sm text-destructive"
+                  >
+                    {error}
+                  </motion.p>
+                )}
+              </AnimatePresence>
 
               <motion.div
                 variants={containerVariants}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import { Video, Music, AudioWaveform, ArrowRight, Sparkles } from 'lucide-react';
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
@@ -157,12 +158,9 @@ export default function HomeScreen() {
                   const Icon = mode.icon;
                   const features = t(mode.featuresKey, { returnObjects: true }) as string[];
                   return (
+                    <BlurFade key={mode.id} delay={0.2 + idx * 0.1}>
                     <motion.button
-                      key={mode.id}
                       onClick={() => navigate(mode.route)}
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.25 + idx * 0.08, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
                       whileHover={{ y: -5, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
@@ -191,7 +189,14 @@ export default function HomeScreen() {
                               alt=""
                               aria-hidden="true"
                               className="w-full h-full object-cover opacity-60 group-hover:opacity-75 transition-opacity duration-700"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              onError={(e) => {
+                                const el = e.target as HTMLImageElement;
+                                el.style.display = 'none';
+                                const parent = el.parentElement;
+                                if (parent) {
+                                  parent.style.background = mode.gradient;
+                                }
+                              }}
                             />
                           ) : null}
                           {/* Gradient overlay always present */}
@@ -284,6 +289,7 @@ export default function HomeScreen() {
                         </div>
                       </div>
                     </motion.button>
+                    </BlurFade>
                   );
                 })}
               </div>

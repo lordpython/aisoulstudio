@@ -51,7 +51,8 @@ function generateConnections(nodes: Array<{ x: number; y: number }>) {
 
 // Animated Neural Background Component
 function NeuralBackground() {
-  const nodes = useMemo(() => generateNodes(24, 42), []);
+  // Reduced node count for performance (was 24)
+  const nodes = useMemo(() => generateNodes(12, 42), []);
   const connections = useMemo(() => generateConnections(nodes), [nodes]);
 
   return (
@@ -181,8 +182,8 @@ function NeuralBackground() {
         />
       ))}
 
-      {/* Floating large orbs */}
-      {[...Array(5)].map((_, i) => (
+      {/* Floating large orbs — 3 instead of 5 */}
+      {[...Array(3)].map((_, i) => (
         <motion.div
           key={`orb-${i}`}
           className="absolute rounded-full pointer-events-none"
@@ -212,6 +213,7 @@ function NeuralBackground() {
         style={{
           background: 'linear-gradient(to bottom, transparent 0%, oklch(0.70 0.15 190 / 0.03) 50%, transparent 100%)',
           backgroundSize: '100% 4px',
+          willChange: 'transform',
         }}
         animate={{ y: ['-100%', '100%'] }}
         transition={{

@@ -15,6 +15,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo, Suspense } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Video,
@@ -423,20 +424,46 @@ export default function StudioScreen() {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       }>
+        <AnimatePresence mode="wait">
         {studioMode === 'editor' ? (
-          <MusicPanel className="h-full" />
+          <motion.div
+            key="editor"
+            initial={{ opacity: 0, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, filter: 'blur(4px)' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="h-full"
+          >
+            <MusicPanel className="h-full" />
+          </motion.div>
         ) : studioMode === 'story' ? (
-          <StoryPanel
-            projectId={params.projectId}
-            paramsStyle={params.style}
-            storyInitialTopic={storyInitialTopic}
-            onSetStoryInitialTopic={setStoryInitialTopic}
-            onSetStudioMode={setStudioMode}
-            videoStateSnapshot={videoStateSnapshot}
-            onCanOpenEditorChange={handleCanOpenEditorChange}
-            onOpenInEditorRef={handleOpenInEditorRef}
-          />
+          <motion.div
+            key="story"
+            initial={{ opacity: 0, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, filter: 'blur(4px)' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="h-full"
+          >
+            <StoryPanel
+              projectId={params.projectId}
+              paramsStyle={params.style}
+              storyInitialTopic={storyInitialTopic}
+              onSetStoryInitialTopic={setStoryInitialTopic}
+              onSetStudioMode={setStudioMode}
+              videoStateSnapshot={videoStateSnapshot}
+              onCanOpenEditorChange={handleCanOpenEditorChange}
+              onOpenInEditorRef={handleOpenInEditorRef}
+            />
+          </motion.div>
         ) : (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, filter: 'blur(4px)' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
           <VideoProductionPanel
             projectId={params.projectId}
             sessionId={sessionId}
@@ -474,7 +501,9 @@ export default function StudioScreen() {
             appStateForFooter={panelAppState}
             onAppStateChange={setPanelAppState}
           />
+          </motion.div>
         )}
+        </AnimatePresence>
       </Suspense>
     </ScreenLayout>
   );

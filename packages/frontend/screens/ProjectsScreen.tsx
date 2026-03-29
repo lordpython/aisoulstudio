@@ -46,6 +46,8 @@ import {
   type ProjectType,
 } from '@/services/projectService';
 import { useAuth } from '@/hooks/useAuth';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
+import { TextShimmer } from '@/components/motion-primitives/text-shimmer';
 
 type SortField = 'updatedAt' | 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
@@ -190,13 +192,47 @@ export default function ProjectsScreen() {
     setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
   };
 
-  // Render loading state
+  // Render loading state — skeleton grid instead of spinner
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground font-editorial">{t('projects.loading') || 'Loading projects...'}</p>
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <Header />
+        <div className="flex-1 px-4 md:px-6 pb-6 overflow-auto">
+          <div className="max-w-7xl mx-auto">
+            {/* Title skeleton */}
+            <div className="flex items-center justify-between mb-8 mt-1">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-secondary animate-pulse" />
+                <div className="space-y-2">
+                  <div className="h-7 w-36 rounded-md bg-secondary animate-pulse" />
+                  <div className="h-3 w-20 rounded-md bg-secondary/60 animate-pulse" />
+                </div>
+              </div>
+              <div className="h-9 w-28 rounded-lg bg-secondary animate-pulse" />
+            </div>
+            {/* Skeleton card grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-secondary/40 overflow-hidden"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
+                  <div className="h-36 bg-secondary animate-pulse" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 w-3/4 rounded bg-secondary animate-pulse" />
+                    <div className="h-3 w-1/2 rounded bg-secondary/60 animate-pulse" />
+                    <div className="h-3 w-1/3 rounded bg-secondary/40 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-center">
+              <TextShimmer className="text-sm text-muted-foreground font-editorial" duration={1.5}>
+                {t('projects.loading') || 'Loading projects...'}
+              </TextShimmer>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -263,11 +299,19 @@ export default function ProjectsScreen() {
             </motion.div>
 
             {/* Error Display */}
-            {error && (
-              <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
-                {error}
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive"
+                >
+                  {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Show Recent & Favorites if there are projects */}
             {projects.length > 0 && (
@@ -291,13 +335,14 @@ export default function ProjectsScreen() {
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       <AnimatePresence mode="popLayout">
-                        {favoriteProjects.slice(0, 4).map((project) => (
-                          <ProjectCard
-                            key={project.id}
-                            project={project}
-                            onDelete={handleDeleteProject}
-                            onToggleFavorite={handleToggleFavorite}
-                          />
+                        {favoriteProjects.slice(0, 4).map((project, i) => (
+                          <BlurFade key={project.id} delay={i * 0.06} inView>
+                            <ProjectCard
+                              project={project}
+                              onDelete={handleDeleteProject}
+                              onToggleFavorite={handleToggleFavorite}
+                            />
+                          </BlurFade>
                         ))}
                       </AnimatePresence>
                     </div>
@@ -323,13 +368,14 @@ export default function ProjectsScreen() {
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                       <AnimatePresence mode="popLayout">
-                        {recentProjects.map((project) => (
-                          <ProjectCard
-                            key={project.id}
-                            project={project}
-                            onDelete={handleDeleteProject}
-                            onToggleFavorite={handleToggleFavorite}
-                          />
+                        {recentProjects.map((project, i) => (
+                          <BlurFade key={project.id} delay={i * 0.06} inView>
+                            <ProjectCard
+                              project={project}
+                              onDelete={handleDeleteProject}
+                              onToggleFavorite={handleToggleFavorite}
+                            />
+                          </BlurFade>
                         ))}
                       </AnimatePresence>
                     </div>
@@ -462,13 +508,14 @@ export default function ProjectsScreen() {
                   )}
                 >
                   <AnimatePresence mode="popLayout">
-                    {filteredProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onDelete={handleDeleteProject}
-                        onToggleFavorite={handleToggleFavorite}
-                      />
+                    {filteredProjects.map((project, i) => (
+                      <BlurFade key={project.id} delay={i * 0.05} inView>
+                        <ProjectCard
+                          project={project}
+                          onDelete={handleDeleteProject}
+                          onToggleFavorite={handleToggleFavorite}
+                        />
+                      </BlurFade>
                     ))}
                   </AnimatePresence>
                 </div>

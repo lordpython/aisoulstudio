@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Check } from 'lucide-react';
+import { AnimatedNumber } from '@/components/motion-primitives/animated-number';
+import { TextShimmer } from '@/components/motion-primitives/text-shimmer';
 
 type StepStatus = 'completed' | 'active' | 'pending' | 'processing';
 
@@ -134,9 +136,9 @@ export function StepProgressBar({
             >
               <div className="flex items-center gap-3">
                 <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin shrink-0" />
-                <span className="font-mono text-xs text-zinc-500 truncate">
+                <TextShimmer className="font-mono text-xs truncate" duration={1.8}>
                   {progress.message || 'Processing...'}
-                </span>
+                </TextShimmer>
                 <div className="flex-1 h-1 bg-zinc-900 rounded-sm overflow-hidden">
                   <motion.div
                     className="h-full bg-blue-500"
@@ -146,7 +148,7 @@ export function StepProgressBar({
                   />
                 </div>
                 <span className="font-mono text-xs text-zinc-500 min-w-12 text-right shrink-0">
-                  {progress.percent}%
+                  <AnimatedNumber value={progress.percent} springOptions={{ bounce: 0, duration: 600 }} />%
                 </span>
               </div>
             </motion.div>

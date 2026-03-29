@@ -11,6 +11,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import {
   Video,
   Music as MusicIcon,
@@ -1238,14 +1239,15 @@ const handleTimelinePlayPause = useCallback(() => {
 
       {/* Messages */}
       <div className="space-y-6" role="log" aria-live="polite" aria-label="Chat messages">
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            isRTL={isRTL}
-            onQuickAction={handleQuickAction}
-            onFeedback={handleFeedback}
-          />
+        {messages.map((message, i) => (
+          <BlurFade key={message.id} delay={Math.min(i * 0.04, 0.3)} yOffset={8}>
+            <MessageBubble
+              message={message}
+              isRTL={isRTL}
+              onQuickAction={handleQuickAction}
+              onFeedback={handleFeedback}
+            />
+          </BlurFade>
         ))}
         {error && (
           <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm max-w-2xl mx-auto" role="alert">

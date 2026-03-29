@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
+import { TextEffect } from '@/components/motion-primitives/text-effect';
 import { Sparkles, Heart, Laugh, Skull, Rocket, Search, Sword, Ghost, Crown, Baby, BookOpen, Lightbulb, Wand2, ChevronRight, Layout, ArrowRight } from 'lucide-react';
 import { TemplatesGallery } from './TemplatesGallery';
 import type { StoryState } from '@/types';
@@ -101,14 +103,16 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
         <div className="flex flex-col items-center min-h-[70vh] px-6 py-12 bg-black">
             <div className="w-full max-w-2xl">
                 {/* Header */}
+                <BlurFade delay={0.05}>
                 <div className="mb-10">
                     <h1 className="font-sans text-3xl font-medium tracking-tight text-zinc-100">
-                        {t('story.whatsYourStory')}
+                        <TextEffect per="word">{t('story.whatsYourStory')}</TextEffect>
                     </h1>
                     <p className="text-zinc-500 text-sm mt-2 leading-relaxed">
                         {t('story.describeYourConcept')}
                     </p>
                 </div>
+                </BlurFade>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Textarea */}
@@ -177,11 +181,19 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                             <Sparkles className="w-3.5 h-3.5" />
                             <span>Smart Expand</span>
                         </button>
-                        {expandMessage && (
-                            <span className="absolute left-0 top-full mt-1.5 text-xs font-mono text-zinc-500 animate-pulse">
-                                {expandMessage}
-                            </span>
-                        )}
+                        <AnimatePresence>
+                            {expandMessage && (
+                                <motion.span
+                                    initial={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                    exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    className="absolute left-0 top-full mt-1.5 text-xs font-mono text-zinc-500"
+                                >
+                                    {expandMessage}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
                     </div>
 
                     {/* Genre Selection */}
@@ -203,38 +215,41 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                            {visibleGenres.map((g) => {
+                            {visibleGenres.map((g, i) => {
                                 const Icon = g.icon;
                                 const isSelected = genre === g.id;
                                 return (
-                                    <button
-                                        key={g.id}
+                                    <BlurFade key={g.id} delay={i * 0.04}>
+                                    <motion.button
                                         type="button"
                                         onClick={() => setGenre(g.id)}
                                         disabled={isProcessing}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        transition={{ duration: 0.15 }}
                                         className={`
-                                            flex items-center gap-2 px-3 py-1.5 rounded-sm
+                                            relative flex items-center gap-2 px-3 py-1.5 rounded-sm
                                             border transition-colors duration-200
                                             disabled:opacity-40 disabled:cursor-not-allowed
                                             ${isSelected
-                                                ? 'bg-blue-500/10 border-blue-500/50'
-                                                : 'border-zinc-800 hover:border-zinc-600'
+                                                ? 'border-blue-500/50 text-blue-400'
+                                                : 'border-zinc-800 hover:border-zinc-600 text-zinc-500'
                                             }
                                         `}
                                     >
-                                        <Icon
-                                            className={`w-3.5 h-3.5 transition-colors duration-200 ${
-                                                isSelected ? 'text-blue-400' : 'text-zinc-600'
-                                            }`}
-                                        />
-                                        <span
-                                            className={`text-[13px] font-medium transition-colors duration-200 ${
-                                                isSelected ? 'text-blue-400' : 'text-zinc-500'
-                                            }`}
-                                        >
+                                        {isSelected && (
+                                            <motion.span
+                                                layoutId="genre-selection"
+                                                className="absolute inset-0 rounded-sm bg-blue-500/10"
+                                                transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                                            />
+                                        )}
+                                        <Icon className={`relative w-3.5 h-3.5 transition-colors duration-200 ${isSelected ? 'text-blue-400' : 'text-zinc-600'}`} />
+                                        <span className="relative text-[13px] font-medium transition-colors duration-200">
                                             {t(`story.genres.${g.id}`)}
                                         </span>
-                                    </button>
+                                    </motion.button>
+                                    </BlurFade>
                                 );
                             })}
                         </div>

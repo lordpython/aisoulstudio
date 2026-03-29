@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import type { ShotlistEntry, ScreenplayScene } from '@/types';
 import {
     Play, Pause, SkipBack, SkipForward,
@@ -859,8 +860,8 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                 {!isCollapsed && group.shots.map((shot) => {
                                     const idx = shots.indexOf(shot);
                                     return (
+                                        <BlurFade key={shot.id} delay={idx * 0.04} inView yOffset={4} blur="4px">
                                         <ShotThumbnail
-                                            key={shot.id}
                                             shot={shot}
                                             index={idx}
                                             isSelected={idx === selectedShotIndex}
@@ -874,6 +875,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                             onDragEnd={handleDragEnd}
                                             onDrop={handleDrop}
                                         />
+                                        </BlurFade>
                                     );
                                 })}
                             </React.Fragment>
@@ -881,8 +883,8 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                     })
                 ) : (
                     shots.map((shot, idx) => (
+                        <BlurFade key={shot.id} delay={idx * 0.04} inView yOffset={4} blur="4px">
                         <ShotThumbnail
-                            key={shot.id}
                             shot={shot}
                             index={idx}
                             isSelected={idx === selectedShotIndex}
@@ -896,6 +898,7 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                             onDragEnd={handleDragEnd}
                             onDrop={handleDrop}
                         />
+                        </BlurFade>
                     ))
                 )}
             </div>

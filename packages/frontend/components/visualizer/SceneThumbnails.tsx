@@ -8,6 +8,7 @@ import React from 'react';
 import { Video, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ImagePrompt, GeneratedImage } from '@/types';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
 
 export interface SceneThumbnailsProps {
   /** List of prompts/scenes */
@@ -48,7 +49,8 @@ export function SceneThumbnails({
         const isVideo = image?.type === 'video';
 
         return (
-          <div key={prompt.id} className="relative shrink-0">
+          <BlurFade key={prompt.id} delay={idx * 0.05} inView yOffset={4} blur="4px">
+          <div className="relative shrink-0">
             <button
               role="tab"
               aria-selected={isActive}
@@ -106,6 +108,7 @@ export function SceneThumbnails({
               )}
             </button>
           </div>
+          </BlurFade>
         );
       })}
     </div>

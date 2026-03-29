@@ -1,6 +1,8 @@
 import React from 'react';
 import type { ScreenplayScene } from '@/types';
 import { FileText, GripVertical } from 'lucide-react';
+import { BlurFade } from '@/components/motion-primitives/blur-fade';
+import { TextEffect } from '@/components/motion-primitives/text-effect';
 
 interface ScriptViewProps {
     script: { title: string; scenes: ScreenplayScene[] } | null;
@@ -45,15 +47,15 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script }) => {
                         className="font-sans text-3xl font-medium tracking-tight text-zinc-100"
                         dir="auto"
                     >
-                        {script.title}
+                        <TextEffect per="word" delay={0.1}>{script.title}</TextEffect>
                     </h1>
                 </div>
 
                 {/* Screenplay Content */}
                 <div className="p-8 space-y-8">
                     {script.scenes.map((scene, sceneIdx) => (
+                        <BlurFade key={scene.id} delay={sceneIdx * 0.08} inView>
                         <div
-                            key={scene.id}
                             className="group relative"
                             data-scene-id={scene.id}
                             data-scene-index={sceneIdx}
@@ -146,6 +148,7 @@ export const ScriptView: React.FC<ScriptViewProps> = ({ script }) => {
                                 <div className="mt-8 pt-8 border-t border-zinc-800" />
                             )}
                         </div>
+                        </BlurFade>
                     ))}
                 </div>
 
