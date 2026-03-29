@@ -386,6 +386,7 @@ export class DocumentaryPipeline implements FormatPipeline {
           chapters,
           research: researchResult,
           totalDuration,
+          shotlist: state.shotlist,
         },
       };
 

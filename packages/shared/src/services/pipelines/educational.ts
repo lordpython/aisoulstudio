@@ -389,6 +389,7 @@ export class EducationalPipeline implements FormatPipeline {
           learningObjectives,
           research: researchResult,
           totalDuration,
+          shotlist: state.shotlist,
         },
       };
 

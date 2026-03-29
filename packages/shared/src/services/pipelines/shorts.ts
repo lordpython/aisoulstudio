@@ -327,6 +327,7 @@ export class ShortsPipeline implements FormatPipeline {
           assemblyRules,
           totalDuration,
           aspectRatio: '9:16',
+          shotlist: state.shotlist,
         },
       };
 

@@ -167,7 +167,9 @@ export function StoryPanel({
 
     const shotlist = storedState?.shotlist?.length
       ? storedState.shotlist
-      : buildFallbackShotlist(screenplay, partialResults.visuals);
+      : Array.isArray(partialResults.shotlist) && partialResults.shotlist.length
+        ? partialResults.shotlist
+        : buildFallbackShotlist(screenplay, partialResults.visuals);
 
     const importedNarrationSegments = Array.isArray(partialResults.narrationSegments)
       ? partialResults.narrationSegments.flatMap((segment: NarrationSegment | StoryNarrationSegment) => {

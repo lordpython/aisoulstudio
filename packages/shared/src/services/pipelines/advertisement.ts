@@ -348,6 +348,7 @@ export class AdvertisementPipeline implements FormatPipeline {
           assemblyRules,
           ctaMarker,
           totalDuration,
+          shotlist: state.shotlist,
         },
       };
 

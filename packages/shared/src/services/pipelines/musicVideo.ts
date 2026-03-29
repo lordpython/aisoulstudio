@@ -406,6 +406,7 @@ export class MusicVideoPipeline implements FormatPipeline {
           beatMetadata,
           beatAlignedTransitions,
           totalDuration,
+          shotlist: state.shotlist,
         },
       };
 

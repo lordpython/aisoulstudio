@@ -4,10 +4,9 @@ import { FileText, GripVertical } from 'lucide-react';
 
 interface ScriptViewProps {
     script: { title: string; scenes: ScreenplayScene[] } | null;
-    onUpdate?: (script: any) => void;
 }
 
-export const ScriptView: React.FC<ScriptViewProps> = ({ script, onUpdate }) => {
+export const ScriptView: React.FC<ScriptViewProps> = ({ script }) => {
     if (!script) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] p-12">

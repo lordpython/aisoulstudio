@@ -366,6 +366,7 @@ export class YouTubeNarratorPipeline implements FormatPipeline {
           assemblyRules,
           research: researchResult,
           totalDuration,
+          shotlist: state.shotlist,
         },
       };
 
