@@ -87,6 +87,7 @@ export const transcribeAudio = async (
             text: `Transcribe ALL spoken content of this audio to SRT format.
 
 CRITICAL: You MUST transcribe EVERY SINGLE WORD from start to finish. Do NOT skip any sections or repeated phrases.
+LANGUAGE: Preserve the ORIGINAL language and script exactly as spoken. If the audio is in Arabic, write Arabic script (e.g. أمطري يا غيوم). If English, write English. NEVER transliterate or romanize — use the native script of the language.
 
 Rules:
 1. Format: ID [newline] HH:MM:SS,mmm --> HH:MM:SS,mmm [newline] Text
@@ -127,6 +128,7 @@ export const transcribeAudioWithWordTiming = async (
               text: `Transcribe ALL spoken content of this audio file with precise word-level timing.
 
 CRITICAL: You MUST transcribe EVERY SINGLE WORD from start to finish. Do NOT skip any sections, pauses, or repeated phrases.
+LANGUAGE: Preserve the ORIGINAL language and script exactly as spoken. If the audio is in Arabic, write Arabic script (e.g. أمطري). If English, write English. NEVER transliterate or romanize — use the native script of the language.
 
 Return a JSON object with this structure:
 {

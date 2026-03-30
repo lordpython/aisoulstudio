@@ -35,6 +35,7 @@ import { AudioUploadForm, VisualPreview, SceneThumbnails } from '@/components/vi
 import { TimelinePlayer } from '@/components/TimelinePlayer';
 import { QuickExport, type QuickExportConfig } from '@/components/QuickExport';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { QuickUpload } from '@/components/QuickUpload';
 
 // Services
 import { animateImageWithDeApi, animateImageBatch } from '@/services/deapiService';
@@ -448,30 +449,47 @@ export default function VisualizerScreen() {
     >
       <AnimatePresence mode="wait">
         {!isReady ? (
-          /* Upload State */
-          <motion.div
-            key="upload"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="flex justify-center"
-          >
-            <AudioUploadForm
-              audioFile={audioFile}
-              onAudioFileChange={setAudioFile}
-              selectedStyle={selectedStyle}
-              onStyleChange={setSelectedStyle}
-              imageProvider={imageProvider}
-              onProviderChange={setImageProvider}
-              directorMode={directorMode}
-              onDirectorModeChange={setDirectorMode}
-              globalSubject={globalSubject}
-              onGlobalSubjectChange={setGlobalSubject}
-              appState={appState}
-              errorMsg={errorMsg || undefined}
-              onStartProcessing={handleStartProcessing}
-            />
-          </motion.div>
+          !audioFile && !isProcessing ? (
+            /* Quick Upload State - YouTube import + file upload */
+            <motion.div
+              key="quick-upload"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex justify-center"
+            >
+              <QuickUpload
+                onFileSelect={(file) => setAudioFile(file)}
+                onLoadDemo={() => {}}
+                onSwitchToProduction={() => navigate('/studio')}
+              />
+            </motion.div>
+          ) : (
+            /* Audio Config State - style selection + processing */
+            <motion.div
+              key="upload"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex justify-center"
+            >
+              <AudioUploadForm
+                audioFile={audioFile}
+                onAudioFileChange={setAudioFile}
+                selectedStyle={selectedStyle}
+                onStyleChange={setSelectedStyle}
+                imageProvider={imageProvider}
+                onProviderChange={setImageProvider}
+                directorMode={directorMode}
+                onDirectorModeChange={setDirectorMode}
+                globalSubject={globalSubject}
+                onGlobalSubjectChange={setGlobalSubject}
+                appState={appState}
+                errorMsg={errorMsg || undefined}
+                onStartProcessing={handleStartProcessing}
+              />
+            </motion.div>
+          )
         ) : (
           /* Ready State - Player with Visual Preview */
           <motion.div

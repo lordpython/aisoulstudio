@@ -147,6 +147,11 @@ export default defineConfig(({ mode }) => {
             ) {
               return "vendor-firebase";
             }
+            // Vendor: i18next — internationalization runtime
+            if (id.includes("node_modules/i18next") || id.includes("node_modules/react-i18next")) {
+              return "vendor-i18n";
+            }
+            return undefined;
           },
         },
       },

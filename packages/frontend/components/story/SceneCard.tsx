@@ -17,7 +17,7 @@ interface SceneCardProps {
   index?: number;
 }
 
-export function SceneCard({
+export const SceneCard = React.memo(function SceneCard({
   sceneNumber,
   heading,
   content,
@@ -71,6 +71,6 @@ export function SceneCard({
     </div>
     </BlurFade>
   );
-}
+});
 
 export default SceneCard;

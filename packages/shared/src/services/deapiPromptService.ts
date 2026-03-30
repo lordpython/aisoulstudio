@@ -65,7 +65,8 @@ async function callPromptEndpoint(
 
     const rawData = await response.json();
     const data = rawData.data ?? rawData;
-    const enhanced: string | undefined = data.enhanced_prompt;
+    // DeAPI returns { prompt, negative_prompt } (not enhanced_prompt)
+    const enhanced: string | undefined = data.prompt ?? data.enhanced_prompt;
 
     if (!enhanced?.trim()) return null;
 

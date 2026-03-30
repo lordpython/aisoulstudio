@@ -10,6 +10,8 @@
  */
 
 import { EventEmitter } from 'events';
+import path from 'path';
+import fs from 'fs';
 import { createLogger } from '@studio/shared/src/services/logger.js';
 import {
   RenderJob,
@@ -27,12 +29,13 @@ import {
   loadIncompleteJobs,
   cleanupOldJobs,
 } from './jobStore.js';
+import { TEMP_DIR } from '../../utils/index.js';
 import { timeoutManager } from './timeoutManager.js';
 
 const log = createLogger('JobQueue');
 
-// Maximum concurrent encoding jobs
-const MAX_CONCURRENT_JOBS = 2;
+// Maximum concurrent encoding jobs (matches MAX_WORKERS in workerPool; override via env)
+const MAX_CONCURRENT_JOBS = parseInt(process.env.MAX_CONCURRENT_RENDER_JOBS || '4', 10);
 
 // Job retention after completion
 const COMPLETED_JOB_RETENTION_MS = 30 * 60 * 1000; // 30 minutes
@@ -71,9 +74,26 @@ export class JobQueueManager extends EventEmitter {
       for (const job of incompleteJobs) {
         // Reset jobs that were in progress
         if (job.status === 'encoding') {
-          job.status = 'queued';
-          job.retryCount++;
-          log.info(`Recovered job ${job.jobId} - reset to queued (retry ${job.retryCount})`);
+          // Verify the session directory and frames still exist before re-queuing.
+          // A crash may have left the disk in an inconsistent state.
+          const sessionDir = path.join(TEMP_DIR, job.sessionId);
+          const sessionExists = fs.existsSync(sessionDir);
+          const frameCount = job.frameManifest.totalFrames;
+          const framesOk = frameCount === 0 || (
+            sessionExists &&
+            fs.existsSync(path.join(sessionDir, `frame${String(1).padStart(6, '0')}.jpg`))
+          );
+
+          if (!sessionExists || !framesOk) {
+            job.status = 'failed';
+            job.lastError = 'Session directory or frames missing after server restart';
+            log.warn(`Job ${job.jobId} marked failed — session data not found on disk`);
+            await saveJob(job);
+          } else {
+            job.status = 'queued';
+            job.retryCount++;
+            log.info(`Recovered job ${job.jobId} - reset to queued (retry ${job.retryCount})`);
+          }
         }
         this.jobs.set(job.jobId, job);
 
@@ -170,7 +190,10 @@ export class JobQueueManager extends EventEmitter {
     switch (status) {
       case 'encoding':
         job.startedAt = Date.now();
-        timeoutManager.trackJob(jobId);
+        // NOTE: timeoutManager.trackJob is intentionally deferred until the worker
+        // sends a STARTED (or HEARTBEAT) message. Starting the stall clock here
+        // would cause false stalls when a worker is busy and the job is still
+        // waiting in the pool's pendingJobs queue.
         break;
 
       case 'complete':
@@ -447,11 +470,15 @@ export class JobQueueManager extends EventEmitter {
     const subs = this.subscribers.get(job.jobId);
 
     if (subs) {
-      for (const callback of subs) {
+      for (const callback of Array.from(subs)) {
         try {
           callback(progress);
         } catch (error) {
-          log.error('Subscriber callback error:', error);
+          log.error('Subscriber callback error - removing broken subscriber:', error);
+          subs.delete(callback);
+          if (subs.size === 0) {
+            this.subscribers.delete(job.jobId);
+          }
         }
       }
     }

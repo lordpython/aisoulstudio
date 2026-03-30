@@ -37,6 +37,7 @@ export class WorkerPool {
   private onWorkerMessage: WorkerEventCallback | null = null;
   private workerScript: string;
   private isShuttingDown = false;
+  private isSpawningWorker = false; // Guards against concurrent spawn calls exceeding MAX_WORKERS
 
   constructor() {
     // Worker script path (TypeScript, executed via tsx)
@@ -226,9 +227,15 @@ export class WorkerPool {
       }
     }
 
-    // Spawn new worker if needed
-    if (!availableWorker && this.workers.size < MAX_WORKERS) {
-      availableWorker = await this.spawnWorker();
+    // Spawn new worker if needed — guard flag prevents concurrent calls from
+    // both spawning and exceeding MAX_WORKERS when submitJob is called in parallel.
+    if (!availableWorker && this.workers.size < MAX_WORKERS && !this.isSpawningWorker) {
+      this.isSpawningWorker = true;
+      try {
+        availableWorker = await this.spawnWorker();
+      } finally {
+        this.isSpawningWorker = false;
+      }
     }
 
     // If no worker available, queue the job

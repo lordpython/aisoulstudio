@@ -493,9 +493,12 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
         let fetchBody: BodyInit;
         let fetchHeaders: Record<string, string>;
 
+        const { negative_prompt = 'blurry, low quality, distorted, artifacts' } = req.body ?? {};
+
         if (useMultipart) {
             const formData = new FormData();
             formData.append('prompt', prompt);
+            formData.append('negative_prompt', negative_prompt);
             fetchBody = formData;
             // Do NOT set Content-Type manually — fetch sets it with the boundary
             fetchHeaders = {
@@ -503,7 +506,7 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
                 'Accept': 'application/json',
             };
         } else {
-            fetchBody = JSON.stringify({ prompt });
+            fetchBody = JSON.stringify({ prompt, negative_prompt });
             fetchHeaders = {
                 'Authorization': `Bearer ${DEAPI_API_KEY}`,
                 'Content-Type': 'application/json',

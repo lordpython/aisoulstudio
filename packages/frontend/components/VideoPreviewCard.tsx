@@ -68,7 +68,7 @@ function formatTime(secs: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export function VideoPreviewCard({
+export const VideoPreviewCard = React.memo(function VideoPreviewCard({
   scenes,
   visualsMap,
   currentSceneIndex,
@@ -508,6 +508,6 @@ export function VideoPreviewCard({
       </div>
     </motion.div>
   );
-}
+});
 
 export default VideoPreviewCard;

@@ -213,8 +213,8 @@ export function StoryPanel({
       visualStyle: storyHook.state.visualStyle || paramsStyle || 'Cinematic',
       aspectRatio: partialResults.aspectRatio || storyHook.state.aspectRatio || '16:9',
       imageProvider: storyHook.state.imageProvider || 'gemini',
-      scenesWithShots: Array.from(new Set(shotlist.map((shot) => shot.sceneId))),
-      scenesWithVisuals: Array.from(new Set(shotlist.filter((shot) => Boolean(shot.imageUrl)).map((shot) => shot.sceneId))),
+      scenesWithShots: Array.from(new Set(shotlist.map((shot: ShotlistEntry) => shot.sceneId))),
+      scenesWithVisuals: Array.from(new Set(shotlist.filter((shot: ShotlistEntry) => Boolean(shot.imageUrl)).map((shot: ShotlistEntry) => shot.sceneId))),
       ...(importedNarrationSegments?.length ? {
         narrationSegments: importedNarrationSegments,
         scenesWithNarration: Array.from(new Set(importedNarrationSegments.map((segment: { sceneId: string }) => segment.sceneId))),

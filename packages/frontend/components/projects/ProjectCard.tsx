@@ -223,16 +223,16 @@ export function ProjectCard({ project, onDelete, onToggleFavorite, onExport }: P
           {/* Progress icons */}
           <div className="flex items-center gap-1.5">
             {project.hasVisuals && (
-              <ImageIcon className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} title="Has visuals" />
+              <span title="Has visuals"><ImageIcon className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} /></span>
             )}
             {project.hasNarration && (
-              <Mic className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} title="Has narration" />
+              <span title="Has narration"><Mic className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} /></span>
             )}
             {project.hasMusic && (
-              <Music className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} title="Has music" />
+              <span title="Has music"><Music className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} /></span>
             )}
             {project.hasExport && (
-              <Download className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} title="Exported" />
+              <span title="Exported"><Download className="w-3 h-3" style={{ color: `rgba(${style.glow}, 0.7)` }} /></span>
             )}
           </div>
         </div>

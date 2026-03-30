@@ -145,8 +145,14 @@ export async function finalizeAndDownload(
 
     return new Promise<Blob>((resolve, reject) => {
         let sseTimeout: ReturnType<typeof setTimeout>;
+        let unsubscribe: () => void;
 
-        const unsubscribe = subscribeToJob(
+        function cleanup(): void {
+            clearTimeout(sseTimeout);
+            unsubscribe?.();
+        }
+
+        unsubscribe = subscribeToJob(
             jobId,
             (progress: JobProgress) => {
                 const uiProgress = 90 + Math.round(progress.progress * 0.09);
@@ -160,33 +166,33 @@ export async function finalizeAndDownload(
                 });
 
                 if (progress.status === "complete") {
-                    clearTimeout(sseTimeout);
                     fetch(`${SERVER_URL}/api/export/download/${jobId}`)
                         .then((res) => {
                             if (!res.ok) throw new Error("Failed to download video");
                             return res.blob();
                         })
                         .then((blob) => {
-                            unsubscribe();
+                            cleanup();
                             resolve(blob);
                         })
-                        .catch(reject);
+                        .catch((error) => {
+                            cleanup();
+                            reject(error);
+                        });
                 } else if (progress.status === "failed") {
-                    clearTimeout(sseTimeout);
-                    unsubscribe();
+                    cleanup();
                     reject(new Error(progress.error || "Export failed"));
                 }
             },
             (error) => {
-                clearTimeout(sseTimeout);
-                unsubscribe();
+                cleanup();
                 reject(error);
             }
         );
 
         // 30-minute hard timeout
         sseTimeout = setTimeout(() => {
-            unsubscribe();
+            cleanup();
             reject(new Error("Export timed out"));
         }, 30 * 60 * 1000);
     });

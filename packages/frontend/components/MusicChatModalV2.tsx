@@ -275,7 +275,12 @@ export function MusicChatModalV2({
       audioElement?.pause();
       setPlayingTrackId(null);
     } else {
-      if (audioElement) audioElement.pause();
+      // Clean up previous audio element to prevent memory leak
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.onended = null;
+        audioElement.src = "";
+      }
       const audio = new Audio(track.audio_url);
       audio.onended = () => setPlayingTrackId(null);
       audio.play();

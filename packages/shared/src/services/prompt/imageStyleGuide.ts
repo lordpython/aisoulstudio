@@ -356,10 +356,10 @@ export interface CharacterInput {
 }
 
 export function toCharacterInputs(
-  chars: Array<{ name: string; visualDescription: string; facialTags?: string }>,
+  chars: Array<{ name: string; visualDescription?: string; facialTags?: string }>,
 ): CharacterInput[] {
   return chars
-    .filter(c => c.visualDescription)
+    .filter((c): c is { name: string; visualDescription: string; facialTags?: string } => Boolean(c.visualDescription))
     .map(c => ({ name: c.name, visualDescription: c.visualDescription, facialTags: c.facialTags }));
 }
 

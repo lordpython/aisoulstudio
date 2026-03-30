@@ -25,6 +25,13 @@ export const IntroAnimation: React.FC<IntroAnimationProps> = ({
   );
 
   useEffect(() => {
+    // Respect prefers-reduced-motion: skip intro entirely
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      onComplete();
+      return;
+    }
+
     const subtitleTimer = setTimeout(() => setShowSubtitle(true), duration * 0.4);
     const skipButtonTimer = setTimeout(() => setShowSkipButton(true), 500);
     const completeTimer = setTimeout(onComplete, duration);

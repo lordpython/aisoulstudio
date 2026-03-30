@@ -35,8 +35,11 @@ interface ExportRequest extends Request {
   files?: Express.Multer.File[];
 }
 
-// Track active jobs by session
+// Track active jobs by session (cleaned up automatically on terminal states)
 const sessionJobs = new Map<string, string>();
+
+// Delay before cleaning up temp files for failed jobs (matches job retention)
+const FAILED_JOB_CLEANUP_DELAY_MS = 30 * 60 * 1000; // 30 minutes
 
 // Multer Configuration
 const storage = multer.diskStorage({
@@ -112,6 +115,21 @@ router.post('/init', uploadAudio.single('audio'), async (req: Request, res: Resp
     // Track session → job mapping
     sessionJobs.set(request.sessionId, job.jobId);
 
+    // Auto-remove from sessionJobs when job reaches a terminal state.
+    // For failed jobs, also schedule deferred temp-dir cleanup.
+    const sessionIdForCleanup = request.sessionId;
+    const unsubscribeCleanup = jobQueue.subscribe(job.jobId, (progress) => {
+      if (progress.status === 'complete' || progress.status === 'failed') {
+        sessionJobs.delete(sessionIdForCleanup);
+        unsubscribeCleanup();
+        if (progress.status === 'failed') {
+          setTimeout(() => {
+            cleanupSession(sessionIdForCleanup);
+          }, FAILED_JOB_CLEANUP_DELAY_MS);
+        }
+      }
+    });
+
     // Set total frames if provided
     if (totalFrames) {
       jobQueue.setTotalFrames(job.jobId, parseInt(totalFrames, 10));
@@ -148,6 +166,18 @@ router.post('/chunk', uploadFrames.array('frames'), (req: Request, res: Response
   // Get job for this session
   const jobId = sessionJobs.get(request.sessionId);
   if (jobId) {
+    // Rate limit: reject if upload would exceed declared totalFrames by more than 2×
+    const job = jobQueue.getJob(jobId);
+    if (job && job.frameManifest.totalFrames > 0) {
+      const maxAllowed = job.frameManifest.totalFrames * 2;
+      if (job.frameManifest.receivedFrames + count > maxAllowed) {
+        res.status(429).json({
+          success: false,
+          error: `Frame upload limit exceeded (max ${maxAllowed} frames for this session)`,
+        });
+        return;
+      }
+    }
     // Parse checksums if provided
     let parsedChecksums: FrameChecksum[] | undefined;
     if (checksums) {
@@ -426,19 +456,16 @@ router.get('/events/:jobId', (req: Request, res: Response) => {
     }
   });
 
-  // Handle client disconnect
-  req.on('close', () => {
-    unsubscribe();
-    exportLog.debug(`SSE client disconnected for job ${jobId}`);
-  });
-
   // Keep-alive ping every 30 seconds
   const keepAlive = setInterval(() => {
     res.write(': ping\n\n');
   }, 30000);
 
+  // Handle client disconnect: single handler cleans up both subscription and timer
   req.on('close', () => {
+    unsubscribe();
     clearInterval(keepAlive);
+    exportLog.debug(`SSE client disconnected for job ${jobId}`);
   });
 });
 

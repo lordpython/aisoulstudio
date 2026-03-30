@@ -420,8 +420,9 @@ export default function StudioScreen() {
       }
     >
       <Suspense fallback={
-        <div className="flex items-center justify-center h-full min-h-[50vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex items-center justify-center h-full min-h-[50vh]" role="status" aria-live="polite">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" aria-hidden="true" />
+          <span className="sr-only">{t('common.loading') || 'Loading...'}</span>
         </div>
       }>
         <AnimatePresence mode="wait">

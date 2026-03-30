@@ -47,7 +47,7 @@ export interface MessageBubbleProps {
 /**
  * Renders a single chat message bubble
  */
-export function MessageBubble({
+export const MessageBubble = React.memo(function MessageBubble({
   message,
   isRTL = false,
   onQuickAction,
@@ -250,6 +250,6 @@ export function MessageBubble({
       )}
     </motion.div>
   );
-}
+});
 
 export default MessageBubble;

@@ -5,7 +5,7 @@
  * Standardizes color space settings for consistent output.
  */
 
-import { execSync, spawn } from 'child_process';
+import { execSync, exec, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -92,18 +92,18 @@ export function isFFmpegInstalled(): boolean {
 }
 
 /**
- * Get list of available encoders from FFmpeg
+ * Get list of available encoders from FFmpeg (async — does not block the event loop)
  */
-function getFFmpegEncoders(): string[] {
-  try {
-    const output = execSync('ffmpeg -encoders 2>&1', {
-      encoding: 'utf-8',
-      stdio: 'pipe',
+function getFFmpegEncoders(): Promise<string[]> {
+  return new Promise((resolve) => {
+    exec('ffmpeg -encoders 2>&1', { encoding: 'utf-8' }, (err, stdout) => {
+      if (err) {
+        resolve([]);
+        return;
+      }
+      resolve(stdout.split('\n'));
     });
-    return output.split('\n');
-  } catch {
-    return [];
-  }
+  });
 }
 
 /**
@@ -157,7 +157,7 @@ export async function detectEncoders(): Promise<void> {
   log.info('Detecting available encoders...');
 
   encoderCache = new Map();
-  const encoderList = getFFmpegEncoders();
+  const encoderList = await getFFmpegEncoders();
 
   for (const encoder of ENCODERS) {
     // First check if encoder is listed
@@ -199,6 +199,16 @@ export async function detectEncoders(): Promise<void> {
     }
   }
 
+  // Allow env-var override (useful for testing or machines where hardware
+  // encoders pass detection but fail inside forked worker processes, e.g.
+  // NVENC on Windows with GPU context restrictions in child processes).
+  const forceEncoder = process.env.FORCE_ENCODER as EncoderType | undefined;
+  if (forceEncoder && ENCODERS.some((e) => e.type === forceEncoder)) {
+    selectedEncoder = forceEncoder;
+    log.info(`Selected encoder: ${selectedEncoder} (forced via FORCE_ENCODER env)`);
+    return;
+  }
+
   // Select best available encoder
   selectedEncoder = selectBestEncoder();
   log.info(`Selected encoder: ${selectedEncoder}`);
@@ -220,19 +230,9 @@ function selectBestEncoder(): EncoderType {
  */
 export function getSelectedEncoder(): EncoderType {
   if (!selectedEncoder) {
-    // If not initialized, do a quick sync check
-    const encoderList = getFFmpegEncoders();
-
-    if (encoderList.some((line) => line.includes('h264_nvenc'))) {
-      return 'h264_nvenc';
-    }
-    if (encoderList.some((line) => line.includes('h264_qsv'))) {
-      return 'h264_qsv';
-    }
-    if (encoderList.some((line) => line.includes('h264_amf'))) {
-      return 'h264_amf';
-    }
-
+    // detectEncoders() must be called at startup before this is used.
+    // If somehow called before initialisation, default to the always-available CPU encoder.
+    log.warn('getSelectedEncoder() called before detectEncoders() — defaulting to libx264');
     return 'libx264';
   }
 

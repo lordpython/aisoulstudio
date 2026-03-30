@@ -188,6 +188,8 @@ export default function HomeScreen() {
                               src={mode.image}
                               alt=""
                               aria-hidden="true"
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover opacity-60 group-hover:opacity-75 transition-opacity duration-700"
                               onError={(e) => {
                                 const el = e.target as HTMLImageElement;

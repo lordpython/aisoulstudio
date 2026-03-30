@@ -23,7 +23,7 @@ export function BlurFade({
   blur = '6px',
 }: BlurFadeProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const inViewResult = useInView(ref, { once: true, margin: inViewMargin as Parameters<typeof useInView>[1]['margin'] });
+  const inViewResult = useInView(ref, { once: true, margin: inViewMargin as `${number}px ${number}px ${number}px ${number}px` });
   const isVisible = !inView || inViewResult;
 
   const variants: Variants = {

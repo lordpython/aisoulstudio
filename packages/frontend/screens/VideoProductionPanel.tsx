@@ -130,7 +130,7 @@ export interface VideoProductionPanelProps {
     cloudSessionId?: string;
   } | null | undefined;
   restoredState: {
-    contentPlan?: ContentPlan;
+    contentPlan?: ContentPlan | null;
     visuals?: GeneratedImage[];
     narrationSegments?: NarrationSegment[];
     sfxPlan?: unknown;

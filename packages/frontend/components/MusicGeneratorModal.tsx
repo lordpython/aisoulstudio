@@ -329,9 +329,11 @@ export function MusicGeneratorModal({
       audioElement?.pause();
       setPlayingTrackId(null);
     } else {
-      // Play new track
+      // Clean up previous audio element to prevent memory leak
       if (audioElement) {
         audioElement.pause();
+        audioElement.onended = null;
+        audioElement.src = "";
       }
       const audio = new Audio(track.audio_url);
       audio.onended = () => setPlayingTrackId(null);

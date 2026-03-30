@@ -50,26 +50,34 @@ export async function extractAudioFromVideo(
 ): Promise<ExtractedVideoAudio> {
     console.log(`[VideoAudioExtractor] Extracting audio from video: ${sceneId}`);
 
+    // Fetch before creating AudioContext so we don't leak a context on fetch failure.
+    let arrayBuffer: ArrayBuffer;
     try {
-        // Fetch the video file
         const response = await fetch(videoUrl);
         if (!response.ok) {
             throw new Error(`Failed to fetch video: ${response.status}`);
         }
-
         const videoBlob = await response.blob();
-        const arrayBuffer = await videoBlob.arrayBuffer();
+        arrayBuffer = await videoBlob.arrayBuffer();
+    } catch (error) {
+        console.error(`[VideoAudioExtractor] Failed to fetch video ${sceneId}:`, error);
+        return {
+            sceneId,
+            audioBlob: new Blob([], { type: 'audio/wav' }),
+            duration: 0,
+            startTime,
+            sampleRate: 44100,
+            hasAudio: false,
+        };
+    }
 
-        // Create audio context for decoding
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-        // Try to decode the video as audio
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    try {
         let audioBuffer: AudioBuffer;
         try {
             audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         } catch (decodeError) {
             console.warn(`[VideoAudioExtractor] Video ${sceneId} has no audio track or unsupported format`);
-            await audioContext.close();
             return {
                 sceneId,
                 audioBlob: new Blob([], { type: 'audio/wav' }),
@@ -80,13 +88,8 @@ export async function extractAudioFromVideo(
             };
         }
 
-        // Convert AudioBuffer to WAV Blob
         const wavBlob = audioBufferToWav(audioBuffer);
-
-        await audioContext.close();
-
         console.log(`[VideoAudioExtractor] ✓ Extracted ${audioBuffer.duration.toFixed(2)}s audio from ${sceneId}`);
-
         return {
             sceneId,
             audioBlob: wavBlob,
@@ -105,6 +108,8 @@ export async function extractAudioFromVideo(
             sampleRate: 44100,
             hasAudio: false,
         };
+    } finally {
+        await audioContext.close();
     }
 }
 
@@ -331,16 +336,13 @@ export async function mixVideoAudioWithNarration(
             }
         }
 
-        // Convert to WAV
         const mixedWav = audioBufferToWav(outputBuffer);
-
-        await audioContext.close();
-
         console.log(`[VideoAudioExtractor] ✓ Mixed audio complete: ${maxEndTime.toFixed(2)}s`);
         return mixedWav;
     } catch (error) {
         console.error("[VideoAudioExtractor] Mix failed:", error);
-        await audioContext.close();
         return narrationBlob; // Return original on failure
+    } finally {
+        await audioContext.close();
     }
 }

@@ -177,6 +177,7 @@ function createModel(config: DirectorConfig = {}): ChatGoogleGenerativeAI {
     apiKey: GEMINI_API_KEY, // Can be empty if using Vertex
     model: mergedConfig.model,
     temperature: mergedConfig.temperature,
+    maxOutputTokens: 65536,
     verbose: LANGCHAIN_VERBOSE,
   });
 }
@@ -633,6 +634,7 @@ export async function streamStoryboarder(
     apiKey: GEMINI_API_KEY,
     model: mergedConfig.model,
     temperature: mergedConfig.temperature,
+    maxOutputTokens: 65536,
     verbose: LANGCHAIN_VERBOSE,
   });
 
@@ -1313,6 +1315,7 @@ export async function generatePromptsWithAgent(
       apiKey: GEMINI_API_KEY,
       model: mergedConfig.model,
       temperature: mergedConfig.temperature,
+      maxOutputTokens: 65536,
       verbose: LANGCHAIN_VERBOSE,
     }).bindTools(allTools);
 
@@ -1383,7 +1386,8 @@ ${srtContent}`;
     }
 
     if (finalStoryboard?.prompts) {
-      const prompts = convertToImagePrompts(finalStoryboard.prompts);
+      const rawPrompts = finalStoryboard.prompts.slice(0, mergedConfig.targetAssetCount);
+      const prompts = convertToImagePrompts(rawPrompts);
       agentMetrics.recordRequest(true, Date.now() - startTime);
       return prompts;
     }
@@ -1410,11 +1414,16 @@ export async function extractStoryboardFromContent(content: string): Promise<Sto
   const fallback = fallbackProcessor.processWithFallback(content, "JSON extraction failed");
   if (fallback) {
     agentMetrics.recordExtractionMethod(ExtractionMethod.FALLBACK_TEXT);
+    const secsToTimestamp = (s: number) => {
+      const m = Math.floor(s / 60);
+      return `${String(m).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    };
     return {
-      prompts: fallback.prompts.map((p: any) => ({
+      prompts: fallback.prompts.map((p: any, i: number) => ({
         text: p.prompt || '',
         mood: p.mood || 'neutral',
-        timestamp: p.timestamp || '00:00',
+        // Space evenly at 4s intervals (video clip duration limit) when no timestamp available
+        timestamp: p.timestamp || secsToTimestamp(i * 4),
       })),
     } as StoryboardOutput;
   }

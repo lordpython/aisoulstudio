@@ -36,7 +36,7 @@ ensureJobsDir();
 // --- Middleware ---
 app.use(cors());
 app.use(express.json({
-  limit: '50mb',
+  limit: '200mb',
   verify: (req, _res, buf) => {
     (req as { rawBody?: string }).rawBody = buf.toString('utf8');
   },
@@ -95,6 +95,12 @@ async function initializeRenderingInfrastructure(): Promise<void> {
             outputSize: msg.data?.outputSize,
             progress: 100,
           });
+          break;
+
+        case 'STARTED':
+          // Worker confirmed it received the job — start the stall timer now,
+          // not when the job entered "encoding" status (worker may have been busy).
+          jobQueue.recordHeartbeat(msg.jobId);
           break;
 
         case 'HEARTBEAT':

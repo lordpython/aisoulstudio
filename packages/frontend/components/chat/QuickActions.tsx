@@ -41,7 +41,7 @@ export interface QuickActionsProps {
  * />
  * ```
  */
-export function QuickActions({
+export const QuickActions = React.memo(function QuickActions({
   actions,
   onSelect,
   isRTL = false,
@@ -76,6 +76,6 @@ export function QuickActions({
       </div>
     </div>
   );
-}
+});
 
 export default QuickActions;

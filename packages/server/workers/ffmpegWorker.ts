@@ -11,6 +11,7 @@ import fs from 'fs';
 import os from 'os';
 import { RenderJob, WorkerMessage, MainMessage } from '../types/renderJob.js';
 import { TEMP_DIR } from '../utils/index.js';
+import { quickValidate } from '../services/validation/qualityVerifier.js';
 
 const WORKER_ID = process.env.WORKER_ID || `worker_${process.pid}`;
 
@@ -140,7 +141,8 @@ function buildFFmpegArgs(job: RenderJob, sessionDir: string): string[] {
   args.push('-c:v', encoder);
 
   // Encoder-specific settings (aligned with encoderStrategy.ts ENCODING_SPEC)
-  const quality = config.quality || 18;
+  // Use nullish coalescing: createRenderJob always sets quality, but default to 21 defensively.
+  const quality = config.quality ?? 21;
   switch (encoder) {
     case 'h264_nvenc':
       args.push(
@@ -234,73 +236,137 @@ async function processJob(job: RenderJob): Promise<void> {
       throw new Error(`Session directory not found: ${sessionDir}`);
     }
 
-    // Build FFmpeg command
-    const ffmpegArgs = buildFFmpegArgs(job, sessionDir);
-    console.log(`[${WORKER_ID}] FFmpeg args:`, ffmpegArgs.join(' '));
+    // Build encoder fallback chain: try configured encoder, then libx264
+    const primaryEncoder = job.config.encoder;
+    const encoderChain: string[] = [primaryEncoder];
+    if (primaryEncoder !== 'libx264') {
+      encoderChain.push('libx264');
+    }
 
-    // Spawn FFmpeg
-    ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    let lastEncodeError = '';
+    let encodingSucceeded = false;
 
-    let lastProgress = 0;
+    for (const encoder of encoderChain) {
+      if (isCancelled) break;
 
-    // Handle stderr (FFmpeg outputs progress here)
-    ffmpegProcess.stderr?.on('data', (data: Buffer) => {
-      const line = data.toString();
+      // Patch the job config with the current encoder for this attempt
+      const jobForAttempt = { ...job, config: { ...job.config, encoder: encoder as typeof primaryEncoder } };
+      const ffmpegArgs = buildFFmpegArgs(jobForAttempt, sessionDir);
 
-      // Parse progress
-      const progress = parseFFmpegProgress(line, totalFrames);
-      if (progress) {
-        const percent = Math.min(99, Math.round((progress.frame / totalFrames) * 100));
+      if (encoder !== primaryEncoder) {
+        console.warn(`[${WORKER_ID}] Hardware encoder "${primaryEncoder}" failed; retrying with "${encoder}"`);
+        sendMessage({
+          type: 'PROGRESS',
+          jobId: job.jobId,
+          data: { progress: 0, currentFrame: 0, totalFrames, encodingSpeed: 'N/A' },
+        });
+      }
 
-        // Only send progress updates every 1%
-        if (percent > lastProgress) {
-          lastProgress = percent;
-          sendMessage({
-            type: 'PROGRESS',
-            jobId: job.jobId,
-            data: {
-              progress: percent,
-              currentFrame: progress.frame,
-              totalFrames,
-              encodingSpeed: progress.speed,
-            },
-          });
+      console.log(`[${WORKER_ID}] FFmpeg args (${encoder}):`, ffmpegArgs.join(' '));
+
+      // For hardware encoders, allow 30 seconds for the first encoded frame before
+      // declaring a stall and falling back to software. Software encoder gets no timeout.
+      const isHardwareEncoder = encoder !== 'libx264';
+      const HARDWARE_FIRST_FRAME_TIMEOUT_MS = 30_000;
+      let firstFrameSeen = false;
+      let firstFrameTimer: NodeJS.Timeout | null = null;
+      let timedOut = false;
+
+      // Spawn FFmpeg
+      ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      if (isHardwareEncoder) {
+        firstFrameTimer = setTimeout(() => {
+          if (!firstFrameSeen && ffmpegProcess) {
+            timedOut = true;
+            console.warn(`[${WORKER_ID}] Hardware encoder "${encoder}" produced no frames within ${HARDWARE_FIRST_FRAME_TIMEOUT_MS / 1000}s — killing and trying fallback`);
+            // Use SIGKILL on Windows since GPU processes may not respond to SIGTERM
+            try { ffmpegProcess.kill('SIGKILL'); } catch { ffmpegProcess.kill('SIGTERM'); }
+          }
+        }, HARDWARE_FIRST_FRAME_TIMEOUT_MS);
+      }
+
+      let lastProgress = 0;
+
+      // Handle stderr (FFmpeg outputs progress here)
+      ffmpegProcess.stderr?.on('data', (data: Buffer) => {
+        const line = data.toString();
+
+        // Fast pre-check: only run regex on lines that contain progress data
+        const progress = line.includes('frame=') ? parseFFmpegProgress(line, totalFrames) : null;
+        if (progress) {
+          // Clear the hardware stall timer on first real frame
+          if (!firstFrameSeen && firstFrameTimer) {
+            firstFrameSeen = true;
+            clearTimeout(firstFrameTimer);
+            firstFrameTimer = null;
+          }
+
+          const percent = Math.min(99, Math.round((progress.frame / totalFrames) * 100));
+
+          // Only send progress updates every 1%
+          if (percent > lastProgress) {
+            lastProgress = percent;
+            sendMessage({
+              type: 'PROGRESS',
+              jobId: job.jobId,
+              data: {
+                progress: percent,
+                currentFrame: progress.frame,
+                totalFrames,
+                encodingSpeed: progress.speed,
+              },
+            });
+          }
         }
-      }
 
-      // Log errors
-      if (line.toLowerCase().includes('error')) {
-        console.error(`[${WORKER_ID}] FFmpeg error:`, line.trim());
-      }
-    });
-
-    // Wait for FFmpeg to complete
-    await new Promise<void>((resolve, reject) => {
-      if (!ffmpegProcess) {
-        reject(new Error('FFmpeg process not started'));
-        return;
-      }
-
-      ffmpegProcess.on('close', (code) => {
-        if (isCancelled) {
-          reject(new Error('Job cancelled'));
-        } else if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`FFmpeg exited with code ${code}`));
+        // Log errors
+        if (line.toLowerCase().includes('error')) {
+          console.error(`[${WORKER_ID}] FFmpeg error:`, line.trim());
         }
       });
 
-      ffmpegProcess.on('error', (err) => {
-        reject(err);
+      // Wait for FFmpeg to complete
+      const exitCode = await new Promise<number | null>((resolve) => {
+        if (!ffmpegProcess) { resolve(1); return; }
+        ffmpegProcess.on('close', resolve);
+        ffmpegProcess.on('error', () => resolve(1));
       });
-    });
 
-    // Verify output
+      if (firstFrameTimer) { clearTimeout(firstFrameTimer); firstFrameTimer = null; }
+      ffmpegProcess = null;
+
+      if (isCancelled) {
+        throw new Error('Job cancelled');
+      }
+
+      if (exitCode === 0) {
+        encodingSucceeded = true;
+        break;
+      }
+
+      lastEncodeError = timedOut
+        ? `Hardware encoder "${encoder}" timed out (no output after ${HARDWARE_FIRST_FRAME_TIMEOUT_MS / 1000}s)`
+        : `FFmpeg (${encoder}) exited with code ${exitCode}`;
+      console.warn(`[${WORKER_ID}] ${lastEncodeError}`);
+    }
+
+    if (!encodingSucceeded) {
+      throw new Error(lastEncodeError || 'All encoders failed');
+    }
+
+    // Verify output file exists
     if (!fs.existsSync(outputPath)) {
       throw new Error('Output file not created');
+    }
+
+    // Validate output integrity via ffprobe (duration + dimensions check)
+    const expectedDuration = totalFrames / (job.config.fps || 24);
+    const isValid = quickValidate(outputPath, expectedDuration);
+    if (!isValid) {
+      throw new Error('Output video failed quality validation — duration or dimensions are invalid');
     }
 
     const stats = fs.statSync(outputPath);

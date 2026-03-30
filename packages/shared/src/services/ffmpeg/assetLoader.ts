@@ -50,6 +50,24 @@ const CACHE_FPS = 24;
 
 let cachedFrameBytes = 0;
 
+// Run TTL eviction on a fixed interval instead of on every cache insert (avoids O(n) scan per write).
+let _ttlEvictionTimer: ReturnType<typeof setInterval> | null = setInterval(evictExpiredEntries, 10_000);
+// Prevent the timer from keeping non-browser runtimes alive.
+if (typeof (_ttlEvictionTimer as unknown as { unref?: () => void }).unref === 'function') {
+    (_ttlEvictionTimer as unknown as { unref: () => void }).unref();
+}
+
+/**
+ * Stop the background TTL eviction timer.
+ * Call this when the export UI unmounts to prevent the timer from firing indefinitely.
+ */
+export function stopFrameCacheTimer(): void {
+    if (_ttlEvictionTimer !== null) {
+        clearInterval(_ttlEvictionTimer);
+        _ttlEvictionTimer = null;
+    }
+}
+
 /**
  * Get cache key for a video frame
  */
@@ -95,7 +113,7 @@ function evictExpiredEntries(): void {
 }
 
 function evictFrameEntries(bytesNeeded: number): void {
-    evictExpiredEntries();
+    // TTL eviction runs on a periodic timer; only LRU pressure eviction happens here.
     while (videoFrameCache.size > 0 && cachedFrameBytes + bytesNeeded > MAX_CACHE_BYTES) {
         const oldestKey = videoFrameCache.keys().next().value as string | undefined;
         if (!oldestKey) {
@@ -151,9 +169,11 @@ export function cacheFrame(videoSrc: string, time: number, bitmap: ImageBitmap):
 }
 
 /**
- * Clear all cached frames (call after export completes)
+ * Clear all cached frames and stop the TTL eviction timer.
+ * Call after export completes to release memory and prevent the interval from running indefinitely.
  */
 export function clearFrameCache(): void {
+    stopFrameCacheTimer();
     for (const entry of videoFrameCache.values()) {
         try {
             entry.bitmap.close();

@@ -73,12 +73,17 @@ export class TimeoutManager {
   }
 
   /**
-   * Record a heartbeat for a job
+   * Record a heartbeat for a job.
+   * If the job is not yet tracked (i.e. trackJob was intentionally deferred
+   * until the worker confirms receipt), this call also starts tracking.
    */
   recordHeartbeat(jobId: string): void {
     const tracked = this.trackedJobs.get(jobId);
     if (tracked) {
       tracked.lastHeartbeat = Date.now();
+    } else {
+      // Lazy-start tracking on first heartbeat (covers the STARTED message path).
+      this.trackJob(jobId);
     }
   }
 

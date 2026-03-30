@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, json as expressJson } from 'express';
 import { ApiProxyRequest } from '../types.js';
 import { GEMINI_API_KEY } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/logger.js';
@@ -76,7 +76,8 @@ export function createGeminiRouter(
     };
 
     // Gemini API Proxy - Generate Content (Text/Data)
-    router.post('/proxy/generateContent', async (req: ApiProxyRequest, res: Response) => {
+    // Higher body limit needed for base64-encoded audio/video payloads
+    router.post('/proxy/generateContent', expressJson({ limit: '200mb' }), async (req: ApiProxyRequest, res: Response) => {
         try {
             const { model, contents, config } = req.body;
 

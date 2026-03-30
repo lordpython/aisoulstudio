@@ -126,9 +126,9 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                                 }
                                             </button>
                                         )}
-                                        {onGenerateImage && (
+                                        {onGenerateImage && char.id && (
                                             <button
-                                                onClick={() => onGenerateImage(char.id)}
+                                                onClick={() => onGenerateImage(char.id!)}
                                                 disabled={isProcessing}
                                                 className="bg-blue-500 text-white rounded-sm p-2.5 transition-colors duration-200"
                                                 title={char.referenceImageUrl ? "Regenerate Portrait" : "Generate Portrait"}
@@ -147,9 +147,9 @@ export const CharacterView: React.FC<CharacterViewProps> = ({
                                                 <Sparkles className="w-5 h-5" />
                                             </button>
                                         )}
-                                        {onDelete && (
+                                        {onDelete && char.id && (
                                             <button
-                                                onClick={() => onDelete(char.id)}
+                                                onClick={() => onDelete(char.id!)}
                                                 className="rounded-sm p-2.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors duration-200"
                                             >
                                                 <Trash2 className="w-5 h-5" />

@@ -45,7 +45,7 @@ export function LoadingState({
   fullArea = false,
 }: LoadingStateProps) {
   const content = (
-    <div className={cn('flex flex-col items-center gap-3', className)}>
+    <div className={cn('flex flex-col items-center gap-3', className)} role="status" aria-live="polite">
       {variant === 'spinner' && (
         <Loader2
           className={cn(sizeClasses[size], 'text-violet-400 animate-spin')}

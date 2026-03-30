@@ -387,6 +387,33 @@ export class JSONExtractor {
       this.recordMethodFailure(ExtractionMethod.FALLBACK_TEXT, String(e));
     }
 
+    // Strategy 8: Repair truncated JSON — close unclosed array/object
+    // Handles LLM responses cut off mid-stream (e.g. {"prompts":[{...},{...TRUNCATED)
+    try {
+      const fromBrace = content.indexOf('{');
+      if (fromBrace !== -1) {
+        // Strip to last complete inner object closing brace
+        const partial = content
+          .substring(fromBrace)
+          .replace(/[\]}][^}\]]*$/, (match) => match[0] ?? "")
+          .trim();
+
+        // Try repairing with common closings
+        for (const suffix of [']}', ']}}', '}]}', '}}']) {
+          try {
+            const repaired = partial + suffix;
+            const parsed = JSON.parse(repaired);
+            if (parsed?.prompts && Array.isArray(parsed.prompts) && parsed.prompts.length > 0) {
+              this.recordSuccess(ExtractionMethod.BRACKET_MATCHING, 0.65);
+              return { data: parsed, method: ExtractionMethod.BRACKET_MATCHING, confidence: 0.65 };
+            }
+          } catch (_) { /* try next suffix */ }
+        }
+      }
+    } catch (e) {
+      this.recordMethodFailure(ExtractionMethod.BRACKET_MATCHING, String(e));
+    }
+
     return null;
   }
 
