@@ -8,6 +8,7 @@ import {
     isAllowedProxyEndpoint,
     isSafeProxyEndpoint,
     normalizeProxyEndpoint,
+    sendError,
     type ProxyEndpointRule,
 } from './routeUtils.js';
 
@@ -44,13 +45,13 @@ const SUNO_PROXY_RULES: ProxyEndpointRule[] = [
 
 router.post('/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
     if (!req.file) {
-        res.status(400).json({ error: 'No file provided' });
+        sendError(res, 'No file provided', 400);
         return;
     }
 
     const SUNO_API_KEY = process.env.VITE_SUNO_API_KEY || process.env.SUNO_API_KEY;
     if (!SUNO_API_KEY) {
-        res.status(500).json({ error: 'Suno API key not configured on server' });
+        sendError(res, 'Suno API key not configured on server', 500);
         return;
     }
 
@@ -75,7 +76,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
         res.json(data);
     } catch (error: any) {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        res.status(500).json({ error: error.message || 'Upload failed' });
+        sendError(res, error.message || 'Upload failed', 500);
     }
 });
 
@@ -84,12 +85,12 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
     const SUNO_API_KEY = process.env.VITE_SUNO_API_KEY || process.env.SUNO_API_KEY;
 
     if (!SUNO_API_KEY) {
-        res.status(500).json({ error: 'Suno API key not configured on server' });
+        sendError(res, 'Suno API key not configured on server', 500);
         return;
     }
 
     if (!isSafeProxyEndpoint(endpoint)) {
-        res.status(400).json({ error: 'Invalid proxy endpoint' });
+        sendError(res, 'Invalid proxy endpoint', 400);
         return;
     }
 
@@ -98,7 +99,7 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
             method: req.method,
             endpoint,
         });
-        res.status(403).json({ error: 'Proxy endpoint is not allowed' });
+        sendError(res, 'Proxy endpoint is not allowed', 403);
         return;
     }
 
@@ -122,7 +123,7 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
         const data = await response.json();
         res.status(response.status).json(data);
     } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Suno proxy failed' });
+        sendError(res, error.message || 'Suno proxy failed', 500);
     }
 });
 

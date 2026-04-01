@@ -1,7 +1,7 @@
 // MUST be first import to load environment variables before other modules
 import './env.js';
 
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import os from 'os';
 import { createLogger } from '@studio/shared/src/services/logger.js';
@@ -52,6 +52,14 @@ app.use('/api/suno', sunoRoutes);
 app.use('/api/cloud', cloudRoutes);
 app.use('/api/director', directorRoutes);
 app.use('/api/production', productionRoutes);
+
+// Global error handler — must be registered after all routes
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+  const message = err instanceof Error ? err.message : 'Internal server error';
+  serverLog.error('Unhandled route error:', err);
+  res.status(500).json({ success: false, error: message });
+});
 
 // Get network IP for display
 function getNetworkIP(): string {

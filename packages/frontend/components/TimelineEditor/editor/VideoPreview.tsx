@@ -117,8 +117,14 @@ export function VideoPreview({
 
         {/* Subtitle overlay */}
         {currentSubtitle && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 max-w-[80%]">
-            <p className="rounded bg-black/75 px-4 py-2 text-center text-sm font-medium text-white md:text-base">
+          <div className="absolute bottom-[14%] left-1/2 max-w-[82%] -translate-x-1/2 px-3 text-center">
+            <p
+              className="px-2 py-1 text-center text-sm font-semibold leading-[1.4] tracking-[0.01em] text-white md:text-base"
+              style={{
+                textShadow:
+                  "0 2px 10px rgba(0,0,0,0.45), 0 0 2px rgba(0,0,0,0.75), 1px 1px 0 rgba(0,0,0,0.78), -1px 1px 0 rgba(0,0,0,0.78), 1px -1px 0 rgba(0,0,0,0.78), -1px -1px 0 rgba(0,0,0,0.78)",
+              }}
+            >
               {currentSubtitle}
             </p>
           </div>

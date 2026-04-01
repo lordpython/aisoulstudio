@@ -74,14 +74,14 @@ export function renderTextWithWipe(
 
     // First, draw the ghost (inactive) text - full width, dimmed
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
+    ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 2;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.82)";
+    ctx.lineWidth = 4;
     ctx.lineJoin = "round";
     ctx.strokeText(text, x, y);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
     ctx.fillText(text, x, y);
     ctx.restore();
 
@@ -112,10 +112,11 @@ export function renderTextWithWipe(
 
         ctx.clip();
 
-        // Draw bright white revealed text with glow
-        ctx.shadowColor = "rgba(255, 215, 100, 0.8)";
-        ctx.shadowBlur = 15;
-        ctx.fillStyle = "#ffffff";
+        // Draw brighter revealed text with subtle focus, avoiding neon glow
+        ctx.shadowColor = "rgba(0, 0, 0, 0.42)";
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 1;
+        ctx.fillStyle = "#f8fafc";
         ctx.fillText(text, x, y);
         ctx.restore();
     }

@@ -332,7 +332,7 @@ function renderSubtitles(
     const fontSize = isStory
         ? (config.orientation === "portrait" ? 22 : 28)
         : (config.orientation === "portrait" ? 36 : 42);
-    const fontWeight = isStory ? "500" : (config.useModernEffects ? "600" : "bold");
+    const fontWeight = isStory ? "500" : "600";
     ctx.font = `${fontWeight} ${fontSize}px "Inter", "Segoe UI", "Arial", sans-serif`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -378,40 +378,13 @@ function renderSubtitles(
         }
     }
 
-    const lineHeight = fontSize * 1.3;
+    const lineHeight = fontSize * 1.38;
     const totalTextHeight = wrappedLines.length * lineHeight;
 
     // Story mode: bottom safe zone at 82% (Issue 7), regular mode uses zone center
     const baseY = isStory
-        ? height * 0.82 - totalTextHeight / 2
-        : zones.text.y + zones.text.height / 2 - totalTextHeight / 2;
-
-    // Background: outline + shadow for story mode (Netflix-style), opaque box for music mode
-    if (!isStory) {
-        const bgPadding = { x: 20, y: 10 };
-        const maxLineWidth = Math.max(...wrappedLines.map(line => ctx.measureText(line.words.join(" ")).width));
-        const bgWidth = maxLineWidth + bgPadding.x * 2;
-        const bgHeight = totalTextHeight + bgPadding.y * 2;
-        const bgX = zones.text.x + (zones.text.width - bgWidth) / 2;
-        const bgY2 = baseY - bgPadding.y;
-
-        ctx.save();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.70)";
-        ctx.beginPath();
-        const radius = 8;
-        ctx.moveTo(bgX + radius, bgY2);
-        ctx.lineTo(bgX + bgWidth - radius, bgY2);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY2, bgX + bgWidth, bgY2 + radius);
-        ctx.lineTo(bgX + bgWidth, bgY2 + bgHeight - radius);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY2 + bgHeight, bgX + bgWidth - radius, bgY2 + bgHeight);
-        ctx.lineTo(bgX + radius, bgY2 + bgHeight);
-        ctx.quadraticCurveTo(bgX, bgY2 + bgHeight, bgX, bgY2 + bgHeight - radius);
-        ctx.lineTo(bgX, bgY2 + radius);
-        ctx.quadraticCurveTo(bgX, bgY2, bgX + radius, bgY2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-    }
+        ? height * 0.8 - totalTextHeight / 2
+        : height * 0.8 - totalTextHeight / 2;
 
     // Render words
     wrappedLines.forEach((lineData, lineIdx) => {
@@ -531,16 +504,16 @@ function renderModernWord(
         emphasisGlow = true;
     }
 
-    ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetX = 3;
-    ctx.shadowOffsetY = 4;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.9)";
-    ctx.lineWidth = 6;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.82)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 3;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.86)";
+    ctx.lineWidth = 5;
     ctx.lineJoin = "round";
     ctx.textAlign = "left";
     ctx.strokeText(word, xPos, yPos);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
     ctx.fillText(word, xPos, yPos);
 
     if (wordProgress > 0) {
@@ -564,8 +537,8 @@ function renderModernWord(
         ctx.fillStyle = gradient;
 
         if (isActiveWord || emphasisGlow) {
-            ctx.shadowColor = "rgba(255, 215, 100, 0.9)";
-            ctx.shadowBlur = emphasisGlow ? 30 : 20;
+            ctx.shadowColor = "rgba(255, 255, 255, 0.2)";
+            ctx.shadowBlur = emphasisGlow ? 12 : 8;
         }
 
         ctx.fillText(word, xPos, yPos);
@@ -586,21 +559,21 @@ function renderSimpleWord(
     wordProgress: number
 ): void {
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
+    ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 2;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.82)";
+    ctx.lineWidth = 4;
     ctx.lineJoin = "round";
     ctx.textAlign = "left";
     ctx.strokeText(word, xPos, yPos);
 
     if (wordProgress >= 1) {
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#f8fafc";
     } else if (wordProgress > 0) {
-        ctx.fillStyle = "#ffd700";
+        ctx.fillStyle = "#ffffff";
     } else {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
     }
     ctx.fillText(word, xPos, yPos);
     ctx.restore();

@@ -20,6 +20,8 @@ interface StyleSelectorProps {
     onSelectAspectRatio: (ratio: AspectRatioId) => void;
     imageProvider?: 'gemini' | 'deapi';
     onSelectImageProvider?: (provider: 'gemini' | 'deapi') => void;
+    deapiImageModel?: string;
+    onSelectDeapiImageModel?: (model: string) => void;
     applyStyleConsistency?: boolean;
     onToggleStyleConsistency?: (enabled: boolean) => void;
     animateWithBgRemoval?: boolean;
@@ -33,6 +35,8 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     onSelectAspectRatio,
     imageProvider = 'gemini',
     onSelectImageProvider,
+    deapiImageModel = 'Flux_2_Klein_4B_BF16',
+    onSelectDeapiImageModel,
     applyStyleConsistency = false,
     onToggleStyleConsistency,
     animateWithBgRemoval = false,
@@ -101,7 +105,7 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                 </div>
             </div>
 
-            {/* Image Provider Selector */}
+            {/* Image Engine Selector */}
             {onSelectImageProvider && (
                 <div className="mb-12">
                     <div className="flex items-center gap-3 mb-4">
@@ -112,14 +116,23 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                     </div>
                     <div className="flex flex-wrap gap-3">
                         {([
-                            { id: 'gemini' as const, label: 'Imagen 4', desc: 'Google AI (default)' },
-                            { id: 'deapi' as const, label: 'FLUX.2 Klein', desc: 'DeAPI, fast generation' },
-                        ]).map((provider) => {
-                            const isSelected = imageProvider === provider.id;
+                            { provider: 'gemini' as const, model: null, label: 'Imagen 4', desc: 'Google AI (default)' },
+                            { provider: 'deapi' as const, model: 'Flux1schnell', label: 'FLUX Schnell', desc: 'DeAPI, fastest' },
+                            { provider: 'deapi' as const, model: 'Flux_2_Klein_4B_BF16', label: 'FLUX.2 Klein', desc: 'DeAPI, fast + guided' },
+                            { provider: 'deapi' as const, model: 'ZImageTurbo_INT8', label: 'ZImage Turbo', desc: 'DeAPI, photorealistic' },
+                        ]).map((option) => {
+                            const isSelected = option.provider === 'gemini'
+                                ? imageProvider === 'gemini'
+                                : imageProvider === 'deapi' && deapiImageModel === option.model;
                             return (
                                 <button
-                                    key={provider.id}
-                                    onClick={() => onSelectImageProvider(provider.id)}
+                                    key={option.model ?? 'gemini'}
+                                    onClick={() => {
+                                        onSelectImageProvider(option.provider);
+                                        if (option.model && onSelectDeapiImageModel) {
+                                            onSelectDeapiImageModel(option.model);
+                                        }
+                                    }}
                                     className={`
                                         px-5 py-3 rounded-sm transition-colors duration-200
                                         ${isSelected
@@ -129,10 +142,10 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                                     `}
                                 >
                                     <span className="font-sans text-sm font-medium">
-                                        {provider.label}
+                                        {option.label}
                                     </span>
                                     <span className={`ml-2 text-xs ${isSelected ? 'text-blue-400/70' : 'text-zinc-600'}`}>
-                                        {provider.desc}
+                                        {option.desc}
                                     </span>
                                 </button>
                             );

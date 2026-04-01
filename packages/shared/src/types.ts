@@ -596,6 +596,7 @@ export interface StoryState {
   aspectRatio?: string;
   genre?: string;
   imageProvider?: 'gemini' | 'deapi';  // Image generation provider for storyboard visuals
+  deapiImageModel?: string;  // DeAPI model slug (e.g. 'Flux1schnell', 'Flux_2_Klein_4B_BF16', 'ZImageTurbo_INT8')
   applyStyleConsistency?: boolean;  // DeAPI: img2img style consistency pass after visual generation
   animateWithBgRemoval?: boolean;   // DeAPI: remove background before animation
   ttsProvider?: 'gemini' | 'deapi_qwen';

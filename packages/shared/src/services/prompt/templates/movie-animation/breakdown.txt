@@ -10,9 +10,16 @@ Before writing, silently identify:
 Create a narrative breakdown for a {{genre}} story about:
 "{{idea}}"
 
-Divide into 3-5 acts. For each act provide:
-1. Title — A compelling act title referencing a specific story moment (not generic like "Introduction")
-2. Emotional Hook — The dominant emotion the audience should feel in this act (grief, awe, tension, triumph...)
-3. Narrative Beat — The specific story event or revelation that drives this act forward (name characters, describe the action)
+Divide into 3-5 acts. For each act write a numbered heading followed by a short paragraph (2-3 sentences). Do NOT use sub-numbered items inside each act.
 
-Keep each field concise (1-2 sentences max). Be specific — avoid vague labels like "conflict begins" or "things get harder".
+Format EXACTLY like this:
+
+1. [Compelling Act Title — specific to this story, not generic]
+[Describe the dominant emotion the audience should feel, then the specific story event or revelation that drives this act. Name characters. Describe the action.]
+
+2. [Compelling Act Title]
+[Description paragraph]
+
+(continue for all acts)
+
+Keep each paragraph concise (2-3 sentences). Be specific — avoid vague labels like "conflict begins".

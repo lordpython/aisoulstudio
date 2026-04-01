@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import type { Storage } from '@google-cloud/storage';
 import { MAX_FILE_SIZE } from '../utils/index.js';
+import { sendError } from './routeUtils.js';
 
 const cloudLog = createLogger('Cloud');
 const GCS_BUCKET_NAME = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'aisoul-studio-storage';
@@ -98,7 +99,7 @@ export function createCloudRouter(
     router.post('/init', async (req: Request, res: Response): Promise<void> => {
         const { sessionId, userId } = req.body;
         if (!sessionId) {
-            res.status(400).json({ error: 'sessionId is required' });
+            sendError(res, 'sessionId is required', 400);
             return;
         }
 
@@ -107,7 +108,7 @@ export function createCloudRouter(
             const bucket = storage.bucket(GCS_BUCKET_NAME);
             const [exists] = await bucket.exists();
             if (!exists) {
-                res.status(404).json({ error: 'Bucket not found' });
+                sendError(res, 'Bucket not found', 404);
                 return;
             }
 
@@ -126,14 +127,14 @@ export function createCloudRouter(
             });
         } catch (error: any) {
             cloudLog.error('Cloud init error:', error);
-            res.status(500).json({ error: error.message || 'Cloud init failed' });
+            sendError(res, error.message || 'Cloud init failed', 500);
         }
     });
 
     router.post('/upload-asset', memoryUpload.single('file'), async (req: Request, res: Response): Promise<void> => {
         const { sessionId, assetType, filename, makePublic, userId } = req.body;
         if (!req.file || !sessionId) {
-            res.status(400).json({ error: 'Missing file or sessionId' });
+            sendError(res, 'Missing file or sessionId', 400);
             return;
         }
 
@@ -153,7 +154,7 @@ export function createCloudRouter(
                 metadata: { contentType: req.file.mimetype || 'application/octet-stream' }
             });
 
-            blobStream.on('error', (err: any) => res.status(500).json({ error: err.message }));
+            blobStream.on('error', (err: any) => sendError(res, err.message, 500));
             blobStream.on('finish', async () => {
                 let publicUrl: string | undefined;
                 if (shouldMakePublic) {
@@ -163,7 +164,7 @@ export function createCloudRouter(
             });
             blobStream.end(req.file.buffer);
         } catch (error: any) {
-            res.status(500).json({ error: error.message });
+            sendError(res, error.message, 500);
         }
     });
 
@@ -191,12 +192,12 @@ export function createCloudRouter(
         const filePath = req.query.path as string;
 
         if (!filePath) {
-            res.status(400).json({ error: 'File path is required (use ?path=...)' });
+            sendError(res, 'File path is required (use ?path=...)', 400);
             return;
         }
 
         if (!isValidStoragePath(filePath)) {
-            res.status(400).json({ error: 'Invalid file path' });
+            sendError(res, 'Invalid file path', 400);
             return;
         }
 
@@ -207,7 +208,7 @@ export function createCloudRouter(
 
             const [exists] = await file.exists();
             if (!exists) {
-                res.status(404).json({ error: 'File not found' });
+                sendError(res, 'File not found', 404);
                 return;
             }
 
@@ -271,7 +272,7 @@ export function createCloudRouter(
                 .pipe(res);
         } catch (error: any) {
             cloudLog.error('File proxy error:', error);
-            res.status(500).json({ error: error.message || 'Failed to retrieve file' });
+            sendError(res, error.message || 'Failed to retrieve file', 500);
         }
     });
 

@@ -8,299 +8,124 @@
  * Requirements: 8.1–8.6
  */
 
-import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene, EmotionalTone } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
-import {
-  buildBreakdownPrompt,
-  buildScreenplayPrompt,
-  countScriptWords,
-  validateDurationConstraint,
-  type FormatAwareGenerationOptions,
-} from '../ai/storyPipeline';
-import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
-import { CheckpointSystem } from '../checkpointSystem';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
-import type { LanguageCode } from '../../constants';
-import { generateImageFromPrompt } from '../imageService';
-import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
+import type { EmotionalTone, ScreenplayScene, NarrationSegment, BeatMetadata } from '../../types';
+import type { PipelineResult } from '../formatRouter';
+import { ParallelExecutionEngine } from '../parallelExecutionEngine';
 import {
   buildAssemblyRules,
   generateBeatMetadata,
   alignTransitionsToBeat,
 } from '../ffmpeg/formatAssembly';
-import { detectLanguage } from '../languageDetector';
-import { storyModeStore } from '../ai/production/store';
-import type { StoryModeState } from '../ai/production/types';
-import type { BeatMetadata } from '../../types';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
-import { z } from 'zod';
-import { agentLogger } from '../logger';
-
-const FORMAT_ID: VideoFormat = 'music-video';
-const log = agentLogger.child('MusicVideoPipeline');
+import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
+import {
+  BasePipeline,
+  type FormatConfig,
+  type PipelineContext,
+  type PipelineData,
+} from './BasePipeline';
 
 // Default BPM map per genre for beat metadata generation
 const GENRE_BPM: Record<string, number> = {
-  'Pop': 120,
-  'Rock': 130,
-  'Hip Hop': 95,
-  'Electronic': 128,
-  'Jazz': 80,
-  'Classical': 70,
-  'R&B': 90,
-  'Country': 100,
-  'Indie': 110,
-  'Ambient': 60,
+  'Pop': 120, 'Rock': 130, 'Hip Hop': 95, 'Electronic': 128,
+  'Jazz': 80, 'Classical': 70, 'R&B': 90, 'Country': 100,
+  'Indie': 110, 'Ambient': 60,
 };
 
 // Maps music genre to the closest emotional tone for narrator delivery
 const GENRE_TONE: Record<string, EmotionalTone> = {
-  'Pop': 'friendly',
-  'Rock': 'dramatic',
-  'Hip Hop': 'urgent',
-  'Electronic': 'urgent',
-  'Jazz': 'calm',
-  'Classical': 'calm',
-  'R&B': 'friendly',
-  'Country': 'friendly',
-  'Indie': 'calm',
-  'Ambient': 'calm',
+  'Pop': 'friendly', 'Rock': 'dramatic', 'Hip Hop': 'urgent', 'Electronic': 'urgent',
+  'Jazz': 'calm', 'Classical': 'calm', 'R&B': 'friendly', 'Country': 'friendly',
+  'Indie': 'calm', 'Ambient': 'calm',
 };
 
-// ============================================================================
-// Schemas
-// ============================================================================
+const config: FormatConfig = {
+  formatId: 'music-video',
+  sessionPrefix: 'mv',
+  loggerName: 'MusicVideoPipeline',
+  temperature: 0.9,
+  visualStyle: 'Pop Music Video',  // overridden by getVisualStyle based on genre
+  defaultMood: 'energetic',
+  aspectRatio: '16:9',
+  emotionalTone: 'friendly',  // overridden per genre in scene construction
+  videoPurpose: 'music_video',
+  shotDefaults: { cameraAngle: 'Dynamic', movement: 'Cut', lighting: 'Atmospheric' },
+  retryDelay: 1000,
+  breakdownSchema: buildBreakdownSchema({ minActs: 2, maxActs: 5 }),
+  screenplaySchema: buildScreenplaySchema({ minScenes: 2, maxScenes: 5 }),
+};
 
-const LyricsBreakdownSchema = z.object({
-  acts: z.array(z.object({
-    title: z.string(),      // e.g., "Verse 1", "Chorus", "Bridge"
-    emotionalHook: z.string(),
-    narrativeBeat: z.string(),
-  })).min(2).max(5),
-});
-
-const LyricsScreenplaySchema = z.object({
-  scenes: z.array(z.object({
-    heading: z.string(),   // e.g., "VERSE 1 - CITY STREETS"
-    action: z.string(),    // visual description for this lyric section
-    dialogue: z.array(z.object({
-      speaker: z.string().max(30),
-      text: z.string().min(1),  // lyric lines
-    })),
-  })).min(2).max(5),
-});
-
-// ============================================================================
-// Pipeline Implementation
-// ============================================================================
-
-export class MusicVideoPipeline implements FormatPipeline {
-  private parallelEngine: ParallelExecutionEngine;
-
+export class MusicVideoPipeline extends BasePipeline {
   constructor(parallelEngine?: ParallelExecutionEngine) {
-    this.parallelEngine = parallelEngine ?? new ParallelExecutionEngine();
+    super(config, parallelEngine);
   }
 
-  getMetadata(): FormatMetadata {
-    return formatRegistry.getFormat(FORMAT_ID)!;
+  /** Extract lyrics and generate beat metadata after script generation */
+  protected async afterScriptGeneration(
+    ctx: PipelineContext,
+    screenplay: ScreenplayScene[],
+    _screenplayResult: Record<string, unknown>,
+    _breakdownResult: Record<string, unknown>,
+    durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    _hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const lyrics = screenplay.map(s => ({
+      section: s.heading,
+      lines: s.dialogue.map(d => d.text),
+    }));
+
+    const bpm = GENRE_BPM[ctx.request.genre ?? 'Pop'] ?? 120;
+    const estimatedDuration = durationCheck.estimatedSeconds;
+    const beatMetadata: BeatMetadata = generateBeatMetadata(bpm, estimatedDuration);
+
+    this.log.info(`Beat metadata: ${bpm} BPM, ${beatMetadata.beats.length} beats over ${estimatedDuration.toFixed(1)}s`);
+
+    return { lyrics, bpm, estimatedDuration, beatMetadata };
   }
 
-  async validate(request: PipelineRequest): Promise<boolean> {
-    return !!request.idea && request.idea.trim().length > 0;
+  /** Visual style depends on genre */
+  protected getVisualStyle(ctx: PipelineContext, _sceneIndex: number): string {
+    return `${ctx.request.genre ?? 'Pop'} Music Video`;
   }
 
-  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
-    const sessionId = `mv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const language = request.language ?? detectLanguage(request.idea);
-    const metadata = this.getMetadata();
+  /** Join all dialogue lines for shotlist (lyrics need full text) */
+  protected buildShotDialogue(scene?: ScreenplayScene): string {
+    return scene?.dialogue.map(d => d.text).join(' ') ?? '';
+  }
 
-    let cancelled = false;
-    const checkpoints = new CheckpointSystem({
-      maxCheckpoints: metadata.checkpointCount,
-      onCheckpointCreated: callbacks?.onCheckpointCreated,
-    });
-    callbacks?.onCheckpointSystemCreated?.(checkpoints);
-    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
-
-    log.info(`Starting Music Video pipeline: "${request.idea.slice(0, 60)}..." genre=${request.genre ?? 'Pop'} [${language}]`);
-
-    try {
-      // ----------------------------------------------------------------
-      // Phase 1: Lyrics generation — Requirement 8.2
-      // ----------------------------------------------------------------
-      log.info('Phase 1: Lyrics generation');
-
-      const formatOptions: FormatAwareGenerationOptions = {
-        formatId: FORMAT_ID,
-        genre: request.genre,
-        language,
-      };
-
-      const model = new ChatGoogleGenerativeAI({
-        model: MODELS.TEXT,
-        apiKey: GEMINI_API_KEY,
-        temperature: 0.9,
-      });
-
-      const breakdownPrompt = buildBreakdownPrompt(request.idea, formatOptions);
-      const breakdownResult = await model.withStructuredOutput(LyricsBreakdownSchema).invoke(breakdownPrompt);
-
-      const screenplayPrompt = buildScreenplayPrompt(breakdownResult.acts, formatOptions);
-      const screenplayResult = await model.withStructuredOutput(LyricsScreenplaySchema).invoke(screenplayPrompt);
-
-      // Lyrics are stored in dialogue lines
-      const screenplay: ScreenplayScene[] = screenplayResult.scenes.map((s, i) => ({
-        id: `scene_${i}`,
-        sceneNumber: i + 1,
-        heading: s.heading,
-        action: s.action,
-        dialogue: s.dialogue.filter(d => d.text.trim().length > 0),
-        charactersPresent: [],
-      }));
-
-      if (screenplay.length === 0) {
-        checkpoints.dispose();
-        return { success: false, error: 'Script generation returned no scenes' };
-      }
-
-      const lyrics = screenplay.map(s => ({
-        section: s.heading,
-        lines: s.dialogue.map(d => d.text),
-      }));
-
-      // ----------------------------------------------------------------
-      // Phase 2: Music composition (beat metadata) — Requirement 8.3
-      // ----------------------------------------------------------------
-      log.info('Phase 2: Music composition');
-
-      const wordCount = countScriptWords(screenplay);
-      const durationCheck = validateDurationConstraint(wordCount, metadata);
-      if (!durationCheck.valid) {
-        log.warn(`Duration constraint: ${durationCheck.message}`);
-      }
-
-      const bpm = GENRE_BPM[request.genre ?? 'Pop'] ?? 120;
-      const estimatedDuration = durationCheck.estimatedSeconds;
-
-      // Generate beat metadata for synchronization
-      const beatMetadata: BeatMetadata = generateBeatMetadata(bpm, estimatedDuration);
-
-      log.info(`Beat metadata: ${bpm} BPM, ${beatMetadata.beats.length} beats over ${estimatedDuration.toFixed(1)}s`);
-
-      // Persist state
-      const state: StoryModeState = {
-        id: sessionId,
-        topic: request.idea,
-        breakdown: breakdownResult.acts.map(a => `${a.title}: ${a.narrativeBeat}`).join('\n'),
-        screenplay,
-        characters: [],
-        shotlist: [],
-        currentStep: 'screenplay',
-        updatedAt: Date.now(),
-        formatId: FORMAT_ID,
-        language,
-      };
-      storyModeStore.set(sessionId, state);
-
-      // Checkpoint 1: Lyrics and Music — Requirement 8.5
-      const lyricsApproval = await checkpoints.createCheckpoint('lyrics-and-music', {
+  protected getScriptCheckpointConfig(
+    screenplay: ScreenplayScene[],
+    _wordCount: number,
+    _durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    const lyrics = hookData.lyrics as Array<{ section: string; lines: string[] }>;
+    const beatMetadata = hookData.beatMetadata as BeatMetadata;
+    return {
+      name: 'lyrics-and-music',
+      payload: {
         sceneCount: screenplay.length,
         scenes: screenplay.map(s => ({
           heading: s.heading,
           action: s.action.slice(0, 120),
         })),
-        lyrics: lyrics.map(l => ({
-          section: l.section,
-          lines: l.lines,
-        })),
-        bpm,
-        estimatedDuration,
+        lyrics: lyrics.map(l => ({ section: l.section, lines: l.lines })),
+        bpm: hookData.bpm,
+        estimatedDuration: hookData.estimatedDuration,
         beatCount: beatMetadata.beats.length,
-      });
-      if (!lyricsApproval.approved) {
-        log.info('Lyrics rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Lyrics rejected by user', partialResults: { lyrics, beatMetadata } };
-      }
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 3: Beat-synchronized visual generation — Requirement 8.4
-      // ----------------------------------------------------------------
-      log.info('Phase 3: Beat-synchronized visual generation');
-
-      const visualTasks: Task<{ sceneId: string; imageUrl: string }>[] = screenplay.map((scene, i) => ({
-        id: `visual_${i}`,
-        type: 'visual' as const,
-        priority: 1,
-        retryable: true,
-        timeout: 60_000,
-        execute: async () => {
-          const guide = buildImageStyleGuide({
-            scene: scene.action,
-            style: `${request.genre ?? 'Pop'} Music Video`,
-            background: scene.heading,
-            mood: breakdownResult.acts[i]?.emotionalHook ?? 'energetic',
-          });
-
-          const imageUrl = await generateImageFromPrompt(
-            scene.action,
-            `${request.genre ?? 'Pop'} Music Video`,
-            '',
-            '16:9',
-            true,
-            undefined,
-            sessionId,
-            i,
-            guide,
-          );
-          return { sceneId: scene.id, imageUrl };
-        },
-      }));
-
-      const visualResults = await this.parallelEngine.execute(visualTasks, {
-        concurrencyLimit: metadata.concurrencyLimit,
-        retryAttempts: 2,
-        retryDelay: 1000,
-        exponentialBackoff: true,
-      });
-
-      const visuals = visualResults
-        .filter(r => r.success && r.data)
-        .map(r => r.data!);
-
-      const failedVisualCount = visualResults.filter(r => !r.success).length;
-      if (failedVisualCount > 0) {
-        log.warn(`${failedVisualCount} visual(s) failed to generate`);
-      }
-      log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
-
-      // Align visual transitions to beats — Requirement 8.6
-      const rawTransitionTimes = screenplay.map((_, i) =>
-        (i / screenplay.length) * estimatedDuration
-      );
-      const beatAlignedTransitions = alignTransitionsToBeat(rawTransitionTimes, beatMetadata.beats);
-      log.info(`Transitions aligned to beats: ${beatAlignedTransitions.map(t => t.toFixed(2)).join(', ')}s`);
-
-      // Update state
-      state.shotlist = visuals.map((v, i) => ({
-        id: `shot_${i}`,
-        sceneId: v.sceneId,
-        shotNumber: i + 1,
-        description: screenplay[i]?.action ?? '',
-        cameraAngle: 'Dynamic',
-        movement: 'Cut',
-        lighting: 'Atmospheric',
-        dialogue: screenplay[i]?.dialogue.map(d => d.text).join(' ') ?? '',
-        imageUrl: v.imageUrl,
-      }));
-      state.currentStep = 'shotlist';
-      state.updatedAt = Date.now();
-      storyModeStore.set(sessionId, state);
-
-      // Checkpoint 2: Visual Preview — Requirement 8.5
-      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
+  /** Visual checkpoint includes lyrics per visual */
+  protected getVisualCheckpointConfig(
+    visuals: Array<{ sceneId: string; imageUrl: string }>,
+    screenplay: ScreenplayScene[],
+    hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    const lyrics = hookData.lyrics as Array<{ section: string; lines: string[] }>;
+    return {
+      name: 'visual-preview',
+      payload: {
         visuals: visuals.map((v, i) => ({
           sceneId: v.sceneId,
           imageUrl: v.imageUrl,
@@ -309,113 +134,58 @@ export class MusicVideoPipeline implements FormatPipeline {
         })),
         visualCount: visuals.length,
         totalScenes: screenplay.length,
-      });
-      if (!visualApproval.approved) {
-        log.info('Visuals rejected by user');
-        checkpoints.dispose();
-        return {
-          success: false,
-          error: 'Visuals rejected by user',
-          partialResults: { lyrics, beatMetadata, visuals },
-        };
-      }
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 4: Vocal narration (sung delivery) — Requirement 8.3
-      // ----------------------------------------------------------------
-      log.info('Phase 4: Vocal generation');
+  /** Beat-align transitions after visual generation */
+  protected async afterVisualGeneration(
+    ctx: PipelineContext,
+    _visuals: Array<{ sceneId: string; imageUrl: string }>,
+    screenplay: ScreenplayScene[],
+    hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const beatMetadata = hookData.beatMetadata as BeatMetadata;
+    const estimatedDuration = hookData.estimatedDuration as number;
 
-      const scenes: Scene[] = screenplay.map((s, i) => ({
-        id: s.id,
-        name: s.heading,
-        duration: estimatedDuration / screenplay.length,
-        visualDescription: s.action,
-        narrationScript: s.dialogue.map(d => d.text).join('\n'),
-        emotionalTone: GENRE_TONE[request.genre ?? 'Pop'] ?? 'friendly',
-      }));
+    const rawTransitionTimes = screenplay.map((_, i) =>
+      (i / screenplay.length) * estimatedDuration,
+    );
+    const beatAlignedTransitions = alignTransitionsToBeat(rawTransitionTimes, beatMetadata.beats);
+    this.log.info(`Transitions aligned to beats: ${beatAlignedTransitions.map(t => t.toFixed(2)).join(', ')}s`);
 
-      const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
-      const narratorConfig: NarratorConfig = {
-        defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'music_video',
-        language: language as LanguageCode,
-        styleOverride: voiceConfig.stylePrompt,
-      };
+    return { beatAlignedTransitions };
+  }
 
-      const narrationSegments: NarrationSegment[] = [];
-      for (const scene of scenes) {
-        if (cancelled) break;
-        try {
-          const segment = await narrateScene(scene, narratorConfig, sessionId);
-          narrationSegments.push(segment);
-        } catch (err) {
-          log.warn(`Vocal generation failed for scene ${scene.id}:`, err);
-        }
-      }
+  protected async buildAssembly(
+    _ctx: PipelineContext,
+    totalDuration: number,
+    _screenplay: ScreenplayScene[],
+    _narrationSegments: NarrationSegment[],
+    hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const assemblyRules = buildAssemblyRules('music-video', {
+      totalDuration,
+      beatMetadata: hookData.beatMetadata as BeatMetadata | undefined,
+    });
+    return { assemblyRules };
+  }
 
-      log.info(`Vocal generation complete: ${narrationSegments.length}/${scenes.length} segments`);
-
-      // ----------------------------------------------------------------
-      // Phase 5: Assembly with beat synchronization — Requirement 8.6
-      // ----------------------------------------------------------------
-      log.info('Phase 5: Beat-synchronized assembly');
-
-      const totalDuration = narrationSegments.reduce((sum, s) => sum + s.audioDuration, 0);
-
-      const assemblyRules = buildAssemblyRules(FORMAT_ID, {
-        totalDuration,
-        beatMetadata,
-      });
-
-      // Checkpoint 3: Final Assembly — Requirement 8.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
-        sceneCount: screenplay.length,
-        visualCount: visuals.length,
-        narrationCount: narrationSegments.length,
-        totalDuration,
-      });
-      if (!assemblyApproval.approved) {
-        log.info('Assembly rejected by user');
-        checkpoints.dispose();
-        return {
-          success: false,
-          error: 'Assembly rejected by user',
-          partialResults: { lyrics, beatMetadata, visuals, narrationSegments },
-        };
-      }
-
-      state.currentStep = 'production';
-      state.updatedAt = Date.now();
-      state.checkpoints = checkpoints.getAllCheckpoints();
-      storyModeStore.set(sessionId, state);
-
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-
-      log.info(`Music Video pipeline complete: ${screenplay.length} sections, ${visuals.length} visuals, ${beatMetadata.beats.length} beats`);
-
-      return {
-        success: true,
-        partialResults: {
-          sessionId,
-          screenplay,
-          lyrics,
-          visuals,
-          narrationSegments,
-          assemblyRules,
-          beatMetadata,
-          beatAlignedTransitions,
-          totalDuration,
-          shotlist: state.shotlist,
-        },
-      };
-
-    } catch (error) {
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-      const msg = error instanceof Error ? error.message : String(error);
-      log.error('Music Video pipeline failed:', msg);
-      return { success: false, error: msg };
-    }
+  protected buildSuccessResult(sessionId: string, data: PipelineData): PipelineResult {
+    return {
+      success: true,
+      partialResults: {
+        sessionId,
+        screenplay: data.screenplay,
+        lyrics: data.hookData.lyrics,
+        visuals: data.visuals,
+        narrationSegments: data.narrationSegments,
+        ...data.assemblyData,
+        beatMetadata: data.hookData.beatMetadata,
+        beatAlignedTransitions: data.hookData.beatAlignedTransitions,
+        totalDuration: data.totalDuration,
+        shotlist: data.shotlist,
+      },
+    };
   }
 }

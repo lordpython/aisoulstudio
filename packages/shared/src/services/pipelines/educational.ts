@@ -7,398 +7,239 @@
  * Requirements: 5.1–5.6
  */
 
-import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
+import type { FormatMetadata, ScreenplayScene, NarrationSegment } from '../../types';
+import type { PipelineResult } from '../formatRouter';
 import { ResearchService, type ResearchResult } from '../researchService';
-import {
-  buildBreakdownPrompt,
-  buildScreenplayPrompt,
-  countScriptWords,
-  validateDurationConstraint,
-  type FormatAwareGenerationOptions,
-} from '../ai/storyPipeline';
 import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
-import { CheckpointSystem } from '../checkpointSystem';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
-import type { LanguageCode } from '../../constants';
-import { generateImageFromPrompt } from '../imageService';
-import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import {
   buildAssemblyRules,
   buildChapterMarkers,
 } from '../ffmpeg/formatAssembly';
-import { detectLanguage } from '../languageDetector';
-import { storyModeStore } from '../ai/production/store';
-import type { StoryModeState } from '../ai/production/types';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
+import { generateImageFromPrompt } from '../imageService';
+import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
+import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import { z } from 'zod';
-import { agentLogger } from '../logger';
+import {
+  BasePipeline,
+  type FormatConfig,
+  type PipelineContext,
+  type PipelineData,
+} from './BasePipeline';
 
-const FORMAT_ID: VideoFormat = 'educational';
-const log = agentLogger.child('EducationalPipeline');
+const config: FormatConfig = {
+  formatId: 'educational',
+  sessionPrefix: 'edu',
+  loggerName: 'EducationalPipeline',
+  temperature: 0.6,
+  visualStyle: 'Educational Diagram',
+  defaultMood: 'informative and clear',
+  aspectRatio: '16:9',
+  emotionalTone: 'friendly',
+  videoPurpose: 'educational',
+  shotDefaults: { cameraAngle: 'Static', movement: 'None', lighting: 'Bright' },
+  retryDelay: 1000,
+  breakdownSchema: buildBreakdownSchema({
+    minActs: 3, maxActs: 6,
+    extraActFields: { learningObjective: z.string() },
+  }),
+  screenplaySchema: buildScreenplaySchema({ minScenes: 3, maxScenes: 8 }),
+};
 
-// ============================================================================
-// Schemas
-// ============================================================================
-
-const BreakdownSchema = z.object({
-  acts: z.array(z.object({
-    title: z.string(),
-    emotionalHook: z.string(),
-    narrativeBeat: z.string(),
-    learningObjective: z.string(),
-  })).min(3).max(6),
-});
-
-const ScreenplaySchema = z.object({
-  scenes: z.array(z.object({
-    heading: z.string(),
-    action: z.string(),
-    dialogue: z.array(z.object({
-      speaker: z.string().max(30),
-      text: z.string().min(1),
-    })),
-  })).min(3).max(8),
-});
-
-// ============================================================================
-// Pipeline Implementation
-// ============================================================================
-
-export class EducationalPipeline implements FormatPipeline {
+export class EducationalPipeline extends BasePipeline {
   private researchService: ResearchService;
-  private parallelEngine: ParallelExecutionEngine;
 
-  constructor(
-    researchService?: ResearchService,
-    parallelEngine?: ParallelExecutionEngine,
-  ) {
+  constructor(researchService?: ResearchService, parallelEngine?: ParallelExecutionEngine) {
+    super(config, parallelEngine);
     this.researchService = researchService ?? new ResearchService();
-    this.parallelEngine = parallelEngine ?? new ParallelExecutionEngine();
   }
 
-  getMetadata(): FormatMetadata {
-    return formatRegistry.getFormat(FORMAT_ID)!;
-  }
+  protected async beforePipeline(ctx: PipelineContext): Promise<Record<string, unknown>> {
+    this.log.info('Phase 1: Research');
 
-  async validate(request: PipelineRequest): Promise<boolean> {
-    return !!request.idea && request.idea.trim().length > 0;
-  }
-
-  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
-    const sessionId = `edu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const language = request.language ?? detectLanguage(request.idea);
-    const metadata = this.getMetadata();
-
-    let cancelled = false;
-    const checkpoints = new CheckpointSystem({
-      maxCheckpoints: metadata.checkpointCount,
-      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    const researchResult: ResearchResult = await this.researchService.research({
+      topic: ctx.request.idea,
+      language: ctx.language as 'ar' | 'en',
+      depth: 'medium',
+      sources: ['web', 'knowledge-base', ...(ctx.request.referenceDocuments?.length ? ['references' as const] : [])],
+      maxResults: 8,
+      referenceDocuments: ctx.request.referenceDocuments,
     });
-    callbacks?.onCheckpointSystemCreated?.(checkpoints);
-    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
-    log.info(`Starting Educational pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
+    this.log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
-    try {
-      // ----------------------------------------------------------------
-      // Phase 1: Research (parallel queries) — Requirements 5.2
-      // ----------------------------------------------------------------
-      log.info('Phase 1: Research');
+    await this.requireApproval(ctx.checkpoints, 'research-and-sources', {
+      sourceCount: researchResult.sources.length,
+      confidence: researchResult.confidence,
+      topics: researchResult.sources.map(s => s.title).slice(0, 5),
+      summaryPreview: researchResult.summary.slice(0, 300),
+    }, { research: researchResult });
 
-      let researchResult: ResearchResult | undefined;
+    return { research: researchResult };
+  }
 
-      researchResult = await this.researchService.research({
-        topic: request.idea,
-        language,
-        depth: 'medium',
-        sources: ['web', 'knowledge-base', ...(request.referenceDocuments?.length ? ['references' as const] : [])],
-        maxResults: 8,
-        referenceDocuments: request.referenceDocuments,
-      });
+  protected getFormatOptions(
+    _ctx: PipelineContext,
+    hookData: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const research = hookData.research as ResearchResult;
+    return {
+      researchSummary: research.summary,
+      researchCitations: research.citations.map(c => c.text).join('; '),
+    };
+  }
 
-      log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
+  /** Extract learning objectives from breakdown into hookData */
+  protected async afterScriptGeneration(
+    _ctx: PipelineContext,
+    _screenplay: ScreenplayScene[],
+    _screenplayResult: Record<string, unknown>,
+    breakdownResult: Record<string, unknown>,
+    _durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    _hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const acts = (breakdownResult as any).acts ?? [];
+    const learningObjectives = acts.map((a: any) => a.learningObjective);
+    return { learningObjectives, breakdownActs: acts };
+  }
 
-      // Checkpoint 1: Research Approval — user can reject before script generation
-      const researchApproval = await checkpoints.createCheckpoint('research-and-sources', {
-        sourceCount: researchResult.sources.length,
-        confidence: researchResult.confidence,
-        topics: researchResult.sources.map(s => s.title).slice(0, 5),
-        summaryPreview: researchResult.summary.slice(0, 300),
-      });
-      if (!researchApproval.approved) {
-        log.info('Research rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Research rejected by user', partialResults: { research: researchResult } };
-      }
-
-      // ----------------------------------------------------------------
-      // Phase 2: Script with learning objectives — Requirements 5.1, 5.2
-      // ----------------------------------------------------------------
-      log.info('Phase 2: Script generation');
-
-      const formatOptions: FormatAwareGenerationOptions = {
-        formatId: FORMAT_ID,
-        genre: request.genre,
-        language,
-        researchSummary: researchResult.summary,
-        researchCitations: researchResult.citations.map(c => c.text).join('; '),
-      };
-
-      const model = new ChatGoogleGenerativeAI({
-        model: MODELS.TEXT,
-        apiKey: GEMINI_API_KEY,
-        temperature: 0.6,
-      });
-
-      // Step 2a: Breakdown with learning objectives
-      const breakdownPrompt = buildBreakdownPrompt(request.idea, formatOptions);
-      const breakdownResult = await model.withStructuredOutput(BreakdownSchema).invoke(breakdownPrompt);
-
-      // Step 2b: Screenplay
-      const screenplayPrompt = buildScreenplayPrompt(breakdownResult.acts, formatOptions);
-      const screenplayResult = await model.withStructuredOutput(ScreenplaySchema).invoke(screenplayPrompt);
-
-      const screenplay: ScreenplayScene[] = screenplayResult.scenes.map((s, i) => ({
-        id: `scene_${i}`,
-        sceneNumber: i + 1,
-        heading: s.heading,
-        action: s.action,
-        dialogue: s.dialogue.filter(d => d.text.trim().length > 0),
-        charactersPresent: [],
-      }));
-
-      if (screenplay.length === 0) {
-        checkpoints.dispose();
-        return { success: false, error: 'Script generation returned no scenes' };
-      }
-
-      const wordCount = countScriptWords(screenplay);
-      const durationCheck = validateDurationConstraint(wordCount, metadata);
-      if (!durationCheck.valid) {
-        log.warn(`Duration constraint: ${durationCheck.message}`);
-      }
-
-      const learningObjectives = breakdownResult.acts.map(a => a.learningObjective);
-
-      // Persist state
-      const state: StoryModeState = {
-        id: sessionId,
-        topic: request.idea,
-        breakdown: breakdownResult.acts.map(a => `${a.title}: ${a.narrativeBeat}`).join('\n'),
-        screenplay,
-        characters: [],
-        shotlist: [],
-        currentStep: 'screenplay',
-        updatedAt: Date.now(),
-        formatId: FORMAT_ID,
-        language,
-      };
-      storyModeStore.set(sessionId, state);
-
-      // Checkpoint 2: Learning Structure — Requirement 5.5
-      const structureApproval = await checkpoints.createCheckpoint('learning-structure', {
+  protected getScriptCheckpointConfig(
+    screenplay: ScreenplayScene[],
+    _wordCount: number,
+    _durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    const breakdownActs = (hookData.breakdownActs as any[]) ?? [];
+    return {
+      name: 'learning-structure',
+      payload: {
         scenes: screenplay.map(s => ({
           heading: s.heading,
           action: s.action.length > 200 ? s.action.slice(0, 200) + '...' : s.action,
         })),
         sceneCount: screenplay.length,
-        learningObjectives,
-        acts: breakdownResult.acts.map(a => ({ title: a.title, learningObjective: a.learningObjective })),
-      });
-      if (!structureApproval.approved) {
-        log.info('Learning structure rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Learning structure rejected by user', partialResults: { screenplay, learningObjectives } };
-      }
+        learningObjectives: hookData.learningObjectives,
+        acts: breakdownActs.map((a: any) => ({ title: a.title, learningObjective: a.learningObjective })),
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 3: Visuals with text overlays — Requirements 5.3, 5.4
-      // ----------------------------------------------------------------
-      log.info('Phase 3: Visual generation with text overlays');
+  /** Override visuals to add learning-concept overlay text */
+  protected async generateVisuals(
+    ctx: PipelineContext,
+    screenplay: ScreenplayScene[],
+    breakdownResult: Record<string, unknown>,
+    metadata: FormatMetadata,
+  ): Promise<Array<{ sceneId: string; imageUrl: string }>> {
+    const learningObjectives = (breakdownResult as any).acts?.map((a: any) => a.learningObjective) ?? [];
 
-      const visualTasks: Task<{ sceneId: string; imageUrl: string; overlay: string }>[] = screenplay.map((scene, i) => ({
-        id: `visual_${i}`,
-        type: 'visual' as const,
-        priority: 1,
-        retryable: true,
-        timeout: 60_000,
-        execute: async () => {
-          const keyConceptOverlay = learningObjectives[i] ?? scene.heading;
+    const visualTasks: Task<{ sceneId: string; imageUrl: string; overlay: string }>[] = screenplay.map((scene, i) => ({
+      id: `visual_${i}`,
+      type: 'visual' as const,
+      priority: 1,
+      retryable: true,
+      timeout: 60_000,
+      execute: async () => {
+        const keyConceptOverlay = learningObjectives[i] ?? scene.heading;
 
-          const guide = buildImageStyleGuide({
-            scene: `Educational diagram: ${scene.action}`,
-            style: 'Educational Diagram',
-            background: scene.heading,
-            mood: 'informative and clear',
-          });
+        const guide = buildImageStyleGuide({
+          scene: `Educational diagram: ${scene.action}`,
+          style: 'Educational Diagram',
+          background: scene.heading,
+          mood: 'informative and clear',
+        });
 
-          const imageUrl = await generateImageFromPrompt(
-            `Educational visual: ${scene.action}`,
-            'Educational Diagram',
-            '',
-            '16:9',
-            true,
-            undefined,
-            sessionId,
-            i,
-            guide,
-          );
+        const imageUrl = await generateImageFromPrompt(
+          `Educational visual: ${scene.action}`,
+          'Educational Diagram',
+          '',
+          '16:9',
+          true,
+          undefined,
+          ctx.sessionId,
+          i,
+          guide,
+        );
 
-          return { sceneId: scene.id, imageUrl, overlay: keyConceptOverlay };
-        },
-      }));
+        return { sceneId: scene.id, imageUrl, overlay: keyConceptOverlay };
+      },
+    }));
 
-      const visualResults = await this.parallelEngine.execute(visualTasks, {
-        concurrencyLimit: metadata.concurrencyLimit,
-        retryAttempts: 2,
-        retryDelay: 1000,
-        exponentialBackoff: true,
-      });
+    const visualResults = await this.parallelEngine.execute(visualTasks, {
+      concurrencyLimit: metadata.concurrencyLimit,
+      retryAttempts: 2,
+      retryDelay: this.config.retryDelay,
+      exponentialBackoff: true,
+    });
 
-      const visuals = visualResults
-        .filter(r => r.success && r.data)
-        .map(r => r.data!);
+    const visuals = visualResults
+      .filter(r => r.success && r.data)
+      .map(r => r.data!);
 
-      const failedVisualCount = visualResults.filter(r => !r.success).length;
-      if (failedVisualCount > 0) {
-        log.warn(`${failedVisualCount} visual(s) failed to generate`);
-      }
-      log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
+    const failedCount = visualResults.filter(r => !r.success).length;
+    if (failedCount > 0) {
+      this.log.warn(`${failedCount} visual(s) failed to generate`);
+    }
+    this.log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
 
-      // Update state with visuals
-      state.shotlist = visuals.map((v, i) => ({
-        id: `shot_${i}`,
-        sceneId: v.sceneId,
-        shotNumber: i + 1,
-        description: screenplay[i]?.action ?? '',
-        cameraAngle: 'Static',
-        movement: 'None',
-        lighting: 'Bright',
-        dialogue: screenplay[i]?.dialogue[0]?.text ?? '',
-        imageUrl: v.imageUrl,
-      }));
-      state.currentStep = 'shotlist';
-      state.updatedAt = Date.now();
-      storyModeStore.set(sessionId, state);
+    // Store overlays for visual checkpoint
+    this._visualOverlays = visuals.map(v => v.overlay);
 
-      // Checkpoint 3: Visual Aids — Requirement 5.5
-      const visualApproval = await checkpoints.createCheckpoint('visual-aids', {
-        visuals: visuals.map(v => ({
+    return visuals.map(v => ({ sceneId: v.sceneId, imageUrl: v.imageUrl }));
+  }
+
+  private _visualOverlays: string[] = [];
+
+  /** Custom visual checkpoint with overlay data */
+  protected getVisualCheckpointConfig(
+    visuals: Array<{ sceneId: string; imageUrl: string }>,
+    screenplay: ScreenplayScene[],
+    _hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    return {
+      name: 'visual-aids',
+      payload: {
+        visuals: visuals.map((v, i) => ({
           imageUrl: v.imageUrl,
           sceneId: v.sceneId,
-          overlay: v.overlay,
+          overlay: this._visualOverlays[i] ?? '',
         })),
         visualCount: visuals.length,
         totalScenes: screenplay.length,
-      });
-      if (!visualApproval.approved) {
-        log.info('Visual aids rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Visual aids rejected by user', partialResults: { screenplay, visuals, learningObjectives } };
-      }
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 4: Audio generation (professional voice) — Requirements 5.1
-      // ----------------------------------------------------------------
-      log.info('Phase 4: Audio generation');
+  protected async buildAssembly(
+    _ctx: PipelineContext,
+    totalDuration: number,
+    screenplay: ScreenplayScene[],
+    narrationSegments: NarrationSegment[],
+    _hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const sceneDurations = narrationSegments.map(s => s.audioDuration);
+    const chapters = buildChapterMarkers(screenplay, sceneDurations);
+    const assemblyRules = buildAssemblyRules('educational', {
+      totalDuration,
+      scenes: screenplay,
+      sceneDurations,
+    });
+    return { assemblyRules, chapters };
+  }
 
-      const scenes: Scene[] = screenplay.map((s, i) => ({
-        id: s.id,
-        name: s.heading,
-        duration: durationCheck.estimatedSeconds / screenplay.length,
-        visualDescription: s.action,
-        narrationScript: s.dialogue.map(d => d.text).join(' '),
-        emotionalTone: 'friendly' as const,
-      }));
-
-      const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
-      const narratorConfig: NarratorConfig = {
-        defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'educational',
-        language: language as LanguageCode,
-        styleOverride: voiceConfig.stylePrompt,
-      };
-
-      const narrationSegments: NarrationSegment[] = [];
-      for (const scene of scenes) {
-        if (cancelled) break;
-        try {
-          const segment = await narrateScene(scene, narratorConfig, sessionId);
-          narrationSegments.push(segment);
-        } catch (err) {
-          log.warn(`Narration failed for scene ${scene.id}:`, err);
-        }
-      }
-
-      log.info(`Narration complete: ${narrationSegments.length}/${scenes.length} segments`);
-
-      // ----------------------------------------------------------------
-      // Phase 5: Assembly with chapter organization — Requirement 5.6
-      // ----------------------------------------------------------------
-      log.info('Phase 5: Assembly with chapter organization');
-
-      const sceneDurations = narrationSegments.map(s => s.audioDuration);
-      const totalDuration = sceneDurations.reduce((sum, d) => sum + d, 0);
-
-      const chapters = buildChapterMarkers(screenplay, sceneDurations);
-      const assemblyRules = buildAssemblyRules(FORMAT_ID, {
-        totalDuration,
-        scenes: screenplay,
-        sceneDurations,
-      });
-
-      // Checkpoint 4: Final Assembly — Requirement 5.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
-        sceneCount: screenplay.length,
-        visualCount: visuals.length,
-        narrationCount: narrationSegments.length,
-        totalDuration,
-      });
-      if (!assemblyApproval.approved) {
-        log.info('Assembly rejected by user');
-        checkpoints.dispose();
-        return {
-          success: false,
-          error: 'Assembly rejected by user',
-          partialResults: { screenplay, visuals, narrationSegments, chapters },
-        };
-      }
-
-      state.currentStep = 'production';
-      state.updatedAt = Date.now();
-      state.checkpoints = checkpoints.getAllCheckpoints();
-      storyModeStore.set(sessionId, state);
-
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-
-      log.info(`Educational pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, ${chapters.length} chapters`);
-
-      return {
-        success: true,
-        partialResults: {
-          sessionId,
-          screenplay,
-          visuals,
-          narrationSegments,
-          assemblyRules,
-          chapters,
-          learningObjectives,
-          research: researchResult,
-          totalDuration,
-          shotlist: state.shotlist,
-        },
-      };
-
-    } catch (error) {
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-      const msg = error instanceof Error ? error.message : String(error);
-      log.error('Educational pipeline failed:', msg);
-      return { success: false, error: msg };
-    }
+  protected buildSuccessResult(sessionId: string, data: PipelineData): PipelineResult {
+    return {
+      success: true,
+      partialResults: {
+        sessionId,
+        screenplay: data.screenplay,
+        visuals: data.visuals,
+        narrationSegments: data.narrationSegments,
+        ...data.assemblyData,
+        learningObjectives: data.hookData.learningObjectives,
+        research: data.hookData.research,
+        totalDuration: data.totalDuration,
+        shotlist: data.shotlist,
+      },
+    };
   }
 }

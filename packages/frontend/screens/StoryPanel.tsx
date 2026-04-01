@@ -403,6 +403,7 @@ export function StoryPanel({
         onUpdateVisualStyle={storyHook.updateVisualStyle}
         onUpdateAspectRatio={storyHook.updateAspectRatio}
         onUpdateImageProvider={storyHook.updateImageProvider}
+        onUpdateDeapiImageModel={storyHook.updateDeapiImageModel}
         onUpdateStyleConsistency={storyHook.updateStyleConsistency}
         onUpdateBgRemoval={storyHook.updateBgRemoval}
         onUpdateTtsSettings={storyHook.updateTtsSettings}

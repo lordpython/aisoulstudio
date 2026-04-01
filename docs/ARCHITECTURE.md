@@ -188,7 +188,7 @@ export const MODELS = {
   VIDEO:         "veo-3.1-fast-generate-preview",  // Video clip generation
   TTS:           "gemini-2.5-flash-preview-tts",   // Narration (AUDIO modality)
   TEXT_GROUNDED: "gemini-3-flash-preview",         // Research with Google Search grounding
-  TEXT_EXP:      "gemini-3-pro-preview",           // Deep reasoning tasks
+  TEXT_EXP:      "gemini-3.1-pro-preview",           // Deep reasoning tasks
 }
 ```
 

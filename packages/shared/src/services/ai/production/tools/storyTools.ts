@@ -21,7 +21,7 @@ import { type ScreenplayScene, type CharacterProfile } from "../../../../types";
 import { toCharacterInputs } from "../../../prompt/imageStyleGuide";
 import { detectLanguage } from "../../../languageDetector";
 import { loadTemplate, substituteVariables } from "../../../prompt/templateLoader";
-import { buildBreakdownPrompt, generateVoiceoverScripts } from "../../storyPipeline";
+import { buildBreakdownPrompt, generateVoiceoverScripts, BreakdownSchema, ScreenplaySchema } from "../../storyPipeline";
 
 const log = agentLogger.child('Production');
 
@@ -174,16 +174,22 @@ export const generateBreakdownTool = tool(
         });
 
         let breakdown: string;
+        let actCount: number;
         try {
-            const response = await withAILogging(
+            const structuredModel = model.withStructuredOutput(BreakdownSchema);
+            const result = await withAILogging(
                 id,
                 'breakdown',
                 MODELS.TEXT_EXP,
                 prompt,
-                () => model.invoke(prompt),
-                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+                () => structuredModel.invoke(prompt),
+                (r) => JSON.stringify(r),
             );
-            breakdown = response.content as string;
+            // Serialize acts to a numbered paragraph format the parser can reliably split
+            breakdown = result.acts
+                .map((act, i) => `${i + 1}. ${act.title}\n${act.emotionalHook} ${act.narrativeBeat}`)
+                .join('\n\n');
+            actCount = result.acts.length;
             log.info(' Story breakdown generated');
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
@@ -207,9 +213,6 @@ export const generateBreakdownTool = tool(
         state.currentStep = 'breakdown';
         state.updatedAt = Date.now();
         storyModeStore.set(id, state);
-
-        const actMatches = breakdown.match(/(?:Act|Chapter|مشهد|الفصل)\s*[0-9\u0660-\u0669]+/gi);
-        const actCount = actMatches?.length || 3;
 
         return JSON.stringify({
             success: true,
@@ -272,67 +275,32 @@ export const createScreenplayTool = tool(
             actCount: String(actCount),
         });
 
-        let scriptText: string;
+        let scenes: ScreenplayScene[];
         try {
-            const response = await withAILogging(
+            const structuredModel = model.withStructuredOutput(ScreenplaySchema);
+            const result = await withAILogging(
                 sessionId,
                 'screenplay',
                 MODELS.TEXT_EXP,
                 prompt,
-                () => model.invoke(prompt),
-                (r) => typeof r.content === 'string' ? r.content : JSON.stringify(r.content),
+                () => structuredModel.invoke(prompt),
+                (r) => JSON.stringify(r),
             );
-            scriptText = stripMarkdown(response.content as string);
-            log.info(' Screenplay generated');
+            scenes = result.scenes.map((s, i) => ({
+                id: `scene_${i}`,
+                sceneNumber: i + 1,
+                heading: s.heading,
+                action: s.action,
+                dialogue: sanitizeDialogue(s.dialogue),
+                charactersPresent: [...new Set(
+                    s.dialogue.map(d => d.speaker).filter(sp => sp !== 'Narrator')
+                )],
+            }));
+            log.info(` Screenplay generated with ${scenes.length} scenes`);
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
             return JSON.stringify({ success: false, error: `Screenplay generation failed: ${msg}` });
         }
-
-        // Parse screenplay text into ScreenplayScene[]
-        const scenes: ScreenplayScene[] = [];
-        const sceneBlocks = scriptText.split(
-            /(?:SCENE|مشهد|المشهد)\s+[0-9\u0660-\u0669\u06F0-\u06F9]+\s*:/i
-        ).filter(b => b.trim());
-
-        sceneBlocks.forEach((block, i) => {
-            const lines = block.split('\n').filter(l => l.trim());
-            const heading = lines[0] || 'Untitled Scene';
-            const actionPattern = /^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:/i;
-            const dialogueLabelPattern = /^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*:/i;
-            const actionLines = lines.filter(l => actionPattern.test(l.trim()));
-            const dialogueLines = lines.filter(l => {
-                const trimmed = l.trim();
-                if (actionPattern.test(trimmed)) return false;
-                if (dialogueLabelPattern.test(trimmed)) return false;
-                return trimmed.includes(':');
-            });
-
-            const actionText = actionLines
-                .map(l => l.replace(/^(\*{0,2})(ACTION|الحدث)(\*{0,2})\s*:\s*/i, '').trim())
-                .join(' ');
-
-            const speakers = dialogueLines
-                .map(l => {
-                    const [speaker] = l.split(':');
-                    return (speaker || '').replace(/^(\*{0,2})(DIALOGUE|الحوار)(\*{0,2})\s*/i, '').trim();
-                })
-                .filter(s => s && s.length > 0 && s.length < 50);
-
-            const rawDialogue = dialogueLines.map(l => {
-                const [speaker, ...text] = l.split(':');
-                return { speaker: (speaker || "").trim(), text: text.join(':').trim() };
-            });
-
-            scenes.push({
-                id: `scene_${i}`,
-                sceneNumber: i + 1,
-                heading: heading.replace(/(\*{0,2})(ACTION|DIALOGUE|الحدث|الحوار)(\*{0,2})\s*:/gi, '').trim(),
-                action: actionText,
-                dialogue: sanitizeDialogue(rawDialogue),
-                charactersPresent: [...new Set(speakers)],
-            });
-        });
 
         state.screenplay = scenes;
         state.currentStep = 'screenplay';

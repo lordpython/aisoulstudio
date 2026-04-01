@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "typeRoots": [
+      "./packages/server/node_modules/@types",
+      "./node_modules/@types"
+    ],
+    "paths": {
+      "@studio/shared/src/*": ["packages/shared/src/*"],
+      "@shared/*": ["packages/shared/src/*"],
+      "@/*": ["packages/shared/src/*"],
+      "*": [
+        "*",
+        "packages/server/node_modules/*",
+        "packages/shared/node_modules/*",
+        "packages/frontend/node_modules/*"
+      ]
+    }
+  },
+  "include": [
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx",
+    "packages/server/**/*.ts",
+    "packages/shared/src/**/*.ts",
+    "packages/shared/src/**/*.d.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "packages/frontend/dist"]
+}

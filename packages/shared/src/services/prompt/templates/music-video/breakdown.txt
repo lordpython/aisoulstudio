@@ -6,10 +6,17 @@ Create a lyric and visual breakdown for a {{genre}} music video about:
 
 Target duration: {{minDuration}}-{{maxDuration}} minutes.
 
-Structure as 3-5 sections following song structure. For each section:
-1. Title — Song section name (e.g., "Verse 1", "Pre-Chorus", "Chorus", "Bridge", "Outro")
-2. Emotional Hook — The emotional intensity and mood of this section (building desire, cathartic release, introspective, euphoric)
-3. Narrative Beat — The lyrical theme and visual concept: what do the lyrics say and what visuals accompany them
+Structure as 3-5 sections following song structure. For each section write a numbered heading followed by a short paragraph (2-3 sentences). Do NOT use sub-numbered items inside each section.
+
+Format EXACTLY like this:
+
+1. [Section Name — e.g., "Verse 1", "Pre-Chorus", "Chorus", "Bridge", "Outro"]
+[Describe the emotional intensity and mood (building desire, cathartic release, introspective, euphoric) AND the lyrical theme and visual concept — what the lyrics say and what visuals accompany them.]
+
+2. [Section Name]
+[Description paragraph]
+
+(continue for all sections)
 
 MUSIC VIDEO RULES:
 - The breakdown defines both the narrative/lyrical content AND the visual treatment

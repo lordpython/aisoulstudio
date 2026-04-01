@@ -531,7 +531,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     // For RTL languages, reverse the gradient direction (270deg instead of 90deg)
     const gradientDirection = isActiveSubtitleRTL ? "270deg" : "90deg";
     karaokeStyle = {
-      backgroundImage: `linear-gradient(${gradientDirection}, #22d3ee ${percent}%, #94a3b8 ${percent}%)`,
+      backgroundImage: `linear-gradient(${gradientDirection}, #f8fafc ${percent}%, rgba(255,255,255,0.56) ${percent}%)`,
       WebkitBackgroundClip: "text",
       WebkitTextFillColor: "transparent",
       backgroundClip: "text",
@@ -593,24 +593,19 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         )}
 
         {/* Subtitles - positioned at bottom */}
-        <div className="absolute bottom-6 left-4 right-4 z-10 flex flex-col items-center">
+        <div className="absolute bottom-[14%] left-4 right-4 z-10 flex flex-col items-center">
           {activeSubtitle ? (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-[90%]">
-              {/* Slim background bar that fits the text */}
-              <div
-                className="inline-block px-4 py-2 rounded-lg"
-                style={{
-                  background: "rgba(0, 0, 0, 0.75)",
-                  backdropFilter: "blur(4px)",
-                }}
-              >
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 max-w-[88%] text-center">
+              <div className="inline-block px-2 py-1">
                 <p
-                  className="text-lg md:text-xl lg:text-2xl font-semibold leading-snug"
+                  className="text-lg md:text-xl lg:text-2xl font-semibold leading-[1.4] tracking-[0.01em]"
                   style={{
                     direction: isActiveSubtitleRTL ? "rtl" : "ltr",
                     textAlign: "center",
                     color: "#ffffff",
-                    textShadow: "1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8)",
+                    unicodeBidi: "isolate",
+                    textShadow:
+                      "0 2px 10px rgba(0,0,0,0.45), 0 0 2px rgba(0,0,0,0.75), 1px 1px 0 rgba(0,0,0,0.78), -1px 1px 0 rgba(0,0,0,0.78), 1px -1px 0 rgba(0,0,0,0.78), -1px -1px 0 rgba(0,0,0,0.78)",
                   }}
                 >
                   <span
@@ -622,19 +617,15 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 </p>
               </div>
               {activeSubtitle.translation && (
-                <div
-                  className="inline-block px-3 py-1 rounded-md mt-1"
-                  style={{
-                    background: "rgba(0, 0, 0, 0.6)",
-                  }}
-                >
+                <div className="mt-2 inline-block px-2 py-1">
                   <p
-                    className="text-sm md:text-base text-cyan-300 font-medium"
+                    className="text-sm md:text-base font-medium text-white/88"
                     style={{
                       direction: isActiveTranslationRTL ? "rtl" : "ltr",
                       textAlign: "center",
                       unicodeBidi: "isolate",
-                      textShadow: "1px 1px 2px rgba(0,0,0,0.8)",
+                      textShadow:
+                        "0 1px 8px rgba(0,0,0,0.42), 0 0 2px rgba(0,0,0,0.7)",
                     }}
                   >
                     {activeSubtitle.translation}

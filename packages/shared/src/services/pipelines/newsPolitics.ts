@@ -1,365 +1,115 @@
 /**
  * News/Politics Pipeline
  *
- * Produces factual reporting videos with balanced perspectives, source citations,
- * and a professional neutral tone.
+ * Produces balanced, factual news-style videos with multi-source research,
+ * citations, and neutral voiceover.
  * Phases: Research → Script → Visuals → Audio → Assembly.
  *
  * Requirements: 9.1–9.6
  */
 
-import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
+import type { ScreenplayScene } from '../../types';
+import type { PipelineResult } from '../formatRouter';
 import { ResearchService, type ResearchResult } from '../researchService';
+import { ParallelExecutionEngine } from '../parallelExecutionEngine';
+import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import {
-  buildBreakdownPrompt,
-  buildScreenplayPrompt,
-  countScriptWords,
-  validateDurationConstraint,
-  type FormatAwareGenerationOptions,
-} from '../ai/storyPipeline';
-import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
-import { CheckpointSystem } from '../checkpointSystem';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
-import type { LanguageCode } from '../../constants';
-import { generateImageFromPrompt } from '../imageService';
-import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
-import { buildAssemblyRules } from '../ffmpeg/formatAssembly';
-import { detectLanguage } from '../languageDetector';
-import { storyModeStore } from '../ai/production/store';
-import type { StoryModeState } from '../ai/production/types';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
-import { z } from 'zod';
-import { agentLogger } from '../logger';
+  BasePipeline,
+  type FormatConfig,
+  type PipelineContext,
+  type PipelineData,
+} from './BasePipeline';
 
-const FORMAT_ID: VideoFormat = 'news-politics';
-const log = agentLogger.child('NewsPoliticsPipeline');
+const config: FormatConfig = {
+  formatId: 'news-politics',
+  sessionPrefix: 'news',
+  loggerName: 'NewsPoliticsPipeline',
+  temperature: 0.5,
+  visualStyle: 'News Broadcast',
+  defaultMood: 'serious',
+  aspectRatio: '16:9',
+  emotionalTone: 'professional',
+  videoPurpose: 'news_report',
+  shotDefaults: { cameraAngle: 'Medium', movement: 'Static', lighting: 'Studio' },
+  retryDelay: 1000,
+  breakdownSchema: buildBreakdownSchema({ minActs: 3, maxActs: 5 }),
+  screenplaySchema: buildScreenplaySchema({ minScenes: 3, maxScenes: 7 }),
+};
 
-// ============================================================================
-// Schemas
-// ============================================================================
-
-const BreakdownSchema = z.object({
-  acts: z.array(z.object({
-    title: z.string(),
-    emotionalHook: z.string(),
-    narrativeBeat: z.string(),
-  })).min(3).max(5),
-});
-
-const ScreenplaySchema = z.object({
-  scenes: z.array(z.object({
-    heading: z.string(),
-    action: z.string(),
-    dialogue: z.array(z.object({
-      speaker: z.string().max(30),
-      text: z.string().min(1),
-    })),
-  })).min(3).max(7),
-});
-
-// ============================================================================
-// Pipeline Implementation
-// ============================================================================
-
-export class NewsPoliticsPipeline implements FormatPipeline {
+export class NewsPoliticsPipeline extends BasePipeline {
   private researchService: ResearchService;
-  private parallelEngine: ParallelExecutionEngine;
 
-  constructor(
-    researchService?: ResearchService,
-    parallelEngine?: ParallelExecutionEngine,
-  ) {
+  constructor(researchService?: ResearchService, parallelEngine?: ParallelExecutionEngine) {
+    super(config, parallelEngine);
     this.researchService = researchService ?? new ResearchService();
-    this.parallelEngine = parallelEngine ?? new ParallelExecutionEngine();
   }
 
-  getMetadata(): FormatMetadata {
-    return formatRegistry.getFormat(FORMAT_ID)!;
-  }
+  protected async beforePipeline(ctx: PipelineContext): Promise<Record<string, unknown>> {
+    this.log.info('Phase 1: Balanced multi-source research');
 
-  async validate(request: PipelineRequest): Promise<boolean> {
-    return !!request.idea && request.idea.trim().length > 0;
-  }
-
-  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
-    const sessionId = `news_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const language = request.language ?? detectLanguage(request.idea);
-    const metadata = this.getMetadata();
-
-    let cancelled = false;
-    const checkpoints = new CheckpointSystem({
-      maxCheckpoints: metadata.checkpointCount,
-      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    const researchResult: ResearchResult = await this.researchService.research({
+      topic: ctx.request.idea,
+      language: ctx.language as 'ar' | 'en',
+      depth: 'medium',
+      sources: ['web', 'knowledge-base', ...(ctx.request.referenceDocuments?.length ? ['references' as const] : [])],
+      maxResults: 12,
+      referenceDocuments: ctx.request.referenceDocuments,
     });
-    callbacks?.onCheckpointSystemCreated?.(checkpoints);
-    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
-    log.info(`Starting News/Politics pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
+    this.log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
-    try {
-      // ----------------------------------------------------------------
-      // Phase 1: Balanced research from multiple sources — Requirements 9.2
-      // ----------------------------------------------------------------
-      log.info('Phase 1: Balanced multi-source research');
+    await this.requireApproval(ctx.checkpoints, 'research-and-sources', {
+      sourceCount: researchResult.sources.length,
+      confidence: researchResult.confidence,
+      topics: researchResult.sources.map(s => s.title).slice(0, 5),
+      summaryPreview: researchResult.summary.slice(0, 300),
+    }, { research: researchResult });
 
-      const researchResult: ResearchResult = await this.researchService.research({
-        topic: request.idea,
-        language,
-        depth: 'medium',
-        sources: ['web', 'knowledge-base', ...(request.referenceDocuments?.length ? ['references' as const] : [])],
-        maxResults: 12,
-        referenceDocuments: request.referenceDocuments,
-      });
+    return { research: researchResult };
+  }
 
-      log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
+  protected getFormatOptions(
+    _ctx: PipelineContext,
+    hookData: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const research = hookData.research as ResearchResult;
+    return {
+      researchSummary: research.summary,
+      researchCitations: research.citations.map(c => c.text).join('; '),
+    };
+  }
 
-      // Checkpoint 1: Research and Sources — Requirement 9.5
-      const researchApproval = await checkpoints.createCheckpoint('research-and-sources', {
-        sourceCount: researchResult.sources.length,
-        confidence: researchResult.confidence,
-        topics: researchResult.sources.map(s => s.title).slice(0, 5),
-        summaryPreview: researchResult.summary.slice(0, 300),
-      });
-      if (!researchApproval.approved) {
-        log.info('Research rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Research rejected by user', partialResults: { research: researchResult } };
-      }
-
-      // ----------------------------------------------------------------
-      // Phase 2: Factual, balanced script with citations — Requirement 9.3
-      // ----------------------------------------------------------------
-      log.info('Phase 2: Factual script generation');
-
-      const formatOptions: FormatAwareGenerationOptions = {
-        formatId: FORMAT_ID,
-        genre: request.genre,
-        language,
-        researchSummary: researchResult.summary,
-        researchCitations: researchResult.citations.map(c => c.text).join('; '),
-      };
-
-      const model = new ChatGoogleGenerativeAI({
-        model: MODELS.TEXT,
-        apiKey: GEMINI_API_KEY,
-        temperature: 0.5,
-      });
-
-      const breakdownPrompt = buildBreakdownPrompt(request.idea, formatOptions);
-      const breakdownResult = await model.withStructuredOutput(BreakdownSchema).invoke(breakdownPrompt);
-
-      const screenplayPrompt = buildScreenplayPrompt(breakdownResult.acts, formatOptions);
-      const screenplayResult = await model.withStructuredOutput(ScreenplaySchema).invoke(screenplayPrompt);
-
-      const screenplay: ScreenplayScene[] = screenplayResult.scenes.map((s, i) => ({
-        id: `scene_${i}`,
-        sceneNumber: i + 1,
-        heading: s.heading,
-        action: s.action,
-        dialogue: s.dialogue.filter(d => d.text.trim().length > 0),
-        charactersPresent: [],
-      }));
-
-      if (screenplay.length === 0) {
-        checkpoints.dispose();
-        return { success: false, error: 'Script generation returned no scenes' };
-      }
-
-      const wordCount = countScriptWords(screenplay);
-      const durationCheck = validateDurationConstraint(wordCount, metadata);
-      if (!durationCheck.valid) {
-        log.warn(`Duration constraint: ${durationCheck.message}`);
-      }
-
-      // Persist state
-      const state: StoryModeState = {
-        id: sessionId,
-        topic: request.idea,
-        breakdown: breakdownResult.acts.map(a => `${a.title}: ${a.narrativeBeat}`).join('\n'),
-        screenplay,
-        characters: [],
-        shotlist: [],
-        currentStep: 'screenplay',
-        updatedAt: Date.now(),
-        formatId: FORMAT_ID,
-        language,
-      };
-      storyModeStore.set(sessionId, state);
-
-      // Checkpoint 2: Script Review — Requirement 9.5
-      const scriptApproval = await checkpoints.createCheckpoint('script-review', {
+  protected getScriptCheckpointConfig(
+    screenplay: ScreenplayScene[],
+    _wordCount: number,
+    _durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    _hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    return {
+      name: 'script-review',
+      payload: {
         sceneCount: screenplay.length,
         scenes: screenplay.map(s => ({
           heading: s.heading,
           actionPreview: s.action.slice(0, 120),
         })),
-      });
-      if (!scriptApproval.approved) {
-        log.info('Script rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Script rejected by user', partialResults: { screenplay, research: researchResult } };
-      }
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 3: News-style graphics and data visualizations — Requirement 9.4
-      // ----------------------------------------------------------------
-      log.info('Phase 3: News-style visual generation');
-
-      const visualTasks: Task<{ sceneId: string; imageUrl: string }>[] = screenplay.map((scene, i) => ({
-        id: `visual_${i}`,
-        type: 'visual' as const,
-        priority: 1,
-        retryable: true,
-        timeout: 60_000,
-        execute: async () => {
-          const guide = buildImageStyleGuide({
-            scene: scene.action,
-            style: 'News Broadcast',
-            background: scene.heading,
-            mood: breakdownResult.acts[i]?.emotionalHook ?? 'serious',
-          });
-
-          const imageUrl = await generateImageFromPrompt(
-            scene.action,
-            'News Broadcast',
-            '',
-            '16:9',
-            true,
-            undefined,
-            sessionId,
-            i,
-            guide,
-          );
-          return { sceneId: scene.id, imageUrl };
-        },
-      }));
-
-      const visualResults = await this.parallelEngine.execute(visualTasks, {
-        concurrencyLimit: metadata.concurrencyLimit,
-        retryAttempts: 2,
-        retryDelay: 1000,
-        exponentialBackoff: true,
-      });
-
-      const visuals = visualResults
-        .filter(r => r.success && r.data)
-        .map(r => r.data!);
-
-      const failedVisualCount = visualResults.filter(r => !r.success).length;
-      if (failedVisualCount > 0) {
-        log.warn(`${failedVisualCount} visual(s) failed to generate`);
-      }
-      log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
-
-      // Update state
-      state.shotlist = visuals.map((v, i) => ({
-        id: `shot_${i}`,
-        sceneId: v.sceneId,
-        shotNumber: i + 1,
-        description: screenplay[i]?.action ?? '',
-        cameraAngle: 'Medium',
-        movement: 'Static',
-        lighting: 'Studio',
-        dialogue: screenplay[i]?.dialogue[0]?.text ?? '',
-        imageUrl: v.imageUrl,
-      }));
-      state.currentStep = 'shotlist';
-      state.updatedAt = Date.now();
-      storyModeStore.set(sessionId, state);
-
-      // ----------------------------------------------------------------
-      // Phase 4: Professional neutral voiceover — Requirements 9.6
-      // ----------------------------------------------------------------
-      log.info('Phase 4: Audio generation (neutral voice)');
-
-      const scenes: Scene[] = screenplay.map((s, i) => ({
-        id: s.id,
-        name: s.heading,
-        duration: durationCheck.estimatedSeconds / screenplay.length,
-        visualDescription: s.action,
-        narrationScript: s.dialogue.map(d => d.text).join(' '),
-        emotionalTone: 'professional',
-      }));
-
-      const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
-      const narratorConfig: NarratorConfig = {
-        defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'news_report',
-        language: language as LanguageCode,
-        styleOverride: voiceConfig.stylePrompt,
-      };
-
-      const narrationSegments: NarrationSegment[] = [];
-      for (const scene of scenes) {
-        if (cancelled) break;
-        try {
-          const segment = await narrateScene(scene, narratorConfig, sessionId);
-          narrationSegments.push(segment);
-        } catch (err) {
-          log.warn(`Narration failed for scene ${scene.id}:`, err);
-        }
-      }
-
-      log.info(`Narration complete: ${narrationSegments.length}/${scenes.length} segments`);
-
-      // ----------------------------------------------------------------
-      // Phase 5: Assembly — Requirement 9.1
-      // ----------------------------------------------------------------
-      log.info('Phase 5: Assembly');
-
-      const totalDuration = narrationSegments.reduce((sum, s) => sum + s.audioDuration, 0);
-      const assemblyRules = buildAssemblyRules(FORMAT_ID, { totalDuration });
-
-      // Checkpoint 3: Final Assembly — Requirement 9.5
-      const assemblyApproval = await checkpoints.createCheckpoint('final-assembly', {
-        sceneCount: screenplay.length,
-        visualCount: visuals.length,
-        narrationCount: narrationSegments.length,
-        totalDuration,
-      });
-      if (!assemblyApproval.approved) {
-        log.info('Assembly rejected by user');
-        checkpoints.dispose();
-        return {
-          success: false,
-          error: 'Assembly rejected by user',
-          partialResults: { screenplay, visuals, narrationSegments, research: researchResult },
-        };
-      }
-
-      state.currentStep = 'production';
-      state.updatedAt = Date.now();
-      state.checkpoints = checkpoints.getAllCheckpoints();
-      storyModeStore.set(sessionId, state);
-
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-
-      log.info(`News/Politics pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, ${researchResult.citations.length} citations`);
-
-      return {
-        success: true,
-        partialResults: {
-          sessionId,
-          screenplay,
-          visuals,
-          narrationSegments,
-          assemblyRules,
-          research: researchResult,
-          totalDuration,
-          shotlist: state.shotlist,
-        },
-      };
-
-    } catch (error) {
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-      const msg = error instanceof Error ? error.message : String(error);
-      log.error('News/Politics pipeline failed:', msg);
-      return { success: false, error: msg };
-    }
+  protected buildSuccessResult(sessionId: string, data: PipelineData): PipelineResult {
+    return {
+      success: true,
+      partialResults: {
+        sessionId,
+        screenplay: data.screenplay,
+        visuals: data.visuals,
+        narrationSegments: data.narrationSegments,
+        ...data.assemblyData,
+        research: data.hookData.research,
+        totalDuration: data.totalDuration,
+        shotlist: data.shotlist,
+      },
+    };
   }
 }

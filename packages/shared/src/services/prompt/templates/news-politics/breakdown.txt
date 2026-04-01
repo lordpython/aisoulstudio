@@ -6,10 +6,17 @@ Create a balanced, factual news breakdown for:
 
 Target duration: {{minDuration}}-{{maxDuration}} minutes. Accuracy and balance are non-negotiable.
 
-Structure as 3-5 reporting segments following journalism standards. For each segment:
-1. Title — News segment title (e.g., "Breaking: The Core Facts", "Multiple Perspectives", "Expert Analysis", "Implications")
-2. Emotional Hook — The journalistic hook that makes viewers care (urgency, public interest, accountability, human impact)
-3. Narrative Beat — The specific facts, quotes, or data points reported, with source citations from research
+Structure as 3-5 reporting segments following journalism standards. For each segment write a numbered heading followed by a short paragraph (2-3 sentences). Do NOT use sub-numbered items inside each segment.
+
+Format EXACTLY like this:
+
+1. [Segment Title — e.g., "Breaking: The Core Facts", "Multiple Perspectives", "Expert Analysis", "Implications"]
+[Describe the journalistic hook that makes viewers care (urgency, public interest, accountability, human impact) AND the specific facts, quotes, or data points reported, with source citations from research.]
+
+2. [Segment Title]
+[Description paragraph]
+
+(continue for all segments)
 
 JOURNALISM RULES:
 - Every factual claim must be sourced from the provided research

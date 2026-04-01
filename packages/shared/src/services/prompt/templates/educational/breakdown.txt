@@ -6,10 +6,17 @@ Create a structured learning breakdown for an educational video about:
 
 Target duration: {{minDuration}}-{{maxDuration}} minutes. Balance depth with clarity.
 
-Structure as 4-5 learning modules with clear pedagogical purpose. For each module:
-1. Title — Clear learning objective title (e.g., "What Is X?", "How X Works", "Why X Matters", "Applying X")
-2. Emotional Hook — The learner motivation for this module (curiosity, mastery desire, practical need, surprise)
-3. Narrative Beat — The specific concept, diagram, or example taught, with key facts from research
+Structure as 4-5 learning modules. For each module write a numbered heading followed by a short paragraph (2-3 sentences). Do NOT use sub-numbered items inside each module.
+
+Format EXACTLY like this:
+
+1. [Module Title — clear learning objective, e.g., "What Is X?", "How X Works", "Why X Matters"]
+[Describe the learner motivation for this module (curiosity, mastery, practical need) AND the specific concept, diagram, or example taught, with key facts.]
+
+2. [Module Title]
+[Description paragraph]
+
+(continue for all modules)
 
 EDUCATIONAL DESIGN RULES:
 - Start with foundational concepts before advanced material

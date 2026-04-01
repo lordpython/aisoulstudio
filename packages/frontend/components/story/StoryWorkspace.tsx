@@ -61,6 +61,7 @@ interface StoryWorkspaceProps {
     onUpdateVisualStyle?: (style: string) => void;
     onUpdateAspectRatio?: (ratio: string) => void;
     onUpdateImageProvider?: (provider: 'gemini' | 'deapi') => void;
+    onUpdateDeapiImageModel?: (model: string) => void;
     onUpdateStyleConsistency?: (enabled: boolean) => void;
     onUpdateBgRemoval?: (enabled: boolean) => void;
     onGenerateShots?: (sceneIndex?: number) => void;
@@ -147,6 +148,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onUpdateVisualStyle,
     onUpdateAspectRatio,
     onUpdateImageProvider,
+    onUpdateDeapiImageModel,
     onUpdateStyleConsistency,
     onUpdateBgRemoval,
     onGenerateShots,
@@ -928,6 +930,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onSelectAspectRatio={(ratio) => onUpdateAspectRatio?.(ratio)}
                                         imageProvider={storyState.imageProvider || 'gemini'}
                                         onSelectImageProvider={onUpdateImageProvider}
+                                        deapiImageModel={storyState.deapiImageModel}
+                                        onSelectDeapiImageModel={onUpdateDeapiImageModel}
                                         applyStyleConsistency={storyState.applyStyleConsistency}
                                         onToggleStyleConsistency={onUpdateStyleConsistency}
                                         animateWithBgRemoval={storyState.animateWithBgRemoval}

@@ -26,6 +26,7 @@ const upload = multer({
 const DEAPI_PROXY_RULES: ProxyEndpointRule[] = [
     { methods: ['POST'], pattern: /^txt2img$/ },
     { methods: ['GET'], pattern: /^request-status\/[A-Za-z0-9_-]+$/ },
+    { methods: ['POST'], pattern: /^predict$/ },
 ];
 
 function getWebhookSecret(): string | undefined {

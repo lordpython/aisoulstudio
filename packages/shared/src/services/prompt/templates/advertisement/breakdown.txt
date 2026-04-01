@@ -6,10 +6,18 @@ Create a high-impact advertisement breakdown for:
 
 Target duration: {{minDuration}}-{{maxDuration}} seconds. Every second counts.
 
-Structure as 3-4 beats optimized for maximum emotional impact and clear call-to-action. For each beat:
-1. Title — The advertising beat name (e.g., "Problem Hook", "Solution Reveal", "CTA Moment")
-2. Emotional Hook — The specific emotion triggered in the viewer (urgency, desire, fear of missing out, aspiration)
-3. Narrative Beat — The exact message or visual moment, with specific copy direction
+Structure as 3-4 beats. For each beat write a numbered heading followed by a short paragraph (1-2 sentences). Do NOT use sub-numbered items inside each beat.
+
+Format EXACTLY like this:
+
+1. [Beat Name — e.g., "Problem Hook"]
+[Describe the specific emotion triggered in the viewer (urgency, desire, fear of missing out, aspiration) AND the exact message or visual moment with specific copy direction.]
+
+2. [Beat Name — e.g., "Solution Reveal"]
+[Description paragraph]
+
+3. [Beat Name — e.g., "CTA Moment"]
+[Description paragraph]
 
 ADVERTISEMENT RULES:
 - Open with an immediate hook that stops the scroll

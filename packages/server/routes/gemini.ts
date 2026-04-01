@@ -18,13 +18,8 @@ async function defaultGenerateContent(params: {
     contents: unknown;
     config?: Record<string, unknown>;
 }): Promise<any> {
-    if (!GEMINI_API_KEY) {
-        throw new Error('VITE_GEMINI_API_KEY not configured on server');
-    }
-
-    const { GoogleGenAI } = await import('@google/genai');
-    const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    return (client as any).models.generateContent(params);
+    const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    return (ai as any).models.generateContent(params);
 }
 
 async function defaultGenerateImages(params: {
@@ -32,18 +27,13 @@ async function defaultGenerateImages(params: {
     prompt: string;
     config?: Record<string, unknown>;
 }): Promise<any> {
-    if (!GEMINI_API_KEY) {
-        throw new Error('VITE_GEMINI_API_KEY not configured on server');
-    }
-
-    const { GoogleGenAI } = await import('@google/genai');
-    const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    return (client as any).models.generateImages(params);
+    const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    return (ai as any).models.generateImages(params);
 }
 
 async function defaultLegacyGenerate(prompt: string, options: Record<string, unknown> = {}): Promise<any> {
-    const model = 'gemini-3-pro-preview';
-    const contents = { parts: [{ text: prompt }] };
+    const model = 'gemini-3.1-pro-preview';
+    const contents = [{ role: "user", parts: [{ text: prompt }] }];
     const config = options;
 
     const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');

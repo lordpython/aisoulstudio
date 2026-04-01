@@ -80,11 +80,13 @@ export const transcribeAudio = async (
   return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: MODELS.TRANSCRIPTION,
-      contents: {
-        parts: [
-          { inlineData: { mimeType, data: base64Audio } },
-          {
-            text: `Transcribe ALL spoken content of this audio to SRT format.
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType, data: base64Audio } },
+            {
+              text: `Transcribe ALL spoken content of this audio to SRT format.
 
 CRITICAL: You MUST transcribe EVERY SINGLE WORD from start to finish. Do NOT skip any sections or repeated phrases.
 LANGUAGE: Preserve the ORIGINAL language and script exactly as spoken. If the audio is in Arabic, write Arabic script (e.g. أمطري يا غيوم). If English, write English. NEVER transliterate or romanize — use the native script of the language.
@@ -95,9 +97,10 @@ Rules:
 3. Transcribe EVERYTHING - all speech, narration, lyrics, dialogue.
 4. Cover the ENTIRE audio duration.
 5. Do NOT summarize or skip any sections.`,
-          },
-        ],
-      },
+            },
+          ],
+        },
+      ],
     });
 
     const text = response.text;
@@ -121,11 +124,13 @@ export const transcribeAudioWithWordTiming = async (
     try {
       const response = await ai.models.generateContent({
         model: MODELS.TRANSCRIPTION,
-        contents: {
-          parts: [
-            { inlineData: { mimeType, data: base64Audio } },
-            {
-              text: `Transcribe ALL spoken content of this audio file with precise word-level timing.
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType, data: base64Audio } },
+              {
+                text: `Transcribe ALL spoken content of this audio file with precise word-level timing.
 
 CRITICAL: You MUST transcribe EVERY SINGLE WORD from start to finish. Do NOT skip any sections, pauses, or repeated phrases.
 LANGUAGE: Preserve the ORIGINAL language and script exactly as spoken. If the audio is in Arabic, write Arabic script (e.g. أمطري). If English, write English. NEVER transliterate or romanize — use the native script of the language.
@@ -148,9 +153,10 @@ Rules:
 5. If there are silent/instrumental sections, the next line should have the correct start time after the break.
 6. Do NOT summarize or skip any sections - transcribe them ALL.
 7. Cover the ENTIRE audio duration from 0 seconds to the end.`,
-            },
-          ],
-        },
+              },
+            ],
+          },
+        ],
         config: {
           responseMimeType: "application/json",
           responseSchema: {

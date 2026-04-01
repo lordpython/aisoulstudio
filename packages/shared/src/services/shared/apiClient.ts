@@ -34,7 +34,7 @@ if (!isBrowser && !VERTEX_PROJECT && !GEMINI_API_KEY) {
 
 /**
  * Model availability in Vertex AI (as of January 2026):
- * ✅ Available: gemini-3-flash-preview, gemini-3-pro-preview, veo-3.1-*, imagen-4.0-fast-generate-001
+ * ✅ Available: gemini-3-flash-preview, gemini-3.1-pro-preview, veo-3.1-*, imagen-4.0-fast-generate-001
  * ⚠️ Quota needed: veo-*, imagegeneration@006
  * 
  * Note: TTS and Multimodal output supported in Gemini 3.0 and 2.x Flash.
@@ -51,10 +51,10 @@ export const MODELS = {
   TEXT_GROUNDED: "gemini-3-flash-preview",
 
   // Alternative models
-  TEXT_EXP: "gemini-3-pro-preview", // Latest reasoning model
-  TEXT_LEGACY: "gemini-3-pro-preview",
+  TEXT_EXP: "gemini-3.1-pro-preview", // Latest reasoning model
+  TEXT_LEGACY: "gemini-3.1-pro-preview",
   IMAGE_STANDARD: "imagen-3.0-generate-001",
-  IMAGE_HD: "gemini-3-pro-preview", // Multimodal image understanding & generation
+  IMAGE_HD: "gemini-3.1-pro-preview", // Multimodal image understanding & generation
   VIDEO_STANDARD: "veo-3.1-generate-preview",
   VIDEO_FAST: "veo-3.1-fast-generate-preview",
   VIDEO_LEGACY: "veo-3.1-fast-generate-preview",

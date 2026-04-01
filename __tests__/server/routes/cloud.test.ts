@@ -1,8 +1,21 @@
-import express from '../../../packages/server/node_modules/express/index.js';
+import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { createRequire } from 'node:module';
 import { PassThrough, Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { createCloudRouter } from '../../../packages/server/routes/cloud';
+
+type TestExpressApp = {
+  use: (...args: unknown[]) => void;
+  listen: (port: number, host: string, callback: () => void) => Server;
+};
+
+type TestExpressModule = (() => TestExpressApp) & {
+  json: () => unknown;
+};
+
+const require = createRequire(import.meta.url);
+const express = require('../../../packages/server/node_modules/express/index.js') as TestExpressModule;
 
 type StoredFile = {
   body: Buffer;
@@ -25,7 +38,7 @@ async function startTestServer(router: ReturnType<typeof createCloudRouter>) {
   });
 }
 
-async function closeServer(server: ReturnType<express.Express['listen']>) {
+async function closeServer(server: ReturnType<TestExpressApp['listen']>) {
   await new Promise<void>((resolve, reject) => {
     server.close((error?: Error) => {
       if (error) {
@@ -161,7 +174,7 @@ describe('/api/cloud routes', () => {
     try {
       const response = await fetch(`${baseUrl}/api/cloud/file?path=../secrets.txt`);
       expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toEqual({ error: 'Invalid file path' });
+      await expect(response.json()).resolves.toEqual({ success: false, error: 'Invalid file path' });
     } finally {
       await closeServer(server);
     }

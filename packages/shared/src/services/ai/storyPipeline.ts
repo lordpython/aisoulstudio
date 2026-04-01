@@ -31,7 +31,7 @@ const log = agentLogger.child('StoryPipeline');
 
 // --- Schemas for structured output ---
 
-const BreakdownSchema = z.object({
+export const BreakdownSchema = z.object({
     acts: z.array(z.object({
         title: z.string(),
         emotionalHook: z.string(),
@@ -39,7 +39,9 @@ const BreakdownSchema = z.object({
     })).min(3).max(5),
 });
 
-const ScreenplaySchema = z.object({
+export type BreakdownActs = z.infer<typeof BreakdownSchema>['acts'];
+
+export const ScreenplaySchema = z.object({
     scenes: z.array(z.object({
         heading: z.string(),
         action: z.string(),

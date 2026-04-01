@@ -32,7 +32,7 @@ import {
     type DeApiTtsModel,
 } from '@/services/narratorService';
 import { generateVideoFromPrompt } from '@/services/videoService';
-import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency } from '@/services/deapiService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency, type DeApiImageModel } from '@/services/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/characterService';
 import { cloudAutosave } from '@/services/cloudStorageService';
@@ -1254,6 +1254,16 @@ export function useStoryGeneration(projectId?: string | null) {
     }, []);
 
     /**
+     * Update DeAPI image model (e.g. 'Flux1schnell', 'Flux_2_Klein_4B_BF16', 'ZImageTurbo_INT8')
+     */
+    const updateDeapiImageModel = useCallback((model: string) => {
+        setState((prev: StoryState) => ({
+            ...prev,
+            deapiImageModel: model,
+        }));
+    }, []);
+
+    /**
      * Toggle DeAPI style consistency (img2img pass)
      */
     const updateStyleConsistency = useCallback((enabled: boolean) => {
@@ -1444,7 +1454,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     const firstResult = await generateImageWithAspectRatio(
                         buildShotPrompt(firstShot),
                         (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                        'Flux_2_Klein_4B_BF16',
+                        (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
                         undefined, // negativePrompt — style guide handles avoid
                     );
                     await processShotResult(firstShot, firstResult);
@@ -1473,7 +1483,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         id: shot.id,
                         prompt: buildShotPrompt(shot), // Now includes extractedStyleOverride
                         aspectRatio: (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                        model: 'Flux_2_Klein_4B_BF16' as const,
+                        model: (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
                         seed: getShotSeed(shot),
                     }));
 
@@ -1682,7 +1692,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 imageUrl = await generateImageWithAspectRatio(
                     guidePrompt,
                     (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                    'Flux_2_Klein_4B_BF16',
+                    (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
                     negativePrompt,
                 );
             } else {
@@ -1822,10 +1832,12 @@ export function useStoryGeneration(projectId?: string | null) {
             const detectedLang = detectLanguage(sampleSources);
 
             // Load TTS settings from state
+            // Arabic text requires DeAPI Qwen TTS — Gemini TTS voices don't support Arabic
+            const isArabic = detectedLang === 'ar';
             const narratorConfig: NarratorConfig = {
                 videoPurpose: 'storytelling',
-                ...(detectedLang === 'ar' ? { language: 'ar' as const } : {}),
-                ...(state.ttsProvider && { provider: state.ttsProvider }),
+                ...(isArabic ? { language: 'ar' as const } : {}),
+                provider: state.ttsProvider || (isArabic ? 'deapi_qwen' : 'gemini'),
                 ...(state.ttsModel && { deapiModel: state.ttsModel as DeApiTtsModel }),
             };
 
@@ -2577,6 +2589,7 @@ export function useStoryGeneration(projectId?: string | null) {
         updateAspectRatio,
         updateGenre,
         updateImageProvider,
+        updateDeapiImageModel,
         updateStyleConsistency,
         updateBgRemoval,
         updateTtsSettings,

@@ -7,357 +7,110 @@
  * Requirements: 4.1–4.6
  */
 
-import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
-import {
-  buildBreakdownPrompt,
-  buildScreenplayPrompt,
-  countScriptWords,
-  validateDurationConstraint,
-  type FormatAwareGenerationOptions,
-} from '../ai/storyPipeline';
-import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
-import { CheckpointSystem } from '../checkpointSystem';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
-import type { LanguageCode } from '../../constants';
-import { generateImageFromPrompt } from '../imageService';
-import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
+import type { ScreenplayScene } from '../../types';
+import type { PipelineResult } from '../formatRouter';
+import { ParallelExecutionEngine } from '../parallelExecutionEngine';
 import { buildAssemblyRules, buildCTAMarker, validateCTAPosition } from '../ffmpeg/formatAssembly';
-import { detectLanguage } from '../languageDetector';
-import { storyModeStore } from '../ai/production/store';
-import type { StoryModeState } from '../ai/production/types';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
+import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import { z } from 'zod';
-import { agentLogger } from '../logger';
+import {
+  BasePipeline,
+  type FormatConfig,
+  type PipelineContext,
+  type PipelineData,
+} from './BasePipeline';
+import type { NarrationSegment } from '../../types';
 
-const FORMAT_ID: VideoFormat = 'advertisement';
-const log = agentLogger.child('AdvertisementPipeline');
+const config: FormatConfig = {
+  formatId: 'advertisement',
+  sessionPrefix: 'ad',
+  loggerName: 'AdvertisementPipeline',
+  temperature: 0.8,
+  visualStyle: 'High-Impact Commercial',
+  defaultMood: 'energetic',
+  aspectRatio: '16:9',
+  emotionalTone: 'urgent',
+  videoPurpose: 'commercial',
+  shotDefaults: { cameraAngle: 'Dynamic', movement: 'Fast', lighting: 'High-Key' },
+  retryDelay: 1000,
+  breakdownSchema: buildBreakdownSchema({ minActs: 2, maxActs: 4 }),
+  screenplaySchema: buildScreenplaySchema({
+    minScenes: 2,
+    maxScenes: 5,
+    extraFields: {
+      ctaText: z.string().describe('A short, punchy call-to-action (e.g. "Shop Now", "Try Free Today", "Learn More"). Max 6 words.'),
+    },
+  }),
+};
 
-// ============================================================================
-// Schemas
-// ============================================================================
-
-const BreakdownSchema = z.object({
-  acts: z.array(z.object({
-    title: z.string(),
-    emotionalHook: z.string(),
-    narrativeBeat: z.string(),
-  })).min(2).max(4),
-});
-
-const ScreenplaySchema = z.object({
-  scenes: z.array(z.object({
-    heading: z.string(),
-    action: z.string(),
-    dialogue: z.array(z.object({
-      speaker: z.string().max(30),
-      text: z.string().min(1),
-    })),
-  })).min(2).max(5),
-  ctaText: z.string().describe('A short, punchy call-to-action (e.g. "Shop Now", "Try Free Today", "Learn More"). Max 6 words.'),
-});
-
-// ============================================================================
-// Pipeline Implementation
-// ============================================================================
-
-export class AdvertisementPipeline implements FormatPipeline {
-  private parallelEngine: ParallelExecutionEngine;
-
+export class AdvertisementPipeline extends BasePipeline {
   constructor(parallelEngine?: ParallelExecutionEngine) {
-    this.parallelEngine = parallelEngine ?? new ParallelExecutionEngine();
+    super(config, parallelEngine);
   }
 
-  getMetadata(): FormatMetadata {
-    return formatRegistry.getFormat(FORMAT_ID)!;
+  protected async afterScriptGeneration(
+    _ctx: PipelineContext,
+    _screenplay: ScreenplayScene[],
+    screenplayResult: Record<string, unknown>,
+    _breakdownResult: Record<string, unknown>,
+    _durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    _hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const ctaText = (screenplayResult as any).ctaText || 'Learn More';
+    return { ctaText };
   }
 
-  async validate(request: PipelineRequest): Promise<boolean> {
-    return !!request.idea && request.idea.trim().length > 0;
-  }
-
-  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
-    const sessionId = `ad_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const language = request.language ?? detectLanguage(request.idea);
-    const metadata = this.getMetadata();
-
-    let cancelled = false;
-    const checkpoints = new CheckpointSystem({
-      maxCheckpoints: metadata.checkpointCount,
-      onCheckpointCreated: callbacks?.onCheckpointCreated,
-    });
-    callbacks?.onCheckpointSystemCreated?.(checkpoints);
-    callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
-
-    log.info(`Starting Advertisement pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
-
-    try {
-      // ----------------------------------------------------------------
-      // Phase 1: Script generation with CTA — Requirements 4.1, 4.2
-      // ----------------------------------------------------------------
-      log.info('Phase 1: Script generation');
-
-      const formatOptions: FormatAwareGenerationOptions = {
-        formatId: FORMAT_ID,
-        genre: request.genre,
-        language,
-      };
-
-      const model = new ChatGoogleGenerativeAI({
-        model: MODELS.TEXT,
-        apiKey: GEMINI_API_KEY,
-        temperature: 0.8,
-      });
-
-      // Step 1a: Breakdown
-      const breakdownPrompt = buildBreakdownPrompt(request.idea, formatOptions);
-      const breakdownResult = await model.withStructuredOutput(BreakdownSchema).invoke(breakdownPrompt);
-
-      // Step 1b: Screenplay
-      const screenplayPrompt = buildScreenplayPrompt(breakdownResult.acts, formatOptions);
-      const screenplayResult = await model.withStructuredOutput(ScreenplaySchema).invoke(screenplayPrompt);
-
-      const screenplay: ScreenplayScene[] = screenplayResult.scenes.map((s, i) => ({
-        id: `scene_${i}`,
-        sceneNumber: i + 1,
-        heading: s.heading,
-        action: s.action,
-        dialogue: s.dialogue.filter(d => d.text.trim().length > 0),
-        charactersPresent: [],
-      }));
-
-      if (screenplay.length === 0) {
-        checkpoints.dispose();
-        return { success: false, error: 'Script generation returned no scenes' };
-      }
-
-      // Duration validation
-      const wordCount = countScriptWords(screenplay);
-      const durationCheck = validateDurationConstraint(wordCount, metadata);
-      if (!durationCheck.valid) {
-        log.warn(`Duration constraint: ${durationCheck.message}`);
-      }
-
-      // CTA comes from the dedicated schema field — no fragile last-line extraction
-      const ctaText = screenplayResult.ctaText || 'Learn More';
-
-      // Persist state
-      const state: StoryModeState = {
-        id: sessionId,
-        topic: request.idea,
-        breakdown: breakdownResult.acts.map(a => `${a.title}: ${a.narrativeBeat}`).join('\n'),
-        screenplay,
-        characters: [],
-        shotlist: [],
-        currentStep: 'screenplay',
-        updatedAt: Date.now(),
-        formatId: FORMAT_ID,
-        language,
-      };
-      storyModeStore.set(sessionId, state);
-
-      // Checkpoint 1: Script with CTA — Requirement 4.5
-      const scriptApproval = await checkpoints.createCheckpoint('script-with-cta', {
+  protected getScriptCheckpointConfig(
+    screenplay: ScreenplayScene[],
+    wordCount: number,
+    durationCheck: { valid: boolean; message?: string; estimatedSeconds: number },
+    hookData: Record<string, unknown>,
+  ): { name: string; payload: Record<string, unknown> } {
+    return {
+      name: 'script-with-cta',
+      payload: {
         sceneCount: screenplay.length,
         scenes: screenplay.map(s => ({
           heading: s.heading,
           action: s.action.slice(0, 200),
         })),
-        ctaText,
+        ctaText: hookData.ctaText,
         wordCount,
         estimatedDuration: durationCheck.estimatedSeconds,
         durationValid: durationCheck.valid,
-      });
-      if (!scriptApproval.approved) {
-        log.info('Script rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Script rejected by user', partialResults: { screenplay } };
-      }
+      },
+    };
+  }
 
-      // ----------------------------------------------------------------
-      // Phase 2: Visual generation (high-impact, 16:9) — Requirements 4.3
-      // ----------------------------------------------------------------
-      log.info('Phase 2: Visual generation');
-
-      const visualTasks: Task<{ sceneId: string; imageUrl: string }>[] = screenplay.map((scene, i) => ({
-        id: `visual_${i}`,
-        type: 'visual' as const,
-        priority: 1,
-        retryable: true,
-        timeout: 60_000,
-        execute: async () => {
-          const guide = buildImageStyleGuide({
-            scene: scene.action,
-            style: 'High-Impact Commercial',
-            background: scene.heading,
-            mood: breakdownResult.acts[i]?.emotionalHook ?? 'energetic',
-          });
-
-          const imageUrl = await generateImageFromPrompt(
-            scene.action,
-            'High-Impact Commercial',
-            '',
-            '16:9',
-            true,
-            undefined,
-            sessionId,
-            i,
-            guide,
-          );
-          return { sceneId: scene.id, imageUrl };
-        },
-      }));
-
-      const visualResults = await this.parallelEngine.execute(visualTasks, {
-        concurrencyLimit: metadata.concurrencyLimit,
-        retryAttempts: 2,
-        retryDelay: 1000,
-        exponentialBackoff: true,
-      });
-
-      const visuals = visualResults
-        .filter(r => r.success && r.data)
-        .map(r => r.data!);
-
-      const failedVisualCount = visualResults.filter(r => !r.success).length;
-      if (failedVisualCount > 0) {
-        log.warn(`${failedVisualCount} visual(s) failed to generate`);
-      }
-      log.info(`Visuals generated: ${visuals.length}/${screenplay.length}`);
-
-      // Checkpoint 2: Visual Review — allows user to reject visuals before TTS
-      const visualApproval = await checkpoints.createCheckpoint('visual-preview', {
-        visualCount: visuals.length,
-        totalScenes: screenplay.length,
-        visuals: visuals.map(v => ({ sceneId: v.sceneId, imageUrl: v.imageUrl })),
-      });
-      if (!visualApproval.approved) {
-        log.info('Visuals rejected by user');
-        checkpoints.dispose();
-        return { success: false, error: 'Visuals rejected by user', partialResults: { screenplay, visuals } };
-      }
-
-      // Update state
-      state.shotlist = visuals.map((v, i) => ({
-        id: `shot_${i}`,
-        sceneId: v.sceneId,
-        shotNumber: i + 1,
-        description: screenplay[i]?.action ?? '',
-        cameraAngle: 'Dynamic',
-        movement: 'Fast',
-        lighting: 'High-Key',
-        dialogue: screenplay[i]?.dialogue[0]?.text ?? '',
-        imageUrl: v.imageUrl,
-      }));
-      state.currentStep = 'shotlist';
-      state.updatedAt = Date.now();
-      storyModeStore.set(sessionId, state);
-
-      // ----------------------------------------------------------------
-      // Phase 3: Audio generation (energetic voice) — Requirement 4.4
-      // ----------------------------------------------------------------
-      log.info('Phase 3: Audio generation');
-
-      const scenes: Scene[] = screenplay.map((s, i) => ({
-        id: s.id,
-        name: s.heading,
-        duration: durationCheck.estimatedSeconds / screenplay.length,
-        visualDescription: s.action,
-        narrationScript: s.dialogue.map(d => d.text).join(' '),
-        emotionalTone: 'urgent' as const,
-      }));
-
-      const voiceConfig = getFormatVoiceForLanguage(FORMAT_ID, language);
-      const narratorConfig: NarratorConfig = {
-        defaultVoice: voiceConfig.voiceName,
-        videoPurpose: 'commercial',
-        language: language as LanguageCode,
-        styleOverride: voiceConfig.stylePrompt,
-      };
-
-      const narrationSegments: NarrationSegment[] = [];
-      for (const scene of scenes) {
-        if (cancelled) break;
-        try {
-          const segment = await narrateScene(scene, narratorConfig, sessionId);
-          narrationSegments.push(segment);
-        } catch (err) {
-          log.warn(`Narration failed for scene ${scene.id}:`, err);
-        }
-      }
-
-      log.info(`Narration complete: ${narrationSegments.length}/${scenes.length} segments`);
-
-      // ----------------------------------------------------------------
-      // Phase 4: Assembly with CTA emphasis — Requirement 4.6
-      // ----------------------------------------------------------------
-      log.info('Phase 4: Assembly');
-
-      const totalDuration = narrationSegments.reduce((sum, s) => sum + s.audioDuration, 0);
-
-      // Build CTA marker for final 5 seconds
-      const ctaMarker = buildCTAMarker(ctaText, totalDuration);
-      const ctaValid = validateCTAPosition(ctaMarker, totalDuration);
-      if (!ctaValid) {
-        log.warn('CTA position validation failed — adjusting');
-      }
-
-      const assemblyRules = buildAssemblyRules(FORMAT_ID, {
-        totalDuration,
-        ctaText,
-      });
-
-      // Checkpoint 3: Final Preview — Requirement 4.5
-      const finalApproval = await checkpoints.createCheckpoint('final-preview', {
-        sceneCount: screenplay.length,
-        visualCount: visuals.length,
-        narrationCount: narrationSegments.length,
-        totalDuration,
-        ctaText,
-        ctaPositionValid: ctaValid,
-      });
-      if (!finalApproval.approved) {
-        log.info('Final preview rejected by user');
-        checkpoints.dispose();
-        return {
-          success: false,
-          error: 'Final preview rejected by user',
-          partialResults: { screenplay, visuals, narrationSegments },
-        };
-      }
-
-      state.currentStep = 'production';
-      state.updatedAt = Date.now();
-      state.checkpoints = checkpoints.getAllCheckpoints();
-      storyModeStore.set(sessionId, state);
-
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-
-      log.info(`Advertisement pipeline complete: ${screenplay.length} scenes, ${visuals.length} visuals, CTA="${ctaText}"`);
-
-      return {
-        success: true,
-        partialResults: {
-          sessionId,
-          screenplay,
-          visuals,
-          narrationSegments,
-          assemblyRules,
-          ctaMarker,
-          totalDuration,
-          shotlist: state.shotlist,
-        },
-      };
-
-    } catch (error) {
-      checkpoints.dispose();
-      storyModeStore.delete(sessionId);
-      const msg = error instanceof Error ? error.message : String(error);
-      log.error('Advertisement pipeline failed:', msg);
-      return { success: false, error: msg };
+  protected async buildAssembly(
+    _ctx: PipelineContext,
+    totalDuration: number,
+    _screenplay: ScreenplayScene[],
+    _narrationSegments: NarrationSegment[],
+    hookData: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const ctaText = hookData.ctaText as string;
+    const ctaMarker = buildCTAMarker(ctaText, totalDuration);
+    const ctaValid = validateCTAPosition(ctaMarker, totalDuration);
+    if (!ctaValid) {
+      this.log.warn('CTA position validation failed — adjusting');
     }
+    const assemblyRules = buildAssemblyRules('advertisement', { totalDuration, ctaText });
+    return { assemblyRules, ctaMarker, ctaValid };
+  }
+
+  protected buildSuccessResult(sessionId: string, data: PipelineData): PipelineResult {
+    return {
+      success: true,
+      partialResults: {
+        sessionId,
+        screenplay: data.screenplay,
+        visuals: data.visuals,
+        narrationSegments: data.narrationSegments,
+        ...data.assemblyData,
+        totalDuration: data.totalDuration,
+        shotlist: data.shotlist,
+      },
+    };
   }
 }

@@ -1,6 +1,22 @@
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 
+// ============================================================================
+// Standardized response helpers
+// ============================================================================
+
+/** Send a successful JSON response with a consistent envelope */
+export function sendSuccess<T>(res: Response, data: T, status = 200): void {
+  res.status(status).json({ success: true, data });
+}
+
+/** Send an error JSON response with a consistent envelope */
+export function sendError(res: Response, error: string, status = 500, details?: unknown): void {
+  const body: Record<string, unknown> = { success: false, error };
+  if (details !== undefined) body.details = details;
+  res.status(status).json(body);
+}
+
 type LoggerLike = {
   warn: (message: string, data?: unknown) => void;
 };
