@@ -8,8 +8,8 @@
  */
 
 import type { ScreenplayScene } from '../../types';
-import type { PipelineResult } from '../formatRouter';
-import { ParallelExecutionEngine } from '../parallelExecutionEngine';
+import type { PipelineResult } from '../format/formatRouter';
+import { ParallelExecutionEngine } from '../orchestration/parallelExecutionEngine';
 import { buildAssemblyRules, buildCTAMarker, validateCTAPosition } from '../ffmpeg/formatAssembly';
 import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import { z } from 'zod';

@@ -5,7 +5,7 @@
  * Extracted from agentDirectorService.ts for modularity.
  */
 
-import { ExtractionMethod } from '../jsonExtractor';
+import { ExtractionMethod } from '../content/jsonExtractor';
 
 /**
  * Performance metrics for the Agent Director Service.

@@ -7,10 +7,10 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ContentPlan, NarrationSegment } from "@/types";
-import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/narratorService";
-import { syncDurationsToNarration } from "@/services/editorService";
+import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/media/narratorService";
+import { syncDurationsToNarration } from "@/services/content/editorService";
 import { VideoPurpose } from "@/constants";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoNarrationState {
     narrationSegments: NarrationSegment[];

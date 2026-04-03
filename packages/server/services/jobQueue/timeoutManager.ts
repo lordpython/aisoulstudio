@@ -6,7 +6,7 @@
  * Jobs are killed after 60 seconds of silence.
  */
 
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { RenderJob, JobStatus } from '../../types/renderJob.js';
 
 const log = createLogger('TimeoutManager');

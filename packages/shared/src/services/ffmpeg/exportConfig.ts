@@ -6,8 +6,8 @@
  */
 
 import { TransitionType, VideoFormat, FormatAssemblyRules, VideoSFXPlan } from "../../types";
-import type { SceneAudioInfo } from "../audioMixerService";
-import { getServerBaseUrl } from "../serverBaseUrl";
+import type { SceneAudioInfo } from "../audio-processing/audioMixerService";
+import { getServerBaseUrl } from "../cloud/serverBaseUrl";
 
 /**
  * Get the server URL based on the current platform.

@@ -4,7 +4,7 @@
  * Utility functions for language detection and helper operations.
  */
 
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('Production');
 

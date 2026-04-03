@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import {
   createProject,
   type ProjectType,
-} from '@/services/projectService';
+} from '@/services/project/projectService';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/useLanguage';
 

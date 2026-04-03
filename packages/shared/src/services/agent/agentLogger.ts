@@ -5,7 +5,7 @@
  * Extracted from agentDirectorService.ts for modularity.
  */
 
-import { type ParseError, type ExtractionSuccess, type FallbackNotification } from '../jsonExtractor';
+import { type ParseError, type ExtractionSuccess, type FallbackNotification } from '../content/jsonExtractor';
 
 /**
  * Logging levels for the Agent Director Service.

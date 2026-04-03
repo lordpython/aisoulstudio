@@ -1,10 +1,10 @@
 import { Router, Response, Request } from 'express';
 import { ApiProxyRequest } from '../types.js';
 import { DEAPI_API_KEY, MAX_SINGLE_FILE } from '../utils/index.js';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import fs from 'fs';
 import multer from 'multer';
-import type { Txt2ImgParams, DeApiImageModel } from '@studio/shared/src/services/deapiService.js';
+import type { Txt2ImgParams, DeApiImageModel } from '@studio/shared/src/services/media/deapiService.js';
 import {
     buildProxyUrl,
     createDeprecatedRouteMiddleware,
@@ -66,7 +66,7 @@ router.post('/image', deprecatedImageRoute, async (req: ApiProxyRequest, res: Re
             return;
         }
 
-        const { generateImageWithDeApi } = await import('@studio/shared/src/services/deapiService.js');
+        const { generateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
 
         const params: Txt2ImgParams = {
             prompt: prompt,
@@ -102,7 +102,7 @@ router.post('/animate', deprecatedAnimateRoute, async (req: ApiProxyRequest, res
             return res.status(400).json({ success: false, error: 'Animation prompt is required' });
         }
 
-        const { animateImageWithDeApi } = await import('@studio/shared/src/services/deapiService.js');
+        const { animateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
 
         const base64Image = imageUrl;
         const aspectRatio = (options.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9";
@@ -444,7 +444,7 @@ router.post('/batch', deprecatedBatchRoute, async (req: Request, res: Response):
             return;
         }
 
-        const { generateImageBatch } = await import('@studio/shared/src/services/deapiService.js');
+        const { generateImageBatch } = await import('@studio/shared/src/services/media/deapiService.js');
 
         const results = await generateImageBatch(
             items,

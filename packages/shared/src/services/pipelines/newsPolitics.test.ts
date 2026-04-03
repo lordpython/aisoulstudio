@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PipelineRequest } from '../formatRouter';
-import type { ResearchResult } from '../researchService';
+import type { PipelineRequest } from '../format/formatRouter';
+import type { ResearchResult } from '../content/researchService';
 
 // ============================================================================
 // Mocks
@@ -23,7 +23,7 @@ vi.mock('@langchain/google-genai', () => ({
   }),
 }));
 
-vi.mock('../imageService', () => ({
+vi.mock('../media/imageService', () => ({
   generateImageFromPrompt: vi.fn().mockResolvedValue('https://example.com/news-image.png'),
 }));
 
@@ -31,7 +31,7 @@ vi.mock('../prompt/imageStyleGuide', () => ({
   buildImageStyleGuide: vi.fn().mockReturnValue('mocked news style guide'),
 }));
 
-vi.mock('../narratorService', () => ({
+vi.mock('../media/narratorService', () => ({
   narrateScene: vi.fn().mockResolvedValue({
     sceneId: 'scene_0',
     audioBlob: new Blob(['audio']),
@@ -59,13 +59,13 @@ vi.mock('../shared/apiClient', () => ({
   ai: {},
 }));
 
-vi.mock('../logger', () => ({
+vi.mock('../infrastructure/logger', () => ({
   agentLogger: {
     child: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   },
 }));
 
-vi.mock('../checkpointSystem', () => {
+vi.mock('../project/checkpointSystem', () => {
   const MockCheckpointSystem = vi.fn().mockImplementation(function (this: any) {
     this.createCheckpoint = vi.fn().mockResolvedValue({ approved: true });
     this.approveCheckpoint = vi.fn();
@@ -75,7 +75,7 @@ vi.mock('../checkpointSystem', () => {
   return { CheckpointSystem: MockCheckpointSystem };
 });
 
-vi.mock('../languageDetector', () => ({
+vi.mock('../content/languageDetector', () => ({
   detectLanguage: vi.fn().mockReturnValue('en'),
 }));
 
@@ -268,7 +268,7 @@ describe('NewsPoliticsPipeline', () => {
     });
 
     it('should use neutral professional voice profile (Req 9.6)', async () => {
-      const { getFormatVoiceForLanguage } = await import('../narratorService');
+      const { getFormatVoiceForLanguage } = await import('../media/narratorService');
       await pipeline.execute(baseRequest);
 
       expect(getFormatVoiceForLanguage).toHaveBeenCalledWith('news-politics', 'en');
@@ -307,7 +307,7 @@ describe('NewsPoliticsPipeline', () => {
     });
 
     it('should reject if research checkpoint not approved (Req 9.5)', async () => {
-      const { CheckpointSystem } = await import('../checkpointSystem');
+      const { CheckpointSystem } = await import('../project/checkpointSystem');
       (CheckpointSystem as any).mockImplementationOnce(function (this: any) {
         this.createCheckpoint = vi.fn()
           .mockResolvedValueOnce({ approved: false })

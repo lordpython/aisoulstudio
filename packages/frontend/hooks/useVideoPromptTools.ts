@@ -11,7 +11,7 @@ import {
     lintPrompt,
     refineImagePrompt,
     type PromptLintIssue
-} from "@/services/promptService";
+} from "@/services/content/promptService";
 
 export function useVideoPromptTools(
     contentPlan: ContentPlan | null,

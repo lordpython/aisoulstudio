@@ -33,12 +33,12 @@ import { AudioUploadForm, VisualPreview, SceneThumbnails } from '@/components/vi
 
 // Feature Components
 import { TimelinePlayer } from '@/components/TimelinePlayer';
-import { QuickExport, type QuickExportConfig } from '@/components/QuickExport';
+import { QuickExport, type QuickExportConfig } from '@/components/import-export/QuickExport';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { QuickUpload } from '@/components/QuickUpload';
+import { QuickUpload } from '@/components/import-export/QuickUpload';
 
 // Services
-import { animateImageWithDeApi, animateImageBatch } from '@/services/deapiService';
+import { animateImageWithDeApi, animateImageBatch } from '@/services/media/deapiService';
 
 export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();

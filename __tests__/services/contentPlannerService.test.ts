@@ -95,11 +95,11 @@ vi.mock('../../packages/shared/src/services/prompt/vibeLibrary', () => ({
     SCENARIO_TEMPLATES: [],
 }));
 
-vi.mock('../../packages/shared/src/services/textSanitizer', () => ({
+vi.mock('../../packages/shared/src/services/audio-processing/textSanitizer', () => ({
     cleanForTTS: vi.fn((text: string) => text),
 }));
 
-vi.mock('../../packages/shared/src/services/tripletUtils', () => ({
+vi.mock('../../packages/shared/src/services/content/tripletUtils', () => ({
     getEffectiveLegacyTone: vi.fn().mockReturnValue('professional'),
 }));
 
@@ -113,7 +113,7 @@ import {
     suggestSceneCount,
     validateContentPlan,
     generateContentPlan,
-} from '../../packages/shared/src/services/contentPlannerService';
+} from '../../packages/shared/src/services/content/contentPlannerService';
 import type { ContentPlan } from '../../packages/shared/src/types';
 
 // ---------------------------------------------------------------------------

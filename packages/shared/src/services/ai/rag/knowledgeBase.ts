@@ -10,7 +10,7 @@ import { STYLE_GUIDES } from "./documents/styleGuides";
 import { BEST_PRACTICES } from "./documents/bestPractices";
 import { AI_CONFIG } from "../config";
 import { GoogleGenAI } from "@google/genai";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('KnowledgeBase');
 

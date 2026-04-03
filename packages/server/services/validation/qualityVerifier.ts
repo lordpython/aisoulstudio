@@ -7,7 +7,7 @@
 
 import { execSync } from 'child_process';
 import fs from 'fs';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 
 const log = createLogger('QualityVerifier');
 

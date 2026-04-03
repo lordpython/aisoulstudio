@@ -7,7 +7,7 @@
  * - Observability with LangSmith
  */
 
-import { agentLogger } from "../logger";
+import { agentLogger } from "../infrastructure/logger";
 const log = agentLogger.child('Config');
 
 export const AI_CONFIG = {

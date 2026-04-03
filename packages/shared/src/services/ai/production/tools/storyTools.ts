@@ -11,15 +11,15 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { agentLogger } from "../../../logger";
+import { agentLogger } from "../../../infrastructure/logger";
 import { GEMINI_API_KEY, MODELS } from "../../../shared/apiClient";
-import { withAILogging } from "../../../aiLogService";
+import { withAILogging } from "../../../infrastructure/aiLogService";
 import { StoryModeSchema, VerifyCharacterConsistencySchema, type StoryModeState } from "../types";
 import { storyModeStore, productionStore } from "../store";
-import { verifyCharacterConsistency } from "../../../visualConsistencyService";
+import { verifyCharacterConsistency } from "../../../media/visualConsistencyService";
 import { type ScreenplayScene, type CharacterProfile } from "../../../../types";
 import { toCharacterInputs } from "../../../prompt/imageStyleGuide";
-import { detectLanguage } from "../../../languageDetector";
+import { detectLanguage } from "../../../content/languageDetector";
 import { loadTemplate, substituteVariables } from "../../../prompt/templateLoader";
 import { buildBreakdownPrompt, generateVoiceoverScripts, BreakdownSchema, ScreenplaySchema } from "../../storyPipeline";
 
@@ -332,7 +332,7 @@ export const generateCharactersTool = tool(
         if (!state) return JSON.stringify({ success: false, error: "Session not found" });
 
         log.info(` Extracting characters for: ${sessionId}`);
-        const { extractCharacters, generateAllCharacterReferences } = await import("../../../characterService");
+        const { extractCharacters, generateAllCharacterReferences } = await import("../../../media/characterService");
 
         const scriptText = state.screenplay.map(s =>
             `${s.heading}\n${s.action}\n${s.dialogue.map(d => `${d.speaker}: ${d.text}`).join('\n')}`

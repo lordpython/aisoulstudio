@@ -22,7 +22,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
 import { MODELS } from "../../shared/apiClient";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('Content');
 import {

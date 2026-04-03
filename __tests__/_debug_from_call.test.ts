@@ -35,14 +35,14 @@ vi.mock('../../packages/shared/src/services/prompt/vibeLibrary', () => ({
     getVibeTerms: vi.fn(() => [{ id: 'visceral-dread' }]),
     SCENARIO_TEMPLATES: [],
 }));
-vi.mock('../../packages/shared/src/services/textSanitizer', () => ({
+vi.mock('../../packages/shared/src/services/audio-processing/textSanitizer', () => ({
     cleanForTTS: vi.fn((t: string) => t),
 }));
-vi.mock('../../packages/shared/src/services/tripletUtils', () => ({
+vi.mock('../../packages/shared/src/services/content/tripletUtils', () => ({
     getEffectiveLegacyTone: vi.fn(() => 'professional'),
 }));
 
-import { generateContentPlan } from './../packages/shared/src/services/contentPlannerService';
+import { generateContentPlan } from './../packages/shared/src/services/content/contentPlannerService';
 
 describe('debug from call', () => {
     it('checks if from was called', async () => {

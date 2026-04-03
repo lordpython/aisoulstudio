@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PipelineRequest } from '../formatRouter';
+import type { PipelineRequest } from '../format/formatRouter';
 
 // ============================================================================
 // Mocks — must be declared before imports that use them
@@ -22,7 +22,7 @@ vi.mock('@langchain/google-genai', () => ({
   }),
 }));
 
-vi.mock('../imageService', () => ({
+vi.mock('../media/imageService', () => ({
   generateImageFromPrompt: vi.fn().mockResolvedValue('https://example.com/ad-image.png'),
 }));
 
@@ -30,7 +30,7 @@ vi.mock('../prompt/imageStyleGuide', () => ({
   buildImageStyleGuide: vi.fn().mockReturnValue('mocked style guide'),
 }));
 
-vi.mock('../narratorService', () => ({
+vi.mock('../media/narratorService', () => ({
   narrateScene: vi.fn().mockResolvedValue({
     sceneId: 'scene_0',
     audioBlob: new Blob(['audio']),
@@ -58,13 +58,13 @@ vi.mock('../shared/apiClient', () => ({
   ai: {},
 }));
 
-vi.mock('../logger', () => ({
+vi.mock('../infrastructure/logger', () => ({
   agentLogger: {
     child: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   },
 }));
 
-vi.mock('../checkpointSystem', () => {
+vi.mock('../project/checkpointSystem', () => {
   const MockCheckpointSystem = vi.fn().mockImplementation(function (this: any) {
     this.createCheckpoint = vi.fn().mockResolvedValue({ approved: true });
     this.approveCheckpoint = vi.fn();
@@ -74,7 +74,7 @@ vi.mock('../checkpointSystem', () => {
   return { CheckpointSystem: MockCheckpointSystem };
 });
 
-vi.mock('../languageDetector', () => ({
+vi.mock('../content/languageDetector', () => ({
   detectLanguage: vi.fn().mockReturnValue('en'),
 }));
 
@@ -248,7 +248,7 @@ describe('AdvertisementPipeline', () => {
     });
 
     it('should use energetic voice profile (Req 4.4)', async () => {
-      const { getFormatVoiceForLanguage } = await import('../narratorService');
+      const { getFormatVoiceForLanguage } = await import('../media/narratorService');
       await pipeline.execute(baseRequest);
 
       expect(getFormatVoiceForLanguage).toHaveBeenCalledWith('advertisement', 'en');

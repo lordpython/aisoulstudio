@@ -8,9 +8,9 @@
  */
 
 import type { ScreenplayScene, NarrationSegment } from '../../types';
-import type { PipelineResult } from '../formatRouter';
-import { ResearchService, type ResearchResult } from '../researchService';
-import { ParallelExecutionEngine } from '../parallelExecutionEngine';
+import type { PipelineResult } from '../format/formatRouter';
+import { ResearchService, type ResearchResult } from '../content/researchService';
+import { ParallelExecutionEngine } from '../orchestration/parallelExecutionEngine';
 import {
   buildAssemblyRules,
   buildChapterMarkers,

@@ -8,6 +8,7 @@
  */
 
 import { SubtitleItem } from "../../types";
+import { getServerBaseUrl as getServerBaseUrlFromCloud } from "../cloud/serverBaseUrl";
 
 // --- Types ---
 
@@ -198,14 +199,8 @@ export function subtitleItemsToTranscriptResult(
 
 /**
  * Get server base URL for API calls
+ * Re-exports the canonical implementation from cloud/serverBaseUrl
  */
 export function getServerBaseUrl(): string {
-  // Check for browser environment
-  if (typeof window !== "undefined") {
-    // In browser, use relative URL or configured server
-    // @ts-ignore - Vite injects env at build time
-    return (import.meta as any).env?.VITE_SERVER_URL || "http://localhost:3001";
-  }
-  // In Node.js, use environment variable or default
-  return process.env.SERVER_URL || "http://localhost:3001";
+  return getServerBaseUrlFromCloud() || "http://localhost:3001";
 }

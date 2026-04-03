@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { getSessionDir, cleanupSession } from '../utils/index.js';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 
 const importLog = createLogger('Import');
 

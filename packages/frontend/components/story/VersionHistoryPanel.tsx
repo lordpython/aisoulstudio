@@ -25,7 +25,7 @@ import {
   getHistoryStats,
   type VersionSnapshot,
   type VersionHistoryStats,
-} from '@/services/versionHistoryService';
+} from '@/services/project/versionHistoryService';
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/timeFormatting';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 

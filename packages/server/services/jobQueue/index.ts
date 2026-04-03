@@ -12,7 +12,7 @@
 import { EventEmitter } from 'events';
 import path from 'path';
 import fs from 'fs';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import {
   RenderJob,
   JobStatus,

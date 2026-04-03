@@ -7,9 +7,9 @@
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { MODELS } from "../shared/apiClient";
-import { agentLogger } from "../logger";
+import { agentLogger } from "../infrastructure/logger";
 import type { ScreenplayScene, ShotlistEntry } from "@/types";
-import { withAILogging } from "../aiLogService";
+import { withAILogging } from "../infrastructure/aiLogService";
 import { type CharacterInput } from "../prompt/imageStyleGuide";
 
 const log = agentLogger.child('ShotBreakdown');

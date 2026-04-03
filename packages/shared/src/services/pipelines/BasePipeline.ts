@@ -10,8 +10,8 @@
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
 import type { VideoPurpose } from '../../constants';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../format/formatRouter';
+import { formatRegistry } from '../format/formatRegistry';
 import {
   buildBreakdownPrompt,
   buildScreenplayPrompt,
@@ -19,20 +19,20 @@ import {
   validateDurationConstraint,
   type FormatAwareGenerationOptions,
 } from '../ai/storyPipeline';
-import { ParallelExecutionEngine, type Task } from '../parallelExecutionEngine';
-import { CheckpointSystem } from '../checkpointSystem';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import { ParallelExecutionEngine, type Task } from '../orchestration/parallelExecutionEngine';
+import { CheckpointSystem } from '../project/checkpointSystem';
+import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../media/narratorService';
 import type { LanguageCode } from '../../constants';
-import { generateImageFromPrompt } from '../imageService';
+import { generateImageFromPrompt } from '../media/imageService';
 import { buildImageStyleGuide } from '../prompt/imageStyleGuide';
 import { buildAssemblyRules } from '../ffmpeg/formatAssembly';
-import { detectLanguage } from '../languageDetector';
+import { detectLanguage } from '../content/languageDetector';
 import { storyModeStore } from '../ai/production/store';
 import type { StoryModeState } from '../ai/production/types';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
 import type { z } from 'zod';
-import { agentLogger } from '../logger';
+import { agentLogger } from '../infrastructure/logger';
 
 // ============================================================================
 // FormatConfig — captures data-driven differences between formats

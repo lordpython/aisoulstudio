@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanForTTS, cleanForSubtitles } from '../../packages/shared/src/services/textSanitizer';
+import { cleanForTTS, cleanForSubtitles } from '../../packages/shared/src/services/audio-processing/textSanitizer';
 
 describe('cleanForTTS', () => {
     it('strips **bold** markdown labels', () => {

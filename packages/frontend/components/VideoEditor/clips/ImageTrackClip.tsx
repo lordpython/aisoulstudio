@@ -2,6 +2,7 @@
  * ImageTrackClip — Green image clip with thumbnail preview.
  */
 
+import { memo } from 'react';
 import { ImageIcon } from 'lucide-react';
 import type { EditorClip } from '../types/video-editor-types';
 import '../video-editor.css';
@@ -14,7 +15,7 @@ interface ImageTrackClipProps {
   onResizeStart?: (clipId: string, edge: 'left' | 'right', e: React.PointerEvent) => void;
 }
 
-export function ImageTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart }: ImageTrackClipProps) {
+export const ImageTrackClip = memo(function ImageTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart }: ImageTrackClipProps) {
   const left = clip.startTime * zoom;
   const width = Math.max(clip.duration * zoom, 20);
 
@@ -50,4 +51,4 @@ export function ImageTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart
       )}
     </div>
   );
-}
+});

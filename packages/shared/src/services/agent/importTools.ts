@@ -9,7 +9,7 @@
  */
 
 import { tool } from "@langchain/core/tools";
-import { transcribeAudioWithWordTiming } from "../transcriptionService";
+import { transcribeAudioWithWordTiming } from "../audio-processing/transcriptionService";
 import { ImportYouTubeSchema, TranscribeAudioSchema } from "./schemas/importSchemas";
 import { ServiceError, ValidationError, ResourceNotFoundError } from "./errors";
 import {

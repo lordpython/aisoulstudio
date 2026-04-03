@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { TEMP_DIR } from '../../utils/index.js';
 import {
   RenderJob,

@@ -13,13 +13,13 @@ import {
   markProjectAccessed,
   type Project,
   type UpdateProjectInput,
-} from '@/services/projectService';
+} from '@/services/project/projectService';
 import {
   restoreProductionSession,
   initializeProductionSession,
   flushPendingPersistence,
 } from '@/services/ai/production/store';
-import { cloudAutosave } from '@/services/cloudStorageService';
+import { cloudAutosave } from '@/services/cloud/cloudStorageService';
 import type { ProductionState } from '@/services/ai/production/types';
 
 export interface UseProjectSessionResult {

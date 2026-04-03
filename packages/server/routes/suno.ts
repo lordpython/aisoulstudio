@@ -1,5 +1,5 @@
 import { Router, Response, Request } from 'express';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import fs from 'fs';
 import multer from 'multer';
 import { MAX_SINGLE_FILE } from '../utils/index.js';

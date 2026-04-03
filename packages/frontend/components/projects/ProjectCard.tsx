@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Project, ProjectType } from '@/services/projectService';
+import type { Project, ProjectType } from '@/services/project/projectService';
 
 interface ProjectCardProps {
   project: Project;

@@ -18,24 +18,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Module mocks — declared before imports so Vitest hoists them correctly
 // ---------------------------------------------------------------------------
 
-vi.mock('../../packages/shared/src/services/contentPlannerService', () => ({
+vi.mock('../../packages/shared/src/services/content/contentPlannerService', () => ({
     generateContentPlan: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/narratorService', () => ({
+vi.mock('../../packages/shared/src/services/media/narratorService', () => ({
     narrateAllScenes: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/editorService', () => ({
+vi.mock('../../packages/shared/src/services/content/editorService', () => ({
     validateContentPlan: vi.fn(),
     syncDurationsToNarration: vi.fn((plan: any) => plan),
 }));
 
-vi.mock('../../packages/shared/src/services/imageService', () => ({
+vi.mock('../../packages/shared/src/services/media/imageService', () => ({
     generateImageFromPrompt: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/deapiService', () => ({
+vi.mock('../../packages/shared/src/services/media/deapiService', () => ({
     animateImageWithDeApi: vi.fn(),
     isDeApiConfigured: vi.fn(() => false),
     applyStyleConsistency: vi.fn(),
@@ -49,17 +49,17 @@ vi.mock('../../packages/shared/src/services/videoService', () => ({
     generateProfessionalVideo: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/promptService', () => ({
+vi.mock('../../packages/shared/src/services/content/promptService', () => ({
     generateMotionPrompt: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/sfxService', () => ({
+vi.mock('../../packages/shared/src/services/music/sfxService', () => ({
     generateVideoSFXPlan: vi.fn(),
     generateVideoSFXPlanWithAudio: vi.fn(),
     isSFXAudioAvailable: vi.fn(() => false),
 }));
 
-vi.mock('../../packages/shared/src/services/tripletUtils', () => ({
+vi.mock('../../packages/shared/src/services/content/tripletUtils', () => ({
     getEffectiveLegacyTone: vi.fn(() => 'professional'),
 }));
 
@@ -88,14 +88,14 @@ import {
     OrchestratorError,
     type ProductionProgress,
     type ProductionStage,
-} from '../../packages/shared/src/services/agentOrchestrator';
+} from '../../packages/shared/src/services/orchestration/agentOrchestrator';
 
-import { generateContentPlan } from '../../packages/shared/src/services/contentPlannerService';
-import { narrateAllScenes } from '../../packages/shared/src/services/narratorService';
-import { validateContentPlan, syncDurationsToNarration } from '../../packages/shared/src/services/editorService';
-import { generateImageFromPrompt } from '../../packages/shared/src/services/imageService';
-import { isDeApiConfigured } from '../../packages/shared/src/services/deapiService';
-import { generateVideoSFXPlan, isSFXAudioAvailable } from '../../packages/shared/src/services/sfxService';
+import { generateContentPlan } from '../../packages/shared/src/services/content/contentPlannerService';
+import { narrateAllScenes } from '../../packages/shared/src/services/media/narratorService';
+import { validateContentPlan, syncDurationsToNarration } from '../../packages/shared/src/services/content/editorService';
+import { generateImageFromPrompt } from '../../packages/shared/src/services/media/imageService';
+import { isDeApiConfigured } from '../../packages/shared/src/services/media/deapiService';
+import { generateVideoSFXPlan, isSFXAudioAvailable } from '../../packages/shared/src/services/music/sfxService';
 import { AppState } from '../../packages/shared/src/types';
 
 // ---------------------------------------------------------------------------

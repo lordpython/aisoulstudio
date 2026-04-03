@@ -10,16 +10,16 @@ import {
   translateSubtitles,
   generateMotionPrompt,
   VideoPurpose,
-} from "@/services/geminiService";
-import { generatePromptsWithLangChain, generatePromptsWithAgent } from "@/services/directorService";
+} from "@/services/content/geminiService";
+import { generatePromptsWithLangChain, generatePromptsWithAgent } from "@/services/content/directorService";
 import {
   animateImageWithDeApi,
   generateImageWithAspectRatio,
   generateImageBatch,
   BatchGenerationItem,
-} from "@/services/deapiService";
+} from "@/services/media/deapiService";
 import { subtitlesToSRT } from "@/utils/srtParser";
-import { calculateOptimalAssets } from "@/services/assetCalculatorService";
+import { calculateOptimalAssets } from "@/services/content/assetCalculatorService";
 
 export function useLyricLens() {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);

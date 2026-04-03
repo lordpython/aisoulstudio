@@ -8,11 +8,11 @@
  */
 
 import type { ScreenplayScene, Scene, NarrationSegment } from '../../types';
-import type { PipelineResult } from '../formatRouter';
-import { ResearchService, type ResearchResult } from '../researchService';
+import type { PipelineResult } from '../format/formatRouter';
+import { ResearchService, type ResearchResult } from '../content/researchService';
 import { generateVoiceoverScripts } from '../ai/storyPipeline';
-import { ParallelExecutionEngine } from '../parallelExecutionEngine';
-import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../narratorService';
+import { ParallelExecutionEngine } from '../orchestration/parallelExecutionEngine';
+import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../media/narratorService';
 import type { LanguageCode } from '../../constants';
 import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import {

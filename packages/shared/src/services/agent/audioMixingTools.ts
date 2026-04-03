@@ -9,8 +9,8 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { mixAudioWithSFX, MixConfig, SceneAudioInfo } from "../audioMixerService";
-import { VideoSFXPlan } from "../sfxService";
+import { mixAudioWithSFX, MixConfig, SceneAudioInfo } from "../audio-processing/audioMixerService";
+import { VideoSFXPlan } from "../music/sfxService";
 import { productionStore } from "../ai/production/store";
 import { concatenateNarrationSegments } from "./audioUtils";
 import {

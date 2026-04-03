@@ -10,14 +10,14 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { VideoFormat, CheckpointState } from '@/types';
-import type { IndexedDocument } from '@/services/documentParser';
-import type { PipelineCallbacks, PipelineResult } from '@/services/formatRouter';
-import { formatRouter } from '@/services/formatRouter';
-import { formatRegistry } from '@/services/formatRegistry';
-import { detectLanguage } from '@/services/languageDetector';
-import type { CheckpointSystem } from '@/services/checkpointSystem';
-import type { ExecutionProgress } from '@/services/parallelExecutionEngine';
-import type { PipelineTask } from '@/components/PipelineProgress';
+import type { IndexedDocument } from '@/services/content/documentParser';
+import type { PipelineCallbacks, PipelineResult } from '@/services/format/formatRouter';
+import { formatRouter } from '@/services/format/formatRouter';
+import { formatRegistry } from '@/services/format/formatRegistry';
+import { detectLanguage } from '@/services/content/languageDetector';
+import type { CheckpointSystem } from '@/services/project/checkpointSystem';
+import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
+import type { PipelineTask } from '@/components/video-production/PipelineProgress';
 
 // Pipeline class imports (lazy-registered before each execute)
 import { YouTubeNarratorPipeline } from '@/services/pipelines/youtubeNarrator';

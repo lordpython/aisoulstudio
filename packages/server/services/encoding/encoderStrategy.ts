@@ -9,7 +9,7 @@ import { execSync, exec, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 
 const log = createLogger('EncoderStrategy');
 

@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { splitTextIntoSegments } from "../subtitleService";
+import { splitTextIntoSegments } from "../audio-processing/subtitleService";
 import { SubtitleItem } from "../../types";
 import { productionStore } from "../ai/production/store";
 

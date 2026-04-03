@@ -44,7 +44,7 @@ import {
   toggleFavorite,
   type Project,
   type ProjectType,
-} from '@/services/projectService';
+} from '@/services/project/projectService';
 import { useAuth } from '@/hooks/useAuth';
 import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import { TextShimmer } from '@/components/motion-primitives/text-shimmer';

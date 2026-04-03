@@ -1,7 +1,7 @@
 import { Router, Response, json as expressJson } from 'express';
 import { ApiProxyRequest } from '../types.js';
 import { GEMINI_API_KEY } from '../utils/index.js';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { createDeprecatedRouteMiddleware } from './routeUtils.js';
 
 const geminiLog = createLogger('Gemini');
@@ -41,7 +41,7 @@ async function defaultLegacyGenerate(prompt: string, options: Record<string, unk
 }
 
 async function defaultLegacyImage(prompt: string, options: Record<string, unknown> = {}): Promise<any> {
-    const { generateImageFromPrompt } = await import('@studio/shared/src/services/imageService.js');
+    const { generateImageFromPrompt } = await import('@studio/shared/src/services/media/imageService.js');
 
     return generateImageFromPrompt(
         prompt,

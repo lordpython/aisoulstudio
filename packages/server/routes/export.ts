@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { sanitizeId, getSessionDir, cleanupSession, MAX_FILE_SIZE, MAX_SINGLE_FILE, MAX_FILES, generateJobId } from '../utils/index.js';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { jobQueue } from '../services/jobQueue/index.js';
 import { getSelectedEncoder, getEncoderInfo, getEncoderArgs } from '../services/encoding/encoderStrategy.js';
 import { validateSessionFrames, validateFrameSizes } from '../services/validation/frameValidator.js';

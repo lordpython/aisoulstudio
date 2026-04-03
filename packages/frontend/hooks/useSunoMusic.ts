@@ -38,7 +38,7 @@ import {
     addInstrumental,
     uploadAndCover,
     uploadAudioFile
-} from "@/services/sunoService";
+} from "@/services/music/sunoService";
 
 /**
  * Music generation state for Suno API integration.

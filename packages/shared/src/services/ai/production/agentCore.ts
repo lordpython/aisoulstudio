@@ -10,7 +10,7 @@
  */
 
 import { GEMINI_API_KEY } from "../../shared/apiClient";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 import { ProductionState, ProductionProgress } from "./types";
 import { productionStore } from "./store";
 import { setGlobalProgressCallback } from "./tools/contentTools";

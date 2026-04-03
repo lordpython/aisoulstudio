@@ -13,7 +13,7 @@ import {
     ToolGroup,
     createToolDefinition,
 } from "../../agent/toolRegistry";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('ToolRegistration');
 

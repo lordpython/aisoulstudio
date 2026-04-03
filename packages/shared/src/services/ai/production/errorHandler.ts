@@ -7,7 +7,7 @@
  * Requirements: 6.1-6.5 — Error recovery and fallback handling
  */
 
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 import { ProductionState, ProductionProgress } from "./types";
 import { productionStore } from "./store";
 import { GeneratedImage } from "../../../types";

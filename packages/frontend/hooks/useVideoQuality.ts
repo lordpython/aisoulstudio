@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from "react";
 import { ContentPlan, NarrationSegment, ValidationResult } from "@/types";
-import { VideoSFXPlan } from "@/services/sfxService";
+import { VideoSFXPlan } from "@/services/music/sfxService";
 import { VideoPurpose } from "@/constants";
 import {
     generateQualityReport,
@@ -17,9 +17,9 @@ import {
     getQualitySummary,
     exportReportAsJson,
     ProductionQualityReport
-} from "@/services/qualityMonitorService";
-import { validateContentPlan } from "@/services/editorService";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+} from "@/services/project/qualityMonitorService";
+import { validateContentPlan } from "@/services/content/editorService";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoQualityState {
     qualityReport: ProductionQualityReport | null;

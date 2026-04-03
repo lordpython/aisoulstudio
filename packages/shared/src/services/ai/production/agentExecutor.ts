@@ -15,7 +15,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { GEMINI_API_KEY } from "../../shared/apiClient";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 import { ProductionState, ProductionProgress } from "./types";
 import { productionStore } from "./store";

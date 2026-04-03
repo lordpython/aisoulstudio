@@ -5,8 +5,8 @@
  * Non-throwing: logs warnings on failure and returns undefined.
  */
 
-import { cloudAutosave } from "../cloudStorageService";
-import { saveExportRecord } from "../projectService";
+import { cloudAutosave } from "../cloud/cloudStorageService";
+import { saveExportRecord } from "../project/projectService";
 import { ExportConfig } from "./exportConfig";
 
 /**

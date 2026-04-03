@@ -8,19 +8,19 @@ import { generateSessionId } from '@studio/shared/src/services/ai/production/uti
 import { productionStore } from '@studio/shared/src/services/ai/production/store';
 import {
   cloudAutosave,
-} from '@studio/shared/src/services/cloudStorageService';
+} from '@studio/shared/src/services/cloud/cloudStorageService';
 import {
   type ProductionEvent,
   type ProductionSessionSnapshot,
   type ProductionStartRequest,
-} from '@studio/shared/src/services/productionApi';
-import { resolveServerAssetUrl } from '@studio/shared/src/services/serverBaseUrl';
-import { createLogger } from '@studio/shared/src/services/logger';
+} from '@studio/shared/src/services/orchestration/productionApi';
+import { resolveServerAssetUrl } from '@studio/shared/src/services/cloud/serverBaseUrl';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger';
 import type {
   ProductionConfig,
   ProductionProgress as OrchestratorProgress,
   ProductionResult,
-} from '@studio/shared/src/services/agentOrchestrator';
+} from '@studio/shared/src/services/orchestration/agentOrchestrator';
 import type { ToolError } from '@studio/shared/src/services/agent/errorRecovery';
 
 const productionLog = createLogger('ProductionRoute');
@@ -71,7 +71,7 @@ async function defaultRunOrchestrator(
   onProgress?: (progress: OrchestratorProgress) => void,
   signal?: AbortSignal,
 ): Promise<ProductionResult> {
-  const { runProductionPipeline } = await import('@studio/shared/src/services/agentOrchestrator');
+  const { runProductionPipeline } = await import('@studio/shared/src/services/orchestration/agentOrchestrator');
   return runProductionPipeline(input, config, onProgress, signal);
 }
 

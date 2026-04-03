@@ -17,7 +17,7 @@ import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
 import { knowledgeBase } from "./rag/knowledgeBase";
 import { exampleLibrary } from "./rag/exampleLibrary";
 import { AI_CONFIG } from "./config";
-import { agentLogger } from "../logger";
+import { agentLogger } from "../infrastructure/logger";
 
 const log = agentLogger.child('Studio');
 

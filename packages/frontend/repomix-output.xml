@@ -340,7 +340,7 @@ import {
     Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ProductionProgress, ProductionStage } from "@/services/agentOrchestrator";
+import { ProductionProgress, ProductionStage } from "@/services/orchestration/agentOrchestrator";
 
 interface AgentProgressProps {
     progress: ProductionProgress | null;
@@ -2061,7 +2061,7 @@ export { ErrorBoundary, DefaultErrorFallback };
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { formatRegistry } from '@/services/formatRegistry';
+import { formatRegistry } from '@/services/format/formatRegistry';
 import { getGenresForFormat, getPlaceholderForFormat } from './FormatSelector';
 import type { VideoFormat } from '@/types';
 
@@ -2234,7 +2234,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VideoFormat, FormatMetadata } from '@/types';
-import { formatRegistry } from '@/services/formatRegistry';
+import { formatRegistry } from '@/services/format/formatRegistry';
 
 // Map format IDs to lucide icons
 const FORMAT_ICONS: Record<VideoFormat, React.ElementType> = {
@@ -6444,8 +6444,8 @@ import {
   MusicProducerAgentV2,
   createMusicProducerAgentV2,
   type PendingToolCall,
-} from "@/services/musicProducerAgentV2";
-import { getCredits, getTaskStatus, type SunoGeneratedTrack } from "@/services/sunoService";
+} from "@/services/music/musicProducerAgentV2";
+import { getCredits, getTaskStatus, type SunoGeneratedTrack } from "@/services/music/sunoService";
 
 interface MusicChatModalV2Props {
   open: boolean;
@@ -7054,7 +7054,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { SunoModel, SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/sunoService";
+import type { SunoModel, SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/music/sunoService";
 
 // Music style/genre options
 const MUSIC_STYLES = [
@@ -8053,7 +8053,7 @@ export default MusicGeneratorModal;
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import type { ExecutionProgress } from '@/services/parallelExecutionEngine';
+import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
 import type { PipelineTask } from './PipelineProgress';
 
 // ============================================================================
@@ -8330,7 +8330,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ExecutionProgress } from '@/services/parallelExecutionEngine';
+import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
 
 export interface PipelineTask {
   id: string;
@@ -8670,7 +8670,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Project, ProjectType } from '@/services/projectService';
+import type { Project, ProjectType } from '@/services/project/projectService';
 
 interface ProjectCardProps {
   project: Project;
@@ -8994,7 +8994,7 @@ import {
   ProductionQualityReport,
   SceneQualityMetrics,
   getHistoricalAverages,
-} from "@/services/qualityMonitorService";
+} from "@/services/project/qualityMonitorService";
 
 interface QualityDashboardProps {
   report: ProductionQualityReport;
@@ -9768,15 +9768,15 @@ import { cn } from "@/lib/utils";
 import { SERVER_URL } from "@/services/ffmpeg";
 import { MusicGeneratorModal } from "./MusicGeneratorModal";
 import { MusicChatModalV2 } from "./MusicChatModalV2";
-import { isSunoConfigured } from "@/services/sunoService";
-import type { SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/sunoService";
+import { isSunoConfigured } from "@/services/music/sunoService";
+import type { SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/music/sunoService";
 import {
   generateMusic as sunoGenerateMusic,
   waitForCompletion,
   generateLyrics as sunoGenerateLyrics,
   getLyricsStatus,
   getCredits,
-} from "@/services/sunoService";
+} from "@/services/music/sunoService";
 
 interface QuickUploadProps {
   onFileSelect: (file: File, aspectRatio: string) => void;
@@ -10362,7 +10362,7 @@ import {
   getSupportedTypes,
   DocumentParseError,
   type IndexedDocument,
-} from '@/services/documentParser';
+} from '@/services/content/documentParser';
 
 export interface ReferenceDocumentUploadProps {
   documents: IndexedDocument[];
@@ -10644,7 +10644,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, isRTL, getTextDirection } from "@/lib/utils";
 import { Scene, EmotionalTone, TransitionType, InstructionTriplet } from "@/types";
-import { getEffectiveLegacyTone } from "@/services/tripletUtils";
+import { getEffectiveLegacyTone } from "@/services/content/tripletUtils";
 
 interface SceneEditorProps {
     scenes: Scene[];
@@ -11839,7 +11839,7 @@ import {
   downloadProjectJSON,
   importProjectFromJSON,
   downloadAsWebM,
-} from '@/services/exportFormatsService';
+} from '@/services/format/exportFormatsService';
 
 interface ExportOptionsPanelProps {
   storyState: StoryState;
@@ -14144,7 +14144,7 @@ import { FormatSelector } from '@/components/FormatSelector';
 import { PipelineProgress } from '@/components/PipelineProgress';
 import { CheckpointApproval } from '@/components/CheckpointApproval';
 import { ReferenceDocumentUpload } from '@/components/ReferenceDocumentUpload';
-import { formatRegistry } from '@/services/formatRegistry';
+import { formatRegistry } from '@/services/format/formatRegistry';
 import type { UseFormatPipelineReturn } from '@/hooks/useFormatPipeline';
 
 interface StageProgress {
@@ -16151,7 +16151,7 @@ import {
   getTemplateCategories,
   applyTemplate,
   type ProjectTemplate,
-} from '@/services/projectTemplatesService';
+} from '@/services/project/projectTemplatesService';
 
 interface TemplatesGalleryProps {
   onApplyTemplate: (state: Partial<StoryState>) => void;
@@ -16641,7 +16641,7 @@ import {
   getHistoryStats,
   type VersionSnapshot,
   type VersionHistoryStats,
-} from '@/services/versionHistoryService';
+} from '@/services/project/versionHistoryService';
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/timeFormatting';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -28610,7 +28610,7 @@ import {
   ExportConfig,
 } from "@/services/ffmpeg";
 import { VideoSFXPlan } from "@/types";
-import { SceneAudioInfo } from "@/services/audioMixerService";
+import { SceneAudioInfo } from "@/services/audio-processing/audioMixerService";
 import {
   Dialog,
   DialogContent,
@@ -30943,12 +30943,12 @@ export default useFocusTrap;
 
 import { useState, useCallback, useRef } from 'react';
 import type { VideoFormat, CheckpointState } from '@/types';
-import type { IndexedDocument } from '@/services/documentParser';
-import type { PipelineCallbacks, PipelineResult } from '@/services/formatRouter';
-import { formatRouter } from '@/services/formatRouter';
-import { formatRegistry } from '@/services/formatRegistry';
-import type { CheckpointSystem } from '@/services/checkpointSystem';
-import type { ExecutionProgress } from '@/services/parallelExecutionEngine';
+import type { IndexedDocument } from '@/services/content/documentParser';
+import type { PipelineCallbacks, PipelineResult } from '@/services/format/formatRouter';
+import { formatRouter } from '@/services/format/formatRouter';
+import { formatRegistry } from '@/services/format/formatRegistry';
+import type { CheckpointSystem } from '@/services/project/checkpointSystem';
+import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
 import type { PipelineTask } from '@/components/PipelineProgress';
 
 // Pipeline class imports (lazy-registered before each execute)
@@ -31260,17 +31260,17 @@ import {
   translateSubtitles,
   generateMotionPrompt,
   VideoPurpose,
-} from "@/services/geminiService";
-import { generatePromptsWithLangChain } from "@/services/directorService";
+} from "@/services/content/geminiService";
+import { generatePromptsWithLangChain } from "@/services/content/directorService";
 import { generatePromptsWithAgent } from "@/services/agentDirectorService";
 import {
   animateImageWithDeApi,
   generateImageWithAspectRatio,
   generateImageBatch,
   BatchGenerationItem,
-} from "@/services/deapiService";
+} from "@/services/media/deapiService";
 import { subtitlesToSRT } from "@/utils/srtParser";
-import { calculateOptimalAssets } from "@/services/assetCalculatorService";
+import { calculateOptimalAssets } from "@/services/content/assetCalculatorService";
 
 export function useLyricLens() {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -32280,13 +32280,13 @@ import {
   markProjectAccessed,
   type Project,
   type UpdateProjectInput,
-} from '@/services/projectService';
+} from '@/services/project/projectService';
 import {
   restoreProductionSession,
   initializeProductionSession,
   flushPendingPersistence,
 } from '@/services/ai/production/store';
-import { cloudAutosave } from '@/services/cloudStorageService';
+import { cloudAutosave } from '@/services/cloud/cloudStorageService';
 import type { ProductionState } from '@/services/ai/production/types';
 
 export interface UseProjectSessionResult {
@@ -32487,13 +32487,13 @@ import { runProductionAgent } from '@/services/ai/productionAgent';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';
-import { narrateScene, narrateAllShots, createAudioUrl, type NarratorConfig } from '@/services/narratorService';
-import { generateVideoFromPrompt } from '@/services/videoService';
-import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/deapiService';
+import { narrateScene, narrateAllShots, createAudioUrl, type NarratorConfig } from '@/services/media/narratorService';
+import { generateVideoFromPrompt } from '@/services/media/videoService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch } from '@/services/media/deapiService';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
-import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/characterService';
-import { cloudAutosave } from '@/services/cloudStorageService';
-import { createCombinedNarrationAudio } from '@/services/audioConcatService';
+import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/media/characterService';
+import { cloudAutosave } from '@/services/cloud/cloudStorageService';
+import { createCombinedNarrationAudio } from '@/services/audio-processing/audioConcatService';
 import {
     debouncedSaveToCloud,
     loadStoryFromCloud,
@@ -32512,11 +32512,11 @@ import type { VideoPurpose } from '@/constants';
 import {
     extractVisualStyle,
     type VisualStyle,
-} from '@/services/visualConsistencyService';
-import { getCharacterSeed } from '@/services/imageService';
-import { cleanForTTS, cleanForSubtitles } from '@/services/textSanitizer';
+} from '@/services/media/visualConsistencyService';
+import { getCharacterSeed } from '@/services/media/imageService';
+import { cleanForTTS, cleanForSubtitles } from '@/services/audio-processing/textSanitizer';
 import { generateVoiceoverScripts } from '@/services/ai/storyPipeline';
-import { detectLanguage } from '@/services/languageDetector';
+import { detectLanguage } from '@/services/content/languageDetector';
 
 /**
  * Generate anti-style negative prompts based on chosen visual style.
@@ -33692,7 +33692,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
         try {
             // Import the image generation service dynamically
-            const { generateImageFromPrompt } = await import('@/services/imageService');
+            const { generateImageFromPrompt } = await import('@/services/media/imageService');
 
             const updatedShotlist: ShotlistEntry[] = [...state.shotlist];
             const style = state.visualStyle || 'Cinematic';
@@ -33872,7 +33872,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
             } else {
                 // Parallel generation via Gemini Imagen using ParallelExecutionEngine
-                const { ParallelExecutionEngine } = await import('@/services/parallelExecutionEngine');
+                const { ParallelExecutionEngine } = await import('@/services/orchestration/parallelExecutionEngine');
                 const engine = new ParallelExecutionEngine();
 
                 // If we have existing images, extract style from the first one for consistency
@@ -34010,7 +34010,7 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: `Regenerating shot...`, percent: 20 });
 
         try {
-            const { generateImageFromPrompt } = await import('@/services/imageService');
+            const { generateImageFromPrompt } = await import('@/services/media/imageService');
             const style = state.visualStyle || 'Cinematic';
 
             // Build prompt from shot details or use custom prompt
@@ -35146,7 +35146,7 @@ import {
     addInstrumental,
     uploadAndCover,
     uploadAudioFile
-} from "@/services/sunoService";
+} from "@/services/music/sunoService";
 
 /**
  * Music generation state for Suno API integration.
@@ -36714,10 +36714,10 @@ export default useTimelineSelection;
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ContentPlan, NarrationSegment } from "@/types";
-import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/narratorService";
-import { syncDurationsToNarration } from "@/services/editorService";
+import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/media/narratorService";
+import { syncDurationsToNarration } from "@/services/content/editorService";
 import { VideoPurpose } from "@/constants";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoNarrationState {
     narrationSegments: NarrationSegment[];
@@ -36971,7 +36971,7 @@ export function useVideoNarration(
 
 import { useState, useCallback } from "react";
 import { AppState, ContentPlan, Scene, ValidationResult } from "@/types";
-import { ProductionProgress, ProductionConfig } from "@/services/agentOrchestrator";
+import { ProductionProgress, ProductionConfig } from "@/services/orchestration/agentOrchestrator";
 import { VideoPurpose, LanguageCode } from "@/constants";
 
 export interface VideoProductionCoreState {
@@ -37091,14 +37091,14 @@ import {
     runProductionPipeline,
     ProductionConfig,
     stageToAppState
-} from "@/services/agentOrchestrator";
+} from "@/services/orchestration/agentOrchestrator";
 import {
     runProductionAgent,
     runProductionAgentWithSubagents,
     ProductionProgress as AgentProgress,
 } from "@/services/ai/productionAgent";
-import { generateContentPlan, ContentPlannerConfig } from "@/services/contentPlannerService";
-import { NarratorConfig, createAudioUrl } from "@/services/narratorService";
+import { generateContentPlan, ContentPlannerConfig } from "@/services/content/contentPlannerService";
+import { NarratorConfig, createAudioUrl } from "@/services/media/narratorService";
 
 // Import focused hooks
 import { useVideoProductionCore } from "./useVideoProductionCore";
@@ -37533,7 +37533,7 @@ import {
     lintPrompt,
     refineImagePrompt,
     type PromptLintIssue
-} from "@/services/promptService";
+} from "@/services/content/promptService";
 
 export function useVideoPromptTools(
     contentPlan: ContentPlan | null,
@@ -37585,7 +37585,7 @@ export function useVideoPromptTools(
 
 import { useState, useCallback } from "react";
 import { ContentPlan, NarrationSegment, ValidationResult } from "@/types";
-import { VideoSFXPlan } from "@/services/sfxService";
+import { VideoSFXPlan } from "@/services/music/sfxService";
 import { VideoPurpose } from "@/constants";
 import {
     generateQualityReport,
@@ -37595,9 +37595,9 @@ import {
     getQualitySummary,
     exportReportAsJson,
     ProductionQualityReport
-} from "@/services/qualityMonitorService";
-import { validateContentPlan } from "@/services/editorService";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+} from "@/services/project/qualityMonitorService";
+import { validateContentPlan } from "@/services/content/editorService";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoQualityState {
     qualityReport: ProductionQualityReport | null;
@@ -37736,20 +37736,20 @@ export function useVideoQuality(
 
 import { useState, useCallback } from "react";
 import { ContentPlan, NarrationSegment } from "@/types";
-import { VideoSFXPlan } from "@/services/sfxService";
+import { VideoSFXPlan } from "@/services/music/sfxService";
 import {
     searchAmbientSound,
     getPreviewUrl,
     isFreesoundConfigured,
     AMBIENT_SEARCH_QUERIES,
     type FreesoundSound
-} from "@/services/freesoundService";
+} from "@/services/music/freesoundService";
 import {
     mixAudioWithSFX,
     canMixSFX,
     type MixConfig
-} from "@/services/audioMixerService";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+} from "@/services/audio-processing/audioMixerService";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoSFXState {
     sfxPlan: VideoSFXPlan | null;
@@ -37834,7 +37834,7 @@ export function useVideoSFX(
 
         try {
             // Merge narration blobs first
-            const { mergeConsecutiveAudioBlobs } = await import("@/services/audioMixerService");
+            const { mergeConsecutiveAudioBlobs } = await import("@/services/audio-processing/audioMixerService");
             const mergedNarration = await mergeConsecutiveAudioBlobs(orderedBlobs);
             const narrationUrl = URL.createObjectURL(mergedNarration);
 
@@ -40063,7 +40063,7 @@ import App from './App';
 
 // Expose test functions only in development
 if (import.meta.env.DEV) {
-  import('@/services/freesoundService').then(({ testFreesoundAPI }) => {
+  import('@/services/music/freesoundService').then(({ testFreesoundAPI }) => {
     if (typeof window !== "undefined") {
       (window as any).testFreesoundAPI = testFreesoundAPI;
     }
@@ -41322,7 +41322,7 @@ import {
   createProject,
   type Project,
   type ProjectType,
-} from '@/services/projectService';
+} from '@/services/project/projectService';
 import { useAuth } from '@/hooks/useAuth';
 
 type SortField = 'updatedAt' | 'createdAt' | 'title';
@@ -41936,7 +41936,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
 
 // Import API status checkers
-import { isDeApiConfigured, getImg2VideoWaitTime, getImg2VideoQueueLength } from '@/services/deapiService';
+import { isDeApiConfigured, getImg2VideoWaitTime, getImg2VideoQueueLength } from '@/services/media/deapiService';
 
 // ============================================================
 // Types
@@ -42950,7 +42950,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { useVideoProductionRefactored } from '@/hooks/useVideoProductionRefactored';
 import { useModalState } from '@/hooks/useModalState';
 import { AppState } from '@/types';
-import { getEffectiveLegacyTone } from '@/services/tripletUtils';
+import { getEffectiveLegacyTone } from '@/services/content/tripletUtils';
 
 // Layout & UI Components
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
@@ -44421,7 +44421,7 @@ import { QuickExport } from '@/components/QuickExport';
 import { ErrorState } from '@/components/ui/ErrorState';
 
 // Services
-import { animateImageWithDeApi, animateImageBatch } from '@/services/deapiService';
+import { animateImageWithDeApi, animateImageBatch } from '@/services/media/deapiService';
 
 export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();

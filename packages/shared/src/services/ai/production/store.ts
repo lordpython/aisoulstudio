@@ -9,8 +9,8 @@
  */
 
 import { ProductionState, StoryModeState, createInitialState } from "./types";
-import { agentLogger } from "../../logger";
-import { cloudAutosave } from "../../cloudStorageService";
+import { agentLogger } from "../../infrastructure/logger";
+import { cloudAutosave } from "../../cloud/cloudStorageService";
 import {
     saveProductionSession,
     loadProductionSession,

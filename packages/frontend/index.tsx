@@ -5,7 +5,7 @@ import App from './App';
 
 // Expose test functions only in development
 if (import.meta.env.DEV) {
-  import('@/services/freesoundService').then(({ testFreesoundAPI }) => {
+  import('@/services/music/freesoundService').then(({ testFreesoundAPI }) => {
     if (typeof window !== "undefined") {
       (window as any).testFreesoundAPI = testFreesoundAPI;
     }

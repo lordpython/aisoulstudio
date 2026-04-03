@@ -15,13 +15,13 @@
  */
 
 import type { FormatMetadata, VideoFormat } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../formatRouter';
-import { formatRegistry } from '../formatRegistry';
+import type { FormatPipeline, PipelineRequest, PipelineResult } from '../format/formatRouter';
+import { formatRegistry } from '../format/formatRegistry';
 import { runStoryPipeline, type StoryPipelineOptions, type StoryPipelineResult } from '../ai/storyPipeline';
-import { CheckpointSystem } from '../checkpointSystem';
-import { detectLanguage } from '../languageDetector';
+import { CheckpointSystem } from '../project/checkpointSystem';
+import { detectLanguage } from '../content/languageDetector';
 import { storyModeStore } from '../ai/production/store';
-import { agentLogger } from '../logger';
+import { agentLogger } from '../infrastructure/logger';
 
 const FORMAT_ID: VideoFormat = 'movie-animation';
 const log = agentLogger.child('MovieAnimationPipeline');

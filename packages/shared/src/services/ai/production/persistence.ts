@@ -12,7 +12,7 @@
 
 import { openDB, type IDBPDatabase } from 'idb';
 import { ProductionState, StoryModeState, createInitialState } from './types';
-import { agentLogger } from '../../logger';
+import { agentLogger } from '../../infrastructure/logger';
 
 const log = agentLogger.child('Persistence');
 

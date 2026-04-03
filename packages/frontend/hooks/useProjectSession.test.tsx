@@ -21,7 +21,7 @@ vi.mock('@/stores', () => ({
     }),
 }));
 
-vi.mock('@/services/projectService', () => ({
+vi.mock('@/services/project/projectService', () => ({
   getProject: mocks.getProject,
   updateProject: mocks.updateProject,
   markProjectAccessed: mocks.markProjectAccessed,
@@ -33,7 +33,7 @@ vi.mock('@/services/ai/production/store', () => ({
   flushPendingPersistence: mocks.flushPendingPersistence,
 }));
 
-vi.mock('@/services/cloudStorageService', () => ({
+vi.mock('@/services/cloud/cloudStorageService', () => ({
   cloudAutosave: {
     initSession: mocks.initSession,
   },

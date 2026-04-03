@@ -29,7 +29,7 @@ import {
   getTemplateCategories,
   applyTemplate,
   type ProjectTemplate,
-} from '@/services/projectTemplatesService';
+} from '@/services/project/projectTemplatesService';
 
 interface TemplatesGalleryProps {
   onApplyTemplate: (state: Partial<StoryState>) => void;

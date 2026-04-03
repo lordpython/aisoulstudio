@@ -15,7 +15,7 @@
 import { StructuredTool } from "@langchain/core/tools";
 import { ToolError } from "../../agent/errorRecovery";
 import { ProductionProgress } from "../production";
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('Subagent');
 

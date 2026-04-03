@@ -5,6 +5,7 @@
  * and handles click-to-seek on empty areas.
  */
 
+import { memo } from 'react';
 import type { EditorTrack, EditorClip } from './types/video-editor-types';
 import { TextClip } from './clips/TextClip';
 import { VideoTrackClip } from './clips/VideoTrackClip';
@@ -23,7 +24,7 @@ interface TrackRowProps {
   onResizeStart?: (clipId: string, edge: 'left' | 'right', e: React.PointerEvent) => void;
 }
 
-export function TrackRow({
+export const TrackRow = memo(function TrackRow({
   track,
   clips,
   zoom,
@@ -63,4 +64,4 @@ export function TrackRow({
       {clips.map(renderClip)}
     </div>
   );
-}
+});

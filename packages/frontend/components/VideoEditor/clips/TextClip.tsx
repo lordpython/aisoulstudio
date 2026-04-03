@@ -2,6 +2,7 @@
  * TextClip — Blue text clip renderer for the timeline.
  */
 
+import { memo } from 'react';
 import { Type } from 'lucide-react';
 import type { EditorClip } from '../types/video-editor-types';
 import '../video-editor.css';
@@ -14,7 +15,7 @@ interface TextClipProps {
   onResizeStart?: (clipId: string, edge: 'left' | 'right', e: React.PointerEvent) => void;
 }
 
-export function TextClip({ clip, zoom, isSelected, onSelect, onResizeStart }: TextClipProps) {
+export const TextClip = memo(function TextClip({ clip, zoom, isSelected, onSelect, onResizeStart }: TextClipProps) {
   const left = clip.startTime * zoom;
   const width = Math.max(clip.duration * zoom, 20);
 
@@ -45,4 +46,4 @@ export function TextClip({ clip, zoom, isSelected, onSelect, onResizeStart }: Te
       <span className="ve-clip-name">{clip.text ?? clip.name}</span>
     </div>
   );
-}
+});

@@ -9,9 +9,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MovieAnimationPipeline } from './movieAnimation';
-import { formatRegistry } from '../formatRegistry';
+import { formatRegistry } from '../format/formatRegistry';
 import { storyModeStore } from '../ai/production/store';
-import type { PipelineRequest } from '../formatRouter';
+import type { PipelineRequest } from '../format/formatRouter';
 import type { StoryModeState } from '../ai/production/types';
 
 // ============================================================================

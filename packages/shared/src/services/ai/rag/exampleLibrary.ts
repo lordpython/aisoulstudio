@@ -5,7 +5,7 @@
  * Uses simple keyword matching for finding similar examples.
  */
 
-import { agentLogger } from "../../logger";
+import { agentLogger } from "../../infrastructure/logger";
 
 const log = agentLogger.child('ExampleLibrary');
 

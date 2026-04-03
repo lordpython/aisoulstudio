@@ -9,8 +9,8 @@
  */
 
 import type { EmotionalTone, ScreenplayScene, NarrationSegment, BeatMetadata } from '../../types';
-import type { PipelineResult } from '../formatRouter';
-import { ParallelExecutionEngine } from '../parallelExecutionEngine';
+import type { PipelineResult } from '../format/formatRouter';
+import { ParallelExecutionEngine } from '../orchestration/parallelExecutionEngine';
 import {
   buildAssemblyRules,
   generateBeatMetadata,

@@ -85,8 +85,16 @@ export default defineConfig(({ mode }) => {
     define: {
       "process.env.GOOGLE_CLOUD_PROJECT": JSON.stringify(vertexProject),
       "process.env.GOOGLE_CLOUD_LOCATION": JSON.stringify(vertexLocation),
-      // Restore API keys for client-side LangChain agents that cannot easily use the proxy.
-      // TODO: Refactor agents to run on server-side to remove this security risk.
+      // SECURITY WARNING: API keys exposed client-side in development mode.
+      // This is required because LangChain agents in shared/src/services/agent/ run client-side.
+      // 
+      // TODO: Refactor to eliminate this security risk:
+      //   1. Move agent logic (agentCore.ts, importTools.ts, enhancementTools.ts) to server
+      //   2. Create /api/agent/* endpoints for agent operations
+      //   3. Update frontend to call server endpoints instead of running agents directly
+      //   4. Remove these client-side key definitions
+      //
+      // Note: Production builds do NOT expose these keys (mode !== "development" guard).
       ...(mode === "development" && {
         "process.env.VITE_GEMINI_API_KEY": JSON.stringify(
           allEnv.VITE_GEMINI_API_KEY || viteEnv.VITE_GEMINI_API_KEY || "",

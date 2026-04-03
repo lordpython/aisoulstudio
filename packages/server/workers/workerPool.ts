@@ -8,7 +8,7 @@
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { RenderJob, WorkerMessage, MainMessage } from '../types/renderJob.js';
 
 const log = createLogger('WorkerPool');

@@ -7,20 +7,20 @@
 
 import { useState, useCallback } from "react";
 import { ContentPlan, NarrationSegment } from "@/types";
-import { VideoSFXPlan } from "@/services/sfxService";
+import { VideoSFXPlan } from "@/services/music/sfxService";
 import {
     searchAmbientSound,
     getPreviewUrl,
     isFreesoundConfigured,
     AMBIENT_SEARCH_QUERIES,
     type FreesoundSound
-} from "@/services/freesoundService";
+} from "@/services/music/freesoundService";
 import {
     mixAudioWithSFX,
     canMixSFX,
     type MixConfig
-} from "@/services/audioMixerService";
-import { ProductionProgress } from "@/services/agentOrchestrator";
+} from "@/services/audio-processing/audioMixerService";
+import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
 
 export interface VideoSFXState {
     sfxPlan: VideoSFXPlan | null;
@@ -105,7 +105,7 @@ export function useVideoSFX(
 
         try {
             // Merge narration blobs first
-            const { mergeConsecutiveAudioBlobs } = await import("@/services/audioMixerService");
+            const { mergeConsecutiveAudioBlobs } = await import("@/services/audio-processing/audioMixerService");
             const mergedNarration = await mergeConsecutiveAudioBlobs(orderedBlobs);
             const narrationUrl = URL.createObjectURL(mergedNarration);
 

@@ -23,7 +23,7 @@ vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
   ai: {},
 }));
 
-vi.mock('../../packages/shared/src/services/logger', () => ({
+vi.mock('../../packages/shared/src/services/infrastructure/logger', () => ({
   agentLogger: {
     child: () => ({
       info: vi.fn(),
@@ -38,11 +38,11 @@ vi.mock('../../packages/shared/src/services/ai/production/store', () => ({
   storyModeStore: new Map(),
 }));
 
-vi.mock('../../packages/shared/src/services/textSanitizer', () => ({
+vi.mock('../../packages/shared/src/services/audio-processing/textSanitizer', () => ({
   cleanForTTS: vi.fn((text: string) => text),
 }));
 
-vi.mock('../../packages/shared/src/services/languageDetector', () => ({
+vi.mock('../../packages/shared/src/services/content/languageDetector', () => ({
   detectLanguage: vi.fn().mockReturnValue('en'),
 }));
 
@@ -60,7 +60,7 @@ vi.mock('../../packages/shared/src/services/prompt/templateLoader', () => ({
 }));
 
 // Mock formatRegistry to return a controlled format
-vi.mock('../../packages/shared/src/services/formatRegistry', () => ({
+vi.mock('../../packages/shared/src/services/format/formatRegistry', () => ({
   formatRegistry: {
     getFormat: vi.fn((_id: string) => ({
       id: 'movie-animation',
@@ -85,13 +85,13 @@ vi.mock('@langchain/google-genai', () => ({
 }));
 
 // Mock other heavy deps so the module loads cleanly
-vi.mock('../../packages/shared/src/services/imageService', () => ({
+vi.mock('../../packages/shared/src/services/media/imageService', () => ({
   generateImageFromPrompt: vi.fn(),
 }));
 vi.mock('../../packages/shared/src/services/prompt/imageStyleGuide', () => ({
   buildImageStyleGuide: vi.fn(() => 'style-guide'),
 }));
-vi.mock('../../packages/shared/src/services/cloudStorageService', () => ({
+vi.mock('../../packages/shared/src/services/cloud/cloudStorageService', () => ({
   cloudAutosave: vi.fn(),
 }));
 vi.mock('../../packages/shared/src/services/parallelExecutionEngine', () => ({

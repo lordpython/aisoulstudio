@@ -9,8 +9,8 @@
 
 import { useState, useCallback } from "react";
 import { AppState, ContentPlan, Scene, ValidationResult } from "@/types";
-import { ProductionConfig, ProductionProgress } from "@/services/agentOrchestrator";
-import { generateContentPlan, ContentPlannerConfig } from "@/services/contentPlannerService";
+import { ProductionConfig, ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+import { generateContentPlan, ContentPlannerConfig } from "@/services/content/contentPlannerService";
 import { initializeProductionSession } from "@/services/ai/production/store";
 import { VideoPurpose, LanguageCode } from "@/constants";
 import {
@@ -19,7 +19,7 @@ import {
     startProductionRun,
     subscribeToProductionRun,
     type ProductionEvent,
-} from "@/services/productionApi";
+} from "@/services/orchestration/productionApi";
 
 // Import focused hooks
 import { useVideoNarration } from "./useVideoNarration";

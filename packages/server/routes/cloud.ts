@@ -1,5 +1,5 @@
 import { Router, Response, Request } from 'express';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import multer from 'multer';
 import path from 'path';
 import type { Storage } from '@google-cloud/storage';

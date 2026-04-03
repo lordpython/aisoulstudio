@@ -4,7 +4,7 @@ import './env.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import os from 'os';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { ensureTempDir, ensureJobsDir, TEMP_DIR } from './utils/index.js';
 
 // Import modular routes

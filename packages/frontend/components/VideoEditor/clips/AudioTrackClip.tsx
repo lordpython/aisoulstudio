@@ -2,8 +2,8 @@
  * AudioTrackClip — Orange audio clip with waveform visualization.
  */
 
+import { memo, useMemo } from 'react';
 import { Music } from 'lucide-react';
-import { useMemo } from 'react';
 import type { EditorClip } from '../types/video-editor-types';
 import { TRACK_COLORS } from '../types/video-editor-types';
 import '../video-editor.css';
@@ -33,7 +33,7 @@ function generateWaveform(clipId: string, barCount: number): number[] {
   return bars;
 }
 
-export function AudioTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart }: AudioTrackClipProps) {
+export const AudioTrackClip = memo(function AudioTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart }: AudioTrackClipProps) {
   const left = clip.startTime * zoom;
   const width = Math.max(clip.duration * zoom, 20);
   const barCount = Math.max(8, Math.floor(width / 4));
@@ -82,4 +82,4 @@ export function AudioTrackClip({ clip, zoom, isSelected, onSelect, onResizeStart
       </div>
     </div>
   );
-}
+});

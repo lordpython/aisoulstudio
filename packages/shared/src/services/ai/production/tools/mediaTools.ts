@@ -5,19 +5,19 @@
  */
 
 import { tool } from "@langchain/core/tools";
-import { agentLogger } from "../../../logger";
+import { agentLogger } from "../../../infrastructure/logger";
 import { GenerateVideoSchema, AnimateImageSchema, GenerateMusicSchema } from "../types";
 import { productionStore } from "../store";
 import { validateContentPlanId } from "../utils";
-import { generateMotionPrompt } from "../../../promptService";
-import { animateImageWithDeApi, isDeApiConfigured } from "../../../deapiService";
+import { generateMotionPrompt } from "../../../content/promptService";
+import { animateImageWithDeApi, isDeApiConfigured } from "../../../media/deapiService";
 import {
     generateMusic as sunoGenerateMusic,
     waitForCompletion as sunoWaitForCompletion,
     isSunoConfigured
-} from "../../../sunoService";
-import { fetchAndCacheAsBlob } from "../../../videoService";
-import { getEffectiveLegacyTone } from "../../../tripletUtils";
+} from "../../../music/sunoService";
+import { fetchAndCacheAsBlob } from "../../../media/videoService";
+import { getEffectiveLegacyTone } from "../../../content/tripletUtils";
 
 const log = agentLogger.child('Production');
 
@@ -47,7 +47,7 @@ export const generateVideoTool = tool(
         }
 
         try {
-            const { generateProfessionalVideo } = await import("../../../videoService");
+            const { generateProfessionalVideo } = await import("../../../media/videoService");
 
             log.info(` Generating professional Veo 3.1 video for scene ${sceneIndex}: ${scene.name}`);
             const videoUrl = await generateProfessionalVideo(
@@ -147,7 +147,7 @@ export const animateImageTool = tool(
 
         const tryVeoFallback = async (): Promise<string> => {
             log.info(` Trying Veo 3.1 with professional prompt for scene ${sceneIndex}`);
-            const { generateProfessionalVideo } = await import("../../../videoService");
+            const { generateProfessionalVideo } = await import("../../../media/videoService");
             return generateProfessionalVideo(
                 scene.visualDescription,
                 "Cinematic",

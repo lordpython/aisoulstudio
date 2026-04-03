@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import type { ProductionBundle } from "../cloudStorageService";
+import type { ProductionBundle } from "../cloud/cloudStorageService";
 
 // Check if we're in Node.js environment
 const isNode = typeof window === 'undefined';

@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { ProductionSessionSnapshot } from '@/services/productionApi';
+import type { ProductionSessionSnapshot } from '@/services/orchestration/productionApi';
 import type { ProductionState } from '@/services/ai/production';
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ vi.mock('@/services/ai/production/store', () => ({
   initializeProductionSession: mocks.initializeProductionSession,
 }));
 
-vi.mock('@/services/productionApi', () => ({
+vi.mock('@/services/orchestration/productionApi', () => ({
   startProductionRun: mocks.startProductionRun,
   getProductionSessionSnapshot: mocks.getProductionSessionSnapshot,
   hydrateProductionSessionSnapshot: mocks.hydrateProductionSessionSnapshot,

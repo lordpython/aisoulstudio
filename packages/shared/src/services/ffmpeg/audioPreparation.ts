@@ -10,7 +10,7 @@
 
 import { SongData } from "../../types";
 import { extractFrequencyData } from "../../utils/audioAnalysis";
-import { mixAudioWithSFX, canMixSFX } from "../audioMixerService";
+import { mixAudioWithSFX, canMixSFX } from "../audio-processing/audioMixerService";
 import { ExportConfig } from "./exportConfig";
 
 const FPS = 24;

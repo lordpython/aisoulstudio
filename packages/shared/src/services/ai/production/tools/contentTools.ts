@@ -5,7 +5,7 @@
  */
 
 import { tool } from "@langchain/core/tools";
-import { agentLogger } from "../../../logger";
+import { agentLogger } from "../../../infrastructure/logger";
 import {
     PlanVideoSchema,
     NarrateScenesSchema,
@@ -25,16 +25,16 @@ import {
     isValidSessionId,
     validateContentPlanId
 } from "../utils";
-import { generateContentPlan, ContentPlannerConfig } from "../../../contentPlannerService";
-import { narrateAllScenes, NarratorConfig } from "../../../narratorService";
-import { generateImageFromPrompt, getCharacterSeed } from "../../../imageService";
-import { generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "../../../sfxService";
-import { validateContentPlan, syncDurationsToNarration } from "../../../editorService";
+import { generateContentPlan, ContentPlannerConfig } from "../../../content/contentPlannerService";
+import { narrateAllScenes, NarratorConfig } from "../../../media/narratorService";
+import { generateImageFromPrompt, getCharacterSeed } from "../../../media/imageService";
+import { generateVideoSFXPlanWithAudio, isSFXAudioAvailable } from "../../../music/sfxService";
+import { validateContentPlan, syncDurationsToNarration } from "../../../content/editorService";
 import {
     extractVisualStyle,
     injectStyleIntoPrompt,
     type VisualStyle
-} from "../../../visualConsistencyService";
+} from "../../../media/visualConsistencyService";
 import {
     fromShotBreakdown,
     serializeStyleGuideAsText,
@@ -43,8 +43,8 @@ import {
 } from "../../../prompt/imageStyleGuide";
 import { type VideoPurpose } from "../../../../constants";
 import { type GeneratedImage, type Scene } from "../../../../types";
-import { cloudAutosave } from "../../../cloudStorageService";
-import { getEffectiveLegacyTone } from "../../../tripletUtils";
+import { cloudAutosave } from "../../../cloud/cloudStorageService";
+import { getEffectiveLegacyTone } from "../../../content/tripletUtils";
 import { type ProductionProgress, createInitialState } from "../types";
 
 const log = agentLogger.child('Production');
@@ -313,7 +313,7 @@ export const generateVisualsTool = tool(
 
                 // --- Veo Scenes: Use Veo 3.1 for first N scenes ---
                 if (effectiveVeoCount > 0) {
-                    const { generateProfessionalVideo } = await import("../../../videoService");
+                    const { generateProfessionalVideo } = await import("../../../media/videoService");
 
                     for (let sceneIdx = 0; sceneIdx < effectiveVeoCount; sceneIdx++) {
                         const scene = state.contentPlan.scenes[sceneIdx];

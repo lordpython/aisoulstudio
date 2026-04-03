@@ -7,7 +7,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { createLogger } from '@studio/shared/src/services/logger.js';
+import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { FrameChecksum } from '../../types/renderJob.js';
 
 const log = createLogger('FrameValidator');

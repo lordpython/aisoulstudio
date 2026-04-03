@@ -7,13 +7,13 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { lintPrompt, getSystemPersona, refineImagePrompt } from "../promptService";
-import { type AnalysisOutput, type StoryboardOutput, runAnalyzer, runStoryboarder } from "../directorService";
-import { JSONExtractor, FallbackProcessor, ExtractionMethod, type StoryboardData, type FallbackNotification } from "../jsonExtractor";
+import { lintPrompt, getSystemPersona, refineImagePrompt } from "../content/promptService";
+import { type AnalysisOutput, type StoryboardOutput, runAnalyzer, runStoryboarder } from "../content/directorService";
+import { JSONExtractor, FallbackProcessor, ExtractionMethod, type StoryboardData, type FallbackNotification } from "../content/jsonExtractor";
 import { VideoPurpose } from "../../constants";
 import { agentDirectorLogger as agentLogger } from "./agentLogger";
 import { agentMetrics } from "./agentMetrics";
-import { needsFormatCorrection, preprocessFormatCorrection } from "../promptFormatService";
+import { needsFormatCorrection, preprocessFormatCorrection } from "../content/promptFormatService";
 
 // Create instances for tool usage
 const jsonExtractor = new JSONExtractor();

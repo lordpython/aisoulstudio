@@ -89,7 +89,7 @@ class ParticleSystem {
   }
 }
 
-export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
+export const TimelinePlayer: React.FC<TimelinePlayerProps> = React.memo(({
   audioUrl,
   subtitles,
   currentTime,
@@ -739,4 +739,4 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
       </div>
     </Card>
   );
-};
+});
