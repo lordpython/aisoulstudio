@@ -9,6 +9,9 @@
 
 import { VideoPurpose } from "../../constants";
 import type { AnalysisOutput } from "./directorService";
+import { contentLogger } from '../infrastructure/logger';
+
+const log = contentLogger.child('AssetCalculator');
 
 /**
  * Input for asset calculation
@@ -39,7 +42,7 @@ export async function calculateOptimalAssets(
         videoPurpose,
     } = input;
 
-    console.log("[AssetCalculator] Calculating optimal assets (Synchronized to Video Gen limit)...");
+    log.info('Calculating optimal assets (Synchronized to Video Gen limit)...');
 
     // --- CRITICAL FIX FOR 4-SECOND LOOPING ---
     // DeAPI/Kling/Luma generate exactly 4.0s or 5.0s clips.
@@ -64,7 +67,7 @@ Generator Limit: ${GENERATOR_MAX_DURATION}s per clip
 Looping Policy: STRICTLY DISABLED
 Calculated Assets: ${optimalAssetCount} (to ensure continuous flow)`;
 
-    console.log(reasoning);
+    log.info(reasoning);
 
     return {
         optimalAssetCount,

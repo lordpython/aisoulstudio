@@ -3,6 +3,7 @@
  */
 
 import { cloudAutosave } from '../../cloud/cloudStorageService';
+import { mediaLogger } from '../../infrastructure/logger';
 import {
   DEAPI_DIRECT_BASE,
   DEFAULT_VIDEO_MODEL,
@@ -15,6 +16,8 @@ import {
 } from './config';
 import { isDeApiConfigured } from './apiConfig';
 import { removeImageBackground } from './styleProcessing';
+
+const log = mediaLogger.child('DeAPI:Video');
 import type {
   Txt2VideoParams,
   DeApiResponse,
@@ -52,7 +55,7 @@ export const generateVideoWithDeApi = async (
     webhook_url,
   } = params;
 
-  console.log(`[DeAPI] Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+  log.info(`Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
 
   const formData = new FormData();
   formData.append("prompt", prompt);
@@ -112,25 +115,25 @@ export const generateVideoWithDeApi = async (
   }
 
   const rawData = await response.json();
-  console.log(`[DeAPI] txt2video raw response:`, JSON.stringify(rawData, null, 2));
+  log.debug('txt2video raw response', rawData);
 
   const data: DeApiResponse = rawData.data || rawData;
 
   let videoUrl: string;
 
   if (data.result_url) {
-    console.log(`[DeAPI] Video ready immediately!`);
+    log.info('Video ready immediately!');
     videoUrl = data.result_url;
   } else if (data.status === "error") {
     throw new Error(data.error || "Video generation failed at provider");
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for txt2video request: ${data.request_id}`);
+    log.info(`Polling for txt2video request: ${data.request_id}`);
     videoUrl = await pollRequest(data.request_id, onProgress);
   } else {
     throw new Error("No request_id or result_url received from DeAPI txt2video");
   }
 
-  console.log(`[DeAPI] Downloading video from: ${videoUrl.substring(0, 80)}...`);
+  log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
   const vidResp = await fetch(videoUrl);
 
   if (!vidResp.ok) {
@@ -138,7 +141,7 @@ export const generateVideoWithDeApi = async (
   }
 
   const vidBlob = await vidResp.blob();
-  console.log(`[DeAPI] Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
+  log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   if (sessionId && sceneIndex !== undefined) {
     cloudAutosave.saveAsset(
@@ -147,7 +150,7 @@ export const generateVideoWithDeApi = async (
       `scene_${sceneIndex}_txt2video.mp4`,
       'video_clips'
     ).catch(err => {
-      console.warn('[DeAPI] Cloud upload failed (non-fatal):', err);
+      log.warn('Cloud upload failed (non-fatal)', err);
     });
   }
 
@@ -193,7 +196,7 @@ export const animateImageWithDeApi = async (
 
   if (!base64Image || (!base64Image.startsWith('data:image/') && !base64Image.startsWith('data:application/octet-stream'))) {
     if (base64Image && /^[A-Za-z0-9+/=]/.test(base64Image) && !base64Image.includes(':')) {
-      console.warn('[DeAPI] Received raw base64 without data URL prefix, adding image/png prefix');
+      log.warn('Received raw base64 without data URL prefix, adding image/png prefix');
       base64Image = `data:image/png;base64,${base64Image}`;
     } else {
       throw new Error(
@@ -205,15 +208,15 @@ export const animateImageWithDeApi = async (
 
   if (options?.removeBackground) {
     try {
-      console.log('[DeAPI] Removing background before animation...');
+      log.info('Removing background before animation...');
       base64Image = await removeImageBackground(base64Image, sessionId, sceneIndex);
-      console.log('[DeAPI] Background removed — proceeding to animate');
+      log.info('Background removed — proceeding to animate');
     } catch (err) {
-      console.warn('[DeAPI] Background removal failed (non-fatal), animating with original:', err);
+      log.warn('Background removal failed (non-fatal), animating with original', err);
     }
   }
 
-  console.log(`[DeAPI] Proceeding with animation...`);
+  log.info('Proceeding with animation...');
 
   const { width, height } = getDeApiDimensions(aspectRatio);
 
@@ -233,7 +236,7 @@ export const animateImageWithDeApi = async (
   const safeWidth = Math.max(width, 512);
   const safeHeight = Math.max(height, 512);
   if (safeWidth !== width || safeHeight !== height) {
-    console.warn(`[DeAPI] Dimension clamp applied: ${width}x${height} → ${safeWidth}x${safeHeight}. Update getDeApiDimensions() to fix at source.`);
+    log.warn(`Dimension clamp applied: ${width}x${height} → ${safeWidth}x${safeHeight}. Update getDeApiDimensions() to fix at source.`);
   }
 
   formData.append("first_frame_image", imageBlob, "frame0.png");
@@ -256,7 +259,7 @@ export const animateImageWithDeApi = async (
     formData.append("webhook_url", options.webhook_url);
   }
 
-  console.log(`[DeAPI] Submitting img2video request: ${safeWidth}x${safeHeight}, prompt: ${prompt.substring(0, 50)}...`);
+  log.info(`Submitting img2video request: ${safeWidth}x${safeHeight}, prompt: ${prompt.substring(0, 50)}...`);
 
   let response: Response;
 
@@ -305,23 +308,23 @@ export const animateImageWithDeApi = async (
   }
 
   const rawData = await response.json();
-  console.log(`[DeAPI] Raw response:`, JSON.stringify(rawData, null, 2));
+  log.debug('Raw response', rawData);
 
   const data: DeApiResponse = rawData.data || rawData;
-  console.log(`[DeAPI] Parsed response:`, data);
+  log.debug('Parsed response', data);
 
   let videoUrl: string;
 
   if (data.result_url) {
-    console.log(`[DeAPI] Video ready immediately! Status: ${data.status || 'unknown'}`);
+    log.info(`Video ready immediately! Status: ${data.status || 'unknown'}`);
     videoUrl = data.result_url;
   } else if (data.status === "error") {
     throw new Error(data.error || "Generation failed at provider");
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for request: ${data.request_id}, status: ${data.status}`);
+    log.info(`Polling for request: ${data.request_id}, status: ${data.status}`);
     videoUrl = await pollRequest(data.request_id, options?.onProgress);
   } else {
-    console.error(`[DeAPI] Unexpected response structure:`, rawData);
+    log.error('Unexpected response structure', rawData);
     throw new Error(
       `No request_id or result_url received from DeAPI.\n\n` +
       `Response structure: ${JSON.stringify(rawData, null, 2)}\n\n` +
@@ -333,7 +336,7 @@ export const animateImageWithDeApi = async (
     );
   }
 
-  console.log(`[DeAPI] Downloading video from: ${videoUrl.substring(0, 80)}...`);
+  log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
   const vidResp = await fetch(videoUrl);
 
   if (!vidResp.ok) {
@@ -341,7 +344,7 @@ export const animateImageWithDeApi = async (
   }
 
   const vidBlob = await vidResp.blob();
-  console.log(`[DeAPI] Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
+  log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   if (sessionId && sceneIndex !== undefined) {
     cloudAutosave.saveAsset(
@@ -350,7 +353,7 @@ export const animateImageWithDeApi = async (
       `scene_${sceneIndex}_deapi.mp4`,
       'video_clips'
     ).catch(err => {
-      console.warn('[DeAPI] Cloud upload failed (non-fatal):', err);
+      log.warn('Cloud upload failed (non-fatal)', err);
     });
   }
 
@@ -373,8 +376,8 @@ export const generateVideoFromText = async (
 
   const { width, height } = getDeApiDimensions(aspectRatio);
 
-  console.log(`[DeAPI] Generating video from text: ${width}x${height}, ${durationFrames} frames`);
-  console.log(`[DeAPI] Prompt: ${prompt.substring(0, 80)}...`);
+  log.info(`Generating video from text: ${width}x${height}, ${durationFrames} frames`);
+  log.debug(`Prompt: ${prompt.substring(0, 80)}...`);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -415,7 +418,7 @@ export const generateVideoFromText = async (
   if (data.result_url) {
     videoUrl = data.result_url;
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for txt2video request: ${data.request_id}`);
+    log.info(`Polling for txt2video request: ${data.request_id}`);
     videoUrl = await pollRequest(data.request_id);
   } else {
     throw new Error("No request_id or result_url received from DeAPI txt2video");
@@ -427,7 +430,7 @@ export const generateVideoFromText = async (
   }
 
   const vidBlob = await vidResp.blob();
-  console.log(`[DeAPI] Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
+  log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -474,13 +477,13 @@ export const animateImageBatch = async (
   let completed = 0;
   const totalBatches = Math.ceil(sortedItems.length / effectiveConcurrency);
 
-  console.log(`[DeAPI Batch] Starting video batch: ${sortedItems.length} items, concurrency: ${effectiveConcurrency}`);
+  log.info(`Batch starting: ${sortedItems.length} items, concurrency: ${effectiveConcurrency}`);
 
   const processItem = async (item: typeof items[0]): Promise<BatchGenerationResult> => {
     await semaphore.acquire();
 
     try {
-      console.log(`[DeAPI Batch] Animating item ${item.id}...`);
+      log.info(`Batch animating item ${item.id}...`);
 
       const videoUrl = await animateImageWithDeApi(
         item.imageUrl,
@@ -494,7 +497,7 @@ export const animateImageBatch = async (
       return { id: item.id, success: true, imageUrl: videoUrl };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[DeAPI Batch] Failed to animate item ${item.id}:`, errorMessage);
+      log.error(`Batch failed to animate item ${item.id}: ${errorMessage}`);
       return { id: item.id, success: false, error: errorMessage };
     } finally {
       semaphore.release();
@@ -518,7 +521,7 @@ export const animateImageBatch = async (
   const orderedResults = sortedItems.map(item => resultMap.get(item.id)!);
 
   const successCount = orderedResults.filter(r => r.success).length;
-  console.log(`[DeAPI Batch] Video batch complete: ${successCount}/${items.length} successful`);
+  log.info(`Batch complete: ${successCount}/${items.length} successful`);
 
   return orderedResults;
 };

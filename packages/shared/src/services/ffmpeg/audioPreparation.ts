@@ -12,8 +12,11 @@ import { SongData } from "../../types";
 import { extractFrequencyData } from "../../utils/audioAnalysis";
 import { mixAudioWithSFX, canMixSFX } from "../audio-processing/audioMixerService";
 import { ExportConfig } from "./exportConfig";
+import { ffmpegLogger } from '../infrastructure/logger';
 
-const FPS = 24;
+const log = ffmpegLogger.child('AudioPrep');
+
+const FPS = 30;
 
 export interface PreparedAudio {
     audioBlob: Blob;
@@ -51,7 +54,7 @@ export async function prepareAudio(
 
     if (shouldMixSFX) {
         onProgress?.("Mixing audio with SFX...");
-        console.log("[AudioPrep] Mixing narration with SFX...");
+        log.info('Mixing narration with SFX...');
         try {
             audioBlob = await mixAudioWithSFX({
                 narrationUrl: songData.audioUrl,
@@ -60,9 +63,9 @@ export async function prepareAudio(
                 sfxMasterVolume: config.sfxMasterVolume,
                 musicMasterVolume: config.musicMasterVolume,
             });
-            console.log(`[AudioPrep] Mixed audio: ${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`);
+            log.info(`Mixed audio: ${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`);
         } catch (err) {
-            console.warn("[AudioPrep] SFX mixing failed, falling back to original audio:", err);
+            log.warn('SFX mixing failed, falling back to original audio', err);
             audioBlob = await fetchAudioBlob(songData.audioUrl);
         }
     } else {

@@ -14,6 +14,9 @@ import { buildImageStyleGuide, serializeStyleGuideAsText } from '../prompt/image
 import { z } from "zod";
 import type { CharacterProfile } from "@/types";
 import { withAILogging } from '../infrastructure/aiLogService';
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('Character');
 
 // Schema for structured character extraction
 const CharacterExtractionSchema = z.object({
@@ -64,7 +67,7 @@ ${scriptText}`;
             visualDescription: c.visualDescription,
         }));
     } catch (error) {
-        console.error("[CharacterService] Failed to extract characters:", error);
+        log.error('Failed to extract characters', error);
         throw new Error(`Character extraction failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
@@ -102,7 +105,7 @@ export async function generateCharacterReference(
     const negativePrompt = guide.avoid.map(item => `no ${item}`).join(", ");
 
     const seed = getCharacterSeed(charName);
-    console.log(`[CharacterService] Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed}, style=${style})`);
+    log.info(`Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed}, style=${style})`);
 
     return generateImageWithDeApi({
         prompt,
@@ -185,7 +188,7 @@ export async function generateAllCharacterReferences(
         const char = characters[i];
         if (!char) continue;
 
-        console.log(`[CharacterService] Generating reference ${i + 1}/${characters.length}: ${char.name}`);
+        log.info(`Generating reference ${i + 1}/${characters.length}: ${char.name}`);
 
         try {
             const referenceUrl = await generateCharacterReference(
@@ -200,7 +203,7 @@ export async function generateAllCharacterReferences(
                 referenceImageUrl: referenceUrl,
             });
         } catch (error) {
-            console.error(`[CharacterService] Failed to generate reference for ${char.name}:`, error);
+            log.error(`Failed to generate reference for ${char.name}`, error);
             // Keep the character but without reference image
             results.push(char);
         }

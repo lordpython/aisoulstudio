@@ -5,12 +5,19 @@
  */
 
 import React, { useCallback, useRef } from 'react';
-import { Music, Sparkles, Loader2, CheckCircle2, X, Wand2 } from 'lucide-react';
+import { Music, Sparkles, Loader2, CheckCircle2, X, Wand2, Film, Image, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
-import { ART_STYLES } from '@/constants';
+import { ART_STYLES, VIDEO_PURPOSES, type VideoPurpose } from '@/constants';
 import { AppState } from '@/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 
@@ -35,6 +42,26 @@ export interface AudioUploadFormProps {
   globalSubject?: string;
   /** Callback when global subject changes */
   onGlobalSubjectChange?: (subject: string) => void;
+  /** Content type: music/lyrics or story/narrative */
+  contentType?: 'music' | 'story';
+  /** Callback when content type changes */
+  onContentTypeChange?: (type: 'music' | 'story') => void;
+  /** Video purpose affects prompt generation style */
+  videoPurpose?: VideoPurpose;
+  /** Callback when video purpose changes */
+  onVideoPurposeChange?: (purpose: VideoPurpose) => void;
+  /** Aspect ratio for output */
+  aspectRatio?: '16:9' | '9:16';
+  /** Callback when aspect ratio changes */
+  onAspectRatioChange?: (ratio: '16:9' | '9:16') => void;
+  /** Generation mode: image or video */
+  generationMode?: 'image' | 'video';
+  /** Callback when generation mode changes */
+  onGenerationModeChange?: (mode: 'image' | 'video') => void;
+  /** Video provider when generationMode is video */
+  videoProvider?: 'veo' | 'deapi';
+  /** Callback when video provider changes */
+  onVideoProviderChange?: (provider: 'veo' | 'deapi') => void;
   /** Current app state for processing status */
   appState: AppState;
   /** Error message to display */
@@ -59,6 +86,16 @@ export function AudioUploadForm({
   onDirectorModeChange,
   globalSubject = '',
   onGlobalSubjectChange,
+  contentType = 'music',
+  onContentTypeChange,
+  videoPurpose = 'music_video',
+  onVideoPurposeChange,
+  aspectRatio = '16:9',
+  onAspectRatioChange,
+  generationMode = 'image',
+  onGenerationModeChange,
+  videoProvider = 'veo',
+  onVideoProviderChange,
   appState,
   errorMsg,
   onStartProcessing,
@@ -211,6 +248,202 @@ export function AudioUploadForm({
             ))}
           </div>
         </div>
+
+        {/* Content Type Selection */}
+        {onContentTypeChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              Content Type
+            </label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Content type selection">
+              <button
+                role="radio"
+                aria-checked={contentType === 'music'}
+                onClick={() => onContentTypeChange('music')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  contentType === 'music'
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">Music / Lyrics</span>
+                  <span className="text-xs text-white/50">Song with subtitles</span>
+                </div>
+              </button>
+              <button
+                role="radio"
+                aria-checked={contentType === 'story'}
+                onClick={() => onContentTypeChange('story')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  contentType === 'story'
+                    ? 'bg-amber-500/20 border-2 border-amber-500 text-amber-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">Story / Narrative</span>
+                  <span className="text-xs text-white/50">Spoken word content</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Video Purpose Selection */}
+        {onVideoPurposeChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              <Film className="w-4 h-4 inline mr-2" aria-hidden="true" />
+              Video Purpose
+            </label>
+            <Select value={videoPurpose} onValueChange={onVideoPurposeChange}>
+              <SelectTrigger className="h-10 bg-white/5 border-white/10 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-white/10">
+                {VIDEO_PURPOSES.map((purpose) => (
+                  <SelectItem key={purpose.value} value={purpose.value}>
+                    {purpose.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Generation Mode Selection */}
+        {onGenerationModeChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              Output Type
+            </label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Generation mode selection">
+              <button
+                role="radio"
+                aria-checked={generationMode === 'image'}
+                onClick={() => onGenerationModeChange('image')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  generationMode === 'image'
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold flex items-center gap-2">
+                    <Image className="w-4 h-4" aria-hidden="true" />
+                    Images
+                  </span>
+                  <span className="text-xs text-white/50">Static visual scenes</span>
+                </div>
+              </button>
+              <button
+                role="radio"
+                aria-checked={generationMode === 'video'}
+                onClick={() => onGenerationModeChange('video')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  generationMode === 'video'
+                    ? 'bg-purple-500/20 border-2 border-purple-500 text-purple-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold flex items-center gap-2">
+                    <Video className="w-4 h-4" aria-hidden="true" />
+                    Videos
+                  </span>
+                  <span className="text-xs text-white/50">Animated clips</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Video Provider Selection (only when generationMode is video) */}
+        {onVideoProviderChange && generationMode === 'video' && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              Video Provider
+            </label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Video provider selection">
+              <button
+                role="radio"
+                aria-checked={videoProvider === 'veo'}
+                onClick={() => onVideoProviderChange('veo')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  videoProvider === 'veo'
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">Google VEO</span>
+                  <span className="text-xs text-white/50">High quality (default)</span>
+                </div>
+              </button>
+              <button
+                role="radio"
+                aria-checked={videoProvider === 'deapi'}
+                onClick={() => onVideoProviderChange('deapi')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-start',
+                  videoProvider === 'deapi'
+                    ? 'bg-purple-500/20 border-2 border-purple-500 text-purple-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-semibold">DeAPI</span>
+                  <span className="text-xs text-white/50">Image-to-video</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Aspect Ratio Selection */}
+        {onAspectRatioChange && (
+          <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+            <label className="block text-sm font-medium text-white/80 mb-3">
+              Aspect Ratio
+            </label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Aspect ratio selection">
+              <button
+                role="radio"
+                aria-checked={aspectRatio === '16:9'}
+                onClick={() => onAspectRatioChange('16:9')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all',
+                  aspectRatio === '16:9'
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <span className="font-semibold">16:9</span>
+                <span className="text-xs text-white/50 ml-2">Landscape</span>
+              </button>
+              <button
+                role="radio"
+                aria-checked={aspectRatio === '9:16'}
+                onClick={() => onAspectRatioChange('9:16')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all',
+                  aspectRatio === '9:16'
+                    ? 'bg-purple-500/20 border-2 border-purple-500 text-purple-300'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'
+                )}
+              >
+                <span className="font-semibold">9:16</span>
+                <span className="text-xs text-white/50 ml-2">Portrait</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Image Provider Selection */}
         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">

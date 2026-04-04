@@ -30,7 +30,7 @@ export function useLyricLens() {
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [contentType, setContentType] = useState<"music" | "story">("music");
   const [globalSubject, setGlobalSubject] = useState("");
-  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
   const [videoPurpose, setVideoPurpose] = useState<VideoPurpose>("music_video");
   const [generationMode, setGenerationMode] = useState<"image" | "video">(
     "image",

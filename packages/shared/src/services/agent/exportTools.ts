@@ -8,7 +8,10 @@
  */
 
 import { tool } from "@langchain/core/tools";
+import { exportLogger } from '../infrastructure/logger';
 import { ExportFinalVideoSchema, ValidateExportSchema, ListExportPresetsSchema } from "./schemas/exportSchemas";
+
+const log = exportLogger.child('ExportTools');
 import { ServiceError, ResourceNotFoundError, ValidationError } from "./errors";
 import {
   exportVideoWithFFmpeg,
@@ -254,12 +257,12 @@ export const exportFinalVideoTool = tool(
         finalAspectRatio = presetData.aspectRatio === "4:5" ? "1:1" : presetData.aspectRatio; // 4:5 not supported, fallback to 1:1
         finalQuality = presetData.quality;
         presetConfig = presetData.config;
-        console.log(`[ExportTools] Using preset: ${preset} (${presetData.name})`);
+        log.info(`Using preset: ${preset} (${presetData.name})`);
       }
     }
 
-    console.log(`[ExportTools] Exporting video for session: ${contentPlanId}`);
-    console.log(`[ExportTools] Format: ${finalFormat}, Aspect: ${finalAspectRatio}, Quality: ${finalQuality}${preset ? `, Preset: ${preset}` : ""}`);
+    log.info(`Exporting video for session: ${contentPlanId}`);
+    log.debug(`Format: ${finalFormat}, Aspect: ${finalAspectRatio}, Quality: ${finalQuality}${preset ? `, Preset: ${preset}` : ""}`);
 
     // Get session state for auto-fetching missing data
     const state = productionStore.get(contentPlanId);
@@ -291,7 +294,7 @@ export const exportFinalVideoTool = tool(
           duration: scenes[index]?.duration,
         };
       });
-      console.log(`[ExportTools] Auto-fetched ${finalVisuals.length} visuals from session`);
+      log.info(`Auto-fetched ${finalVisuals.length} visuals from session`);
     }
 
     // Auto-fetch narration URL from session if not provided
@@ -303,10 +306,10 @@ export const exportFinalVideoTool = tool(
 
       // Concatenate all narration segments into a single audio blob
       try {
-        console.log(`[ExportTools] Concatenating ${state.narrationSegments.length} narration segments`);
+        log.info(`Concatenating ${state.narrationSegments.length} narration segments`);
         const concatenatedBlob = await concatenateNarrationSegments(state.narrationSegments);
         finalNarrationUrl = URL.createObjectURL(concatenatedBlob);
-        console.log(`[ExportTools] Auto-fetched narration URL from concatenated audio (${Math.round(concatenatedBlob.size / 1024)}KB)`);
+        log.info(`Auto-fetched narration URL from concatenated audio (${Math.round(concatenatedBlob.size / 1024)}KB)`);
       } catch (error) {
         return JSON.stringify({
           success: false,
@@ -320,7 +323,7 @@ export const exportFinalVideoTool = tool(
     let finalDuration = totalDuration;
     if (!finalDuration && state.contentPlan) {
       finalDuration = state.contentPlan.totalDuration;
-      console.log(`[ExportTools] Auto-fetched duration from content plan: ${finalDuration}s`);
+      log.info(`Auto-fetched duration from content plan: ${finalDuration}s`);
     }
 
     if (!finalDuration) {
@@ -331,17 +334,17 @@ export const exportFinalVideoTool = tool(
     let finalSfxPlan = sfxPlan;
     if (!finalSfxPlan && state.sfxPlan) {
       finalSfxPlan = state.sfxPlan;
-      console.log(`[ExportTools] Auto-fetched SFX plan from session`);
+      log.debug('Auto-fetched SFX plan from session');
     }
 
-    console.log(`[ExportTools] Visuals: ${finalVisuals.length}, Duration: ${finalDuration}s`);
+    log.info(`Visuals: ${finalVisuals.length}, Duration: ${finalDuration}s`);
 
     // Get subtitles if requested
     let subtitles: SubtitleResult | undefined;
     if (includeSubtitles) {
       subtitles = getSubtitles(contentPlanId);
       if (!subtitles) {
-        console.log(`[ExportTools] No subtitles found for session, continuing without`);
+        log.info('No subtitles found for session, continuing without');
       }
     }
 
@@ -352,18 +355,18 @@ export const exportFinalVideoTool = tool(
       mixedAudio = getMixedAudio(contentPlanId);
       if (mixedAudio) {
         mixedAudioUrl = URL.createObjectURL(mixedAudio.audioBlob);
-        console.log(`[ExportTools] Using pre-mixed audio (${Math.round(mixedAudio.duration)}s)`);
+        log.info(`Using pre-mixed audio (${Math.round(mixedAudio.duration)}s)`);
       } else {
-        console.log(`[ExportTools] No mixed audio found, falling back to narration`);
+        log.info('No mixed audio found, falling back to narration');
         // FALLBACK: If mixed audio requested but not found, try to get narration
         if (!finalNarrationUrl && state.narrationSegments && state.narrationSegments.length > 0) {
           try {
-            console.log(`[ExportTools] Fallback: Concatenating ${state.narrationSegments.length} narration segments`);
+            log.info(`Fallback: Concatenating ${state.narrationSegments.length} narration segments`);
             const concatenatedBlob = await concatenateNarrationSegments(state.narrationSegments);
             finalNarrationUrl = URL.createObjectURL(concatenatedBlob);
-            console.log(`[ExportTools] Fallback: Created narration URL (${Math.round(concatenatedBlob.size / 1024)}KB)`);
+            log.info(`Fallback: Created narration URL (${Math.round(concatenatedBlob.size / 1024)}KB)`);
           } catch (error) {
-            console.error(`[ExportTools] Fallback narration concatenation failed:`, error);
+            log.error('Fallback narration concatenation failed', error);
           }
         }
       }
@@ -402,14 +405,14 @@ export const exportFinalVideoTool = tool(
 
     // Track progress
     const onProgress = (progress: ExportProgress) => {
-      console.log(`[ExportTools] Progress: ${progress.stage} - ${progress.progress}% - ${progress.message}`);
+      log.debug(`Progress: ${progress.stage} - ${progress.progress}% - ${progress.message}`);
     };
 
     try {
       // Always prefer server-side export for faster encoding
       // Fall back to client-side only if server is unavailable
       const useServerSide = true; // Default to server-side for speed
-      console.log(`[ExportTools] Using server-side export for faster encoding`);
+      log.info('Using server-side export for faster encoding');
 
       let videoBlob: Blob;
 
@@ -468,7 +471,7 @@ export const exportFinalVideoTool = tool(
       });
 
     } catch (error) {
-      console.error("[ExportTools] Export error:", error);
+      log.error('Export error', error);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -567,7 +570,7 @@ export interface ExportValidationResult {
  */
 export const validateExportTool = tool(
   async ({ contentPlanId }) => {
-    console.log(`[ExportTools] Validating export readiness for session: ${contentPlanId}`);
+    log.info(`Validating export readiness for session: ${contentPlanId}`);
 
     const result: ExportValidationResult = {
       isReady: true,
@@ -641,7 +644,7 @@ export const validateExportTool = tool(
 
       // Log video asset info
       if (result.assets.visuals.videoCount > 0) {
-        console.log(`[ExportTools] Found ${result.assets.visuals.videoCount} Veo video assets`);
+        log.info(`Found ${result.assets.visuals.videoCount} Veo video assets`);
       }
     } else {
       result.isReady = false;
@@ -721,8 +724,8 @@ export const validateExportTool = tool(
       result.suggestions.push("Consider running generate_subtitles for accessibility");
     }
 
-    console.log(`[ExportTools] Validation complete: ${result.isReady ? '✓ Ready' : '✗ Not ready'}`);
-    console.log(`[ExportTools] Estimated: ${result.estimatedDuration}s, ~${result.estimatedFileSizeMB}MB`);
+    log.info(`Validation complete: ${result.isReady ? 'Ready' : 'Not ready'}`);
+    log.debug(`Estimated: ${result.estimatedDuration}s, ~${result.estimatedFileSizeMB}MB`);
 
     return JSON.stringify({
       success: true,
@@ -755,7 +758,7 @@ export const validateExportTool = tool(
  */
 export const listExportPresetsTool = tool(
   async ({ platform, aspectRatio }) => {
-    console.log(`[ExportTools] Listing export presets${platform ? ` for platform: ${platform}` : ""}${aspectRatio ? ` with aspect ratio: ${aspectRatio}` : ""}`);
+    log.info(`Listing export presets${platform ? ` for platform: ${platform}` : ""}${aspectRatio ? ` with aspect ratio: ${aspectRatio}` : ""}`);
 
     let presets = Object.values(EXPORT_PRESETS);
 

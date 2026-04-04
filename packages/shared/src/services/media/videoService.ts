@@ -13,13 +13,16 @@ import { VIDEO_STYLE_MODIFIERS } from "../../constants";
 import { generateProfessionalVideoPrompt } from '../content/promptService';
 import { cloudAutosave } from '../cloud/cloudStorageService';
 import { logAICall } from '../infrastructure/aiLogService';
+import { mediaLogger } from '../infrastructure/logger';
 import { withRetry } from '../shared/apiClient';
+
+const log = mediaLogger.child('Video');
 
 // Initialize the AI client
 const API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
 
 if (!API_KEY) {
-  console.warn("[Video Service] No API key found. Video generation will fail.");
+  log.warn("No API key found. Video generation will fail.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -51,9 +54,7 @@ async function pollVideoOperation(
       return currentOp;
     }
 
-    console.log(
-      `[Video Service] Video generation in progress... (attempt ${i + 1}/${maxAttempts})`
-    );
+    log.info(`Video generation in progress... (attempt ${i + 1}/${maxAttempts})`);
     await new Promise((resolve) => setTimeout(resolve, delayMs));
 
     // FIXED: Use getVideosOperation instead of get
@@ -61,7 +62,7 @@ async function pollVideoOperation(
       currentOp = await ai.operations.getVideosOperation({ operation: currentOp });
     } catch (err: any) {
       // Fallback: try the generic get method if getVideosOperation isn't available
-      console.warn("[Video Service] getVideosOperation failed, trying fallback...");
+      log.warn("getVideosOperation failed, trying fallback...");
       currentOp = await ai.operations.get(currentOp);
     }
   }
@@ -83,12 +84,12 @@ async function extractVideoThumbnail(
 ): Promise<string | null> {
   // Only run in browser (canvas API not available in Node.js)
   if (typeof window === 'undefined' || typeof document === 'undefined') {
-    console.log('[Video Service] Thumbnail extraction skipped (server-side)');
+    log.debug('Thumbnail extraction skipped (server-side)');
     return null;
   }
 
   try {
-    console.log('[Video Service] Extracting thumbnail from video...');
+    log.info('Extracting thumbnail from video...');
 
     return new Promise((resolve, reject) => {
       const video = document.createElement('video');
@@ -99,7 +100,7 @@ async function extractVideoThumbnail(
       // Timeout after 30 seconds
       const timeout = setTimeout(() => {
         video.remove();
-        console.warn('[Video Service] Thumbnail extraction timed out');
+        log.warn('Thumbnail extraction timed out');
         resolve(null);
       }, 30000);
 
@@ -134,7 +135,7 @@ async function extractVideoThumbnail(
             video.remove();
 
             if (!blob) {
-              console.warn('[Video Service] Failed to create thumbnail blob');
+              log.warn('Failed to create thumbnail blob');
               resolve(null);
               return;
             }
@@ -142,7 +143,7 @@ async function extractVideoThumbnail(
             // Save to cloud storage
             const filename = `scene_${sceneIndex}.png`;
             await cloudAutosave.saveAsset(sessionId, blob, filename, 'visuals');
-            console.log(`[Video Service] ✓ Thumbnail saved: ${filename}`);
+            log.info(`Thumbnail saved: ${filename}`);
 
             // Return as data URL for immediate use
             const reader = new FileReader();
@@ -153,7 +154,7 @@ async function extractVideoThumbnail(
         } catch (err) {
           clearTimeout(timeout);
           video.remove();
-          console.warn('[Video Service] Thumbnail extraction failed:', err);
+          log.warn('Thumbnail extraction failed', err);
           resolve(null);
         }
       };
@@ -161,7 +162,7 @@ async function extractVideoThumbnail(
       video.onerror = () => {
         clearTimeout(timeout);
         video.remove();
-        console.warn('[Video Service] Video load failed for thumbnail');
+        log.warn('Video load failed for thumbnail');
         resolve(null);
       };
 
@@ -169,7 +170,7 @@ async function extractVideoThumbnail(
       video.load();
     });
   } catch (err) {
-    console.warn('[Video Service] Thumbnail extraction error:', err);
+    log.warn('Thumbnail extraction error', err);
     return null;
   }
 }
@@ -220,17 +221,15 @@ Smooth camera motion. Focus on clean visuals without any text elements.
     // Validate duration (Veo 3.1 supports 4, 6, or 8 seconds)
     const validDurations = [4, 6, 8] as const;
     if (!validDurations.includes(durationSeconds as any)) {
-      console.warn(
-        `[Video Service] Invalid duration ${durationSeconds}s. Defaulting to 8s. Valid: 4, 6, or 8 seconds.`
-      );
+      log.warn(`Invalid duration ${durationSeconds}s. Defaulting to 8s. Valid: 4, 6, or 8 seconds.`);
       durationSeconds = 8;
     }
 
     // Select model
     const modelToUse = useFastModel ? MODELS.VIDEO_FAST : MODELS.VIDEO_STANDARD;
 
-    console.log(`[Video Service] Using ${modelToUse} for ${durationSeconds}s video generation`);
-    console.log(`[Video Service] Prompt: ${finalPrompt.substring(0, 100)}...`);
+    log.info(`Using ${modelToUse} for ${durationSeconds}s video generation`);
+    log.debug(`Prompt: ${finalPrompt.substring(0, 100)}...`);
 
     // Build config object
     const config: {
@@ -245,7 +244,7 @@ Smooth camera motion. Focus on clean visuals without any text elements.
     // Add outputGcsUri if provided
     if (outputGcsUri) {
       config.outputGcsUri = outputGcsUri;
-      console.log(`[Video Service] Output will be saved to: ${outputGcsUri}`);
+      log.info(`Output will be saved to: ${outputGcsUri}`);
     }
 
     // Generate video
@@ -259,10 +258,7 @@ Smooth camera motion. Focus on clean visuals without any text elements.
         config: config,
       });
 
-      console.log(
-        `[Video Service] Video generation started. Operation:`,
-        operation.name || "started"
-      );
+      log.info(`Video generation started. Operation: ${operation.name || "started"}`);
     } catch (err: any) {
       // Provide helpful error messages for common issues
       if (err.status === 404 || err.message?.includes("NOT_FOUND")) {
@@ -325,7 +321,7 @@ Smooth camera motion. Focus on clean visuals without any text elements.
       });
     }
 
-    console.log(`[Video Service] Video generation complete!`);
+    log.info('Video generation complete');
 
     const response = completedOp.response;
 
@@ -333,55 +329,52 @@ Smooth camera motion. Focus on clean visuals without any text elements.
       throw new Error("No response received from video generation");
     }
 
-    console.log(`[Video Service] Response keys:`, Object.keys(response));
+    log.debug('Response keys', Object.keys(response));
 
     // Extract video from response - handle multiple formats
     let videoObj: any = null;
 
     // Format 1: { generatedVideos: [{ video: {...} }] }
     if (response.generatedVideos?.length > 0) {
-      console.log(`[Video Service] Found generatedVideos array format`);
+      log.debug('Found generatedVideos array format');
       videoObj = response.generatedVideos[0].video || response.generatedVideos[0];
     }
     // Format 2: { video: {...} }
     else if (response.video) {
-      console.log(`[Video Service] Found direct video object format`);
+      log.debug('Found direct video object format');
       videoObj = response.video;
     }
     // Format 3: REST API format
     else if (response.generateVideoResponse?.generatedSamples?.length > 0) {
-      console.log(`[Video Service] Found generateVideoResponse format`);
+      log.debug('Found generateVideoResponse format');
       videoObj = response.generateVideoResponse.generatedSamples[0].video;
     }
 
     if (!videoObj) {
-      console.error(
-        `[Video Service] Unexpected response structure:`,
-        JSON.stringify(response, null, 2)
-      );
+      log.error('Unexpected response structure', JSON.stringify(response, null, 2));
       throw new Error("No video found in response. Check logs for response structure.");
     }
 
-    console.log(`[Video Service] Video object keys:`, Object.keys(videoObj));
+    log.debug('Video object keys', Object.keys(videoObj));
 
     // Helper to trigger cloud autosave and thumbnail extraction
     const triggerAutosave = (videoUrl: string) => {
       if (sessionId && videoUrl) {
         // Save the video clip
         cloudAutosave.saveVideoClip(sessionId, videoUrl, sceneIndex ?? Date.now()).catch(err => {
-          console.warn('[Video Service] Cloud autosave failed (non-fatal):', err);
+          log.warn('Cloud autosave failed (non-fatal)', err);
         });
 
         // Extract and save thumbnail as fallback (fire-and-forget)
         extractVideoThumbnail(videoUrl, sessionId, sceneIndex ?? 0).catch(err => {
-          console.warn('[Video Service] Thumbnail extraction failed (non-fatal):', err);
+          log.warn('Thumbnail extraction failed (non-fatal)', err);
         });
       }
     };
 
     // Return URI if available
     if (videoObj.uri) {
-      console.log(`[Video Service] ✓ Video URI found: ${videoObj.uri}`);
+      log.info(`Video URI found: ${videoObj.uri}`);
       // Append API key for authenticated download
       const videoUri = videoObj.uri.includes("?")
         ? `${videoObj.uri}&key=${API_KEY}`
@@ -399,9 +392,9 @@ Smooth camera motion. Focus on clean visuals without any text elements.
     const mimeType = videoObj.mimeType || "video/mp4";
 
     if (videoData) {
-      console.log(`[Video Service] ✓ Video data found inline (${mimeType})`);
+      log.info(`Video data found inline (${mimeType})`);
       const sizeKB = ((videoData.length * 0.75) / 1024).toFixed(2);
-      console.log(`[Video Service] Video size: ~${sizeKB} KB`);
+      log.debug(`Video size: ~${sizeKB} KB`);
       const dataUrl = `data:${mimeType};base64,${videoData}`;
 
       // Cloud autosave trigger (fire-and-forget, non-blocking)
@@ -410,10 +403,7 @@ Smooth camera motion. Focus on clean visuals without any text elements.
       return dataUrl;
     }
 
-    console.error(
-      `[Video Service] Video object has no data:`,
-      JSON.stringify(videoObj, null, 2)
-    );
+    log.error('Video object has no data', JSON.stringify(videoObj, null, 2));
     throw new Error("No video URI or inline data found.");
   });
 };
@@ -434,8 +424,8 @@ export const generateProfessionalVideo = async (
   sessionId?: string,
   sceneIndex?: number
 ): Promise<string> => {
-  console.log(`[Video Service] Generating professional video prompt...`);
-  console.log(`[Video Service] Style: ${style}, Mood: ${mood}, Duration: ${durationSeconds}s`);
+  log.info('Generating professional video prompt...');
+  log.debug(`Style: ${style}, Mood: ${mood}, Duration: ${durationSeconds}s`);
 
   // Step 1: Generate professional prompt
   const professionalPrompt = await generateProfessionalVideoPrompt(
@@ -447,9 +437,7 @@ export const generateProfessionalVideo = async (
     durationSeconds
   );
 
-  console.log(
-    `[Video Service] Professional prompt: "${professionalPrompt.substring(0, 150)}..."`
-  );
+  log.debug(`Professional prompt: "${professionalPrompt.substring(0, 150)}..."`);
 
   // Step 2: Generate video
   return generateVideoFromPrompt(
@@ -474,12 +462,12 @@ export const generateProfessionalVideo = async (
 export const fetchAndCacheAsBlob = async (videoUrl: string): Promise<string> => {
   // Skip if already a blob URL or data URL
   if (videoUrl.startsWith('blob:') || videoUrl.startsWith('data:')) {
-    console.log('[Video Service] Already cached as blob/data URL');
+    log.debug('Already cached as blob/data URL');
     return videoUrl;
   }
 
   try {
-    console.log('[Video Service] Caching video as blob URL...');
+    log.info('Caching video as blob URL...');
     const response = await fetch(videoUrl);
 
     if (!response.ok) {
@@ -490,11 +478,11 @@ export const fetchAndCacheAsBlob = async (videoUrl: string): Promise<string> => 
     const blobUrl = URL.createObjectURL(blob);
 
     const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
-    console.log(`[Video Service] ✓ Video cached as blob URL (${sizeMB} MB)`);
+    log.info(`Video cached as blob URL (${sizeMB} MB)`);
 
     return blobUrl;
   } catch (error) {
-    console.warn('[Video Service] Failed to cache video as blob:', error);
+    log.warn('Failed to cache video as blob', error);
     // Return original URL as fallback (may work if not expired yet)
     return videoUrl;
   }
@@ -527,9 +515,7 @@ export const generateVideoWithEnhancement = async (
     enhancePrompt === true || (enhancePrompt === "auto" && !isAlreadyProfessional);
 
   if (shouldEnhance) {
-    console.log(
-      `[Video Service] Enhancing prompt (${promptWords} words, professional: ${isAlreadyProfessional})`
-    );
+    log.info(`Enhancing prompt (${promptWords} words, professional: ${isAlreadyProfessional})`);
     return generateProfessionalVideo(
       promptText,
       style,
@@ -542,7 +528,7 @@ export const generateVideoWithEnhancement = async (
     );
   }
 
-  console.log(`[Video Service] Using prompt directly (already professional)`);
+  log.debug('Using prompt directly (already professional)');
   return generateVideoFromPrompt(
     promptText,
     style,

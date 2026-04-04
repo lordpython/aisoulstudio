@@ -14,7 +14,7 @@ import {
   RateLimitQueue,
   type PipelineError,
   type OnCriticalFailure,
-} from './errorAggregator';
+} from './infrastructure/errorAggregator';
 import { loadTemplate } from './prompt/templateLoader';
 
 describe('ErrorAggregator', () => {

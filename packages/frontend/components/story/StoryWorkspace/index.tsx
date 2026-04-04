@@ -26,7 +26,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { FormatSelector } from '@/components/video-production/FormatSelector';
 import { TTSEngineSelector } from '@/components/music/TTSEngineSelector';
 import { PipelineProgress } from '@/components/video-production/PipelineProgress';
-import { CheckpointApproval } from '@/components/video-production/CheckpointApproval';
+import { CheckpointOverlay } from '@/components/video-production/CheckpointOverlay';
 import { ReferenceDocumentUpload } from '@/components/import-export/ReferenceDocumentUpload';
 import { formatRegistry } from '@/services/format/formatRegistry';
 import type { UseFormatPipelineReturn } from '@/hooks/useFormatPipeline';
@@ -1572,201 +1572,13 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
 
             {/* Checkpoint Approval Overlay */}
             <AnimatePresence>
-                {formatPipelineHook?.activeCheckpoint && (() => {
-                    const cp = formatPipelineHook.activeCheckpoint;
-                    const d = cp.data ?? {};
-                    const phase = cp.phase;
-
-                    // Build preview content from checkpoint data
-                    let previewContent: React.ReactNode = null;
-                    const scenes = d.scenes as { heading: string; action: string }[] | undefined;
-                    const visuals = d.visuals as { sceneId: string; imageUrl: string }[] | undefined;
-
-                    if (scenes && scenes.length > 0) {
-                        previewContent = (
-                            <div className="space-y-2">
-                                {d.sceneCount ? <p className="text-xs text-zinc-500 mb-2">{String(d.sceneCount)} scenes {d.estimatedDuration ? `· ${d.estimatedDuration}` : ''}</p> : null}
-                                {scenes.map((s, i) => (
-                                    <div key={i} className="flex gap-3 items-start">
-                                        <span className="font-mono text-[10px] text-blue-400 shrink-0 mt-0.5">{String(i + 1).padStart(2, '0')}</span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm text-zinc-200 font-medium">{s.heading}</p>
-                                            <p className="text-xs text-zinc-500 line-clamp-2" dir="auto">{s.action}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    }
-
-                    if (visuals && visuals.length > 0) {
-                        previewContent = (
-                            <div>
-                                {d.visualCount != null && <p className="text-xs text-zinc-500 mb-2">{d.visualCount as number}/{d.totalScenes as number ?? '?'} visuals generated</p>}
-                                <div className="grid grid-cols-3 gap-2">
-                                    {visuals.map((v, i) => (
-                                        <div key={v.sceneId} className="aspect-video bg-zinc-950 rounded-sm overflow-hidden border border-zinc-800">
-                                            <img src={v.imageUrl} alt={`Scene ${i + 1}`} className="w-full h-full object-cover" />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    if (phase.includes('final') || phase.includes('assembly')) {
-                        const stats = [
-                            d.sceneCount != null && `${d.sceneCount} scenes`,
-                            d.visualCount != null && `${d.visualCount} visuals`,
-                            d.narrationCount != null && `${d.narrationCount} narrations`,
-                            d.totalDuration != null && `${Math.round(d.totalDuration as number)}s total`,
-                        ].filter(Boolean);
-                        if (stats.length > 0 && !scenes && !visuals) {
-                            previewContent = (
-                                <div className="flex flex-wrap gap-3">
-                                    {stats.map((s, i) => (
-                                        <span key={i} className="px-2.5 py-1 bg-zinc-800 rounded-sm text-xs font-mono text-zinc-300">{s}</span>
-                                    ))}
-                                </div>
-                            );
-                        }
-                    }
-
-                    if (d.sourceCount != null && !scenes && !visuals) {
-                        previewContent = (
-                            <div className="space-y-1">
-                                <p className="text-sm text-zinc-300">{d.sourceCount as number} sources found</p>
-                                {d.confidence != null && <p className="text-xs text-zinc-500">Confidence: {Math.round((d.confidence as number) * 100)}%</p>}
-                            </div>
-                        );
-                    }
-
-                    const outputPreview = (() => {
-                        const primaryVisual = visuals?.[0]?.imageUrl;
-                        const timelineItems = (scenes?.map((scene, index) => ({
-                            id: `scene-${index}`,
-                            label: scene.heading,
-                        })) ?? visuals?.map((visual, index) => ({
-                            id: visual.sceneId || `visual-${index}`,
-                            label: `Visual ${index + 1}`,
-                        })) ?? []).slice(0, 7);
-
-                        return (
-                            <div className="h-full flex flex-col bg-[#08152d]">
-                                <div className="flex-1 p-4">
-                                    <div className="h-full rounded-md border border-blue-900/50 bg-black overflow-hidden relative">
-                                        {primaryVisual ? (
-                                            <img
-                                                src={primaryVisual}
-                                                alt="Checkpoint output preview"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : d.sourceCount != null ? (
-                                            <div className="h-full w-full overflow-y-auto p-4 text-left">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="px-2 py-0.5 rounded bg-blue-900/60 border border-blue-700/50 text-[11px] font-mono text-blue-300">{d.sourceCount as number} sources</span>
-                                                    {d.confidence != null && <span className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[11px] font-mono text-zinc-400">{Math.round((d.confidence as number) * 100)}% confidence</span>}
-                                                </div>
-                                                {Array.isArray(d.topics) && (d.topics as string[]).length > 0 && (
-                                                    <div className="mb-3">
-                                                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5">Topics covered</p>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {(d.topics as string[]).map((t, i) => (
-                                                                <span key={i} className="px-2 py-0.5 rounded-sm bg-zinc-800/80 border border-zinc-700/60 text-[11px] text-zinc-300">{t}</span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {d.summaryPreview != null && (
-                                                    <div>
-                                                        <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5">Research summary</p>
-                                                        <p className="text-xs text-zinc-400 leading-relaxed">{d.summaryPreview as string}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
-                                                Waiting for generated output...
-                                            </div>
-                                        )}
-                                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 border border-zinc-700 text-[10px] font-mono text-zinc-300">
-                                            {d.estimatedDuration ? String(d.estimatedDuration) : 'Preview'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="px-4 py-2 border-t border-blue-900/40 bg-[#091a37] flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                                    <span>{d.sourceCount != null ? `${d.sourceCount as number} sources` : `${timelineItems.length || visuals?.length || 0} clips`}</span>
-                                    <span>{d.totalDuration != null ? `${Math.round(d.totalDuration as number)}s total` : 'Checkpoint output'}</span>
-                                </div>
-
-                                <div className="border-t border-blue-900/40 bg-[#07142a] p-3">
-                                    {timelineItems.length > 0 ? (
-                                        <div className="relative h-12 rounded-sm border border-zinc-800 bg-[#030b1a] overflow-hidden">
-                                            {timelineItems.map((item, index) => {
-                                                const segmentCount = timelineItems.length;
-                                                const widthPct = Math.max(14, 92 / segmentCount);
-                                                const leftPct = (index / segmentCount) * 100;
-                                                return (
-                                                    <div
-                                                        key={item.id}
-                                                        className="absolute top-2 h-8 rounded-sm border border-blue-400/40 bg-blue-500/25 text-[10px] text-blue-100 px-2 flex items-center"
-                                                        style={{
-                                                            left: `${leftPct}%`,
-                                                            width: `${widthPct}%`,
-                                                        }}
-                                                        title={item.label}
-                                                    >
-                                                        <span className="truncate">{item.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="h-12 rounded-sm border border-zinc-800 bg-[#030b1a] flex items-center justify-center text-[11px] text-zinc-500">
-                                            Timeline will populate as output is generated.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })();
-
-                    return (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
-                            className="fixed inset-0 bg-[#020712]/90 backdrop-blur-sm p-3 sm:p-4 z-50"
-                        >
-                            <motion.div
-                                initial={{ scale: 0.97, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.97, opacity: 0 }}
-                                transition={{ duration: 0.15 }}
-                                className="w-full h-full max-w-7xl mx-auto"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div className="h-full rounded-lg border border-blue-950/70 bg-[#040d1c] p-3 sm:p-4">
-                                    <CheckpointApproval
-                                        checkpointId={cp.checkpointId}
-                                        phase={cp.phase}
-                                        title={`Review: ${cp.phase.replace(/-/g, ' ')}`}
-                                        description={previewContent ? undefined : "Review the generated content before the pipeline continues to the next phase."}
-                                        previewData={previewContent}
-                                        outputPreview={outputPreview}
-                                        outputLabel="Generated Output"
-                                        layout="editor"
-                                        className="h-full"
-                                        onApprove={() => formatPipelineHook.approveCheckpoint()}
-                                        onRequestChanges={(_id, changeRequest) => formatPipelineHook.rejectCheckpoint(changeRequest)}
-                                    />
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    );
-                })()}
+                {formatPipelineHook?.activeCheckpoint && (
+                    <CheckpointOverlay
+                        checkpoint={formatPipelineHook.activeCheckpoint}
+                        onApprove={(payload) => formatPipelineHook.approveCheckpoint(payload)}
+                        onReject={(changeRequest) => formatPipelineHook.rejectCheckpoint(changeRequest)}
+                    />
+                )}
             </AnimatePresence>
         </div>
     );

@@ -1,3 +1,7 @@
+import { mediaLogger } from '../services/infrastructure/logger';
+
+const log = mediaLogger.child('AudioAnalysis');
+
 export const extractFrequencyData = async (
   audioBuffer: AudioBuffer,
   fps: number,
@@ -17,13 +21,13 @@ export const extractFrequencyData = async (
       audioBuffer.sampleRate
     );
   } catch (e) {
-    console.warn('Failed to create OfflineAudioContext, skipping audio analysis:', e);
+    log.warn('Failed to create OfflineAudioContext, skipping audio analysis', e);
     return Array(totalFrames).fill(new Uint8Array(fftSize / 2).fill(0));
   }
 
   // Check if suspend is supported (Node.js web-audio-api might lack this)
   if (typeof offlineCtx.suspend !== 'function') {
-    console.warn('OfflineAudioContext.suspend() is not supported in this environment. Skipping precise audio analysis.');
+    log.warn('OfflineAudioContext.suspend() is not supported in this environment. Skipping precise audio analysis.');
     return Array(totalFrames).fill(new Uint8Array(fftSize / 2).fill(0));
   }
 
@@ -52,7 +56,7 @@ export const extractFrequencyData = async (
       frameDataMap.set(frameIndex, new Uint8Array(dataArray));
       offlineCtx.resume();
     }).catch(err => {
-      console.error(`Error processing audio frame ${i}:`, err);
+      log.error(`Error processing audio frame ${i}`, err);
     });
   }
 
@@ -60,7 +64,7 @@ export const extractFrequencyData = async (
   try {
     await offlineCtx.startRendering();
   } catch (e) {
-    console.error('Audio rendering failed:', e);
+    log.error('Audio rendering failed', e);
     return Array(totalFrames).fill(new Uint8Array(bufferLength).fill(0));
   }
 

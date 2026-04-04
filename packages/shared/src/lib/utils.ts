@@ -2,6 +2,9 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { CSSProperties } from "react";
 import ArabicReshaper from "arabic-reshaper";
+import { uiLogger } from '../services/infrastructure/logger';
+
+const log = uiLogger.child('Utils');
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,7 +20,7 @@ export function reshapeArabicText(text: string): string {
   try {
     return ArabicReshaper.convertArabic(text);
   } catch (error) {
-    console.warn('[reshapeArabicText] Failed to reshape Arabic text:', error);
+    log.warn('Failed to reshape Arabic text', error);
     return text;
   }
 }

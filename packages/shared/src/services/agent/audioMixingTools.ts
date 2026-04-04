@@ -9,6 +9,9 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
+import { exportLogger } from '../infrastructure/logger';
+
+const log = exportLogger.child('AudioMixing');
 import { mixAudioWithSFX, MixConfig, SceneAudioInfo } from "../audio-processing/audioMixerService";
 import { VideoSFXPlan } from "../music/sfxService";
 import { productionStore } from "../ai/production/store";
@@ -153,9 +156,9 @@ export const mixAudioTracksTool = tool(
     sfxPlan,
     scenes,
   }) => {
-    console.log(`[AudioMixingTools] Mixing audio for session: ${contentPlanId}`);
-    console.log(`[AudioMixingTools] Volumes - Narration: ${narrationVolume}, Music: ${musicVolume}, SFX: ${sfxVolume}, VideoAudio: ${videoAudioVolume}`);
-    console.log(`[AudioMixingTools] Ducking enabled: ${duckingEnabled}, Include video audio: ${includeVideoAudio}`);
+    log.info(`Mixing audio for session: ${contentPlanId}`);
+    log.debug(`Volumes - Narration: ${narrationVolume}, Music: ${musicVolume}, SFX: ${sfxVolume}, VideoAudio: ${videoAudioVolume}`);
+    log.debug(`Ducking enabled: ${duckingEnabled}, Include video audio: ${includeVideoAudio}`);
 
     // Get session state
     const state = productionStore.get(contentPlanId);
@@ -173,10 +176,10 @@ export const mixAudioTracksTool = tool(
 
       // Concatenate all narration segments into a single audio blob
       try {
-        console.log(`[AudioMixingTools] Concatenating ${state.narrationSegments.length} narration segments`);
+        log.info(`Concatenating ${state.narrationSegments.length} narration segments`);
         const concatenatedBlob = await concatenateNarrationSegments(state.narrationSegments);
         finalNarrationUrl = URL.createObjectURL(concatenatedBlob);
-        console.log(`[AudioMixingTools] Created narration URL from concatenated audio (${Math.round(concatenatedBlob.size / 1024)}KB)`);
+        log.info(`Created narration URL from concatenated audio (${Math.round(concatenatedBlob.size / 1024)}KB)`);
       } catch (error) {
         return JSON.stringify({
           success: false,
@@ -203,7 +206,7 @@ export const mixAudioTracksTool = tool(
     if (includeVideoAudio && state?.visuals) {
       const videoAssets = state.visuals.filter(v => v.type === "video");
       if (videoAssets.length > 0) {
-        console.log(`[AudioMixingTools] Found ${videoAssets.length} Veo video assets, extracting audio...`);
+        log.info(`Found ${videoAssets.length} Veo video assets, extracting audio...`);
 
         // Build scene timings for video assets
         const sceneList = state.contentPlan?.scenes || [];
@@ -231,16 +234,16 @@ export const mixAudioTracksTool = tool(
           hasVideoAudio = videoAudioTracks.length > 0;
 
           if (hasVideoAudio) {
-            console.log(`[AudioMixingTools] Extracted audio from ${videoAudioTracks.length}/${videoAssets.length} Veo videos`);
+            log.info(`Extracted audio from ${videoAudioTracks.length}/${videoAssets.length} Veo videos`);
           } else {
-            console.log(`[AudioMixingTools] No audio found in Veo videos (may be silent or audio-free)`);
+            log.info('No audio found in Veo videos (may be silent or audio-free)');
           }
 
           if (extractionResult.failedScenes.length > 0) {
-            console.log(`[AudioMixingTools] Video audio extraction failed for scenes: ${extractionResult.failedScenes.join(", ")}`);
+            log.warn(`Video audio extraction failed for scenes: ${extractionResult.failedScenes.join(", ")}`);
           }
         } catch (error) {
-          console.warn(`[AudioMixingTools] Video audio extraction failed (non-fatal):`, error);
+          log.warn('Video audio extraction failed (non-fatal)', error);
         }
       }
     }
@@ -250,7 +253,7 @@ export const mixAudioTracksTool = tool(
     const hasMusic = hasBackgroundMusic(sfxPlan as VideoSFXPlan | null);
     const hasSfx = hasSFXContent(sfxPlan as VideoSFXPlan | null);
 
-    console.log(`[AudioMixingTools] Tracks present - Narration: ${hasNarration}, Music: ${hasMusic}, SFX: ${hasSfx}, VideoAudio: ${hasVideoAudio} (${videoAudioTracks.length} tracks)`);
+    log.info(`Tracks present - Narration: ${hasNarration}, Music: ${hasMusic}, SFX: ${hasSfx}, VideoAudio: ${hasVideoAudio} (${videoAudioTracks.length} tracks)`);
 
     // Build scene audio info if scenes provided
     const sceneAudioInfo: SceneAudioInfo[] = scenes?.map(s => ({
@@ -275,16 +278,16 @@ export const mixAudioTracksTool = tool(
 
       // Mix in Veo video audio if present
       if (hasVideoAudio && videoAudioTracks.length > 0) {
-        console.log(`[AudioMixingTools] Mixing in ${videoAudioTracks.length} Veo audio tracks at volume ${videoAudioVolume}`);
+        log.info(`Mixing in ${videoAudioTracks.length} Veo audio tracks at volume ${videoAudioVolume}`);
         try {
           audioBlob = await mixVideoAudioWithNarration(
             audioBlob,
             videoAudioTracks,
             videoAudioVolume
           );
-          console.log(`[AudioMixingTools] Veo audio mixed successfully`);
+          log.info('Veo audio mixed successfully');
         } catch (error) {
-          console.warn(`[AudioMixingTools] Veo audio mixing failed (non-fatal):`, error);
+          log.warn('Veo audio mixing failed (non-fatal)', error);
           // Continue with the base mix without video audio
         }
       }
@@ -335,7 +338,7 @@ export const mixAudioTracksTool = tool(
       });
 
     } catch (error) {
-      console.error("[AudioMixingTools] Mix error:", error);
+      log.error('Mix error', error);
       
       const errorMessage = error instanceof Error ? error.message : String(error);
       

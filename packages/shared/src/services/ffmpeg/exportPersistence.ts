@@ -8,6 +8,9 @@
 import { cloudAutosave } from "../cloud/cloudStorageService";
 import { saveExportRecord } from "../project/projectService";
 import { ExportConfig } from "./exportConfig";
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('Persistence');
 
 /**
  * Upload the video blob to cloud storage and optionally save a Firestore export record.
@@ -40,7 +43,7 @@ export async function persistExport(
         if (!result.publicUrl) return undefined;
 
         const cloudUrl = result.publicUrl;
-        console.log(`${logPrefix} ✓ Final video uploaded to cloud:`, cloudUrl);
+        log.info(`Final video uploaded to cloud: ${cloudUrl}`);
 
         if (userId && projectId) {
             const aspectRatio = config.orientation === "landscape" ? "16:9" : "9:16";
@@ -52,12 +55,12 @@ export async function persistExport(
                 fileSize: videoBlob.size,
                 duration,
             });
-            console.log(`${logPrefix} ✓ Export record saved to Firestore`);
+            log.info('Export record saved to Firestore');
         }
 
         return cloudUrl;
     } catch (err) {
-        console.warn(`${logPrefix} Cloud upload/record failed (non-fatal):`, err);
+        log.warn('Cloud upload/record failed (non-fatal)', err);
         return undefined;
     }
 }

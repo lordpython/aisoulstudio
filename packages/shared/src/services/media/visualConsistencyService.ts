@@ -13,7 +13,10 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { API_KEY, MODELS } from '../shared/apiClient';
-import type { CharacterProfile } from "../types";
+import type { CharacterProfile } from "../../types";
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('VisualConsistency');
 
 /**
  * Result of a character consistency check
@@ -63,14 +66,14 @@ export async function extractVisualStyle(
 ): Promise<VisualStyle> {
     // Check cache first
     if (sessionId && styleCache.has(sessionId)) {
-        console.log(`[VisualConsistency] Using cached style for session ${sessionId}`);
+        log.debug(`Using cached style for session ${sessionId}`);
         return styleCache.get(sessionId)!;
     }
 
-    console.log(`[VisualConsistency] Extracting visual style from reference image`);
+    log.info('Extracting visual style from reference image');
 
     if (!API_KEY) {
-        console.warn(`[VisualConsistency] No API key, using default style`);
+        log.warn('No API key, using default style');
         return getDefaultStyle();
     }
 
@@ -90,7 +93,7 @@ export async function extractVisualStyle(
         } else if (imageUrl.startsWith('http')) {
             // Fetch and convert to base64
             try {
-                console.log(`[VisualConsistency] Fetching image from URL for analysis...`);
+                log.debug('Fetching image from URL for analysis...');
                 const response = await fetch(imageUrl);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch image: ${response.status}`);
@@ -102,9 +105,9 @@ export async function extractVisualStyle(
                 );
                 const mimeType = blob.type || 'image/png';
                 base64Image = `data:${mimeType};base64,${base64}`;
-                console.log(`[VisualConsistency] Converted image to base64 (${(base64.length / 1024).toFixed(1)} KB)`);
+                log.debug(`Converted image to base64 (${(base64.length / 1024).toFixed(1)} KB)`);
             } catch (fetchError) {
-                console.warn(`[VisualConsistency] Failed to fetch image, using default style:`, fetchError);
+                log.warn('Failed to fetch image, using default style', fetchError);
                 return getDefaultStyle();
             }
         } else {
@@ -151,7 +154,7 @@ Return ONLY the JSON object, no markdown.`
         // Parse JSON from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            console.warn(`[VisualConsistency] Failed to parse style, using default`);
+            log.warn('Failed to parse style, using default');
             return getDefaultStyle();
         }
 
@@ -171,11 +174,11 @@ Return ONLY the JSON object, no markdown.`
             styleCache.set(sessionId, style);
         }
 
-        console.log(`[VisualConsistency] Extracted style:`, style.colorPalette.join(", "));
+        log.info(`Extracted style: ${style.colorPalette.join(', ')}`);
         return style;
 
     } catch (error) {
-        console.error(`[VisualConsistency] Extraction failed:`, error);
+        log.error('Extraction failed', error);
         return getDefaultStyle();
     }
 }
@@ -274,7 +277,7 @@ export async function verifyCharacterConsistency(
     profile: CharacterProfile,
     language: string = 'en'
 ): Promise<ConsistencyReport> {
-    console.log(`[VisualConsistency] Verifying consistency for character: ${profile.name} across ${imageUrls.length} images (Language: ${language})`);
+    log.info(`Verifying consistency for character: ${profile.name} across ${imageUrls.length} images (Language: ${language})`);
 
     if (!API_KEY) {
         return {
@@ -390,7 +393,7 @@ Return ONLY the JSON object.
         return JSON.parse(jsonMatch[0]) as ConsistencyReport;
 
     } catch (error) {
-        console.error(`[VisualConsistency] Verification failed:`, error);
+        log.error('Verification failed', error);
         return {
             score: 50,
             isConsistent: false,

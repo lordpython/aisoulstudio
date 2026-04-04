@@ -135,20 +135,28 @@ ${srtContent}`;
 
     while (iterations < maxIterations) {
       iterations++;
+      const remaining = maxIterations - iterations;
+      agentLogger.info(`Iteration ${iterations}/${maxIterations} (${remaining} remaining)`);
 
+      const iterationStart = Date.now();
       const response = await model.invoke(messages);
+      const llmDurationMs = Date.now() - iterationStart;
+      agentLogger.debug(`LLM call completed in ${llmDurationMs}ms`);
       messages.push(response);
 
       const toolCalls = response.tool_calls || [];
 
       if (toolCalls.length === 0) {
+        agentLogger.info(`No tool calls — extracting result from text response`);
         const extracted = await extractStoryboardFromContent(response.content as string);
         if (extracted) finalStoryboard = extracted;
         break;
       }
 
+      agentLogger.info(`${toolCalls.length} tool call(s): ${toolCalls.map(t => t.name).join(', ')}`);
+
       for (const toolCall of toolCalls) {
-        agentLogger.debug(`Executing tool: ${toolCall.name}`);
+        const toolStart = Date.now();
 
         const toolArgs = { ...toolCall.args as Record<string, unknown> };
         if (['generate_storyboard', 'analyze_and_generate_storyboard'].includes(toolCall.name) && !toolArgs.targetAssetCount) {
@@ -156,6 +164,8 @@ ${srtContent}`;
         }
 
         const result = await executeToolCall({ name: toolCall.name, args: toolArgs });
+        const toolDurationMs = Date.now() - toolStart;
+        agentLogger.debug(`Tool '${toolCall.name}' completed in ${toolDurationMs}ms (result: ${result.length} chars)`);
 
         messages.push(new ToolMessage({
           content: result,
@@ -166,20 +176,28 @@ ${srtContent}`;
           const extracted = await extractStoryboardFromContent(result);
           if (extracted) {
             finalStoryboard = extracted;
-            agentLogger.info('Captured storyboard from tool output');
+            agentLogger.info(`Captured storyboard from tool output (${extracted.prompts?.length ?? 0} prompts)`);
           }
         }
       }
 
-      if (finalStoryboard) break;
+      if (finalStoryboard) {
+        agentLogger.info(`Storyboard captured after ${iterations} iteration(s), stopping loop`);
+        break;
+      }
     }
+
+    const totalDuration = Date.now() - startTime;
 
     if (finalStoryboard?.prompts) {
       const rawPrompts = finalStoryboard.prompts.slice(0, mergedConfig.targetAssetCount);
       const prompts = convertToImagePrompts(rawPrompts);
-      agentMetrics.recordRequest(true, Date.now() - startTime);
+      agentLogger.info(`Agent workflow complete: ${prompts.length} prompts in ${iterations} iteration(s), ${totalDuration}ms total`);
+      agentMetrics.recordRequest(true, totalDuration);
       return prompts;
     }
+
+    agentLogger.warn(`Agent workflow exhausted ${iterations} iterations with no storyboard (${totalDuration}ms)`);
 
     agentMetrics.recordRequest(false, Date.now() - startTime);
     return [];

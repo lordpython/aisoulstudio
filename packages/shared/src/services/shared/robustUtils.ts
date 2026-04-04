@@ -12,6 +12,10 @@
  * @module robustUtils
  */
 
+import { Logger, agentLogger } from '../infrastructure/logger';
+
+const log = agentLogger.child('Robust');
+
 // ============================================================
 // TIMEOUT UTILITIES
 // ============================================================
@@ -210,8 +214,8 @@ export async function withRetryBackoff<T>(
 
       // Notify caller of retry
       onRetry?.(attempt + 1, lastError, finalDelay);
-      console.warn(
-        `[Retry] Attempt ${attempt + 1}/${maxRetries} failed: ${lastError.message}. ` +
+      log.warn(
+        `Attempt ${attempt + 1}/${maxRetries} failed: ${lastError.message}. ` +
         `Retrying in ${finalDelay}ms...`
       );
 
@@ -309,8 +313,8 @@ export async function withRetry<T>(
       // Check if we should trip the circuit breaker
       if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
         circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
-        console.error(
-          `[Circuit Breaker] Tripped after ${consecutiveFailures} consecutive failures. ` +
+        log.error(
+          `Circuit breaker tripped after ${consecutiveFailures} consecutive failures. ` +
           `Blocking API calls for ${CIRCUIT_COOLDOWN_MS / 1000}s.`
         );
       }
@@ -318,7 +322,7 @@ export async function withRetry<T>(
       if (retries > 0) {
         // Cap the delay at MAX_BACKOFF_MS
         const cappedDelay = Math.min(delayMs, MAX_BACKOFF_MS);
-        console.warn(
+        log.warn(
           `API call failed. Retrying in ${cappedDelay}ms... (${retries} attempts left). Error: ${error.message}`,
         );
         await new Promise((resolve) => setTimeout(resolve, cappedDelay));
@@ -375,7 +379,7 @@ export class BlobManager {
       createdAt: Date.now(),
       size: blob.size,
     });
-    console.log(`[BlobManager] Created URL (total: ${this.urls.size}, size: ${this.formatBytes(blob.size)})`);
+    log.debug(`[BlobManager] Created URL (total: ${this.urls.size}, size: ${this.formatBytes(blob.size)})`);
     return url;
   }
 
@@ -390,7 +394,7 @@ export class BlobManager {
       URL.revokeObjectURL(url);
       const info = this.urls.get(url)!;
       this.urls.delete(url);
-      console.log(
+      log.debug(
         `[BlobManager] Revoked URL (remaining: ${this.urls.size}, ` +
         `was alive: ${Math.round((Date.now() - info.createdAt) / 1000)}s)`
       );
@@ -407,7 +411,7 @@ export class BlobManager {
     const count = this.urls.size;
     if (count === 0) return;
 
-    console.log(`[BlobManager] Revoking all ${count} URLs`);
+    log.debug(`[BlobManager] Revoking all ${count} URLs`);
     this.urls.forEach((_, url) => URL.revokeObjectURL(url));
     this.urls.clear();
   }
@@ -459,7 +463,7 @@ export class BlobManager {
     });
 
     if (revokedCount > 0) {
-      console.log(`[BlobManager] Revoked ${revokedCount} stale URLs (older than ${maxAgeMs / 1000}s)`);
+      log.debug(`[BlobManager] Revoked ${revokedCount} stale URLs (older than ${maxAgeMs / 1000}s)`);
     }
 
     return revokedCount;
@@ -499,7 +503,7 @@ export const safeLocalStorage = {
       const sizeKB = json.length / 1024;
 
       if (sizeKB > maxSizeKB) {
-        console.warn(
+        log.warn(
           `[Storage] ${key} exceeds ${maxSizeKB}KB (${Math.round(sizeKB)}KB), skipping save`
         );
         return false;
@@ -510,10 +514,10 @@ export const safeLocalStorage = {
     } catch (error) {
       // Handle quota exceeded or other storage errors
       if (error instanceof Error && error.name === 'QuotaExceededError') {
-        console.error(`[Storage] Quota exceeded when saving ${key}. Clearing old data...`);
+        log.error(`[Storage] Quota exceeded when saving ${key}. Clearing old data...`);
         // Could implement LRU cleanup here
       } else {
-        console.error(`[Storage] Failed to save ${key}:`, error);
+        log.error(`[Storage] Failed to save ${key}`, error);
       }
       return false;
     }
@@ -531,7 +535,7 @@ export const safeLocalStorage = {
       if (item === null) return fallback;
       return JSON.parse(item) as T;
     } catch (error) {
-      console.warn(`[Storage] Failed to parse ${key}, using fallback:`, error);
+      log.warn(`[Storage] Failed to parse ${key}, using fallback`, error);
       return fallback;
     }
   },
@@ -544,7 +548,7 @@ export const safeLocalStorage = {
     try {
       localStorage.removeItem(key);
     } catch (error) {
-      console.error(`[Storage] Failed to remove ${key}:`, error);
+      log.error(`[Storage] Failed to remove ${key}`, error);
     }
   },
 
@@ -665,7 +669,7 @@ export function extractJSONFromResponse<T = unknown>(response: string): T | null
     try {
       const result = strategy();
       if (result !== null && result !== undefined) {
-        console.log(`[JSONExtract] Succeeded with strategy ${i + 1}`);
+        log.debug(`[JSONExtract] Succeeded with strategy ${i + 1}`);
         return result as T;
       }
     } catch {
@@ -674,7 +678,7 @@ export function extractJSONFromResponse<T = unknown>(response: string): T | null
     }
   }
 
-  console.warn('[JSONExtract] All strategies failed. Response preview:', response.substring(0, 200));
+  log.warn(`[JSONExtract] All strategies failed. Response preview: ${response.substring(0, 200)}`);
   return null;
 }
 
@@ -695,7 +699,7 @@ export function extractAndValidateJSON<T>(
   try {
     return validate(extracted);
   } catch (error) {
-    console.warn('[JSONExtract] Validation failed:', error);
+    log.warn('[JSONExtract] Validation failed', error);
     return null;
   }
 }
@@ -803,7 +807,7 @@ export async function tryCatch<T>(
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     if (context) {
-      console.error(`[${context}] ${err.message}`);
+      log.error(`[${context}] ${err.message}`);
     }
     return { data: null, error: err };
   }
@@ -813,22 +817,5 @@ export async function tryCatch<T>(
  * Creates a logger with a service prefix for consistent logging.
  */
 export function createServiceLogger(serviceName: string) {
-  const prefix = `[${serviceName}]`;
-
-  return {
-    info: (message: string, data?: unknown) => {
-      console.log(`${prefix} ${message}`, data ?? '');
-    },
-    warn: (message: string, data?: unknown) => {
-      console.warn(`${prefix} ${message}`, data ?? '');
-    },
-    error: (message: string, data?: unknown) => {
-      console.error(`${prefix} ${message}`, data ?? '');
-    },
-    debug: (message: string, data?: unknown) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.debug(`${prefix} ${message}`, data ?? '');
-      }
-    },
-  };
+  return new Logger(serviceName);
 }

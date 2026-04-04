@@ -185,6 +185,20 @@ export class CheckpointSystem {
   }
 
   /**
+   * Apply edits to checkpoint data (e.g., scene edits from UI).
+   * Merges the edits into the checkpoint's data field.
+   */
+  applyCheckpointEdits(checkpointId: string, edits: Record<string, unknown>): void {
+    const cp = this.checkpoints.get(checkpointId);
+    if (!cp) {
+      log.warn(`Checkpoint not found: ${checkpointId}`);
+      return;
+    }
+    cp.data = { ...cp.data, ...edits };
+    log.info(`Applied edits to checkpoint: ${checkpointId}`, edits);
+  }
+
+  /**
    * Get a specific checkpoint by ID.
    */
   getCheckpoint(checkpointId: string): CheckpointState | null {

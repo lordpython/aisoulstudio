@@ -10,6 +10,9 @@
  */
 
 import { getServerBaseUrl } from "./serverBaseUrl";
+import { cloudLogger } from '../infrastructure/logger';
+
+const log = cloudLogger.child('Storage');
 
 // Configuration
 const BUCKET_NAME = 'aisoul-studio-storage';
@@ -91,7 +94,7 @@ async function uploadWithRetry(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.log(`[Autosave] Upload attempt ${attempt + 1}/${maxRetries}`);
+      log.debug(`Upload attempt ${attempt + 1}/${maxRetries}`);
 
       const response = await fetchWithTimeout(url, {
         method: 'POST',
@@ -108,16 +111,12 @@ async function uploadWithRetry(
         lastError.message.includes('Failed to fetch') ||
         lastError.message.includes('NetworkError');
 
-      console.warn(`[Autosave] Upload failed (attempt ${attempt + 1}):`, {
-        error: lastError.message,
-        isNetworkError,
-        willRetry: attempt < maxRetries - 1
-      });
+      log.warn(`Upload failed (attempt ${attempt + 1}): ${lastError.message}`, { isNetworkError, willRetry: attempt < maxRetries - 1 });
 
       if (attempt < maxRetries - 1) {
         // Exponential backoff: 2s, 4s, 8s
         const delay = 2000 * Math.pow(2, attempt);
-        console.log(`[Autosave] Retrying in ${delay}ms...`);
+        log.debug(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -182,7 +181,7 @@ export const cloudAutosave = {
    */
   async initSession(sessionId: string, userId?: string): Promise<boolean> {
     if (!sessionId) {
-      console.warn('[Autosave] No sessionId provided, skipping cloud init');
+      log.warn('No sessionId provided, skipping cloud init');
       return false;
     }
 
@@ -204,15 +203,15 @@ export const cloudAutosave = {
 
       if (result.success) {
         autosaveState.initialized = true;
-        console.log(`[Autosave] ✓ Cloud session initialized: ${result.folderPath}`);
+        log.info(`Cloud session initialized: ${result.folderPath}`);
         return true;
       } else {
-        console.warn('[Autosave] Cloud init failed:', result.error || result.warning);
+        log.warn('Cloud init failed', result.error || result.warning);
         autosaveState.initialized = false;
         return false;
       }
     } catch (e) {
-      console.warn('[Autosave] Cloud init error (non-fatal):', e);
+      log.warn('Cloud init error (non-fatal)', e);
       autosaveState.initialized = false;
       return false;
     }
@@ -266,16 +265,16 @@ export const cloudAutosave = {
         const result = await response.json();
 
         if (result.success) {
-          console.log(`[Autosave] ✓ ${type}/${filename} saved to cloud${result.publicUrl ? ' (public)' : ''}`);
+          log.info(`${type}/${filename} saved to cloud${result.publicUrl ? ' (public)' : ''}`);
           return { success: true, path: result.path, publicUrl: result.publicUrl };
         } else {
-          console.warn(`[Autosave] ${filename} not saved:`, result.warning || result.error);
+          log.warn(`${filename} not saved: ${result.warning || result.error}`);
           autosaveState.failedUploads.push({ filename, error: result.error || 'Unknown error' });
           return { success: false, error: result.error };
         }
       } catch (e) {
         const error = String(e);
-        console.warn(`[Autosave] Upload failed for ${filename}:`, error);
+        log.warn(`Upload failed for ${filename}`, error);
         autosaveState.failedUploads.push({ filename, error });
         return { success: false, error };
       }
@@ -304,7 +303,7 @@ export const cloudAutosave = {
       const filename = `scene_${sceneIndex}.png`;
       await this.saveAsset(sessionId, blob, filename, 'visuals');
     } catch (e) {
-      console.warn(`[Autosave] Failed to save image for scene ${sceneIndex}:`, e);
+      log.warn(`Failed to save image for scene ${sceneIndex}`, e);
     }
   },
 
@@ -325,7 +324,7 @@ export const cloudAutosave = {
       const result = await this.saveAsset(sessionId, blob, filename, 'visuals', true, true);
       return result.publicUrl || null;
     } catch (e) {
-      console.warn(`[Autosave] Failed to save image for shot ${shotId}:`, e);
+      log.warn(`Failed to save image for shot ${shotId}`, e);
       return null;
     }
   },
@@ -356,7 +355,7 @@ export const cloudAutosave = {
       const result = await this.saveAsset(sessionId, audioBlob, filename, 'audio', true, true);
       return result.publicUrl || null;
     } catch (e) {
-      console.warn(`[Autosave] Failed to save narration for scene ${sceneId}:`, e);
+      log.warn(`Failed to save narration for scene ${sceneId}`, e);
       return null;
     }
   },
@@ -375,7 +374,7 @@ export const cloudAutosave = {
       const filename = `scene_${sceneIndex}_veo.mp4`;
       await this.saveAsset(sessionId, blob, filename, 'video_clips');
     } catch (e) {
-      console.warn(`[Autosave] Failed to save video for scene ${sceneIndex}:`, e);
+      log.warn(`Failed to save video for scene ${sceneIndex}`, e);
     }
   },
 
@@ -394,7 +393,7 @@ export const cloudAutosave = {
       const result = await this.saveAsset(sessionId, blob, filename, 'video_clips', true, true);
       return result.publicUrl || null;
     } catch (e) {
-      console.warn(`[Autosave] Failed to save animated video for shot ${shotId}:`, e);
+      log.warn(`Failed to save animated video for shot ${shotId}`, e);
       return null;
     }
   },
@@ -434,11 +433,11 @@ export const cloudAutosave = {
       const result = await this.saveAsset(sessionId, blob, filename, 'ai_logs', false, false);
 
       if (result.success) {
-        console.log(`[Autosave] ✓ AI log saved: ${logEntry.step}/${logEntry.id}`);
+        log.debug(`AI log saved: ${logEntry.step}/${logEntry.id}`);
       }
       return result;
     } catch (e) {
-      console.warn(`[Autosave] Failed to save AI log:`, e);
+      log.warn('Failed to save AI log', e);
       return { success: false, error: String(e) };
     }
   },
@@ -619,7 +618,7 @@ export async function uploadFile(
     const filePath = `${folderName}/${fileName}`;
     const file = bucket.file(filePath);
 
-    console.log(`[CloudStorage] Uploading ${fileName} to gs://${BUCKET_NAME}/${filePath}`);
+    log.info(`Uploading ${fileName} to gs://${BUCKET_NAME}/${filePath}`);
 
     // Convert blob to buffer
     const arrayBuffer = await blob.arrayBuffer();
@@ -641,7 +640,7 @@ export async function uploadFile(
       publicUrl = `/api/cloud/file?path=${encodeURIComponent(filePath)}`;
     }
 
-    console.log(`[CloudStorage] ✓ Uploaded ${fileName} (${Math.round(blob.size / 1024)}KB)`);
+    log.info(`Uploaded ${fileName} (${Math.round(blob.size / 1024)}KB)`);
 
     return {
       success: true,
@@ -652,7 +651,7 @@ export async function uploadFile(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[CloudStorage] ✗ Failed to upload ${fileName}:`, errorMessage);
+    log.error(`Failed to upload ${fileName}: ${errorMessage}`);
 
     return {
       success: false,
@@ -716,7 +715,7 @@ export async function uploadProductionBundle(
   const publicUrls: Record<string, string> = {};
   const errors: string[] = [];
 
-  console.log(`[CloudStorage] Starting production upload to folder: ${folderName}`);
+  log.info(`Starting production upload to folder: ${folderName}`);
 
   // Upload video
   if (bundle.video) {
@@ -819,11 +818,11 @@ export async function uploadProductionBundle(
   const successCount = results.filter(r => r.success).length;
   const totalSize = results.reduce((sum, r) => sum + r.size, 0);
 
-  console.log(`[CloudStorage] Upload complete: ${successCount}/${results.length} files (${Math.round(totalSize / 1024 / 1024)}MB)`);
-  console.log(`[CloudStorage] Folder: gs://${BUCKET_NAME}/${folderName}`);
+  log.info(`Upload complete: ${successCount}/${results.length} files (${Math.round(totalSize / 1024 / 1024)}MB)`);
+  log.info(`Folder: gs://${BUCKET_NAME}/${folderName}`);
 
   if (errors.length > 0) {
-    console.warn(`[CloudStorage] ${errors.length} upload errors occurred`);
+    log.warn(`${errors.length} upload errors occurred`);
   }
 
   return {
@@ -861,7 +860,7 @@ export async function listProductionFolders(limit: number = 100): Promise<string
       .reverse()
       .slice(0, limit);
   } catch (error) {
-    console.error('[CloudStorage] Failed to list folders:', error);
+    log.error('Failed to list folders', error);
     return [];
   }
 }
@@ -879,15 +878,15 @@ export async function deleteProductionFolder(folderName: string): Promise<number
 
     const [files] = await bucket.getFiles({ prefix: `${folderName}/` });
 
-    console.log(`[CloudStorage] Deleting ${files.length} files from ${folderName}`);
+    log.info(`Deleting ${files.length} files from ${folderName}`);
 
     await Promise.all(files.map((file: any) => file.delete()));
 
-    console.log(`[CloudStorage] ✓ Deleted folder ${folderName}`);
+    log.info(`Deleted folder ${folderName}`);
 
     return files.length;
   } catch (error) {
-    console.error('[CloudStorage] Failed to delete folder:', error);
+    log.error('Failed to delete folder', error);
     return 0;
   }
 }
@@ -902,7 +901,7 @@ export async function isStorageAvailable(): Promise<boolean> {
     await bucket.exists();
     return true;
   } catch (error) {
-    console.warn('[CloudStorage] Storage not available:', error);
+    log.warn('Storage not available', error);
     return false;
   }
 }

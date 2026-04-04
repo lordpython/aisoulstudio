@@ -7,6 +7,10 @@
  * This allows Veo's native audio to be preserved and mixed with narration.
  */
 
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('VideoAudioExtractor');
+
 // --- Types ---
 
 export interface ExtractedVideoAudio {
@@ -48,7 +52,7 @@ export async function extractAudioFromVideo(
     sceneId: string,
     startTime: number
 ): Promise<ExtractedVideoAudio> {
-    console.log(`[VideoAudioExtractor] Extracting audio from video: ${sceneId}`);
+    log.info(`Extracting audio from video: ${sceneId}`);
 
     // Fetch before creating AudioContext so we don't leak a context on fetch failure.
     let arrayBuffer: ArrayBuffer;
@@ -60,7 +64,7 @@ export async function extractAudioFromVideo(
         const videoBlob = await response.blob();
         arrayBuffer = await videoBlob.arrayBuffer();
     } catch (error) {
-        console.error(`[VideoAudioExtractor] Failed to fetch video ${sceneId}:`, error);
+        log.error(`Failed to fetch video ${sceneId}`, error);
         return {
             sceneId,
             audioBlob: new Blob([], { type: 'audio/wav' }),
@@ -77,7 +81,7 @@ export async function extractAudioFromVideo(
         try {
             audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         } catch (decodeError) {
-            console.warn(`[VideoAudioExtractor] Video ${sceneId} has no audio track or unsupported format`);
+            log.warn(`Video ${sceneId} has no audio track or unsupported format`);
             return {
                 sceneId,
                 audioBlob: new Blob([], { type: 'audio/wav' }),
@@ -89,7 +93,7 @@ export async function extractAudioFromVideo(
         }
 
         const wavBlob = audioBufferToWav(audioBuffer);
-        console.log(`[VideoAudioExtractor] ✓ Extracted ${audioBuffer.duration.toFixed(2)}s audio from ${sceneId}`);
+        log.info(`Extracted ${audioBuffer.duration.toFixed(2)}s audio from ${sceneId}`);
         return {
             sceneId,
             audioBlob: wavBlob,
@@ -99,7 +103,7 @@ export async function extractAudioFromVideo(
             hasAudio: true,
         };
     } catch (error) {
-        console.error(`[VideoAudioExtractor] Failed to extract audio from ${sceneId}:`, error);
+        log.error(`Failed to extract audio from ${sceneId}`, error);
         return {
             sceneId,
             audioBlob: new Blob([], { type: 'audio/wav' }),
@@ -130,7 +134,7 @@ export async function extractAudioFromVideos(
     const failedScenes: string[] = [];
     let totalDuration = 0;
 
-    console.log(`[VideoAudioExtractor] Extracting audio from ${videos.length} videos`);
+    log.info(`Extracting audio from ${videos.length} videos`);
 
     for (const video of videos) {
         const result = await extractAudioFromVideo(
@@ -147,7 +151,7 @@ export async function extractAudioFromVideos(
         }
     }
 
-    console.log(`[VideoAudioExtractor] Extracted audio from ${audioTracks.length}/${videos.length} videos`);
+    log.info(`Extracted audio from ${audioTracks.length}/${videos.length} videos`);
 
     return {
         audioTracks,
@@ -254,7 +258,7 @@ export async function mixVideoAudioWithNarration(
     videoAudioVolume = 0.3
 ): Promise<Blob> {
     if (videoAudioTracks.length === 0 || !videoAudioTracks.some(t => t.hasAudio)) {
-        console.log("[VideoAudioExtractor] No video audio to mix, returning narration only");
+        log.info('No video audio to mix, returning narration only');
         return narrationBlob;
     }
 
@@ -330,17 +334,17 @@ export async function mixVideoAudioWithNarration(
                     }
                 }
 
-                console.log(`[VideoAudioExtractor] Mixed video audio from ${track.sceneId} at ${track.startTime}s`);
+                log.info(`Mixed video audio from ${track.sceneId} at ${track.startTime}s`);
             } catch (e) {
-                console.warn(`[VideoAudioExtractor] Failed to mix track ${track.sceneId}:`, e);
+                log.warn(`Failed to mix track ${track.sceneId}`, e);
             }
         }
 
         const mixedWav = audioBufferToWav(outputBuffer);
-        console.log(`[VideoAudioExtractor] ✓ Mixed audio complete: ${maxEndTime.toFixed(2)}s`);
+        log.info(`Mixed audio complete: ${maxEndTime.toFixed(2)}s`);
         return mixedWav;
     } catch (error) {
-        console.error("[VideoAudioExtractor] Mix failed:", error);
+        log.error('Mix failed', error);
         return narrationBlob; // Return original on failure
     } finally {
         await audioContext.close();

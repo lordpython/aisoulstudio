@@ -2,8 +2,9 @@
  * Narrator Service — Scene and shot narration orchestration
  */
 
-import { Scene, NarrationSegment, EmotionalTone, ShotlistEntry, ScreenplayScene } from "../../types";
+import { Scene, NarrationSegment, EmotionalTone, ShotlistEntry, ScreenplayScene } from "@/types";
 import { MODELS } from '../../shared/apiClient';
+import { mediaLogger } from '../../infrastructure/logger';
 import { ParallelExecutionEngine } from "../../orchestration/parallelExecutionEngine";
 import { cleanForTTS } from "../../audio-processing/textSanitizer";
 import { traceAsync } from "../../tracing";
@@ -14,15 +15,17 @@ import { TONE_VOICE_MAP, LANGUAGE_VOICE_MAP, ExtendedVoiceConfig, StylePrompt, T
 import { NarratorConfig, DEFAULT_NARRATOR_CONFIG, NarratorError, synthesizeSpeech, calculateAudioDuration, buildDirectorNote, buildTripletDirectorNote } from "./ttsCore";
 import { getAutoStylePrompt } from "./voiceConfig";
 
+const log = mediaLogger.child('Narrator');
+
 export async function narrateScene(
     scene: Scene,
     config?: NarratorConfig,
     sessionId?: string
 ): Promise<NarrationSegment> {
-    console.log(`[Narrator] Narrating scene: ${scene.name}`);
+    log.info(`Narrating scene: ${scene.name}`);
 
     const effectiveTone = getEffectiveLegacyTone(scene);
-    const baseVoiceConfig = TONE_VOICE_MAP[effectiveTone];
+    const baseVoiceConfig = TONE_VOICE_MAP[effectiveTone] ?? TONE_VOICE_MAP['dramatic']!;
 
     const languageVoice = config?.language && config.language !== 'auto'
         ? LANGUAGE_VOICE_MAP[config.language]
@@ -33,7 +36,7 @@ export async function narrateScene(
     if (scene.instructionTriplet) {
         const tripletNote = buildTripletDirectorNote(scene.instructionTriplet);
         stylePrompt = { customDirectorNote: tripletNote };
-        console.log(`[Narrator] Using triplet-based director note for "${scene.name}"`);
+        log.debug(`Using triplet-based director note for "${scene.name}"`);
     } else {
         stylePrompt = getAutoStylePrompt(effectiveTone, config?.videoPurpose, config?.styleOverride);
     }
@@ -45,7 +48,7 @@ export async function narrateScene(
     };
 
     if (languageVoice) {
-        console.log(`[Narrator] Using language-specific voice "${languageVoice}" for ${config?.language}`);
+        log.info(`Using language-specific voice "${languageVoice}" for ${config?.language}`);
     }
 
     const ttsStart = Date.now();
@@ -85,11 +88,11 @@ export async function narrateScene(
     }
 
     const wordCount = scene.narrationScript.split(/\s+/).filter(w => w.length > 0).length;
-    console.log(`[Narrator] Scene "${scene.name}" audio: ${audioDuration.toFixed(1)}s (${wordCount} words, ${audioBlob.size} bytes)`);
+    log.info(`Scene "${scene.name}" audio: ${audioDuration.toFixed(1)}s (${wordCount} words, ${audioBlob.size} bytes)`);
 
     if (sessionId) {
         cloudAutosave.saveNarration(sessionId, audioBlob, scene.id).catch(err => {
-            console.warn('[Narrator] Cloud autosave failed (non-fatal):', err);
+            log.warn('Cloud autosave failed (non-fatal)', err);
         });
     }
 
@@ -103,7 +106,7 @@ export const narrateAllScenes = traceAsync(
         onProgress?: (sceneIndex: number, totalScenes: number) => void,
         sessionId?: string
     ): Promise<NarrationSegment[]> {
-        console.log(`[Narrator] Starting narration for ${scenes.length} scenes`);
+        log.info(`Starting narration for ${scenes.length} scenes`);
 
         const segments: NarrationSegment[] = [];
 
@@ -112,22 +115,22 @@ export const narrateAllScenes = traceAsync(
 
             const scene = scenes[i];
             if (!scene) {
-                console.warn(`[Narrator] Scene at index ${i} is undefined, skipping`);
+                log.warn(`Scene at index ${i} is undefined, skipping`);
                 continue;
             }
 
             try {
                 const segment = await narrateScene(scene, config, sessionId);
                 segments.push(segment);
-                console.log(`[Narrator] Completed scene ${i + 1}/${scenes.length}`);
+                log.info(`Completed scene ${i + 1}/${scenes.length}`);
             } catch (error) {
-                console.error(`[Narrator] Failed to narrate scene ${scene.id}:`, error);
+                log.error(`Failed to narrate scene ${scene.id}`, error);
                 throw error;
             }
         }
 
         onProgress?.(scenes.length, scenes.length);
-        console.log(`[Narrator] All ${segments.length} scenes narrated`);
+        log.info(`All ${segments.length} scenes narrated`);
         return segments;
     },
     "narrateAllScenes",
@@ -158,13 +161,13 @@ export async function narrateAllShots(
     });
 
     if (shotsToProcess.length === 0) {
-        console.log('[Narrator] narrateAllShots: all shots already narrated, skipping');
+        log.info('narrateAllShots: all shots already narrated, skipping');
         return [];
     }
 
-    console.log(`[Narrator] narrateAllShots: narrating ${shotsToProcess.length}/${shots.length} shots`);
+    log.info(`narrateAllShots: narrating ${shotsToProcess.length}/${shots.length} shots`);
 
-    const defaultVoiceConfig: ExtendedVoiceConfig = TONE_VOICE_MAP['dramatic'];
+    const defaultVoiceConfig: ExtendedVoiceConfig = TONE_VOICE_MAP['dramatic']!;
 
     const tasks = shotsToProcess
         .map(shot => {
@@ -172,7 +175,7 @@ export async function narrateAllShots(
             const narrationText = cleanForTTS(rawText || '');
 
             if (!narrationText.trim()) {
-                console.warn(`[Narrator] Skipping shot ${shot.id}: empty narration text after cleaning`);
+                log.warn(`Skipping shot ${shot.id}: empty narration text after cleaning`);
                 return null;
             }
 
@@ -183,7 +186,7 @@ export async function narrateAllShots(
                 retryable: true,
                 timeout: 45_000,
                 execute: async (): Promise<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }> => {
-                    console.log(`[Narrator] Narrating shot ${shot.shotNumber} (${shot.id}): "${narrationText.substring(0, 50)}..."`);
+                    log.debug(`Narrating shot ${shot.shotNumber} (${shot.id}): "${narrationText.substring(0, 50)}..."`);
                     const audioBlob = await synthesizeSpeech(narrationText, defaultVoiceConfig, config);
                     const duration = calculateAudioDuration(audioBlob);
                     return { shotId: shot.id, sceneId: shot.sceneId, audioBlob, duration, text: narrationText };
@@ -193,7 +196,7 @@ export async function narrateAllShots(
         .filter((t): t is NonNullable<typeof t> => t !== null);
 
     if (tasks.length === 0) {
-        console.warn('[Narrator] narrateAllShots: no tasks after filtering empty text');
+        log.warn('narrateAllShots: no tasks after filtering empty text');
         return [];
     }
 
@@ -204,7 +207,7 @@ export async function narrateAllShots(
         retryDelay: 3000,
         exponentialBackoff: true,
         onProgress: (p) => onProgress?.(p.completedTasks, p.totalTasks),
-        onTaskFail: (taskId, error) => { console.error(`[Narrator] Shot narration failed for ${taskId}:`, error.message); },
+        onTaskFail: (taskId, error) => { log.error(`Shot narration failed for ${taskId}: ${error.message}`); },
     });
 
     const results: Array<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }> = [];
@@ -213,9 +216,9 @@ export async function narrateAllShots(
     }
 
     const failedCount = taskResults.filter(r => !r.success).length;
-    if (failedCount > 0) console.warn(`[Narrator] narrateAllShots: ${failedCount} shots failed (non-fatal)`);
+    if (failedCount > 0) log.warn(`narrateAllShots: ${failedCount} shots failed (non-fatal)`);
 
-    console.log(`[Narrator] narrateAllShots: completed ${results.length}/${tasks.length} shots`);
+    log.info(`narrateAllShots: completed ${results.length}/${tasks.length} shots`);
     return results;
 }
 

@@ -18,6 +18,7 @@ import { detectLanguage } from '@/services/content/languageDetector';
 import type { CheckpointSystem } from '@/services/project/checkpointSystem';
 import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
 import type { PipelineTask } from '@/components/video-production/PipelineProgress';
+import type { CheckpointApprovalPayload } from '@/components/video-production/CheckpointOverlay';
 
 // Pipeline class imports (lazy-registered before each execute)
 import { YouTubeNarratorPipeline } from '@/services/pipelines/youtubeNarrator';
@@ -75,7 +76,7 @@ export interface UseFormatPipelineReturn {
   // Actions
   execute: (userId: string, projectId: string) => Promise<void>;
   cancel: () => void;
-  approveCheckpoint: () => void;
+  approveCheckpoint: (payload?: CheckpointApprovalPayload) => void;
   rejectCheckpoint: (changeRequest?: string) => void;
   reset: () => void;
 }
@@ -267,8 +268,16 @@ export function useFormatPipeline(): UseFormatPipelineReturn {
     ));
   }, [isRunning]);
 
-  const approveCheckpoint = useCallback(() => {
+  const approveCheckpoint = useCallback((payload?: CheckpointApprovalPayload) => {
     if (!activeCheckpoint || !checkpointSystemRef.current) return;
+    // Apply scene edits if provided
+    if (payload?.sceneEdits && payload.sceneEdits.length > 0) {
+      // Store edits in checkpoint data for pipeline to consume
+      checkpointSystemRef.current.applyCheckpointEdits(
+        activeCheckpoint.checkpointId,
+        { sceneEdits: payload.sceneEdits }
+      );
+    }
     checkpointSystemRef.current.approveCheckpoint(activeCheckpoint.checkpointId);
     setActiveCheckpoint(null);
   }, [activeCheckpoint]);

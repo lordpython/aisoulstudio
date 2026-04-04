@@ -21,6 +21,10 @@ const VITE_CLIENT_ID: string = (typeof import.meta !== 'undefined' && (import.me
 
 const isBrowser = typeof window !== 'undefined';
 
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('DeAPI:WS');
+
 // ---- Types ----------------------------------------------------------------
 
 interface JobUpdateCallback {
@@ -134,10 +138,10 @@ async function getPusherChannel(): Promise<PusherChannel | null> {
         });
 
         pusherChannel = ch;
-        console.log(`[DeAPI WS] Connected to private-client.${VITE_CLIENT_ID}`);
+        log.info(`Connected to private-client.${VITE_CLIENT_ID}`);
         return true;
       } catch (err) {
-        console.warn('[DeAPI WS] Pusher init failed, polling will be used:', err);
+        log.warn('Pusher init failed, polling will be used', err);
         pusherInit = null; // Allow retry on next call
         return false;
       }
@@ -165,7 +169,7 @@ export async function waitForJobViaWebSocket(
     // Safety timeout — if WS never fires, resolve null so polling takes over
     const timeout = setTimeout(() => {
       jobListeners.delete(requestId);
-      console.warn(`[DeAPI WS] Job ${requestId} timed out on WebSocket — falling back to poll`);
+      log.warn(`Job ${requestId} timed out on WebSocket - falling back to poll`);
       resolve(null);
     }, 310_000); // slightly longer than pollRequest's max to let WS win first
 

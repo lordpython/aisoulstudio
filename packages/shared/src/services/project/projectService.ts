@@ -23,6 +23,9 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseDb, isFirebaseConfigured } from '../firebase/config';
 import { getCurrentUser } from '../firebase/authService';
+import { projectLogger } from '../infrastructure/logger';
+
+const log = projectLogger.child('Service');
 
 // ============================================================
 // Types
@@ -186,7 +189,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project 
   const user = getCurrentUser();
 
   if (!db || !user) {
-    console.warn('[ProjectService] Cannot create - no auth or Firebase not configured');
+    log.warn('Cannot create - no auth or Firebase not configured');
     return null;
   }
 
@@ -220,7 +223,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project 
     const docRef = doc(db, 'users', user.uid, 'projects', projectId);
     await setDoc(docRef, projectData);
 
-    console.log(`[ProjectService] Created project ${projectId}`);
+    log.info(`Created project ${projectId}`);
 
     // Return with proper dates
     return {
@@ -230,7 +233,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project 
       lastAccessedAt: new Date(),
     };
   } catch (error) {
-    console.error('[ProjectService] Failed to create project:', error);
+    log.error('Failed to create project', error);
     return null;
   }
 }
@@ -251,7 +254,7 @@ export async function getProject(projectId: string): Promise<Project | null> {
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
-      console.log(`[ProjectService] Project ${projectId} not found`);
+      log.debug(`Project ${projectId} not found`);
       return null;
     }
 
@@ -259,14 +262,14 @@ export async function getProject(projectId: string): Promise<Project | null> {
 
     // Verify ownership
     if (project.userId !== user.uid) {
-      console.warn('[ProjectService] Project belongs to different user');
+      log.warn('Project belongs to different user');
       return null;
     }
 
-    console.log(`[ProjectService] Loaded project ${projectId}`);
+    log.debug(`Loaded project ${projectId}`);
     return project;
   } catch (error) {
-    console.error('[ProjectService] Failed to get project:', error);
+    log.error('Failed to get project', error);
     return null;
   }
 }
@@ -293,10 +296,10 @@ export async function updateProject(
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[ProjectService] Updated project ${projectId}`);
+    log.debug(`Updated project ${projectId}`);
     return true;
   } catch (error) {
-    console.error('[ProjectService] Failed to update project:', error);
+    log.error('Failed to update project', error);
     return false;
   }
 }
@@ -318,13 +321,13 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
-      console.log(`[ProjectService] Project ${projectId} not found`);
+      log.debug(`Project ${projectId} not found`);
       return false;
     }
 
     const data = docSnap.data();
     if (data.userId !== user.uid) {
-      console.warn('[ProjectService] Cannot delete - project belongs to different user');
+      log.warn('Cannot delete - project belongs to different user');
       return false;
     }
 
@@ -333,10 +336,10 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     // For full cleanup, we would need to delete exports first or use Cloud Functions
     await deleteDoc(docRef);
 
-    console.log(`[ProjectService] Deleted project ${projectId}`);
+    log.info(`Deleted project ${projectId}`);
     return true;
   } catch (error) {
-    console.error('[ProjectService] Failed to delete project:', error);
+    log.error('Failed to delete project', error);
     return false;
   }
 }
@@ -367,10 +370,10 @@ export async function listUserProjects(maxResults: number = 50): Promise<Project
       projects.push(docToProject(docSnapshot.data()));
     });
 
-    console.log(`[ProjectService] Listed ${projects.length} projects`);
+    log.debug(`Listed ${projects.length} projects`);
     return projects;
   } catch (error) {
-    console.error('[ProjectService] Failed to list projects:', error);
+    log.error('Failed to list projects', error);
     return [];
   }
 }
@@ -391,7 +394,7 @@ export async function markProjectAccessed(projectId: string): Promise<void> {
     });
   } catch (error) {
     // Non-critical, just log
-    console.warn('[ProjectService] Failed to mark accessed:', error);
+    log.warn('Failed to mark accessed', error);
   }
 }
 
@@ -423,7 +426,7 @@ export async function toggleFavorite(projectId: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('[ProjectService] Failed to toggle favorite:', error);
+    log.error('Failed to toggle favorite', error);
     return false;
   }
 }
@@ -460,7 +463,7 @@ export async function saveExportRecord(
     // Also update project to mark hasExport
     await updateProject(projectId, { hasExport: true });
 
-    console.log(`[ProjectService] Saved export record ${docRef.id}`);
+    log.info(`Saved export record ${docRef.id}`);
 
     return {
       id: docRef.id,
@@ -469,7 +472,7 @@ export async function saveExportRecord(
       createdAt: new Date(),
     };
   } catch (error) {
-    console.error('[ProjectService] Failed to save export record:', error);
+    log.error('Failed to save export record', error);
     return null;
   }
 }
@@ -506,7 +509,7 @@ export async function getExportHistory(
 
     return exports;
   } catch (error) {
-    console.error('[ProjectService] Failed to get export history:', error);
+    log.error('Failed to get export history', error);
     return [];
   }
 }
@@ -575,7 +578,7 @@ export async function getRecentProjects(): Promise<Project[]> {
 
     return projects;
   } catch (error) {
-    console.error('[ProjectService] Failed to get recent projects:', error);
+    log.error('Failed to get recent projects', error);
     return [];
   }
 }

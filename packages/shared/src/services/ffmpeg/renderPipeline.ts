@@ -11,8 +11,10 @@ import { applyPolyfills } from "../../lib/utils";
 import { ExportConfig, RenderAsset } from "./exportConfig";
 import { renderFrameToCanvas, type RenderFrameState } from "./frameRenderer";
 
-const FPS = 24;
+const FPS = 30;
 const JPEG_QUALITY = 0.98;
+
+export type FrameFormat = "jpeg" | "png";
 
 export interface RenderPipelineOptions {
     width: number;
@@ -23,10 +25,12 @@ export interface RenderPipelineOptions {
     subtitles: SongData["parsedSubtitles"];
     frequencyDataArray: Uint8Array[];
     config: ExportConfig;
+    /** Frame image format. PNG is lossless (better for server re-encode), JPEG is smaller (better for WASM). Default: "jpeg". */
+    frameFormat?: FrameFormat;
     /**
      * Called for every rendered frame.
      * May be async — the pipeline awaits it before proceeding to the next frame.
-     * name follows the pattern `frame000000.jpg`.
+     * name follows the pattern `frame000000.jpg` or `frame000000.png`.
      */
     onFrame: (blob: Blob, frameIndex: number, frameName: string) => Promise<void>;
     /**
@@ -60,9 +64,15 @@ function createRenderSurface(width: number, height: number): RenderSurface {
     return { canvas, ctx };
 }
 
-async function canvasToBlob(canvas: HTMLCanvasElement | OffscreenCanvas): Promise<Blob> {
+async function canvasToBlob(canvas: HTMLCanvasElement | OffscreenCanvas, format: FrameFormat = "jpeg"): Promise<Blob> {
+    const mimeType = format === "png" ? "image/png" : "image/jpeg";
+
     if (typeof OffscreenCanvas !== "undefined" && canvas instanceof OffscreenCanvas) {
-        return canvas.convertToBlob({ type: "image/jpeg", quality: JPEG_QUALITY });
+        return canvas.convertToBlob(
+            format === "png"
+                ? { type: mimeType }
+                : { type: mimeType, quality: JPEG_QUALITY }
+        );
     }
 
     return new Promise<Blob>((resolve, reject) => {
@@ -73,7 +83,7 @@ async function canvasToBlob(canvas: HTMLCanvasElement | OffscreenCanvas): Promis
             }
 
             resolve(blob);
-        }, "image/jpeg", JPEG_QUALITY);
+        }, mimeType, format === "png" ? undefined : JPEG_QUALITY);
     });
 }
 
@@ -108,10 +118,12 @@ export async function runRenderPipeline(options: RenderPipelineOptions): Promise
         subtitles,
         frequencyDataArray,
         config,
+        frameFormat = "jpeg",
         onFrame,
         onProgress,
     } = options;
 
+    const ext = frameFormat === "png" ? "png" : "jpg";
     const surfaces = [createRenderSurface(width, height), createRenderSurface(width, height)];
     const renderState: RenderFrameState = { assetIndex: 0, subtitleIndex: 0 };
 
@@ -128,9 +140,9 @@ export async function runRenderPipeline(options: RenderPipelineOptions): Promise
 
         if (frame > 0) {
             const previousSurface = surfaces[1 - surfaceIndex]!;
-            pendingEncode = canvasToBlob(previousSurface.canvas);
+            pendingEncode = canvasToBlob(previousSurface.canvas, frameFormat);
             pendingFrameIndex = frame - 1;
-            pendingFrameName = `frame${pendingFrameIndex.toString().padStart(6, "0")}.jpg`;
+            pendingFrameName = `frame${pendingFrameIndex.toString().padStart(6, "0")}.${ext}`;
         }
 
         await renderFrameToCanvas(
@@ -162,7 +174,7 @@ export async function runRenderPipeline(options: RenderPipelineOptions): Promise
     if (totalFrames > 0) {
         const finalFrameIndex = totalFrames - 1;
         const finalSurface = surfaces[finalFrameIndex % 2]!;
-        const finalBlob = await canvasToBlob(finalSurface.canvas);
-        await onFrame(finalBlob, finalFrameIndex, `frame${finalFrameIndex.toString().padStart(6, "0")}.jpg`);
+        const finalBlob = await canvasToBlob(finalSurface.canvas, frameFormat);
+        await onFrame(finalBlob, finalFrameIndex, `frame${finalFrameIndex.toString().padStart(6, "0")}.${ext}`);
     }
 }

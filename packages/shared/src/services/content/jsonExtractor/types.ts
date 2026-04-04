@@ -137,11 +137,15 @@ export interface ExtractorLogger {
 /**
  * Default console logger implementation.
  */
+import { contentLogger } from '../../infrastructure/logger';
+
+const _extractorLog = contentLogger.child('JSONExtractor');
+
 export const defaultLogger: ExtractorLogger = {
-  info: (message, data) => console.log(`[JSONExtractor] INFO: ${message}`, data || ''),
-  warn: (message, data) => console.warn(`[JSONExtractor] WARN: ${message}`, data || ''),
-  error: (message, data) => console.error(`[JSONExtractor] ERROR: ${message}`, data || ''),
-  debug: (message, data) => console.debug(`[JSONExtractor] DEBUG: ${message}`, data || ''),
+  info: (message, data) => _extractorLog.info(message, data),
+  warn: (message, data) => _extractorLog.warn(message, data),
+  error: (message, data) => _extractorLog.error(message, data),
+  debug: (message, data) => _extractorLog.debug(message, data),
 };
 
 // --- Fallback Processing Types ---

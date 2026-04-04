@@ -9,6 +9,9 @@
 
 import { RenderAsset, ExportConfig } from "./exportConfig";
 import { seekVideoToTime, getCachedFrame, cacheFrame } from "./assetLoader";
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('Transitions');
 
 /**
  * Ken Burns movement types for visual variety.
@@ -97,7 +100,7 @@ export async function drawAsset(
 
     // Validate dimensions (fallback for edge cases)
     if (naturalWidth === 0 || naturalHeight === 0) {
-        console.warn(`[Transitions] Invalid asset dimensions (${naturalWidth}x${naturalHeight}), skipping frame`);
+        log.warn(`Invalid asset dimensions (${naturalWidth}x${naturalHeight}), skipping frame`);
         ctx.restore();
         return;
     }

@@ -26,7 +26,7 @@ interface LogEntry {
 
 type LogCallback = (entry: LogEntry) => void;
 
-class Logger {
+export class Logger {
   private level: LogLevel;
   private context: string;
   private callbacks: LogCallback[] = [];
@@ -138,5 +138,13 @@ export const exportLogger = new Logger('Export');
 export const ffmpegLogger = new Logger('FFmpeg');
 export const sunoLogger = new Logger('Suno');
 export const geminiLogger = new Logger('Gemini');
+export const mediaLogger = new Logger('Media');
+export const contentLogger = new Logger('Content');
+export const musicLogger = new Logger('Music');
+export const cloudLogger = new Logger('Cloud');
+export const storyLogger = new Logger('Story');
+export const uiLogger = new Logger('UI');
+export const firebaseLogger = new Logger('Firebase');
+export const projectLogger = new Logger('Project');
 
 export default logger;

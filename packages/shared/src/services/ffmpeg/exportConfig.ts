@@ -48,7 +48,7 @@ export type ExportProgress = {
 
 export type ProgressCallback = (progress: ExportProgress) => void;
 
-export type ExportQualityPreset = "draft" | "standard" | "high";
+export type ExportQualityPreset = "draft" | "standard" | "high" | "ultra";
 
 export type RenderAsset = {
     id: string;
@@ -156,6 +156,8 @@ export function getExportQualityValue(quality: ExportQualityPreset | undefined):
             return 28;
         case "standard":
             return 21;
+        case "ultra":
+            return 15;
         case "high":
         default:
             return 18;

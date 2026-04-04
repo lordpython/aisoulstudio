@@ -2,8 +2,10 @@
  * Suno Service — Music generation, lyrics, status polling, and utility functions
  */
 
-import type { SubtitleItem } from "../../types";
+import type { SubtitleItem } from "@/types";
 import { callSunoProxy, isBrowser, SUNO_API_KEY } from "./config";
+import { sunoLogger } from '../../infrastructure/logger';
+
 import {
   SunoModel,
   SunoTaskStatus,
@@ -15,6 +17,8 @@ import {
   SunoLyricsResult,
   SunoCredits,
 } from "./types";
+
+const log = sunoLogger.child('Generation');
 
 export function isSunoConfigured(): boolean {
   if (isBrowser) return true;
@@ -126,7 +130,7 @@ export async function waitForCompletion(taskId: string, maxWaitMs = 10 * 60 * 10
     const result = await getTaskStatus(taskId);
 
     if (result.status === "SUCCESS" && result.tracks) {
-      console.log("[Suno] Generation completed successfully");
+      log.info('Generation completed successfully');
       return result.tracks;
     }
 
@@ -136,12 +140,12 @@ export async function waitForCompletion(taskId: string, maxWaitMs = 10 * 60 * 10
     }
 
     if (isIntermediateStatus(result.status)) {
-      console.log(`[Suno] Status: ${result.status}, waiting...`);
+      log.info(`Status: ${result.status}, waiting...`);
       await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
       continue;
     }
 
-    console.warn(`[Suno] Unknown status: ${result.status}, continuing to poll...`);
+    log.warn(`Unknown status: ${result.status}, continuing to poll...`);
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
 
@@ -169,7 +173,7 @@ export async function getTimestampedLyrics(taskId: string, audioId: string): Pro
     const data = await callSunoProxy(`get-timestamped-lyrics?taskId=${taskId}&audioId=${audioId}`, null, "GET");
     return parseTimestampedLyrics(data.response?.lyrics || []);
   } catch (e) {
-    console.warn("[Suno] Failed to get timestamped lyrics", e);
+    log.warn('Failed to get timestamped lyrics', e);
     return [];
   }
 }
@@ -181,23 +185,23 @@ export function parseTimestampedLyrics(lyricsData: Array<{ start: number; end: n
 export async function getCredits(): Promise<SunoCredits> {
   const result = await callSunoProxy("generate/credit", null, "GET");
   const credits = typeof result === "number" ? result : (result?.credits ?? 0);
-  console.log("[Suno] Credits:", credits);
+  log.info(`Credits: ${credits}`);
   return { credits };
 }
 
 export async function testSunoAPI(): Promise<void> {
-  console.log("=== Suno API Test ===");
-  console.log(`API Key configured: ${isSunoConfigured() ? "YES" : "NO"}`);
+  log.info('=== Suno API Test ===');
+  log.info(`API Key configured: ${isSunoConfigured() ? 'YES' : 'NO'}`);
   if (!isSunoConfigured()) {
-    console.error("❌ Suno API key not found. Add VITE_SUNO_API_KEY to .env.local");
+    log.error('Suno API key not found. Add VITE_SUNO_API_KEY to .env.local');
     return;
   }
   try {
-    console.log("Testing credits endpoint...");
+    log.info('Testing credits endpoint...');
     const credits = await getCredits();
-    console.log(`✅ Credits check successful! Remaining: ${credits.credits}`);
+    log.info(`Credits check successful! Remaining: ${credits.credits}`);
   } catch (error) {
-    console.error("❌ Test failed:", error);
+    log.error('Test failed', error);
   }
 }
 
@@ -208,7 +212,7 @@ export async function createMusicVideo(taskId: string, audioId: string, author?:
     if (domainName) requestBody.domainName = domainName;
     return await callSunoProxy("create-music-video", requestBody);
   } catch (e) {
-    console.warn("[Suno] create-music-video failed");
+    log.warn('create-music-video failed');
     throw e;
   }
 }

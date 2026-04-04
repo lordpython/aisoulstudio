@@ -4,8 +4,11 @@
  */
 
 import { Type } from "@google/genai";
-import { SubtitleItem } from "../types";
+import { SubtitleItem } from "../../types";
 import { ai, MODELS, withRetry } from '../shared/apiClient';
+import { geminiLogger } from '../infrastructure/logger';
+
+const log = geminiLogger.child('Translation');
 
 // --- Interfaces ---
 
@@ -34,9 +37,7 @@ export const translateSubtitles = async (
     chunks.push(simplifiedSubs.slice(i, i + BATCH_SIZE));
   }
 
-  console.log(
-    `Translating ${subtitles.length} lines in ${chunks.length} batches...`,
-  );
+  log.info(`Translating ${subtitles.length} lines in ${chunks.length} batches...`);
 
   const processBatch = async (batch: typeof simplifiedSubs) => {
     return withRetry(async () => {
@@ -83,7 +84,7 @@ export const translateSubtitles = async (
     );
     return results.flat().sort((a, b) => a.id - b.id);
   } catch (error) {
-    console.error("Translation error:", error);
+    log.error('Translation error', error);
     throw error;
   }
 };

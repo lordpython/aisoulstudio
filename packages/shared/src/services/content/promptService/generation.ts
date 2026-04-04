@@ -12,6 +12,9 @@ import { countWords } from "../../utils/textProcessing";
 import { enhanceImagePrompt } from "../../media/deapiPromptService";
 import { lintPrompt, PromptLintIssue, PromptRefinementIntent, MotionPromptResult } from "./linting";
 import { getPromptGenerationInstruction } from "./purposeGuidance";
+import { contentLogger } from '../../infrastructure/logger';
+
+const log = contentLogger.child('PromptGen');
 
 interface PromptResponseItem {
   text: string;
@@ -138,7 +141,7 @@ const generatePromptsInternal = async (
         timestampSeconds: parseSRTTimestamp(p.timestamp) ?? 0,
       }));
     } catch (error) {
-      console.error("Prompt generation error:", error);
+      log.error('Prompt generation error', error);
       return [];
     }
   });

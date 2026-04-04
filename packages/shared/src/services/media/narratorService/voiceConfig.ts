@@ -2,8 +2,8 @@
  * Narrator Service — Voice configs, style maps, and voice selection helpers
  */
 
-import { EmotionalTone, VideoFormat } from "../../types";
-import { VideoPurpose, type LanguageCode } from "../../constants";
+import { EmotionalTone, VideoFormat } from "@/types";
+import { VideoPurpose, type LanguageCode } from "@/constants";
 
 export type TTSProvider = 'gemini' | 'deapi_qwen';
 

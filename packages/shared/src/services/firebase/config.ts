@@ -7,6 +7,9 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { firebaseLogger } from '../infrastructure/logger';
+
+const log = firebaseLogger.child('Config');
 
 // Firebase configuration from environment variables
 // NOTE: Storage is handled by Google Cloud Storage (aisoul-studio-storage bucket)
@@ -37,24 +40,15 @@ let db: Firestore | null = null;
 
 export function getFirebaseApp(): FirebaseApp | null {
   if (!isFirebaseConfigured()) {
-    console.warn('[Firebase] Not configured. Set VITE_FIREBASE_* environment variables.');
-    console.warn('[Firebase] Current config:', {
-      hasApiKey: !!firebaseConfig.apiKey,
-      hasAuthDomain: !!firebaseConfig.authDomain,
-      hasProjectId: !!firebaseConfig.projectId,
-      authDomain: firebaseConfig.authDomain,
-      projectId: firebaseConfig.projectId
-    });
+    log.warn('Not configured. Set VITE_FIREBASE_* environment variables.');
+    log.warn(`Current config: apiKey=${!!firebaseConfig.apiKey}, authDomain=${!!firebaseConfig.authDomain}, projectId=${!!firebaseConfig.projectId}`);
     return null;
   }
 
   if (!app) {
-    console.log('[Firebase] Initializing app with config:', {
-      authDomain: firebaseConfig.authDomain,
-      projectId: firebaseConfig.projectId
-    });
+    log.info(`Initializing app: authDomain=${firebaseConfig.authDomain}, projectId=${firebaseConfig.projectId}`);
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    console.log('[Firebase] App initialized successfully');
+    log.info('App initialized successfully');
   }
   return app;
 }

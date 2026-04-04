@@ -5,6 +5,9 @@
  */
 
 import { SERVER_URL } from './exportConfig';
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('SSE');
 
 export interface JobProgress {
   jobId: string;
@@ -50,12 +53,12 @@ export function subscribeToJob(
     if (isClosed) return;
 
     const url = `${SERVER_URL}/api/export/events/${jobId}`;
-    console.log(`[SSE] Connecting to ${url}`);
+    log.info(`Connecting to ${url}`);
 
     eventSource = new EventSource(url);
 
     eventSource.onopen = () => {
-      console.log(`[SSE] Connected to job ${jobId}`);
+      log.info(`Connected to job ${jobId}`);
       reconnectAttempts = 0;
     };
 
@@ -66,16 +69,16 @@ export function subscribeToJob(
 
         // Close connection on terminal states
         if (progress.status === 'complete' || progress.status === 'failed') {
-          console.log(`[SSE] Job ${jobId} reached terminal state: ${progress.status}`);
+          log.info(`Job ${jobId} reached terminal state: ${progress.status}`);
           close();
         }
       } catch (error) {
-        console.error('[SSE] Failed to parse message:', error);
+        log.error('Failed to parse message', error);
       }
     };
 
     eventSource.onerror = (event) => {
-      console.error(`[SSE] Connection error for job ${jobId}:`, event);
+      log.error(`Connection error for job ${jobId}`);
 
       // Close current connection
       eventSource?.close();
@@ -84,8 +87,8 @@ export function subscribeToJob(
       // Attempt reconnection
       if (!isClosed && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
-        console.log(
-          `[SSE] Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
+        log.info(
+          `Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
         );
         reconnectTimeout = window.setTimeout(connect, RECONNECT_DELAY_MS);
       } else if (onError && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -103,7 +106,7 @@ export function subscribeToJob(
     if (eventSource) {
       eventSource.close();
       eventSource = null;
-      console.log(`[SSE] Disconnected from job ${jobId}`);
+      log.info(`Disconnected from job ${jobId}`);
     }
   };
 
@@ -142,7 +145,7 @@ export async function pollJobStatus(
         timeoutId = window.setTimeout(poll, intervalMs);
       }
     } catch (error) {
-      console.error('[Poll] Failed to get job status:', error);
+      log.error('Failed to get job status', error);
       // Retry after delay
       if (!isCancelled) {
         timeoutId = window.setTimeout(poll, intervalMs * 2);

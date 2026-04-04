@@ -23,7 +23,10 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseDb, isFirebaseConfigured } from './config';
 import { getCurrentUser } from './authService';
+import { storyLogger } from '../infrastructure/logger';
 import type { StoryState } from '@/types';
+
+const log = storyLogger.child('Sync');
 
 /**
  * Story document stored in Firestore
@@ -167,7 +170,7 @@ export async function saveStoryToCloud(
   const user = getCurrentUser();
 
   if (!db || !user) {
-    console.log('[StorySync] Cannot save - no auth or Firebase not configured');
+    log.warn('Cannot save - no auth or Firebase not configured');
     return false;
   }
 
@@ -194,7 +197,7 @@ export async function saveStoryToCloud(
       const existingData = existing.data() as StorySyncDocument;
       // Verify ownership before update to prevent cross-user writes
       if (existingData.userId !== user.uid) {
-        console.warn('[StorySync] Cannot save - document belongs to different user');
+        log.warn('Cannot save - document belongs to different user');
         return false;
       }
     } else {
@@ -202,10 +205,10 @@ export async function saveStoryToCloud(
     }
 
     await setDoc(docRef, sanitizeForFirestore(storyDoc), { merge: true });
-    console.log(`[StorySync] Saved story ${sessionId} to Firestore`);
+    log.info(`Saved story ${sessionId} to Firestore`);
     return true;
   } catch (error) {
-    console.error('[StorySync] Failed to save:', error);
+    log.error('Failed to save', error);
     return false;
   }
 }
@@ -235,14 +238,14 @@ export async function loadStoryFromCloud(
 
     // Verify ownership
     if (data.userId !== user.uid) {
-      console.warn('[StorySync] Story belongs to different user');
+      log.warn('Story belongs to different user');
       return null;
     }
 
-    console.log(`[StorySync] Loaded story ${sessionId} from Firestore`);
+    log.debug(`Loaded story ${sessionId} from Firestore`);
     return data.state;
   } catch (error) {
-    console.error('[StorySync] Failed to load:', error);
+    log.error('Failed to load', error);
     return null;
   }
 }
@@ -265,16 +268,16 @@ export async function deleteStoryFromCloud(sessionId: string): Promise<boolean> 
     if (docSnap.exists()) {
       const data = docSnap.data() as StorySyncDocument;
       if (data.userId !== user.uid) {
-        console.warn('[StorySync] Cannot delete - story belongs to different user');
+        log.warn('Cannot delete - story belongs to different user');
         return false;
       }
     }
 
     await deleteDoc(docRef);
-    console.log(`[StorySync] Deleted story ${sessionId}`);
+    log.info(`Deleted story ${sessionId}`);
     return true;
   } catch (error) {
-    console.error('[StorySync] Failed to delete:', error);
+    log.error('Failed to delete', error);
     return false;
   }
 }
@@ -341,7 +344,7 @@ export async function listUserStories(
 
     return stories;
   } catch (error) {
-    console.error('[StorySync] Failed to list stories:', error);
+    log.error('Failed to list stories', error);
     return [];
   }
 }
@@ -374,7 +377,7 @@ export function subscribeToStory(
 
       // Verify ownership
       if (data.userId !== user.uid) {
-        console.warn('[StorySync] Real-time update for story owned by different user');
+        log.warn('Real-time update for story owned by different user');
         onUpdate(null);
         return;
       }
@@ -382,7 +385,7 @@ export function subscribeToStory(
       onUpdate(data.state);
     },
     (error) => {
-      console.error('[StorySync] Real-time subscription error:', error);
+      log.error('Real-time subscription error', error);
     }
   );
 }

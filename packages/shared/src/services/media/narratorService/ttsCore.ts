@@ -3,8 +3,8 @@
  */
 
 import { ai, API_KEY, MODELS, withRetry } from '../../shared/apiClient';
-import { EmotionalTone, InstructionTriplet } from "../../types";
-import { VideoPurpose, type LanguageCode } from "../../constants";
+import { EmotionalTone, InstructionTriplet } from "@/types";
+import { VideoPurpose, type LanguageCode } from "@/constants";
 import { traceAsync } from "../../tracing";
 import { logAICall } from "../../infrastructure/aiLogService";
 import { getEffectiveLegacyTone } from "../../content/tripletUtils";
@@ -19,6 +19,9 @@ import {
     ExtendedVoiceConfig,
     TONE_VOICE_MAP,
 } from "./voiceConfig";
+import { mediaLogger } from '../../infrastructure/logger';
+
+const log = mediaLogger.child('TTS');
 
 // --- TTS Throttling (mutex-safe for parallel callers) ---
 
@@ -153,14 +156,14 @@ export const synthesizeSpeech = traceAsync(
         }
 
         const resolvedConfig: ExtendedVoiceConfig = typeof voiceConfig === "string"
-            ? TONE_VOICE_MAP[voiceConfig]
+            ? TONE_VOICE_MAP[voiceConfig]!
             : voiceConfig;
 
         const mergedConfig = { ...DEFAULT_NARRATOR_CONFIG, ...config };
         const directorNote = buildDirectorNote(resolvedConfig.stylePrompt);
 
         if (mergedConfig.provider === 'deapi_qwen') {
-            console.log(`[Narrator] Routing to DeAPI Qwen3 TTS...`);
+            log.info('Routing to DeAPI Qwen3 TTS...');
             const qwenLang = mapLanguageToDeApiFormat(mergedConfig.language);
             return await withRetry(() =>
                 generateDeapiQwenTTS(text, directorNote, qwenLang, mergedConfig.deapiModel)
@@ -169,9 +172,9 @@ export const synthesizeSpeech = traceAsync(
 
         const styledText = formatTextWithStyle(text, resolvedConfig.stylePrompt);
 
-        console.log(`[Narrator] Synthesizing speech: "${text.substring(0, 50)}..." with voice ${resolvedConfig.voiceName}`);
+        log.info(`Synthesizing speech: "${text.substring(0, 50)}..." with voice ${resolvedConfig.voiceName}`);
         if (resolvedConfig.stylePrompt) {
-            console.log(`[Narrator] Using style prompt: ${buildDirectorNote(resolvedConfig.stylePrompt)}`);
+            log.debug(`Using style prompt: ${buildDirectorNote(resolvedConfig.stylePrompt)}`);
         }
 
         const releaseSlot = await acquireTtsSlot();
@@ -203,11 +206,11 @@ export const synthesizeSpeech = traceAsync(
                     pcmData[i] = binaryString.charCodeAt(i);
                 }
 
-                console.log(`[Narrator] Received ${pcmData.length} bytes of PCM audio, converting to WAV`);
+                log.debug(`Received ${pcmData.length} bytes of PCM audio, converting to WAV`);
                 return pcmToWav(pcmData);
             }, 5, 2000, 2);
         } catch (error) {
-            console.error("[Narrator] TTS synthesis failed:", error);
+            log.error('TTS synthesis failed', error);
             throw new NarratorError(
                 `Speech synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
                 "API_FAILURE",

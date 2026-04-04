@@ -16,6 +16,9 @@ import {
   type Unsubscribe,
 } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from './config';
+import { firebaseLogger } from '../infrastructure/logger';
+
+const log = firebaseLogger.child('Auth');
 
 export interface AuthUser {
   uid: string;
@@ -48,19 +51,19 @@ googleProvider.setCustomParameters({
 export async function signInWithGoogle(): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
   if (!auth) {
-    console.warn('[Auth] Firebase not configured');
+    log.warn('Firebase not configured');
     return null;
   }
 
-  console.log('[Auth] Starting Google sign-in with popup...');
+  log.info('Starting Google sign-in with popup...');
 
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    console.log('[Auth] Google sign-in successful:', result.user.email);
+    log.info(`Google sign-in successful: ${result.user.email}`);
     return toAuthUser(result.user);
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-    console.error('[Auth] Google sign-in failed:', firebaseError.message);
+    log.error(`Google sign-in failed: ${firebaseError.message}`);
     throw error;
   }
 }
@@ -86,24 +89,24 @@ export async function handleRedirectResult(): Promise<AuthUser | null> {
 async function _handleRedirectResultImpl(): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
   if (!auth) {
-    console.log('[Auth] No auth instance, skipping redirect check');
+    log.debug('No auth instance, skipping redirect check');
     return null;
   }
 
   try {
-    console.log('[Auth] Checking for redirect result...');
+    log.debug('Checking for redirect result...');
     const result = await getRedirectResult(auth);
 
     if (result) {
-      console.log('[Auth] Redirect sign-in successful:', result.user.email);
+      log.info(`Redirect sign-in successful: ${result.user.email}`);
       return toAuthUser(result.user);
     }
 
-    console.log('[Auth] No redirect result found');
+    log.debug('No redirect result found');
     return null;
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-    console.error('[Auth] Redirect result error:', firebaseError.message);
+    log.error(`Redirect result error: ${firebaseError.message}`);
     throw error;
   }
 }
@@ -117,17 +120,17 @@ export async function signInWithEmail(
 ): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
   if (!auth) {
-    console.warn('[Auth] Firebase not configured');
+    log.warn('Firebase not configured');
     return null;
   }
 
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    console.log('[Auth] Email sign-in successful:', result.user.email);
+    log.info(`Email sign-in successful: ${result.user.email}`);
     return toAuthUser(result.user);
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-    console.error('[Auth] Email sign-in failed:', firebaseError.message);
+    log.error(`Email sign-in failed: ${firebaseError.message}`);
     throw error;
   }
 }
@@ -141,17 +144,17 @@ export async function createAccount(
 ): Promise<AuthUser | null> {
   const auth = getFirebaseAuth();
   if (!auth) {
-    console.warn('[Auth] Firebase not configured');
+    log.warn('Firebase not configured');
     return null;
   }
 
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    console.log('[Auth] Account created:', result.user.email);
+    log.info(`Account created: ${result.user.email}`);
     return toAuthUser(result.user);
   } catch (error: unknown) {
     const firebaseError = error as { code?: string; message?: string };
-    console.error('[Auth] Account creation failed:', firebaseError.message);
+    log.error(`Account creation failed: ${firebaseError.message}`);
     throw error;
   }
 }
@@ -165,10 +168,10 @@ export async function signOut(): Promise<void> {
 
   try {
     await firebaseSignOut(auth);
-    console.log('[Auth] Signed out');
+    log.info('Signed out');
   } catch (error: unknown) {
     const firebaseError = error as { message?: string };
-    console.error('[Auth] Sign out failed:', firebaseError.message);
+    log.error(`Sign out failed: ${firebaseError.message}`);
     throw error;
   }
 }

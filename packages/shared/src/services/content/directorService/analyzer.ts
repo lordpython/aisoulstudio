@@ -4,6 +4,10 @@
 
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { AnalysisSchema, AnalysisOutput, DirectorConfig, createModel } from "./schemas";
+import { withRetry } from '../../shared/apiClient';
+import { contentLogger } from '../../infrastructure/logger';
+
+const log = contentLogger.child('Analyzer');
 
 function createAnalyzerTemplate(contentType: "lyrics" | "story"): ChatPromptTemplate {
   return ChatPromptTemplate.fromMessages([
@@ -85,25 +89,25 @@ export async function runAnalyzer(
   const chain = createAnalyzerChain(contentType, config);
 
   try {
-    const result = await chain.invoke({ content });
+    const result = await withRetry(() => chain.invoke({ content }), 2, 2000);
 
     if (result.visualScenes && result.visualScenes.length > 0) {
-      console.log(`[Analyzer] Generated ${result.visualScenes.length} visual scenes:`);
+      log.info(`Generated ${result.visualScenes.length} visual scenes:`);
       result.visualScenes.forEach((scene, i) => {
         const wordCount = scene.visualPrompt?.split(/\s+/).filter(Boolean).length || 0;
         const isFragment = wordCount < 30;
-        console.log(`  Scene ${i + 1}: ${wordCount} words ${isFragment ? "⚠️ FRAGMENT" : "✓"} | Tone: ${scene.emotionalTone}`);
+        log.debug(`  Scene ${i + 1}: ${wordCount} words ${isFragment ? 'FRAGMENT' : 'OK'} | Tone: ${scene.emotionalTone}`);
         if (isFragment && scene.visualPrompt) {
-          console.log(`    Preview: "${scene.visualPrompt.substring(0, 80)}..."`);
+          log.debug(`    Preview: "${scene.visualPrompt.substring(0, 80)}..."`);
         }
       });
     } else {
-      console.warn("[Analyzer] No visualScenes generated - Storyboarder will create from scratch");
+      log.warn('No visualScenes generated - Storyboarder will create from scratch');
     }
 
     return result;
   } catch (error) {
-    console.warn("[Analyzer] Parsing failed, attempting to provide defaults:", error);
+    log.warn('Parsing failed, attempting to provide defaults', error);
 
     const defaultAnalysis: AnalysisOutput = {
       sections: [{

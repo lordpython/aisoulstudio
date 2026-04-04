@@ -13,7 +13,7 @@ import {
   chunkContent,
   getSupportedTypes,
   DocumentParseError,
-} from './documentParser';
+} from './content/documentParser';
 
 // Helper to create a mock File using happy-dom's File API
 function createMockFile(

@@ -13,6 +13,10 @@
  * 3. Traces appear at: https://smith.langchain.com
  */
 
+import { createLogger } from '../infrastructure/logger';
+
+const log = createLogger('Tracing');
+
 // --- Configuration ---
 
 // Access Vite env vars (types are defined in vite-env.d.ts or env.d.ts)
@@ -22,7 +26,7 @@ const LANGSMITH_ENDPOINT = "https://api.smith.langchain.com";
 const TRACING_ENABLED = !!LANGSMITH_API_KEY && (import.meta as any).env?.VITE_LANGSMITH_TRACING !== "false";
 
 if (TRACING_ENABLED && typeof window !== "undefined") {
-    console.log(`[Tracing] LangSmith tracing enabled for project: ${LANGSMITH_PROJECT}`);
+    log.info(`LangSmith tracing enabled for project: ${LANGSMITH_PROJECT}`);
 }
 
 // --- Types ---
@@ -70,11 +74,11 @@ async function postRun(run: TraceRun): Promise<void> {
         });
 
         if (!response.ok) {
-            console.warn(`[Tracing] Failed to post run: ${response.status}`);
+            log.warn(`Failed to post run: ${response.status}`);
         }
     } catch (error) {
         // Don't let tracing errors break the app
-        console.warn("[Tracing] Error posting run:", error);
+        log.warn('Error posting run', error);
     }
 }
 
@@ -92,10 +96,10 @@ async function patchRun(runId: string, updates: Partial<TraceRun>): Promise<void
         });
 
         if (!response.ok) {
-            console.warn(`[Tracing] Failed to patch run: ${response.status}`);
+            log.warn(`Failed to patch run: ${response.status}`);
         }
     } catch (error) {
-        console.warn("[Tracing] Error patching run:", error);
+        log.warn('Error patching run', error);
     }
 }
 

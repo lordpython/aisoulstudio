@@ -215,7 +215,7 @@ export const runProductionPipeline = traceAsync(
             await initializeProductionSession(sessionId, createInitialState());
         }
 
-        const persistState = (updates: Partial<import("./ai/production/types").ProductionState>) => {
+        const persistState = (updates: Partial<import("../ai/production/types").ProductionState>) => {
             if (!sessionId) return;
             updateProductionSession(sessionId, updates);
         };

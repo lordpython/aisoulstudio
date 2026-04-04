@@ -23,6 +23,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Scene, SongData, AppState, ContentPlan, NarrationSegment, VideoSFXPlan } from '../types';
+import { uiLogger } from '../services/infrastructure/logger';
+
+const log = uiLogger.child('AppStore');
 
 // ============================================================
 // Types
@@ -306,7 +309,7 @@ function base64ToBlob(base64: string, mimeType: string = 'audio/wav'): Blob | nu
         const byteArray = new Uint8Array(byteNumbers);
         return new Blob([byteArray], { type: mimeType });
     } catch (error) {
-        console.error('[AppStore] Failed to convert Base64 to Blob:', error);
+        log.error('Failed to convert Base64 to Blob', error);
         return null;
     }
 }
@@ -509,7 +512,7 @@ export const useAppStore = create<AppStore>()(
                 const styleCount = newHistory.mostUsedStyles[params.style];
                 if (styleCount && styleCount >= 3 && !newPreferences.defaultStyle) {
                     newPreferences.defaultStyle = params.style;
-                    console.log(`[UserProfile] Auto-set default style to ${params.style}`);
+                    log.info(`Auto-set default style to ${params.style}`);
                 }
 
                 return {
@@ -624,7 +627,7 @@ export const useAppStore = create<AppStore>()(
                         try {
                             audioBlob = base64ToBlob(segment.audioBase64) ?? undefined;
                         } catch (err) {
-                            console.warn('Failed to deserialize audio for scene:', segment.sceneId, err);
+                            log.warn(`Failed to deserialize audio for scene: ${segment.sceneId}`, err);
                         }
                     }
                     return {

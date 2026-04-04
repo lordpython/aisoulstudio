@@ -6,6 +6,9 @@
 import { Type } from "@google/genai";
 import { SubtitleItem, WordTiming } from "../../types";
 import { ai, MODELS, withRetry } from '../shared/apiClient';
+import { geminiLogger } from '../infrastructure/logger';
+
+const log = geminiLogger.child('Transcription');
 
 // --- Interfaces ---
 
@@ -213,8 +216,8 @@ Rules:
         }),
       );
     } catch (error) {
-      console.error("Word-level transcription error:", error);
-      console.warn("Falling back to line-level SRT transcription...");
+      log.error('Word-level transcription error', error);
+      log.warn('Falling back to line-level SRT transcription...');
       const srt = await transcribeAudio(base64Audio, mimeType);
       const { parseSRT } = await import("../../utils/srtParser");
       return parseSRT(srt);

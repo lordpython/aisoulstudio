@@ -207,7 +207,7 @@ export function critiqueStoryboard(
 export const analyzeContentTool = tool(
     async ({ content, contentType }: { content: string; contentType: "lyrics" | "story" }) => {
         try {
-            console.log("[AgentDirector] Running content analysis...");
+            agentLogger.info('Running content analysis...');
             const analysis = await runAnalyzer(content, contentType);
             return JSON.stringify(analysis, null, 2);
         } catch (error) {
@@ -265,15 +265,15 @@ export const analyzeAndGenerateStoryboardTool = tool(
         targetAssetCount?: number;
     }) => {
         try {
-            console.log("[AgentDirector] Running combined analysis + storyboard generation...");
+            agentLogger.info('Running combined analysis + storyboard generation...');
 
             // Step 1: Analyze content
-            console.log("[AgentDirector] Step 1: Analyzing content...");
+            agentLogger.info('Step 1: Analyzing content...');
             const analysis = await runAnalyzer(content, contentType);
-            console.log(`[AgentDirector] Analysis complete: ${analysis.sections.length} sections, ${analysis.visualScenes?.length || 0} visual scenes`);
+            agentLogger.info(`Analysis complete: ${analysis.sections.length} sections, ${analysis.visualScenes?.length || 0} visual scenes`);
 
             // Step 2: Generate storyboard from analysis
-            console.log("[AgentDirector] Step 2: Generating storyboard...");
+            agentLogger.info('Step 2: Generating storyboard...');
             const storyboard = await runStoryboarder(
                 analysis,
                 style,
@@ -292,7 +292,7 @@ export const analyzeAndGenerateStoryboardTool = tool(
                 throw new Error("Storyboard contains no prompts");
             }
 
-            console.log(`[AgentDirector] Storyboard generated: ${storyboard.prompts.length} prompts`);
+            agentLogger.info(`Storyboard generated: ${storyboard.prompts.length} prompts`);
 
             return JSON.stringify({
                 analysis: {
@@ -305,7 +305,7 @@ export const analyzeAndGenerateStoryboardTool = tool(
             }, null, 2);
         } catch (error) {
             const errorMsg = `Combined analysis + storyboard failed: ${error instanceof Error ? error.message : String(error)}`;
-            console.error("[AgentDirector]", errorMsg);
+            agentLogger.error(errorMsg);
             return errorMsg;
         }
     },
@@ -411,7 +411,7 @@ export const refinePromptTool = tool(
         previousPrompts: string[];
     }) => {
         try {
-            console.log("[AgentDirector] Refining prompt...");
+            agentLogger.info('Refining prompt...');
             const result = await refineImagePrompt({
                 promptText,
                 style,
@@ -452,7 +452,7 @@ export const critiqueStoryboardTool = tool(
         globalSubject: string;
     }) => {
         try {
-            console.log("[AgentDirector] Critiquing storyboard...");
+            agentLogger.info('Critiquing storyboard...');
             const sanitizedJson = sanitizeJsonString(storyboardJson);
             const storyboard: StoryboardOutput = JSON.parse(sanitizedJson);
             const critique = critiqueStoryboard(storyboard, globalSubject);

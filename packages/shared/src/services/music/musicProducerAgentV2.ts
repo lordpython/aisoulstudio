@@ -15,6 +15,7 @@ import { tool } from "@langchain/core/tools";
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { API_KEY, MODELS } from '../shared/apiClient';
+import { musicLogger } from '../infrastructure/logger';
 import {
   generateMusic,
   getTaskStatus,
@@ -24,6 +25,8 @@ import {
   type SunoGeneratedTrack,
   type SunoGenerationConfig,
 } from "./sunoService";
+
+const log = musicLogger.child('ProducerV2');
 
 // --- Best Practices Prompt System ---
 
@@ -139,11 +142,7 @@ When the user is ready or after gathering enough information, use the generate_m
 const generateMusicTool = tool(
   async (input) => {
     try {
-      console.log("[MusicProducerV2] Generating music with:", {
-        title: input.title,
-        style: input.style.substring(0, 50) + "...",
-        model: input.model,
-      });
+      log.info(`Generating music: title=${input.title}, style=${input.style.substring(0, 50)}..., model=${input.model}`);
 
       const config: SunoGenerationConfig = {
         prompt: input.prompt,
@@ -451,7 +450,7 @@ export class MusicProducerAgentV2 {
 
         // Check if there are tool calls
         const toolCalls = response.tool_calls;
-        console.log("[MusicProducerV2] Tool calls in response:", toolCalls?.map(tc => tc.name) || "none");
+        log.debug(`Tool calls in response: ${toolCalls?.map(tc => tc.name).join(', ') || 'none'}`);
 
         if (!toolCalls || toolCalls.length === 0) {
           // No tool calls - this is the final response
@@ -480,11 +479,7 @@ export class MusicProducerAgentV2 {
             ? response.content
             : "";
 
-          console.log("[MusicProducerV2] Returning confirmation_required with pendingAction:", {
-            id: this.pendingToolCall.id,
-            name: this.pendingToolCall.name,
-            summary: this.pendingToolCall.summary,
-          });
+          log.info(`Returning confirmation_required: ${this.pendingToolCall.name} (${this.pendingToolCall.id})`);
 
           return {
             type: "confirmation_required",
@@ -531,7 +526,7 @@ export class MusicProducerAgentV2 {
       };
 
     } catch (error) {
-      console.error("[MusicProducerV2] Chat error:", error);
+      log.error('Chat error', error);
       return {
         type: "error",
         message: "Sorry, something went wrong. Please try again.",
@@ -627,7 +622,7 @@ export class MusicProducerAgentV2 {
       };
 
     } catch (error) {
-      console.error("[MusicProducerV2] Confirm error:", error);
+      log.error('Confirm error', error);
 
       // Clear pending state on error
       this.pendingToolCall = null;

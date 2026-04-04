@@ -13,7 +13,7 @@ import type {
   StoryboardScene,
   TextExtractionResult,
   ExtractorLogger,
-} from '../../../types';
+} from './types';
 import { defaultLogger } from './types';
 
 export class FallbackProcessor {

@@ -12,6 +12,7 @@ import os from 'os';
 import { RenderJob, WorkerMessage, MainMessage } from '../types/renderJob.js';
 import { TEMP_DIR } from '../utils/index.js';
 import { quickValidate } from '../services/validation/qualityVerifier.js';
+import { getEncoderArgs } from '../services/encoding/encoderStrategy.js';
 
 const WORKER_ID = process.env.WORKER_ID || `worker_${process.pid}`;
 
@@ -123,7 +124,8 @@ function buildFFmpegArgs(job: RenderJob, sessionDir: string): string[] {
   const { config } = job;
   const encoder = config.encoder;
 
-  const inputPattern = path.join(sessionDir, 'frame%06d.jpg');
+  const hasPngFrames = fs.existsSync(path.join(sessionDir, 'frame000000.png'));
+  const inputPattern = path.join(sessionDir, hasPngFrames ? 'frame%06d.png' : 'frame%06d.jpg');
   const audioPath = path.join(sessionDir, 'audio.mp3');
   const outputPath = path.join(sessionDir, 'output.mp4');
 
@@ -137,64 +139,15 @@ function buildFFmpegArgs(job: RenderJob, sessionDir: string): string[] {
     args.push('-i', audioPath);
   }
 
-  // Video encoder
-  args.push('-c:v', encoder);
-
-  // Encoder-specific settings (aligned with encoderStrategy.ts ENCODING_SPEC)
-  // Use nullish coalescing: createRenderJob always sets quality, but default to 21 defensively.
+  // Use shared encoder args from encoderStrategy.ts (deduplicated)
   const quality = config.quality ?? 21;
-  switch (encoder) {
-    case 'h264_nvenc':
-      args.push(
-        '-preset', 'p5',
-        '-rc', 'vbr',
-        '-cq', String(quality),
-        '-b:v', '12M',
-        '-maxrate', '18M',
-        '-bufsize', '24M'
-      );
-      break;
-    case 'h264_qsv':
-      args.push(
-        '-preset', 'medium',
-        '-global_quality', String(quality),
-        '-look_ahead', '1'
-      );
-      break;
-    case 'h264_amf':
-      args.push(
-        '-quality', 'quality',
-        '-rc', 'vbr_latency',
-        '-qp_i', String(quality),
-        '-qp_p', String(quality + 2)
-      );
-      break;
-    case 'libx264':
-    default: {
-      const cpuCount = Math.max(2, os.cpus().length - 2);
-      args.push(
-        '-preset', 'medium',
-        '-crf', String(quality),
-        '-tune', 'film',
-        '-threads', String(cpuCount)
-      );
-      break;
-    }
-  }
-
-  // Color space standardization (BT.709)
-  args.push(
-    '-colorspace', 'bt709',
-    '-color_primaries', 'bt709',
-    '-color_trc', 'bt709',
-    '-pix_fmt', 'yuv420p'
-  );
+  args.push(...getEncoderArgs(encoder, quality));
 
   // Audio settings
   if (fs.existsSync(audioPath)) {
     args.push(
       '-c:a', 'aac',
-      '-b:a', '256k',
+      '-b:a', '320k',
       '-shortest'
     );
   }

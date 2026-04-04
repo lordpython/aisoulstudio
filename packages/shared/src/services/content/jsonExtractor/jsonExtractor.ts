@@ -16,7 +16,7 @@ import type {
   StoryboardScene,
   StoryboardData,
   ExtractorLogger,
-} from '../../../types';
+} from './types';
 import { ExtractionMethod, defaultLogger } from './types';
 
 export class JSONExtractor {

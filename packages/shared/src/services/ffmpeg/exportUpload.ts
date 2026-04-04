@@ -7,6 +7,9 @@
 
 import { SERVER_URL, ProgressCallback } from "./exportConfig";
 import { subscribeToJob, isSSESupported, JobProgress } from "./sseClient";
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('Upload');
 
 export interface UploadFrame {
     blob: Blob;
@@ -100,7 +103,7 @@ export async function uploadFrameBatch(sessionId: string, batch: UploadFrame[]):
             }
 
             const backoffMs = INITIAL_BACKOFF_MS * (2 ** attempt);
-            console.warn(`[ExportUpload] Chunk upload failed (attempt ${attempt + 1}/${MAX_UPLOAD_RETRIES}); retrying in ${backoffMs}ms`, error);
+            log.warn(`Chunk upload failed (attempt ${attempt + 1}/${MAX_UPLOAD_RETRIES}); retrying in ${backoffMs}ms`, error);
             await delay(backoffMs);
         }
     }
@@ -140,7 +143,7 @@ export async function finalizeAndDownload(
     }
 
     const { jobId } = await finalizeRes.json() as { jobId: string };
-    console.log(`[ExportUpload] Job ${jobId} queued, subscribing to SSE`);
+    log.info(`Job ${jobId} queued, subscribing to SSE`);
     onProgress({ stage: "encoding", progress: 90, message: "Server encoding started...", renderedAt: Date.now() });
 
     return new Promise<Blob>((resolve, reject) => {

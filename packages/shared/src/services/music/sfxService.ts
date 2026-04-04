@@ -11,9 +11,12 @@
  * - Background music recommendations
  */
 
-import { Scene, EmotionalTone, AmbientSFX, SFXCategory, SceneSFXPlan, VideoSFXPlan } from "../types";
-import { VideoPurpose } from "../constants";
+import { Scene, EmotionalTone, AmbientSFX, SFXCategory, SceneSFXPlan, VideoSFXPlan } from "@/types";
+import { VideoPurpose } from "@/constants";
 import { getEffectiveLegacyTone } from '../content/tripletUtils';
+import { musicLogger } from '../infrastructure/logger';
+
+const log = musicLogger.child('SFX');
 
 // Re-export types that other modules need
 export type { VideoSFXPlan, SceneSFXPlan, AmbientSFX };
@@ -471,12 +474,12 @@ export function findAmbientForScene(
   if (scene.ambientSfx) {
     const aiSuggested = AMBIENT_LIBRARY.find(sfx => sfx.id === scene.ambientSfx);
     if (aiSuggested && !excludeIds.includes(aiSuggested.id)) {
-      console.log(`[SFX] Using AI-suggested SFX for scene "${scene.name}": ${aiSuggested.name}`);
+      log.info(`Using AI-suggested SFX for scene "${scene.name}": ${aiSuggested.name}`);
       return aiSuggested;
     }
     // If AI suggested an invalid ID, log warning and fall back to keyword matching
     if (!aiSuggested) {
-      console.warn(`[SFX] AI suggested unknown SFX ID "${scene.ambientSfx}" for scene "${scene.name}", falling back to keyword matching`);
+      log.warn(`AI suggested unknown SFX ID "${scene.ambientSfx}" for scene "${scene.name}", falling back to keyword matching`);
     }
   }
 
@@ -639,11 +642,11 @@ import {
  */
 export async function enrichSFXPlanWithFreesound(plan: VideoSFXPlan): Promise<VideoSFXPlan> {
   if (!isFreesoundConfigured()) {
-    console.warn("[SFX] Freesound API not configured, using placeholder SFX");
+    log.warn('Freesound API not configured, using placeholder SFX');
     return plan;
   }
 
-  console.log("[SFX] Fetching audio from Freesound...");
+  log.info('Fetching audio from Freesound...');
 
   // Collect all unique SFX IDs that need audio
   const sfxIds = new Set<string>();
@@ -662,7 +665,7 @@ export async function enrichSFXPlanWithFreesound(plan: VideoSFXPlan): Promise<Vi
   // Fetch sounds from Freesound
   const soundMap = await preloadSounds(Array.from(sfxIds));
 
-  console.log(`[SFX] Fetched ${soundMap.size}/${sfxIds.size} sounds from Freesound`);
+  log.info(`Fetched ${soundMap.size}/${sfxIds.size} sounds from Freesound`);
 
   // Update plan with audio URLs
   const updateSFX = (sfx: AmbientSFX | null): AmbientSFX | null => {

@@ -4,6 +4,9 @@
 
 import { RunnableSequence } from "@langchain/core/runnables";
 import { ImagePrompt } from "../../../types";
+import { contentLogger } from '../../infrastructure/logger';
+
+const log = contentLogger.child('Director');
 import { VideoPurpose, CAMERA_ANGLES, LIGHTING_MOODS } from "../../../constants";
 import {
   getPurposeGuidance,
@@ -24,8 +27,41 @@ import {
   DirectorServiceError,
   DirectorErrorCode,
 } from "./schemas";
-import { createAnalyzerChain } from "./analyzer";
-import { createStoryboarderChain } from "./storyboarder";
+import { createAnalyzerChain, runAnalyzer } from "./analyzer";
+import { createStoryboarderChain, runStoryboarder } from "./storyboarder";
+
+// --- Analysis Cache ---
+// Caches analysis results by content hash to avoid re-running the analyzer on storyboarder retries.
+const analysisCache = new Map<string, { result: AnalysisOutput; timestamp: number }>();
+const ANALYSIS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getAnalysisCacheKey(content: string, contentType: string): string {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    hash = ((hash << 5) - hash + content.charCodeAt(i)) | 0;
+  }
+  return `${contentType}:${hash}`;
+}
+
+function getCachedAnalysis(content: string, contentType: string): AnalysisOutput | null {
+  const key = getAnalysisCacheKey(content, contentType);
+  const entry = analysisCache.get(key);
+  if (entry && Date.now() - entry.timestamp < ANALYSIS_CACHE_TTL_MS) {
+    log.info('Using cached analysis result');
+    return entry.result;
+  }
+  if (entry) analysisCache.delete(key);
+  return null;
+}
+
+function setCachedAnalysis(content: string, contentType: string, result: AnalysisOutput): void {
+  const key = getAnalysisCacheKey(content, contentType);
+  analysisCache.set(key, { result, timestamp: Date.now() });
+  // Evict stale entries
+  for (const [k, v] of analysisCache) {
+    if (Date.now() - v.timestamp > ANALYSIS_CACHE_TTL_MS) analysisCache.delete(k);
+  }
+}
 
 // --- LCEL Chain ---
 
@@ -33,9 +69,7 @@ export function createDirectorChain(
   contentType: "lyrics" | "story",
   config?: DirectorConfig
 ) {
-  const analyzerChain = createAnalyzerChain(contentType, config);
-  const storyboarderChain = createStoryboarderChain(config);
-
+  // Use runAnalyzer/runStoryboarder wrappers which include retry + quality scoring
   return RunnableSequence.from([
     async (input: {
       content: string;
@@ -43,8 +77,13 @@ export function createDirectorChain(
       videoPurpose: VideoPurpose;
       globalSubject: string;
     }) => {
-      const analysis = await analyzerChain.invoke({ content: input.content });
-      console.log("[Director] Analysis complete:", JSON.stringify(analysis, null, 2));
+      const cached = getCachedAnalysis(input.content, contentType);
+      // Use runAnalyzer instead of raw chain - includes withRetry + fallback
+      const analysis = cached ?? await runAnalyzer(input.content, contentType, config);
+      if (!cached) {
+        setCachedAnalysis(input.content, contentType, analysis);
+        log.debug('Analysis complete (fresh)', analysis);
+      }
       return { analysis, style: input.style, videoPurpose: input.videoPurpose, globalSubject: input.globalSubject };
     },
     async (input: {
@@ -53,50 +92,8 @@ export function createDirectorChain(
       videoPurpose: VideoPurpose;
       globalSubject: string;
     }) => {
-      const persona = getSystemPersona(input.videoPurpose);
-      const personaInstructions = `You are ${persona.name}, a ${persona.role}.
-
-YOUR CORE RULE:
-${persona.coreRule}
-
-YOUR VISUAL PRINCIPLES:
-${persona.visualPrinciples.map((p: string) => `- ${p}`).join('\n')}
-
-WHAT TO AVOID:
-${persona.avoidList.map((a: string) => `- ${a}`).join('\n')}`;
-
-      const styleData = getStyleEnhancement(input.style);
-      const styleEnhancement = `MEDIUM AUTHENTICITY (apply these characteristics):
-${styleData.keywords.map((k: string) => `- ${k}`).join('\n')}
-Overall: ${styleData.mediumDescription}`;
-
-      const purposeGuidance = getPurposeGuidance(input.videoPurpose);
-      const subjectGuidance = input.globalSubject.trim()
-        ? `Keep this subject's appearance consistent across scenes.`
-        : `Create cohesive scenes with consistent environmental elements.`;
-
-      const visualScenes = input.analysis.visualScenes && input.analysis.visualScenes.length > 0
-        ? input.analysis.visualScenes.map((scene, i) =>
-            `SCENE ${i + 1} [${scene.timestamp}] - ${scene.emotionalTone}:
-      Subject: ${scene.subjectContext}
-      Visual: ${scene.visualPrompt}`
-          ).join('\n\n')
-        : "No visual scenes provided - create cinematic scenes based on themes and emotional arc.";
-
-      const targetAssetCount = config?.targetAssetCount || 10;
-      const result = await storyboarderChain.invoke({
-        style: input.style,
-        personaInstructions,
-        styleEnhancement,
-        purposeGuidance,
-        globalSubject: input.globalSubject || "None specified",
-        subjectGuidance,
-        visualScenes,
-        cameraAngles: CAMERA_ANGLES.join(", "),
-        lightingMoods: LIGHTING_MOODS.join(", "),
-        analysis: JSON.stringify(input.analysis, null, 2),
-        targetAssetCount,
-      });
+      // Use runStoryboarder instead of raw chain - includes withRetry + scorePrompt + selective retry
+      const result = await runStoryboarder(input.analysis, input.style, input.videoPurpose, input.globalSubject, config);
 
       if (result.prompts) {
         result.prompts = result.prompts.map(prompt => ({
@@ -105,7 +102,7 @@ Overall: ${styleData.mediumDescription}`;
         }));
       }
 
-      console.log("[Director] Storyboard complete:", result.prompts?.length, "prompts generated");
+      log.info(`Storyboard complete: ${result.prompts?.length} prompts generated`);
       return result;
     },
   ]);
@@ -135,11 +132,7 @@ function logError(stage: string, error: unknown, context?: Record<string, unknow
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorStack = error instanceof Error ? error.stack : undefined;
 
-  console.error(`[Director] Error in ${stage}:`);
-  console.error(`  Code: ${errorCode}`);
-  console.error(`  Message: ${errorMessage}`);
-  if (context) console.error(`  Context:`, JSON.stringify(context, null, 2));
-  if (errorStack) console.error(`  Stack: ${errorStack}`);
+  log.error(`Error in ${stage}: [${errorCode}] ${errorMessage}`, { context, stack: errorStack });
 }
 
 // --- Prompt Validation ---
@@ -159,14 +152,14 @@ async function validateAndLintPrompts(
     const issues = lintPrompt({ promptText: prompt.text, globalSubject, previousPrompts });
 
     if (issues.length > 0) {
-      console.log(`[Director] Lint issues for prompt ${i + 1}:`, issues.map(issue => issue.code).join(", "));
+      log.info(`Lint issues for prompt ${i + 1}: ${issues.map(issue => issue.code).join(", ")}`);
     }
 
     const criticalIssues = issues.filter(issue => issue.code === "too_short" || issue.code === "missing_subject");
     let finalText = prompt.text;
 
     if (criticalIssues.length > 0) {
-      console.log(`[Director] Critical issues detected for prompt ${i + 1}, attempting refinement...`);
+      log.info(`Critical issues detected for prompt ${i + 1}, attempting refinement...`);
       try {
         const refinementResult = await refineImagePrompt({
           promptText: prompt.text,
@@ -176,14 +169,14 @@ async function validateAndLintPrompts(
           previousPrompts,
         });
         finalText = refinementResult.refinedPrompt;
-        console.log(`[Director] Prompt ${i + 1} refined successfully`);
+        log.info(`Prompt ${i + 1} refined successfully`);
 
         const postRefinementIssues = lintPrompt({ promptText: finalText, globalSubject, previousPrompts });
         if (postRefinementIssues.some(issue => issue.code === "too_short" || issue.code === "missing_subject")) {
-          console.log(`[Director] Prompt ${i + 1} still has critical issues after refinement`);
+          log.warn(`Prompt ${i + 1} still has critical issues after refinement`);
         }
       } catch (refinementError) {
-        console.error(`[Director] Refinement failed for prompt ${i + 1}:`, refinementError);
+        log.error(`Refinement failed for prompt ${i + 1}`, refinementError);
       }
     }
 
@@ -210,12 +203,12 @@ async function executeFallback(
   globalSubject?: string
 ): Promise<ImagePrompt[]> {
   try {
-    console.log(`[Director] Fallback: Using ${contentType === "story" ? "generatePromptsFromStory" : "generatePromptsFromLyrics"}`);
+    log.info(`Fallback: Using ${contentType === "story" ? "generatePromptsFromStory" : "generatePromptsFromLyrics"}`);
     if (contentType === "story") return await generatePromptsFromStory(srtContent, style, globalSubject, videoPurpose);
     return await generatePromptsFromLyrics(srtContent, style, globalSubject, videoPurpose);
   } catch (fallbackError) {
     logError("fallback", fallbackError, { contentType, style });
-    console.error("[Director] Fallback also failed, returning empty array");
+    log.error('Fallback also failed, returning empty array');
     return [];
   }
 }
@@ -236,7 +229,7 @@ export async function generatePromptsWithLangChain(
 
   try {
     if (isBrowser) {
-      console.log("[Director] Client-side detected, calling server proxy...");
+      log.info('Client-side detected, calling server proxy...');
       const response = await fetch('/api/director/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -252,18 +245,16 @@ export async function generatePromptsWithLangChain(
       return data.prompts;
     }
 
-    console.log("[Director] Starting LangChain workflow (Server)...");
-    console.log("[Director] Content type:", contentType);
-    console.log("[Director] Style:", style);
-    console.log("[Director] Purpose:", videoPurpose);
+    log.info('Starting LangChain workflow (Server)...');
+    log.debug(`Content type: ${contentType}, Style: ${style}, Purpose: ${videoPurpose}`);
 
     if (!srtContent || srtContent.trim().length === 0) {
-      console.warn("[Director] Empty SRT content provided, falling back to existing implementation");
+      log.warn('Empty SRT content provided, falling back to existing implementation');
       return executeFallback(srtContent, style, contentType, videoPurpose, globalSubject);
     }
 
     if (!GEMINI_API_KEY && !VERTEX_PROJECT) {
-      console.warn("[Director] API key not configured, falling back to existing implementation");
+      log.warn('API key not configured, falling back to existing implementation');
       logError("initialization", new Error("API key not configured - missing VITE_GEMINI_API_KEY"), { contentType, style });
       return executeFallback(srtContent, style, contentType, videoPurpose, globalSubject);
     }
@@ -284,13 +275,13 @@ export async function generatePromptsWithLangChain(
     }
 
     if (!result || !result.prompts || !Array.isArray(result.prompts)) {
-      console.warn("[Director] Invalid result structure, falling back");
+      log.warn('Invalid result structure, falling back');
       logError("validation", new Error("Invalid result structure"), { resultType: typeof result, hasPrompts: result ? "prompts" in result : false });
       return executeFallback(srtContent, style, contentType, videoPurpose, globalSubject);
     }
 
     if (result.prompts.length === 0) {
-      console.warn("[Director] No prompts generated, falling back");
+      log.warn('No prompts generated, falling back');
       return executeFallback(srtContent, style, contentType, videoPurpose, globalSubject);
     }
 
@@ -309,13 +300,13 @@ export async function generatePromptsWithLangChain(
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[Director] Workflow complete: ${validatedPrompts.length} prompts generated in ${duration}ms`);
+    log.info(`Workflow complete: ${validatedPrompts.length} prompts generated in ${duration}ms`);
     return validatedPrompts;
 
   } catch (error) {
     const duration = Date.now() - startTime;
     logError("workflow", error, { contentType, style, videoPurpose, duration, srtContentLength: srtContent?.length || 0 });
-    console.log("[Director] Executing fallback to existing prompt generation...");
+    log.info('Executing fallback to existing prompt generation...');
     return executeFallback(srtContent, style, contentType, videoPurpose, globalSubject);
   }
 }

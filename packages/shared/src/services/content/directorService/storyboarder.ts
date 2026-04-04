@@ -6,7 +6,9 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { VideoPurpose, CAMERA_ANGLES, LIGHTING_MOODS } from "../../../constants";
 import { getPurposeGuidance, getSystemPersona, getStyleEnhancement, injectMasterStyle } from "../promptService";
-import { GEMINI_API_KEY, MODELS } from "../../shared/apiClient";
+import { GEMINI_API_KEY, MODELS, withRetry } from "../../shared/apiClient";
+import { contentLogger } from '../../infrastructure/logger';
+
 import {
   AnalysisOutput,
   StoryboardSchema,
@@ -16,6 +18,8 @@ import {
   LANGCHAIN_VERBOSE,
   createModel,
 } from "./schemas";
+
+const log = contentLogger.child('Storyboarder');
 
 export type StoryboardProgressCallback = (progress: {
   stage: "generating" | "complete";
@@ -128,6 +132,10 @@ Each prompt object MUST have:
 
 - "mood": single word or short phrase for emotional tone
 - "timestamp": MM:SS format, distributed across the content duration
+- "negativePrompt" (optional): Elements to AVOID in this scene (e.g., "blurry, low quality, text overlay, watermark, modern objects")
+
+Also include a top-level "globalNegativePrompt" string — elements to avoid in ALL scenes.
+Common global negatives: "blurry, low resolution, text, watermark, logo, deformed, disfigured, bad anatomy, extra limbs, duplicate, cropped"
 
 DO NOT output short phrases like "a somber tone" or "by a steady hand" - these are INVALID.
 Each "text" must be a COMPLETE, DETAILED scene description.`],
@@ -199,6 +207,36 @@ Overall: ${styleData.mediumDescription}`;
   };
 }
 
+// --- Prompt Quality Scoring ---
+
+interface PromptScore {
+  index: number;
+  total: number;
+  wordCount: number;
+  hasSubject: boolean;
+  hasLighting: boolean;
+  hasCamera: boolean;
+  pass: boolean;
+}
+
+const LIGHTING_KEYWORDS = /\b(light|lighting|lit|shadow|glow|ray|beam|backlight|rim\s*light|golden\s*hour|blue\s*hour|ambient|candle|fire|sun|moon|neon|lamp|torch|dawn|dusk|overcast|diffused|harsh|soft\s*light)\b/i;
+const CAMERA_KEYWORDS = /\b(close-up|wide\s*shot|medium\s*shot|establishing|tracking|dolly|crane|pan|tilt|low\s*angle|high\s*angle|bird.s\s*eye|dutch\s*angle|over-the-shoulder|pov|aerial|bokeh|shallow\s*focus|deep\s*focus|extreme\s*close)/i;
+const SUBJECT_KEYWORDS = /^(a |an |the |two |three |\w+ed |\w+ing )/i;
+
+function scorePrompt(text: string, index: number): PromptScore {
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  const hasSubject = SUBJECT_KEYWORDS.test(text.trim());
+  const hasLighting = LIGHTING_KEYWORDS.test(text);
+  const hasCamera = CAMERA_KEYWORDS.test(text);
+
+  // Score: word count (0-40), subject (0-20), lighting (0-20), camera (0-20)
+  const wcScore = Math.min(40, Math.round((wordCount / 60) * 40));
+  const total = wcScore + (hasSubject ? 20 : 0) + (hasLighting ? 20 : 0) + (hasCamera ? 20 : 0);
+
+  return { index, total, wordCount, hasSubject, hasLighting, hasCamera, pass: total >= 50 };
+}
+
 export async function runStoryboarder(
   analysis: AnalysisOutput,
   style: string,
@@ -210,58 +248,46 @@ export async function runStoryboarder(
   const chain = createStoryboarderChain(config);
   const input = buildStoryboarderInput(analysis, style, videoPurpose, globalSubject, targetAssetCount);
 
-  const result = await chain.invoke(input);
+  const result = await withRetry(() => chain.invoke(input), 2, 2000);
 
   if (result.prompts) {
-    console.log("[Storyboarder] Raw output prompt lengths:");
-    result.prompts.forEach((p, i) => {
-      const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
-      const isFragment = wordCount < 30;
-      console.log(`  Prompt ${i + 1}: ${wordCount} words ${isFragment ? "⚠️ FRAGMENT" : "✓"}`);
-      if (isFragment && p.text) {
-        console.log(`    Preview: "${p.text.substring(0, 80)}..."`);
-      }
-    });
-
     result.prompts = result.prompts.map(prompt => ({
       ...prompt,
       text: injectMasterStyle(prompt.text, style)
     }));
-  }
 
-  const shortPrompts = result.prompts?.filter(p => {
-    const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
-    return wordCount < 40;
-  }) || [];
+    // Score all prompts
+    const scores = result.prompts.map((p, i) => scorePrompt(p.text || '', i));
+    const failedIndices = scores.filter(s => !s.pass);
 
-  if (shortPrompts.length > 0 && config?.maxRetries && config.maxRetries > 0) {
-    console.log(`[Storyboarder] Found ${shortPrompts.length} short prompts (< 40 words). Retrying...`);
-    const retryConfig = { ...config, targetAssetCount: Math.max(5, targetAssetCount - 2), maxRetries: config.maxRetries - 1 };
-
-    try {
-      const retryResult = await runStoryboarder(analysis, style, videoPurpose, globalSubject, retryConfig);
-      const retryShortCount = retryResult.prompts?.filter(p => {
-        const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
-        return wordCount < 40;
-      }).length || 0;
-
-      if (retryShortCount === 0) {
-        console.log(`[Storyboarder] Retry successful - all prompts meet 40-word minimum`);
-        return retryResult;
-      } else {
-        console.warn(`[Storyboarder] Retry still has ${retryShortCount} short prompts, using original result`);
-      }
-    } catch (retryError) {
-      console.warn(`[Storyboarder] Retry failed:`, retryError);
-    }
-  }
-
-  if (shortPrompts.length > 0) {
-    console.warn(`[Storyboarder] Final result contains ${shortPrompts.length} prompts under 40 words (quality may be reduced)`);
-    shortPrompts.forEach((p, i) => {
-      const wordCount = p.text?.split(/\s+/).filter(Boolean).length || 0;
-      console.warn(`  Short prompt ${i + 1}: ${wordCount} words`);
+    scores.forEach(s => {
+      log.debug(`  Prompt ${s.index + 1}: ${s.total}/100 (${s.wordCount}w, subj:${s.hasSubject}, light:${s.hasLighting}, cam:${s.hasCamera}) ${s.pass ? 'PASS' : 'FAIL'}`);
     });
+
+    // Selective retry: only re-generate failed prompts
+    if (failedIndices.length > 0 && config?.maxRetries && config.maxRetries > 0) {
+      log.info(`${failedIndices.length}/${scores.length} prompts below quality threshold. Retrying full batch...`);
+      const retryConfig = { ...config, maxRetries: config.maxRetries - 1 };
+
+      try {
+        const retryResult = await runStoryboarder(analysis, style, videoPurpose, globalSubject, retryConfig);
+        const retryScores = retryResult.prompts?.map((p, i) => scorePrompt(p.text || '', i)) ?? [];
+        const retryFailCount = retryScores.filter(s => !s.pass).length;
+
+        if (retryFailCount < failedIndices.length) {
+          log.info(`Retry improved quality: ${failedIndices.length} → ${retryFailCount} failures`);
+          return retryResult;
+        } else {
+          log.warn(`Retry did not improve (${retryFailCount} failures), keeping original`);
+        }
+      } catch (retryError) {
+        log.warn('Retry failed', retryError);
+      }
+    }
+
+    if (failedIndices.length > 0) {
+      log.warn(`Final result: ${failedIndices.length} prompts below quality threshold`);
+    }
   }
 
   return result;
@@ -284,63 +310,56 @@ export async function streamStoryboarder(
     temperature: mergedConfig.temperature,
     maxOutputTokens: 65536,
     verbose: LANGCHAIN_VERBOSE,
-  });
+  }).withStructuredOutput(StoryboardSchema, { name: "storyboard" });
 
   const template = createStoryboarderTemplate();
   const chain = template.pipe(model);
   const input = buildStoryboarderInput(analysis, style, videoPurpose, globalSubject, targetAssetCount);
 
-  let fullContent = "";
+  // Accumulate streamed chunks - each chunk may be a partial delta
+  const accumulated: Partial<StoryboardOutput> = {};
   onProgress?.({ stage: "generating" });
 
-  for await (const chunk of await chain.stream(input)) {
-    const content = typeof chunk.content === "string"
-      ? chunk.content
-      : Array.isArray(chunk.content)
-        ? chunk.content.map((c: unknown) => typeof c === "string" ? c : "").join("")
-        : "";
-
-    fullContent += content;
-
-    try {
-      const promptMatches = fullContent.match(/"text"\s*:\s*"[^"]+"/g);
-      if (promptMatches && promptMatches.length > 0) {
+  try {
+    const stream = await chain.stream(input);
+    for await (const chunk of stream) {
+      const partial = chunk as Partial<StoryboardOutput>;
+      // Merge prompts array instead of overwriting
+      if (partial.prompts && partial.prompts.length > 0) {
+        accumulated.prompts = [...(accumulated.prompts ?? []), ...partial.prompts];
         onProgress?.({
           stage: "generating",
-          partialResult: {
-            prompts: promptMatches.map(() => ({ text: "...", mood: "...", timestamp: "..." })),
-          },
+          partialResult: { prompts: accumulated.prompts },
         });
       }
-    } catch {
-      // Ignore partial parsing errors
+      // Merge other fields (globalNegativePrompt, etc.)
+      if (partial.globalNegativePrompt) {
+        accumulated.globalNegativePrompt = partial.globalNegativePrompt;
+      }
     }
-  }
 
-  try {
-    let jsonStr = fullContent.trim();
-    if (jsonStr.startsWith("```json")) jsonStr = jsonStr.slice(7);
-    else if (jsonStr.startsWith("```")) jsonStr = jsonStr.slice(3);
-    if (jsonStr.endsWith("```")) jsonStr = jsonStr.slice(0, -3);
-    jsonStr = jsonStr.trim();
+    const result = accumulated as StoryboardOutput;
 
-    const parsed = JSON.parse(jsonStr);
-    const result = StoryboardSchema.parse(parsed);
-
-    if (result.prompts) {
-      result.prompts = result.prompts.map(prompt => ({
-        ...prompt,
-        text: injectMasterStyle(prompt.text, style)
-      }));
+    if (!result.prompts || result.prompts.length === 0) {
+      throw new DirectorServiceError(
+        "Streaming produced no prompts",
+        "OUTPUT_PARSING_FAILED",
+        "storyboarder"
+      );
     }
+
+    result.prompts = result.prompts.map(prompt => ({
+      ...prompt,
+      text: injectMasterStyle(prompt.text, style)
+    }));
 
     onProgress?.({ stage: "complete", finalResult: result });
     return result;
   } catch (error) {
-    console.error("[Storyboarder Stream] Failed to parse final result:", error);
-    console.error("[Storyboarder Stream] Raw content:", fullContent);
+    log.error('Stream: Structured output failed', error);
+
     throw new DirectorServiceError(
-      `Failed to parse storyboard output: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to stream storyboard: ${error instanceof Error ? error.message : String(error)}`,
       "OUTPUT_PARSING_FAILED",
       "storyboarder"
     );

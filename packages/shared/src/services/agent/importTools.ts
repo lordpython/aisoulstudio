@@ -12,6 +12,7 @@ import { tool } from "@langchain/core/tools";
 import { transcribeAudioWithWordTiming } from "../audio-processing/transcriptionService";
 import { ImportYouTubeSchema, TranscribeAudioSchema } from "./schemas/importSchemas";
 import { ServiceError, ValidationError, ResourceNotFoundError } from "./errors";
+import { agentLogger } from '../infrastructure/logger';
 import {
   type ImportedContent,
   type TranscriptResult,
@@ -26,6 +27,8 @@ import {
   subtitleItemsToTranscriptResult,
   getServerBaseUrl,
 } from "./importUtils";
+
+const log = agentLogger.child('Import');
 
 // Re-export types and functions for consumers
 export { 
@@ -48,7 +51,7 @@ export {
  */
 export const importYouTubeTool = tool(
   async ({ url }: { url: string }) => {
-    console.log(`[ImportTools] Importing from YouTube: ${url}`);
+    log.info(`Importing from YouTube: ${url}`);
 
     // Validate URL
     if (!isValidYouTubeUrl(url)) {
@@ -91,7 +94,7 @@ export const importYouTubeTool = tool(
       const videoId = extractYouTubeVideoId(url);
 
       // Now transcribe the audio
-      console.log(`[ImportTools] Transcribing imported audio...`);
+      log.info('Transcribing imported audio...');
       const subtitleItems = await transcribeAudioWithWordTiming(base64Audio, "audio/mpeg");
 
       // Convert to transcript result
@@ -129,7 +132,7 @@ export const importYouTubeTool = tool(
       });
 
     } catch (error) {
-      console.error("[ImportTools] YouTube import error:", error);
+      log.error('YouTube import error', error);
       return JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -152,7 +155,7 @@ export const importYouTubeTool = tool(
  */
 export const transcribeAudioTool = tool(
   async ({ contentPlanId, language }) => {
-    console.log(`[ImportTools] Transcribing audio for session: ${contentPlanId}`);
+    log.info(`Transcribing audio for session: ${contentPlanId}`);
 
     // Check if we have imported content
     const importedContent = getImportedContent(contentPlanId);
@@ -208,7 +211,7 @@ export const transcribeAudioTool = tool(
       });
 
     } catch (error) {
-      console.error("[ImportTools] Transcription error:", error);
+      log.error('Transcription error', error);
 
       // Check for unsupported format error
       const errorMessage = error instanceof Error ? error.message : String(error);

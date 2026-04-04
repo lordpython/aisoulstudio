@@ -8,6 +8,9 @@
  */
 
 import type { StoryState, StoryShot } from '@/types';
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('ExportFormats');
 
 export interface SubtitleEntry {
   index: number;
@@ -340,7 +343,7 @@ export async function downloadAsWebM(
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('[Export] WebM conversion failed:', error);
+    log.error('WebM conversion failed', error);
     throw error;
   }
 }

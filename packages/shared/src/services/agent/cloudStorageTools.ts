@@ -13,6 +13,9 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import type { ProductionBundle } from "../cloud/cloudStorageService";
+import { cloudLogger } from '../infrastructure/logger';
+
+const log = cloudLogger.child('StorageTools');
 
 // Check if we're in Node.js environment
 const isNode = typeof window === 'undefined';
@@ -39,7 +42,7 @@ if (isNode) {
     const prodAgent = require("../ai/productionAgent");
     productionStore = prodAgent.productionStore;
   } catch (error) {
-    console.warn("[CloudStorageTools] Failed to load dependencies:", error);
+    log.warn('Failed to load dependencies', error);
   }
 }
 
@@ -174,7 +177,7 @@ export const uploadProductionTool = tool(
     includeVisuals = true,
     includeSubtitles = true,
   }) => {
-    console.log(`[CloudStorageTools] Starting upload for session: ${contentPlanId}`);
+    log.info(`Starting upload for session: ${contentPlanId}`);
 
     // Check if running in browser
     if (typeof window !== 'undefined') {
@@ -307,7 +310,7 @@ export const uploadProductionTool = tool(
         errors: uploadResult.errors.length > 0 ? uploadResult.errors : undefined,
       };
 
-      console.log(`[CloudStorageTools] Upload complete: ${successCount}/${uploadResult.results.length} files`);
+      log.info(`Upload complete: ${successCount}/${uploadResult.results.length} files`);
 
       return JSON.stringify({
         success: true,
@@ -316,7 +319,7 @@ export const uploadProductionTool = tool(
       });
 
     } catch (error) {
-      console.error("[CloudStorageTools] Upload error:", error);
+      log.error('Upload error', error);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
 

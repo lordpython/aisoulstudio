@@ -1,4 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
+import { geminiLogger } from '../infrastructure/logger';
+
+const log = geminiLogger.child('APIClient');
 
 // --- Environment Detection ---
 const isBrowser = typeof window !== "undefined";
@@ -16,19 +19,19 @@ export const API_KEY = GEMINI_API_KEY;
 
 // Debug: Log configuration
 if (isBrowser) {
-  console.log(`[API Client] Running in browser mode (using proxy)`);
+  log.info('Running in browser mode (using proxy)');
 } else {
-  console.log(`[API Client] Running in server mode`);
-  console.log(`[API Client] Vertex AI Project: ${VERTEX_PROJECT || "NOT SET"}`);
-  console.log(`[API Client] Vertex AI Location: ${VERTEX_LOCATION}`);
+  log.info('Running in server mode');
+  log.info(`Vertex AI Project: ${VERTEX_PROJECT || 'NOT SET'}`);
+  log.info(`Vertex AI Location: ${VERTEX_LOCATION}`);
 }
 
 // Validate configuration based on context
 if (!isBrowser && !VERTEX_PROJECT && !GEMINI_API_KEY) {
-  console.error(
-    "[API Client] Missing authentication. Set either:\n" +
-    "- GOOGLE_CLOUD_PROJECT for Vertex AI (recommended for server)\n" +
-    "- VITE_GEMINI_API_KEY for API key auth"
+  log.error(
+    'Missing authentication. Set either:\n' +
+    '- GOOGLE_CLOUD_PROJECT for Vertex AI (recommended for server)\n' +
+    '- VITE_GEMINI_API_KEY for API key auth'
   );
 }
 
@@ -86,7 +89,7 @@ export function getModelWithFallback(modelType: keyof typeof MODELS): string {
   // For image and video models that might hit quota limits,
   // we can fall back to using the text model for prompt generation
   if (modelType === 'IMAGE' || modelType === 'VIDEO') {
-    console.warn(`[API Client] Using ${model} - may require quota increase for actual generation`);
+    log.warn(`Using ${model} - may require quota increase for actual generation`);
   }
 
   return model;
@@ -131,7 +134,7 @@ class ProxyAIClient {
 
       return await response.json();
     } catch (error: unknown) {
-      console.error(`[ProxyAIClient] Error calling ${endpoint}:`, error);
+      log.error(`ProxyAIClient error calling ${endpoint}`, error);
       throw error;
     }
   }
@@ -155,7 +158,7 @@ function createAIClient(): GoogleGenAI | ProxyAIClient {
 
   // Server: Prefer Vertex AI, fall back to API key
   if (vertexProject) {
-    console.log(`[API Client] Using Vertex AI with project: ${vertexProject}`);
+    log.info(`Using Vertex AI with project: ${vertexProject}`);
     return new GoogleGenAI({
       vertexai: true,
       project: vertexProject,
@@ -164,7 +167,7 @@ function createAIClient(): GoogleGenAI | ProxyAIClient {
   }
 
   if (geminiKey) {
-    console.log("[API Client] Server using API key auth (Vertex AI not configured)");
+    log.info('Server using API key auth (Vertex AI not configured)');
     return new GoogleGenAI({ apiKey: geminiKey });
   }
 

@@ -28,6 +28,10 @@ const getFreesoundApiKey = (): string => {
   return process.env.VITE_FREESOUND_API_KEY || "";
 };
 
+import { musicLogger } from '../infrastructure/logger';
+
+const log = musicLogger.child('Freesound');
+
 const FREESOUND_API_KEY = getFreesoundApiKey();
 const FREESOUND_API_BASE = "https://freesound.org/apiv2";
 
@@ -40,7 +44,7 @@ const IDEAL_DURATION_MAX = 120; // Ideal maximum duration
 // Debug log
 const isBrowser = typeof window !== "undefined";
 if (isBrowser) {
-  console.log(`[Freesound] API Key configured: ${FREESOUND_API_KEY ? "YES" : "NO"}`);
+  log.info(`API Key configured: ${FREESOUND_API_KEY ? "YES" : "NO"}`);
 }
 
 // --- Types ---
@@ -134,18 +138,18 @@ export async function searchSounds(options: FreesoundSearchOptions): Promise<Fre
 
   const url = `${FREESOUND_API_BASE}/search/text/?${params.toString()}`;
   
-  console.log(`[Freesound] Searching: "${query}"`);
+  log.info(`Searching: "${query}"`);
 
   const response = await fetch(url);
   
   if (!response.ok) {
     const error = await response.text();
-    console.error("[Freesound] Search failed:", error);
+    log.error('Search failed', error);
     throw new Error(`Freesound search failed: ${response.status}`);
   }
 
   const data = await response.json();
-  console.log(`[Freesound] Found ${data.count} results for "${query}"`);
+  log.info(`Found ${data.count} results for "${query}"`);
   
   return data;
 }
@@ -595,7 +599,7 @@ export async function searchAmbientSound(
   const searchConfig = AMBIENT_SEARCH_QUERIES[categoryId];
 
   if (!searchConfig) {
-    console.warn(`[Freesound] No search config for category: ${categoryId}`);
+    log.warn(`No search config for category: ${categoryId}`);
     // Try a generic search with the category name
     return searchGenericAmbient(categoryId, sceneDuration);
   }
@@ -605,7 +609,7 @@ export async function searchAmbientSound(
   try {
     // Tier 1: Primary query with enhanced terms
     const enhancedQuery = buildEnhancedQuery(searchConfig.query, true);
-    console.log(`[Freesound] Searching "${categoryId}" with: "${enhancedQuery}"`);
+    log.info(`Searching "${categoryId}" with: "${enhancedQuery}"`);
 
     let result = await searchSounds({
       query: enhancedQuery,
@@ -624,14 +628,14 @@ export async function searchAmbientSound(
       const selected = qualitySounds[0];
       if (!selected) return null;
       const score = calculateQualityScore(selected, targetDuration);
-      console.log(`[Freesound] ✓ Found "${selected.name}" (score: ${score}, ${selected.duration.toFixed(1)}s, ★${selected.avg_rating.toFixed(1)})`);
+      log.info(`Found "${selected.name}" (score: ${score}, ${selected.duration.toFixed(1)}s, rating ${selected.avg_rating.toFixed(1)})`);
       return selected;
     }
 
     // Tier 2: Try alternative queries
     if (searchConfig.altQueries && searchConfig.altQueries.length > 0) {
       for (const altQuery of searchConfig.altQueries) {
-        console.log(`[Freesound] Fallback query: "${altQuery}"`);
+        log.info(`Fallback query: "${altQuery}"`);
 
         result = await searchSounds({
           query: altQuery,
@@ -648,7 +652,7 @@ export async function searchAmbientSound(
           const selected = qualitySounds[0];
           if (!selected) continue;
           const score = calculateQualityScore(selected, targetDuration);
-          console.log(`[Freesound] ✓ Found via alt query: "${selected.name}" (score: ${score})`);
+          log.info(`Found via alt query: "${selected.name}" (score: ${score})`);
           return selected;
         }
       }
@@ -656,7 +660,7 @@ export async function searchAmbientSound(
 
     // Tier 3: Simplified primary query (first 2 words)
     const simplifiedQuery = searchConfig.query.split(" ").slice(0, 2).join(" ");
-    console.log(`[Freesound] Simplified query: "${simplifiedQuery}"`);
+    log.info(`Simplified query: "${simplifiedQuery}"`);
 
     result = await searchSounds({
       query: simplifiedQuery,
@@ -673,13 +677,13 @@ export async function searchAmbientSound(
     if (qualitySounds.length > 0) {
       const selected = qualitySounds[0];
       if (!selected) return null;
-      console.log(`[Freesound] ✓ Found via simplified: "${selected.name}"`);
+      log.info(`Found via simplified: "${selected.name}"`);
       return selected;
     }
 
     // Tier 4: Just the category name
     const categoryQuery = categoryId.replace(/-/g, " ");
-    console.log(`[Freesound] Final fallback: "${categoryQuery}"`);
+    log.info(`Final fallback: "${categoryQuery}"`);
 
     result = await searchSounds({
       query: categoryQuery,
@@ -691,14 +695,14 @@ export async function searchAmbientSound(
     if (qualitySounds.length > 0) {
       const selected = qualitySounds[0];
       if (!selected) return null;
-      console.log(`[Freesound] ✓ Found via category name: "${selected.name}"`);
+      log.info(`Found via category name: "${selected.name}"`);
       return selected;
     }
 
-    console.warn(`[Freesound] ✗ No results for "${categoryId}" (all fallbacks exhausted)`);
+    log.warn(`No results for "${categoryId}" (all fallbacks exhausted)`);
     return null;
   } catch (error) {
-    console.error(`[Freesound] Error searching for ${categoryId}:`, error);
+    log.error(`Error searching for ${categoryId}`, error);
     return null;
   }
 }
@@ -711,7 +715,7 @@ async function searchGenericAmbient(
   targetDuration?: number
 ): Promise<FreesoundSound | null> {
   const cleanQuery = query.replace(/-/g, " ").toLowerCase();
-  console.log(`[Freesound] Generic search: "${cleanQuery}"`);
+  log.info(`Generic search: "${cleanQuery}"`);
 
   try {
     // Try with "ambient" added
@@ -746,7 +750,7 @@ async function searchGenericAmbient(
 
     return null;
   } catch (error) {
-    console.error(`[Freesound] Generic search failed:`, error);
+    log.error('Generic search failed', error);
     return null;
   }
 }
@@ -826,46 +830,46 @@ export async function preloadSounds(categoryIds: string[]): Promise<Map<string, 
  * Can be called from browser console: testFreesoundAPI()
  */
 export async function testFreesoundAPI(): Promise<void> {
-  console.log("=== Freesound API Test ===");
-  console.log(`API Key configured: ${isFreesoundConfigured() ? "YES" : "NO"}`);
+  log.info('=== Freesound API Test ===');
+  log.info(`API Key configured: ${isFreesoundConfigured() ? "YES" : "NO"}`);
   
   if (!isFreesoundConfigured()) {
-    console.error("❌ Freesound API key not found. Add VITE_FREESOUND_API_KEY to .env.local");
+    log.error('Freesound API key not found. Add VITE_FREESOUND_API_KEY to .env.local');
     return;
   }
 
   try {
-    console.log("Testing search for 'desert wind ambient'...");
+    log.info("Testing search for 'desert wind ambient'...");
     const result = await searchSounds({
       query: "desert wind ambient",
       pageSize: 2,
     });
     
-    console.log(`✅ Search successful! Found ${result.count} results`);
+    log.info(`Search successful! Found ${result.count} results`);
     
     if (result.results.length > 0) {
       const sound = result.results[0];
       if (!sound) {
-        console.error("❌ First result is undefined");
+        log.error('First result is undefined');
         return;
       }
-      console.log(`First result: "${sound.name}" (${sound.duration.toFixed(1)}s)`);
-      console.log(`Preview URL: ${sound.previews["preview-hq-mp3"]}`);
+      log.info(`First result: "${sound.name}" (${sound.duration.toFixed(1)}s)`);
+      log.debug(`Preview URL: ${sound.previews["preview-hq-mp3"]}`);
       
       // Test playing the audio
-      console.log("Testing audio playback...");
+      log.info('Testing audio playback...');
       const audio = new Audio(sound.previews["preview-hq-mp3"]);
       audio.volume = 0.3;
       await audio.play();
-      console.log("✅ Audio playing! (will stop in 3 seconds)");
+      log.info('Audio playing! (will stop in 3 seconds)');
       
       setTimeout(() => {
         audio.pause();
-        console.log("Audio stopped.");
+        log.info('Audio stopped.');
       }, 3000);
     }
   } catch (error) {
-    console.error("❌ Test failed:", error);
+    log.error('Test failed', error);
   }
 }
 

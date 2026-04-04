@@ -22,6 +22,9 @@ import {
 } from "../../types";
 import { API_KEY, MODELS } from "../shared/apiClient";
 import { getEffectiveLegacyTone } from "./tripletUtils";
+import { contentLogger } from '../infrastructure/logger';
+
+const log = contentLogger.child('Editor');
 
 // --- Zod Schemas ---
 
@@ -340,7 +343,7 @@ export async function critiqueContentPlan(
 
                     return CritiqueSchema.parse(parsed);
                 } catch (error) {
-                    console.error("[Editor] Critique parse error:", error);
+                    log.error('Critique parse error', error);
                     // Return a safe default on parse failure
                     return {
                         score: 50,
@@ -363,7 +366,7 @@ export async function critiqueContentPlan(
             existingIssues: existingIssuesStr,
         });
     } catch (error) {
-        console.error("[Editor] Critique failed:", error);
+        log.error('Critique failed', error);
         throw new EditorError(
             `Critique failed: ${error instanceof Error ? error.message : String(error)}`,
             "AI_FAILURE",
@@ -394,7 +397,7 @@ export async function validateContentPlan(
         config,
     } = options;
 
-    console.log("[Editor] Validating content plan:", plan.title);
+    log.info(`Validating content plan: ${plan.title}`);
 
     // Collect all issues
     let allIssues: Array<{ scene: string; type: string; message: string }> = [];
@@ -426,7 +429,7 @@ export async function validateContentPlan(
             allIssues = [...allIssues, ...critique.issues];
             suggestions = critique.suggestions;
         } catch (error) {
-            console.warn("[Editor] AI critique failed, using rule-based score only:", error);
+            log.warn('AI critique failed, using rule-based score only', error);
         }
     }
 
@@ -448,7 +451,7 @@ export async function validateContentPlan(
         (i.message.includes("may exceed") || i.message.includes("differs from"))
     );
 
-    console.log(`[Editor] Validation complete. Score: ${score}, Issues: ${allIssues.length} (${criticalIssues.length} critical)`);
+    log.info(`Validation complete. Score: ${score}, Issues: ${allIssues.length} (${criticalIssues.length} critical)`);
 
     return {
         // Approve if score is good and no critical issues
@@ -476,14 +479,14 @@ export function syncDurationsToNarration(
             const audioDuration = narration.audioDuration;
             
             if (audioDuration < 3 || audioDuration > 60) {
-                console.warn(`[Editor] Suspicious audio duration for ${scene.id}: ${audioDuration}s. Keeping original ${scene.duration}s`);
+                log.warn(`Suspicious audio duration for ${scene.id}: ${audioDuration}s. Keeping original ${scene.duration}s`);
                 return scene;
             }
             
             // Only adjust if there's a significant difference (> 2 seconds)
             if (Math.abs(audioDuration - scene.duration) > 2) {
                 const newDuration = Math.ceil(audioDuration) + 1; // Add 1s buffer
-                console.log(`[Editor] Adjusting scene ${scene.id} duration: ${scene.duration}s → ${newDuration}s`);
+                log.info(`Adjusting scene ${scene.id} duration: ${scene.duration}s -> ${newDuration}s`);
                 return {
                     ...scene,
                     duration: newDuration,
@@ -543,7 +546,7 @@ export async function assembleNarratedVideo(
 ): Promise<Blob> {
     const mergedConfig = { ...DEFAULT_ASSEMBLY_CONFIG, ...config };
 
-    console.log("[Editor] Starting video assembly for:", contentPlan.title);
+    log.info(`Starting video assembly for: ${contentPlan.title}`);
 
     onProgress?.({
         stage: "preparing",
@@ -562,7 +565,7 @@ export async function assembleNarratedVideo(
 
     const narrationCheck = checkNarrationSync(contentPlan.scenes, narrationSegments);
     if (!narrationCheck.synced) {
-        console.warn("[Editor] Narration sync issues:", narrationCheck.issues);
+        log.warn('Narration sync issues', narrationCheck.issues);
     }
 
     // Build timeline data
@@ -635,7 +638,7 @@ export async function assembleNarratedVideo(
         message: "Video assembly complete!",
     });
 
-    console.log(`[Editor] Video assembled: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
+    log.info(`Video assembled: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
     return videoBlob;
 }
@@ -805,7 +808,7 @@ async function renderVideoWithCanvas(
 
     // For now, return a simple WebM video using MediaRecorder simulation
     // In production, this would use FFmpeg
-    console.log(`[Editor] Rendered ${frames.length} frames`);
+    log.info(`Rendered ${frames.length} frames`);
 
     // Create a simple video by combining frames with audio
     // This is a simplified version - production would use FFmpeg

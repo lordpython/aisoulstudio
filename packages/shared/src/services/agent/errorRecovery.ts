@@ -10,6 +10,10 @@
  * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
  */
 
+import { agentLogger } from '../infrastructure/logger';
+
+const log = agentLogger.child('ErrorRecovery');
+
 // --- Error Categories ---
 
 export type ErrorCategory = 'transient' | 'recoverable' | 'fatal';
@@ -360,10 +364,8 @@ export async function executeWithRetry<T>(
             const category = classifyError(lastError, strategy.tool);
 
             // Log the attempt
-            console.warn(
-                `[ErrorRecovery] ${strategy.tool} attempt ${attempt + 1}/${strategy.maxRetries + 1} failed:`,
-                lastError.message,
-                `(category: ${category})`
+            log.warn(
+                `${strategy.tool} attempt ${attempt + 1}/${strategy.maxRetries + 1} failed: ${lastError.message} (category: ${category})`
             );
 
             // Don't retry fatal errors
@@ -384,7 +386,7 @@ export async function executeWithRetry<T>(
                 onRetry?.(attempt + 1, lastError, currentDelay);
 
                 // Wait with exponential backoff
-                console.log(`[ErrorRecovery] Retrying ${strategy.tool} in ${currentDelay}ms...`);
+                log.info(`Retrying ${strategy.tool} in ${currentDelay}ms...`);
                 await sleep(currentDelay);
 
                 // Increase delay for next attempt (capped at maxDelay)
@@ -433,7 +435,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Requirement 6.1: Use placeholder for failed visual generation
      */
     use_placeholder: async (_error, context) => {
-        console.log('[ErrorRecovery] Applying fallback: use_placeholder');
+        log.info('Applying fallback: use_placeholder');
         // Return a placeholder visual result
         return {
             success: true,
@@ -448,7 +450,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Requirement 6.2: Keep static image when animation fails
      */
     use_static_image: async (_error, context) => {
-        console.log('[ErrorRecovery] Applying fallback: use_static_image');
+        log.info('Applying fallback: use_static_image');
         return {
             success: true,
             isStatic: true,
@@ -461,7 +463,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Keep original image when enhancement fails
      */
     keep_original_image: async (_error, context) => {
-        console.log('[ErrorRecovery] Applying fallback: keep_original_image');
+        log.info('Applying fallback: keep_original_image');
         return {
             success: true,
             unchanged: true,
@@ -474,7 +476,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Use narration only when audio mixing fails
      */
     use_narration_only: async (_error, _context) => {
-        console.log('[ErrorRecovery] Applying fallback: use_narration_only');
+        log.info('Applying fallback: use_narration_only');
         return {
             success: true,
             narrationOnly: true,
@@ -486,7 +488,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Skip subtitles when generation fails
      */
     skip_subtitles: async (_error, _context) => {
-        console.log('[ErrorRecovery] Applying fallback: skip_subtitles');
+        log.info('Applying fallback: skip_subtitles');
         return {
             success: true,
             skipped: true,
@@ -498,7 +500,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Requirement 9.5: Provide asset bundle when export fails
      */
     provide_asset_bundle: async (_error, context) => {
-        console.log('[ErrorRecovery] Applying fallback: provide_asset_bundle');
+        log.info('Applying fallback: provide_asset_bundle');
         return {
             success: true,
             isAssetBundle: true,
@@ -517,7 +519,7 @@ const fallbackHandlers: Record<string, FallbackHandler> = {
      * Assume valid when validation fails
      */
     assume_valid: async (_error, _context) => {
-        console.log('[ErrorRecovery] Applying fallback: assume_valid');
+        log.info('Applying fallback: assume_valid');
         return {
             success: true,
             assumed: true,
@@ -537,7 +539,7 @@ export async function applyFallback(
 ): Promise<any> {
     const handler = fallbackHandlers[fallbackAction];
     if (!handler) {
-        console.warn(`[ErrorRecovery] No fallback handler for: ${fallbackAction}`);
+        log.warn(`No fallback handler for: ${fallbackAction}`);
         return null;
     }
 
@@ -548,10 +550,7 @@ export async function applyFallback(
         }
         return result;
     } catch (fallbackError) {
-        console.error(
-            `[ErrorRecovery] Fallback ${fallbackAction} failed:`,
-            fallbackError
-        );
+        log.error(`Fallback ${fallbackAction} failed`, fallbackError);
         return null;
     }
 }

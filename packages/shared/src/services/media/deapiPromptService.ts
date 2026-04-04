@@ -22,6 +22,10 @@ const API_KEY: string = VITE_API_KEY || (typeof process !== 'undefined' ? (proce
 const DEAPI_DIRECT_BASE = 'https://api.deapi.ai/api/v1/client';
 const isBrowser = typeof window !== 'undefined';
 
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('DeAPI:Prompt');
+
 const isConfigured = (): boolean => {
   if (isBrowser) return true; // proxy handles auth
   return Boolean(API_KEY?.trim());
@@ -59,7 +63,7 @@ async function callPromptEndpoint(
     });
 
     if (!response.ok) {
-      console.warn(`[DeAPI Prompt] /prompt/${type} returned ${response.status}`);
+      log.warn(`/prompt/${type} returned ${response.status}`);
       return null;
     }
 
@@ -70,10 +74,10 @@ async function callPromptEndpoint(
 
     if (!enhanced?.trim()) return null;
 
-    console.log(`[DeAPI Prompt] /prompt/${type} enhanced (${prompt.length} → ${enhanced.length} chars)`);
+    log.info(`/prompt/${type} enhanced (${prompt.length} -> ${enhanced.length} chars)`);
     return enhanced.trim();
   } catch (err) {
-    console.warn(`[DeAPI Prompt] /prompt/${type} failed (non-fatal):`, err);
+    log.warn(`/prompt/${type} failed (non-fatal)`, err);
     return null;
   }
 }

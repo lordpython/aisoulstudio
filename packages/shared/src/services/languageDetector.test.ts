@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { LanguageDetector, languageDetector, detectLanguage } from './languageDetector';
+import { LanguageDetector, languageDetector, detectLanguage } from './content/languageDetector';
 
 describe('LanguageDetector', () => {
   describe('Property 9: Language Detection and Propagation', () => {

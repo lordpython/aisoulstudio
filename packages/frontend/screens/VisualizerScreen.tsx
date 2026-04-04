@@ -71,6 +71,16 @@ export default function VisualizerScreen() {
     setDirectorMode,
     globalSubject,
     setGlobalSubject,
+    contentType,
+    setContentType,
+    videoPurpose,
+    setVideoPurpose,
+    aspectRatio,
+    setAspectRatio,
+    generationMode,
+    setGenerationMode,
+    videoProvider,
+    setVideoProvider,
   } = useLyricLens();
 
   // Local state
@@ -484,6 +494,16 @@ export default function VisualizerScreen() {
                 onDirectorModeChange={setDirectorMode}
                 globalSubject={globalSubject}
                 onGlobalSubjectChange={setGlobalSubject}
+                contentType={contentType}
+                onContentTypeChange={setContentType}
+                videoPurpose={videoPurpose}
+                onVideoPurposeChange={setVideoPurpose}
+                aspectRatio={aspectRatio}
+                onAspectRatioChange={setAspectRatio}
+                generationMode={generationMode}
+                onGenerationModeChange={setGenerationMode}
+                videoProvider={videoProvider}
+                onVideoProviderChange={setVideoProvider}
                 appState={appState}
                 errorMsg={errorMsg || undefined}
                 onStartProcessing={handleStartProcessing}

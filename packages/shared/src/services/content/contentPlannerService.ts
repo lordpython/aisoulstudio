@@ -22,6 +22,9 @@ import { traceAsync } from "../tracing";
 import { getEffectiveLegacyTone } from "./tripletUtils";
 import { getVibeTerms, SCENARIO_TEMPLATES } from "../prompt/vibeLibrary";
 import { cleanForTTS } from "../audio-processing/textSanitizer";
+import { contentLogger } from '../infrastructure/logger';
+
+const log = contentLogger.child('Planner');
 
 // --- Zod Schemas ---
 
@@ -633,7 +636,7 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
                         // Clamp to valid range: min 5s, max 15s (avoid boring static images)
                         const calculatedDuration = Math.max(5, Math.min(15, Math.ceil(smartDuration) + 1));
 
-                        console.log(`[ContentPlanner] Scene ${index + 1}: ${words} words, ${sceneTone} → ${calculatedDuration}s (complexity: x${complexityMultiplier.toFixed(2)}, emotion: x${emotionalMultiplier}, action: x${actionMultiplier})`);
+                        log.debug(`Scene ${index + 1}: ${words} words, ${sceneTone} -> ${calculatedDuration}s (complexity: x${complexityMultiplier.toFixed(2)}, emotion: x${emotionalMultiplier}, action: x${actionMultiplier})`);
                         totalDuration += calculatedDuration;
 
                         return {
@@ -645,12 +648,12 @@ function createContentPlannerChain(config?: ContentPlannerConfig) {
 
                     // Update total duration
                     validated.totalDuration = totalDuration;
-                    console.log(`[ContentPlanner] Total calculated duration: ${totalDuration}s`);
+                    log.info(`Total calculated duration: ${totalDuration}s`);
 
                     return validated;
                 } catch (error) {
-                    console.error("[ContentPlanner] Parse/validation error:", error);
-                    console.error("[ContentPlanner] Raw content:", content.substring(0, 500));
+                    log.error('Parse/validation error', error);
+                    log.error(`Raw content: ${content.substring(0, 500)}`);
                     throw new ContentPlannerError(
                         `Failed to parse content plan: ${error instanceof Error ? error.message : String(error)}`,
                         "VALIDATION_ERROR",
@@ -695,7 +698,7 @@ export const generateContentPlan = traceAsync(
             );
         }
 
-        console.log("[ContentPlanner] Generating plan for:", content.substring(0, 100));
+        log.info(`Generating plan for: ${content.substring(0, 100)}`);
 
         const chain = createContentPlannerChain(config);
 
@@ -707,7 +710,7 @@ export const generateContentPlan = traceAsync(
                 targetAudience,
             });
 
-            console.log(`[ContentPlanner] Generated ${result.scenes.length} scenes, total duration: ${result.totalDuration}s`);
+            log.info(`Generated ${result.scenes.length} scenes, total duration: ${result.totalDuration}s`);
 
             // Convert to ContentPlan type
             return {
@@ -739,7 +742,7 @@ export const generateContentPlan = traceAsync(
                 throw error;
             }
 
-            console.error("[ContentPlanner] Chain execution failed:", error);
+            log.error('Chain execution failed', error);
             throw new ContentPlannerError(
                 `Content planning failed: ${error instanceof Error ? error.message : String(error)}`,
                 "AI_FAILURE",

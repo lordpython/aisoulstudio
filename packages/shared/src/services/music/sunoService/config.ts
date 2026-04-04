@@ -5,6 +5,9 @@
 import { rateLimiter } from "./rateLimiter";
 import { mapErrorCodeToError } from "./types";
 import { getServerBaseUrl } from "../../cloud/serverBaseUrl";
+import { sunoLogger } from '../../infrastructure/logger';
+
+const log = sunoLogger.child('Config');
 
 const SUNO_API_BASE = "https://api.sunoapi.org/api/v1";
 
@@ -20,7 +23,7 @@ export const SUNO_API_KEY = getSunoApiKey();
 export const isBrowser = typeof window !== "undefined";
 
 if (isBrowser) {
-  console.log(`[Suno] API Key configured: ${SUNO_API_KEY ? "YES" : "NO"}`);
+  log.info(`API Key configured: ${SUNO_API_KEY ? 'YES' : 'NO'}`);
 }
 
 export const SERVER_URL = getServerBaseUrl() || "http://localhost:3001";

@@ -18,6 +18,9 @@ import {
 import { traceAsync } from '../tracing';
 import { cloudAutosave } from '../cloud/cloudStorageService';
 import { withAILogging } from '../infrastructure/aiLogService';
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('Image');
 
 // --- Character Seed Registry ---
 // Stores seeds for character consistency across scenes
@@ -66,7 +69,7 @@ export function getCharacterSeed(characterDescription: string): number {
   const existing = characterSeedRegistry.get(key);
   if (existing) {
     existing.usageCount++;
-    console.log(`[ImageService] Reusing seed ${existing.seed} for character: ${key} (usage #${existing.usageCount})`);
+    log.debug(`Reusing seed ${existing.seed} for character: ${key} (usage #${existing.usageCount})`);
     return existing.seed;
   }
 
@@ -78,7 +81,7 @@ export function getCharacterSeed(characterDescription: string): number {
     usageCount: 1,
   });
 
-  console.log(`[ImageService] Created new seed ${newSeed} for character: ${key}`);
+  log.debug(`Created new seed ${newSeed} for character: ${key}`);
   return newSeed;
 }
 
@@ -87,7 +90,7 @@ export function getCharacterSeed(characterDescription: string): number {
  */
 export function clearCharacterSeeds(): void {
   characterSeedRegistry.clear();
-  console.log('[ImageService] Cleared all character seeds');
+  log.debug('Cleared all character seeds');
 }
 
 /**
@@ -121,7 +124,7 @@ async function generateWithImagenAPI(
   aspectRatio: string,
   _seed?: number
 ): Promise<string> {
-  console.log(`[ImageService] Using Imagen API with model: ${MODELS.IMAGE}`);
+  log.info(`Using Imagen API with model: ${MODELS.IMAGE}`);
 
   // Build config — seed is NOT supported by imagen-4.0 via @google/genai SDK
   const config: Record<string, unknown> = {
@@ -142,7 +145,7 @@ async function generateWithImagenAPI(
   if (img) {
     // Check if image was filtered
     if (img.raiFilteredReason) {
-      console.warn(`[ImageService] Image was filtered: ${img.raiFilteredReason}`);
+      log.warn(`Image was filtered: ${img.raiFilteredReason}`);
       throw new Error(`Image generation was filtered by safety system: ${img.raiFilteredReason}`);
     }
 
@@ -160,7 +163,7 @@ async function generateWithImagenAPI(
  * Used for gemini-2.5-flash-image, gemini-3.1-pro-preview, etc.
  */
 async function generateWithGeminiAPI(prompt: string, aspectRatio: string): Promise<string> {
-  console.log(`[ImageService] Using Gemini API with model: ${MODELS.IMAGE}`);
+  log.info(`Using Gemini API with model: ${MODELS.IMAGE}`);
 
   const response = await ai.models.generateContent({
     model: MODELS.IMAGE,
@@ -195,7 +198,7 @@ export const sketchToImage = async (
   style: string = "Cinematic",
   aspectRatio: string = "16:9"
 ): Promise<string> => {
-  console.log(`[ImageService] Sketch-to-image transformation with style: ${style}`);
+  log.info(`Sketch-to-image transformation with style: ${style}`);
 
   // Build a style guide for consistency, then prepend sketch-specific instructions
   const guide = buildImageStyleGuide({ scene: promptText, style });
@@ -240,7 +243,7 @@ Important: Keep the same composition and subject placement as the sketch.`;
 
     throw new Error("No image data in sketch-to-image response");
   } catch (error) {
-    console.error("[ImageService] Sketch-to-image failed:", error);
+    log.error('Sketch-to-image failed', error);
     throw error;
   }
 };
@@ -258,7 +261,7 @@ export const generateWithStyleReference = async (
   promptText: string,
   aspectRatio: string = "16:9"
 ): Promise<string> => {
-  console.log(`[ImageService] Generating with custom style reference`);
+  log.info('Generating with custom style reference');
 
   // Build a style guide for the scene description portion
   const guide = buildImageStyleGuide({ scene: promptText });
@@ -305,7 +308,7 @@ Important instructions:
 
     throw new Error("No image data in style reference response");
   } catch (error) {
-    console.error("[ImageService] Style reference generation failed:", error);
+    log.error('Style reference generation failed', error);
     throw error;
   }
 };
@@ -358,8 +361,8 @@ export const generateImageFromPrompt = traceAsync(
           refinedPrompt = result.refinedPrompt;
 
           if (result.issues.length > 0) {
-            console.log(
-              `[prompt-lint] ${result.issues.map((i) => i.code).join(", ")} | style=${style} | aspectRatio=${aspectRatio}`,
+            log.debug(
+              `prompt-lint: ${result.issues.map((i) => i.code).join(", ")} | style=${style} | aspectRatio=${aspectRatio}`,
             );
           }
         }
@@ -407,7 +410,7 @@ export const generateImageFromPrompt = traceAsync(
       // Cloud autosave trigger (fire-and-forget, non-blocking)
       if (sessionId && imageUrl) {
         cloudAutosave.saveImage(sessionId, imageUrl, sceneIndex ?? Date.now()).catch(err => {
-          console.warn('[ImageService] Cloud autosave failed (non-fatal):', err);
+          log.warn('Cloud autosave failed (non-fatal)', err);
         });
       }
 

@@ -12,6 +12,9 @@ import { ParallelExecutionEngine, Task } from '../orchestration/parallelExecutio
 import { ai, MODELS } from '../shared/apiClient';
 import { Type } from '@google/genai';
 import { chunkContent, tokenize, jaccardSimilarity } from '../utils/textProcessing';
+import { contentLogger } from '../infrastructure/logger';
+
+const log = contentLogger.child('Research');
 
 // Grounded response shape (candidates[0].groundingMetadata)
 interface GroundingChunk {
@@ -214,7 +217,7 @@ export class ResearchService {
         });
       } catch (err) {
         // Graceful: log and continue (Req 22.5)
-        console.warn(`[ResearchService] Failed to parse "${doc.name}":`, err);
+        log.warn(`Failed to parse "${doc.name}"`, err);
       }
     }
 

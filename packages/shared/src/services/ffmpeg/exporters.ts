@@ -27,8 +27,11 @@ import { prepareAudio } from "./audioPreparation";
 import { runRenderPipeline } from "./renderPipeline";
 import { initExportSession, uploadFrameBatch, finalizeAndDownload, type UploadFrame } from "./exportUpload";
 import { persistExport } from "./exportPersistence";
+import { ffmpegLogger } from '../infrastructure/logger';
 
-const FPS = 24;
+const log = ffmpegLogger.child('Export');
+
+const FPS = 30;
 const BATCH_SIZE = 96;
 
 async function deleteWasmFiles(ffmpeg: FFmpeg, fileNames: string[]): Promise<void> {
@@ -36,7 +39,7 @@ async function deleteWasmFiles(ffmpeg: FFmpeg, fileNames: string[]): Promise<voi
         try {
             await ffmpeg.deleteFile(fileName);
         } catch (error) {
-            console.warn(`[FFmpeg WASM] Failed to delete ${fileName}:`, error);
+            log.warn(`WASM: Failed to delete ${fileName}`, error);
         }
     }
 }
@@ -101,7 +104,7 @@ export async function exportVideoWithFFmpeg(
         });
 
         const videoCount = assets.filter((a) => a.type === "video").length;
-        console.log(`[FFmpeg] Loaded ${assets.length} assets (${videoCount} videos, ${assets.length - videoCount} images)`);
+        log.info(`Loaded ${assets.length} assets (${videoCount} videos, ${assets.length - videoCount} images)`);
 
         onProgress({
             stage: "rendering",
@@ -128,6 +131,7 @@ export async function exportVideoWithFFmpeg(
             subtitles: songData.parsedSubtitles,
             frequencyDataArray,
             config: mergedConfig,
+            frameFormat: "png",
             async onFrame(blob, _frame, name) {
                 if (uploadError) throw uploadError;
 
@@ -209,7 +213,7 @@ export async function exportVideoClientSide(
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
         });
     } catch (e) {
-        console.error("FFmpeg WASM load failed", e);
+        log.error('WASM load failed', e);
         throw new Error("Failed to load FFmpeg. Check browser compatibility.");
     }
 
@@ -237,7 +241,7 @@ export async function exportVideoClientSide(
         });
 
         const videoCount = assets.filter((a) => a.type === "video").length;
-        console.log(`[FFmpeg WASM] Loaded ${assets.length} assets (${videoCount} videos, ${assets.length - videoCount} images)`);
+        log.info(`WASM: Loaded ${assets.length} assets (${videoCount} videos, ${assets.length - videoCount} images)`);
 
         onProgress({
             stage: "rendering",
@@ -313,12 +317,13 @@ export async function exportVideoClientSide(
                 "-i", "audio.wav",
                 "-c:v", "libx264",
                 "-c:a", "aac",
-                "-b:a", "256k",
+                "-b:a", "320k",
                 "-pix_fmt", "yuv420p",
                 "-vf", `scale=${width}:${height}:flags=lanczos,setsar=1`,
                 "-shortest",
                 "-preset", "medium",
                 "-crf", String(qualityValue),
+                "-movflags", "+faststart",
                 "output.mp4",
             ]);
 

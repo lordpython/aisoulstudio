@@ -98,7 +98,7 @@ router.post('/init', uploadAudio.single('audio'), async (req: Request, res: Resp
       throw new Error('Failed to generate session ID');
     }
 
-    const { totalFrames, fps = 24, width, height, quality } = req.body;
+    const { totalFrames, fps = 30, width, height, quality } = req.body;
     const widthValue = parseOptionalNumber(width);
     const heightValue = parseOptionalNumber(height);
     const qualityValue = parseOptionalNumber(quality);
@@ -200,7 +200,7 @@ router.post('/chunk', uploadFrames.array('frames'), (req: Request, res: Response
  * Client should subscribe to SSE for progress.
  */
 router.post('/finalize', async (req: Request, res: Response) => {
-  const { sessionId: rawSessionId, fps = 24, totalFrames, sync = false, width, height, quality } = req.body;
+  const { sessionId: rawSessionId, fps = 30, totalFrames, sync = false, width, height, quality } = req.body;
   const widthValue = parseOptionalNumber(width);
   const heightValue = parseOptionalNumber(height);
   const qualityValue = parseOptionalNumber(quality);
@@ -329,11 +329,11 @@ async function handleSyncFinalize(
 
     const ffmpegArgs = [
       '-framerate', String(fps),
-      '-i', path.join(sessionDir, 'frame%06d.jpg'),
+      '-i', path.join(sessionDir, fs.existsSync(path.join(sessionDir, 'frame000000.png')) ? 'frame%06d.png' : 'frame%06d.jpg'),
       '-i', audioPath,
       ...encoderArgs,
       '-c:a', 'aac',
-      '-b:a', '256k',
+      '-b:a', '320k',
       '-shortest',
       '-movflags', '+faststart',
       '-y',

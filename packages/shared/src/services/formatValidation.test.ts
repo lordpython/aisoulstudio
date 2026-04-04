@@ -11,8 +11,8 @@ import {
   validateGenrePipelineInvariance,
   getFormatPipelineStructure,
   getGenreStyleParams,
-} from './formatValidation';
-import { formatRegistry } from './formatRegistry';
+} from './format/formatValidation';
+import { formatRegistry } from './format/formatRegistry';
 import type { VideoFormat } from '../types';
 
 const ALL_FORMATS: VideoFormat[] = [

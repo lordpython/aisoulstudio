@@ -6,6 +6,9 @@
  */
 
 import { VideoSFXPlan } from '../music/sfxService';
+import { mediaLogger } from '../infrastructure/logger';
+
+const log = mediaLogger.child('AudioMixer');
 
 // --- Types ---
 
@@ -150,18 +153,18 @@ async function fetchAndDecodeAudio(
   url: string
 ): Promise<AudioBuffer | null> {
   try {
-    console.log(`[AudioMixer] Fetching audio: ${url.substring(0, 50)}...`);
+    log.debug(`Fetching audio: ${url.substring(0, 50)}...`);
     const response = await fetch(url, { mode: 'cors' });
     if (!response.ok) {
-      console.warn(`[AudioMixer] Failed to fetch audio: ${response.status}`);
+      log.warn(`Failed to fetch audio: ${response.status}`);
       return null;
     }
     const arrayBuffer = await response.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    console.log(`[AudioMixer] Decoded audio: ${audioBuffer.duration.toFixed(2)}s`);
+    log.debug(`Decoded audio: ${audioBuffer.duration.toFixed(2)}s`);
     return audioBuffer;
   } catch (error) {
-    console.warn(`[AudioMixer] Error fetching/decoding audio:`, error);
+    log.warn('Error fetching/decoding audio', error);
     return null;
   }
 }
@@ -213,8 +216,8 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
     sampleRate = 44100,
   } = config;
 
-  console.log("[AudioMixer] Starting audio mix...");
-  console.log(`[AudioMixer] Scenes: ${scenes.length}, SFX Plan: ${sfxPlan ? 'yes' : 'no'}`);
+  log.info('Starting audio mix...');
+  log.info(`Scenes: ${scenes.length}, SFX Plan: ${sfxPlan ? 'yes' : 'no'}`);
 
   // First, fetch and decode the main narration to get total duration
   const tempContext = new AudioContext({ sampleRate });
@@ -237,7 +240,7 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
   const totalDuration = narrationBuffer.duration;
   const totalSamples = Math.ceil(totalDuration * sampleRate);
 
-  console.log(`[AudioMixer] Total duration: ${totalDuration.toFixed(2)}s`);
+  log.info(`Total duration: ${totalDuration.toFixed(2)}s`);
 
   // Create offline context for rendering
   const offlineContext = new OfflineAudioContext(
@@ -295,10 +298,10 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
             sfxSource.start(sceneInfo.startTime);
             sfxSource.stop(sceneInfo.startTime + sceneInfo.duration);
 
-            console.log(`[AudioMixer] Added SFX "${sfxScene.ambientTrack.name}" at ${sceneInfo.startTime.toFixed(1)}s for ${sceneInfo.duration.toFixed(1)}s`);
+            log.info(`Added SFX "${sfxScene.ambientTrack.name}" at ${sceneInfo.startTime.toFixed(1)}s for ${sceneInfo.duration.toFixed(1)}s`);
           }
         } catch (error) {
-          console.warn(`[AudioMixer] Failed to add SFX for scene ${sceneInfo.sceneId}:`, error);
+          log.warn(`Failed to add SFX for scene ${sceneInfo.sceneId}`, error);
         }
       }
     }
@@ -329,7 +332,7 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
           const duckingEnvelope = calculateDuckingEnvelope(narrationBuffer, sampleRate, blockSize);
           const blockDuration = blockSize / sampleRate;
 
-          console.log(`[AudioMixer] Applying dynamic ducking (${(duckingAmount * 100).toFixed(0)}% reduction during speech)`);
+          log.info(`Applying dynamic ducking (${(duckingAmount * 100).toFixed(0)}% reduction during speech)`);
 
           // Apply initial fade in
           musicGain.gain.setValueAtTime(0, 0);
@@ -356,20 +359,20 @@ export async function mixAudioWithSFX(config: MixConfig): Promise<Blob> {
         musicSource.start(0);
         musicSource.stop(totalDuration);
 
-        console.log(`[AudioMixer] Added background music "${sfxPlan.backgroundMusic.name}"${enableDucking ? ' with dynamic ducking' : ''}`);
+        log.info(`Added background music "${sfxPlan.backgroundMusic.name}"${enableDucking ? ' with dynamic ducking' : ''}`);
       }
     } catch (error) {
-      console.warn("[AudioMixer] Failed to add background music:", error);
+      log.warn('Failed to add background music', error);
     }
   }
 
   // --- Render the mix ---
-  console.log("[AudioMixer] Rendering audio mix...");
+  log.info('Rendering audio mix...');
   const renderedBuffer = await offlineContext.startRendering();
 
   // Convert to WAV
   const wavBlob = audioBufferToWav(renderedBuffer);
-  console.log(`[AudioMixer] Mix complete: ${(wavBlob.size / 1024 / 1024).toFixed(2)} MB`);
+  log.info(`Mix complete: ${(wavBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   return wavBlob;
 }
@@ -459,7 +462,7 @@ export async function mergeConsecutiveAudioBlobs(
     return blobs[0]!;
   }
 
-  console.log(`[AudioMixer] Merging ${blobs.length} blobs...`);
+  log.info(`Merging ${blobs.length} blobs...`);
 
   // Decode all blobs
   const audioContext = new AudioContext({ sampleRate });

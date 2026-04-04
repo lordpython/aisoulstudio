@@ -4,6 +4,9 @@
  */
 
 import type { DeApiResponse } from './types';
+import { mediaLogger } from '../../infrastructure/logger';
+
+const log = mediaLogger.child('DeAPI');
 
 export const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 export const PROXY_BASE = "/api/deapi/proxy";
@@ -43,7 +46,7 @@ class RateLimiter {
       const waitTime = RATE_LIMIT_MS - timeSinceLastRequest;
 
       if (waitTime > 0 && this.lastRequestTime > 0) {
-        console.log(`[DeAPI] Rate limit: waiting ${Math.ceil(waitTime / 1000)}s before next request (${this.queue.length} in queue)`);
+        log.info(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s before next request (${this.queue.length} in queue)`);
         await new Promise(r => setTimeout(r, waitTime));
       }
 
@@ -143,7 +146,7 @@ export const withExponentialBackoff = async <T>(
         throw lastError;
       }
 
-      console.log(`[DeAPI] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+      log.info(`Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay = Math.min(delay * backoffMultiplier + Math.random() * 1000, maxDelayMs);
     }
@@ -182,10 +185,10 @@ export const pollRequest = async (
     try {
       const { waitForJobViaWebSocket, isWebSocketAvailable } = await import('../deapiWebSocket.js');
       if (isWebSocketAvailable()) {
-        console.log(`[DeAPI] Using WebSocket for request: ${requestId}`);
+        log.info(`Using WebSocket for request: ${requestId}`);
         const wsResult = await waitForJobViaWebSocket(requestId, onProgress);
         if (wsResult !== null) return wsResult;
-        console.log(`[DeAPI] WebSocket timed out, falling back to polling for ${requestId}`);
+        log.info(`WebSocket timed out, falling back to polling for ${requestId}`);
       }
     } catch {
       // pusher-js unavailable or module missing — fall through to polling
@@ -219,7 +222,7 @@ export const pollRequest = async (
 
       if (response.status === 429) {
         consecutive429Count++;
-        console.warn(`[DeAPI] Rate limited (429) - attempt ${consecutive429Count}/${maxConsecutive429}`);
+        log.warn(`Rate limited (429) - attempt ${consecutive429Count}/${maxConsecutive429}`);
 
         if (consecutive429Count >= maxConsecutive429) {
           throw new Error("DeAPI rate limit exceeded. Too many requests - please wait a few minutes before trying again.");
@@ -232,7 +235,7 @@ export const pollRequest = async (
           const retryMs = parseInt(retryAfter, 10) * 1000;
           if (!isNaN(retryMs) && retryMs > 0) {
             currentDelay = Math.min(retryMs, 60000);
-            console.log(`[DeAPI] Retry-After header: waiting ${currentDelay / 1000}s`);
+            log.info(`Retry-After header: waiting ${currentDelay / 1000}s`);
           }
         }
 
@@ -243,7 +246,7 @@ export const pollRequest = async (
       currentDelay = baseDelayMs;
 
       if (!response.ok) {
-        console.warn(`[DeAPI] Polling error: ${response.status} - retrying...`);
+        log.warn(`Polling error: ${response.status} - retrying...`);
         currentDelay = Math.min(currentDelay * 1.5, maxDelayMs);
         continue;
       }
@@ -252,7 +255,7 @@ export const pollRequest = async (
       const data = (rawData.data || rawData) as DeApiResponse;
 
       if (data.status === "done" && data.result_url) {
-        console.log(`[DeAPI] Generation complete after ${attempt + 1} polls`);
+        log.info(`Generation complete after ${attempt + 1} polls`);
         return data.result_url;
       }
 
@@ -261,7 +264,7 @@ export const pollRequest = async (
       }
 
       if (data.progress) {
-        console.log(`[DeAPI] Progress: ${data.progress}% (poll ${attempt + 1}/${maxAttempts})`);
+        log.debug(`Progress: ${data.progress}% (poll ${attempt + 1}/${maxAttempts})`);
         const progressValue = parseFloat(data.progress);
         if (!Number.isNaN(progressValue)) {
           onProgress?.(progressValue, data.preview ?? undefined);
@@ -269,13 +272,13 @@ export const pollRequest = async (
       } else if (data.preview) {
         onProgress?.(0, data.preview);
       } else {
-        console.log(`[DeAPI] Status: ${data.status || 'pending'} (poll ${attempt + 1}/${maxAttempts})`);
+        log.debug(`Status: ${data.status || 'pending'} (poll ${attempt + 1}/${maxAttempts})`);
       }
     } catch (error: unknown) {
       const errorName = error instanceof Error ? error.name : '';
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorName === "TypeError" || errorMessage.includes("fetch")) {
-        console.warn(`[DeAPI] Network error during poll: ${errorMessage}`);
+        log.warn(`Network error during poll: ${errorMessage}`);
         currentDelay = Math.min(currentDelay * 1.5, maxDelayMs);
         continue;
       }

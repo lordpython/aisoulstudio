@@ -5,6 +5,9 @@
 import { callSunoProxy, SERVER_URL } from "./config";
 import { SunoStemSeparationResult, SunoApiError } from "./types";
 import { isFailedStatus } from "./generation";
+import { sunoLogger } from '../../infrastructure/logger';
+
+const log = sunoLogger.child('Audio');
 
 export async function uploadAudioFile(file: File): Promise<string> {
   const formData = new FormData();
@@ -54,7 +57,7 @@ export async function waitForStemSeparation(taskId: string, maxWaitMs = 5 * 60 *
     const result = await getStemSeparationStatus(taskId);
 
     if (result.status === "SUCCESS") {
-      console.log("[Suno] Stem separation completed successfully");
+      log.info('Stem separation completed successfully');
       return result;
     }
 
@@ -62,7 +65,7 @@ export async function waitForStemSeparation(taskId: string, maxWaitMs = 5 * 60 *
       throw new Error(result.errorMessage || `Stem separation failed with status: ${result.status}`);
     }
 
-    console.log(`[Suno] Stem separation status: ${result.status}, waiting...`);
+    log.info(`Stem separation status: ${result.status}, waiting...`);
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
 
@@ -78,7 +81,7 @@ export async function uploadFileBase64(base64Data: string, fileName: string): Pr
     throw new SunoApiError('Upload failed: No file URL returned', 500, 'upload/base64');
   }
 
-  console.log(`[Suno] File uploaded via Base64: ${fileName}`);
+  log.info(`File uploaded via Base64: ${fileName}`);
   return fileUrl;
 }
 
@@ -90,6 +93,6 @@ export async function uploadFileUrl(sourceUrl: string): Promise<string> {
     throw new SunoApiError('Upload failed: No file URL returned', 500, 'upload/url');
   }
 
-  console.log(`[Suno] File uploaded via URL: ${sourceUrl.substring(0, 50)}...`);
+  log.info(`File uploaded via URL: ${sourceUrl.substring(0, 50)}...`);
   return fileUrl;
 }

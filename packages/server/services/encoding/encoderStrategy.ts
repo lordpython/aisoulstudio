@@ -34,10 +34,10 @@ export const ENCODING_SPEC = {
   colorTrc: 'bt709',
   pixelFormat: 'yuv420p',
   quality: {
-    nvenc: { cq: 19, preset: 'p5' },
-    qsv: { cq: 19, preset: 'medium' },
-    amf: { cq: 19, preset: 'quality' },
-    libx264: { crf: 18, preset: 'medium' },
+    nvenc: { cq: 19, preset: 'p5', ultraCq: 15, ultraPreset: 'p7' },
+    qsv: { cq: 19, preset: 'medium', ultraCq: 15, ultraPreset: 'veryslow' },
+    amf: { cq: 19, preset: 'quality', ultraCq: 15, ultraPreset: 'quality' },
+    libx264: { crf: 18, preset: 'medium', ultraCrf: 15, ultraPreset: 'slow' },
   },
 } as const;
 
@@ -279,22 +279,23 @@ export function getEncoderArgs(encoder: EncoderType, quality?: number): string[]
     libx264:   qualitySpecs.libx264.crf,
   };
   const effectiveQuality = quality ?? encoderDefaults[encoder] ?? qualitySpecs.libx264.crf;
+  const isUltra = effectiveQuality <= 15;
 
   switch (encoder) {
     case 'h264_nvenc':
       args.push(
-        '-preset', qualitySpecs.nvenc.preset,
+        '-preset', isUltra ? qualitySpecs.nvenc.ultraPreset : qualitySpecs.nvenc.preset,
         '-rc', 'vbr',
         '-cq', String(effectiveQuality),
-        '-b:v', '12M',
-        '-maxrate', '18M',
-        '-bufsize', '24M'
+        '-b:v', isUltra ? '20M' : '12M',
+        '-maxrate', isUltra ? '30M' : '18M',
+        '-bufsize', isUltra ? '40M' : '24M'
       );
       break;
 
     case 'h264_qsv':
       args.push(
-        '-preset', qualitySpecs.qsv.preset,
+        '-preset', isUltra ? qualitySpecs.qsv.ultraPreset : qualitySpecs.qsv.preset,
         '-global_quality', String(effectiveQuality),
         '-look_ahead', '1'
       );
@@ -302,7 +303,7 @@ export function getEncoderArgs(encoder: EncoderType, quality?: number): string[]
 
     case 'h264_amf':
       args.push(
-        '-quality', qualitySpecs.amf.preset,
+        '-quality', isUltra ? qualitySpecs.amf.ultraPreset : qualitySpecs.amf.preset,
         '-rc', 'vbr_latency',
         '-qp_i', String(effectiveQuality),
         '-qp_p', String(effectiveQuality + 2)
@@ -313,7 +314,7 @@ export function getEncoderArgs(encoder: EncoderType, quality?: number): string[]
     default:
       const cpuCount = Math.max(2, os.cpus().length - 2);
       args.push(
-        '-preset', qualitySpecs.libx264.preset,
+        '-preset', isUltra ? qualitySpecs.libx264.ultraPreset : qualitySpecs.libx264.preset,
         '-crf', String(effectiveQuality),
         '-tune', 'film',
         '-threads', String(cpuCount)

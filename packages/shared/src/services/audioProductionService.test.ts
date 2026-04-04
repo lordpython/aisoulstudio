@@ -22,7 +22,7 @@ import {
   TTS_VOICES,
   type FormatVoiceProfile,
   type TTSVoice,
-} from './narratorService';
+} from './media/narratorService';
 import {
   generateBeatMetadata,
   findNearestBeat,

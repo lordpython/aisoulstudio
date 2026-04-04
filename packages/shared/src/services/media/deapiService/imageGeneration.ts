@@ -4,6 +4,8 @@
 
 import { API_BASE, isBrowser, API_KEY, getDeApiDimensions, pollRequest, Semaphore } from './config';
 import { isDeApiConfigured } from './apiConfig';
+import { mediaLogger } from '../../infrastructure/logger';
+
 import type {
   Txt2ImgParams,
   DeApiImageModel,
@@ -12,6 +14,8 @@ import type {
   BatchGenerationProgress,
   DeApiResponse,
 } from './types';
+
+const log = mediaLogger.child('DeAPI:Image');
 
 export const generateImageWithDeApi = async (
   params: Txt2ImgParams
@@ -39,7 +43,7 @@ export const generateImageWithDeApi = async (
     webhook_url,
   } = params;
 
-  console.log(`[DeAPI] Generating image: ${model}, ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+  log.info(`Generating image: ${model}, ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -80,27 +84,27 @@ export const generateImageWithDeApi = async (
   }
 
   const rawData = await response.json();
-  console.log(`[DeAPI] txt2img raw response:`, JSON.stringify(rawData, null, 2));
+  log.debug(`txt2img raw response: ${JSON.stringify(rawData, null, 2)}`);
 
   const data: DeApiResponse = rawData.data || rawData;
-  console.log(`[DeAPI] txt2img parsed response:`, data);
+  log.debug(`txt2img parsed response: ${JSON.stringify(data)}`);
 
   let imageUrl: string;
 
   if (data.result_url) {
-    console.log(`[DeAPI] Image ready immediately! Status: ${data.status || 'unknown'}`);
+    log.info(`Image ready immediately! Status: ${data.status || 'unknown'}`);
     imageUrl = data.result_url;
   } else if (data.status === "error") {
     throw new Error(data.error || "Image generation failed at provider");
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for txt2img request: ${data.request_id}`);
+    log.info(`Polling for txt2img request: ${data.request_id}`);
     imageUrl = await pollRequest(data.request_id);
   } else {
-    console.error(`[DeAPI] Unexpected txt2img response:`, rawData);
+    log.error(`Unexpected txt2img response: ${JSON.stringify(rawData)}`);
     throw new Error("No request_id or result_url received from DeAPI txt2img");
   }
 
-  console.log(`[DeAPI] Downloading image from: ${imageUrl.substring(0, 80)}...`);
+  log.debug(`Downloading image from: ${imageUrl.substring(0, 80)}...`);
   const imgResp = await fetch(imageUrl);
 
   if (!imgResp.ok) {
@@ -108,7 +112,7 @@ export const generateImageWithDeApi = async (
   }
 
   const imgBlob = await imgResp.blob();
-  console.log(`[DeAPI] Image downloaded: ${(imgBlob.size / 1024).toFixed(2)} KB`);
+  log.info(`Image downloaded: ${(imgBlob.size / 1024).toFixed(2)} KB`);
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -154,13 +158,13 @@ export const generateImageBatch = async (
   let completed = 0;
   const totalBatches = Math.ceil(items.length / effectiveConcurrency);
 
-  console.log(`[DeAPI Batch] Starting batch generation: ${items.length} items, concurrency: ${effectiveConcurrency}`);
+  log.info(`Batch: Starting generation: ${items.length} items, concurrency: ${effectiveConcurrency}`);
 
   const processItem = async (item: BatchGenerationItem): Promise<BatchGenerationResult> => {
     await semaphore.acquire();
 
     try {
-      console.log(`[DeAPI Batch] Processing item ${item.id}: ${item.prompt.substring(0, 50)}...`);
+      log.debug(`Batch: Processing item ${item.id}: ${item.prompt.substring(0, 50)}...`);
 
       const imageUrl = await generateImageWithAspectRatio(
         item.prompt,
@@ -172,7 +176,7 @@ export const generateImageBatch = async (
       return { id: item.id, success: true, imageUrl };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[DeAPI Batch] Failed to generate item ${item.id}:`, errorMessage);
+      log.error(`Batch: Failed to generate item ${item.id}: ${errorMessage}`);
       return { id: item.id, success: false, error: errorMessage };
     } finally {
       semaphore.release();
@@ -196,7 +200,7 @@ export const generateImageBatch = async (
   const orderedResults = items.map(item => resultMap.get(item.id)!);
 
   const successCount = orderedResults.filter(r => r.success).length;
-  console.log(`[DeAPI Batch] Batch complete: ${successCount}/${items.length} successful`);
+  log.info(`Batch complete: ${successCount}/${items.length} successful`);
 
   return orderedResults;
 };

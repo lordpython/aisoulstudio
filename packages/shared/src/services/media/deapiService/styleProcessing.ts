@@ -14,6 +14,9 @@ import {
 } from './config';
 import { isDeApiConfigured } from './apiConfig';
 import type { DeApiResponse } from './types';
+import { mediaLogger } from '../../infrastructure/logger';
+
+const log = mediaLogger.child('DeAPI:Style');
 
 export const removeImageBackground = async (
   base64Image: string,
@@ -62,7 +65,7 @@ export const removeImageBackground = async (
   } else if (data.status === 'error') {
     throw new Error(data.error || 'Background removal failed at provider');
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for bg removal: ${data.request_id}`);
+    log.info(`Polling for bg removal: ${data.request_id}`);
     imageUrl = await pollRequest(data.request_id);
   } else {
     throw new Error('No request_id or result_url from DeAPI img-rmbg');
@@ -74,7 +77,7 @@ export const removeImageBackground = async (
   }
 
   const imgBlob = await imgResp.blob();
-  console.log(`[DeAPI] Background removed: ${(imgBlob.size / 1024).toFixed(2)} KB`);
+  log.info(`Background removed: ${(imgBlob.size / 1024).toFixed(2)} KB`);
 
   if (sessionId && sceneIndex !== undefined) {
     cloudAutosave.saveAsset(
@@ -82,7 +85,7 @@ export const removeImageBackground = async (
       imgBlob,
       `scene_${sceneIndex}_rmbg.png`,
       'visuals'
-    ).catch(err => console.warn('[DeAPI] Cloud upload failed (non-fatal):', err));
+    ).catch(err => log.warn('Cloud upload failed (non-fatal)', err));
   }
 
   return new Promise((resolve, reject) => {
@@ -150,7 +153,7 @@ export const applyStyleConsistency = async (
   } else if (data.status === 'error') {
     throw new Error(data.error || 'Style consistency pass failed at provider');
   } else if (data.request_id) {
-    console.log(`[DeAPI] Polling for img2img: ${data.request_id}`);
+    log.info(`Polling for img2img: ${data.request_id}`);
     imageUrl = await pollRequest(data.request_id);
   } else {
     throw new Error('No request_id or result_url from DeAPI img2img');

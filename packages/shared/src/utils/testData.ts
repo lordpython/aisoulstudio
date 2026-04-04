@@ -1,8 +1,11 @@
 import { SongData, ImagePrompt, GeneratedImage } from '../types';
 import { parseSRT } from './srtParser';
+import { uiLogger } from '../services/infrastructure/logger';
+
+const log = uiLogger.child('TestData');
 
 export const createTestSongData = (): SongData => {
-  console.log('🎵 Creating test song data from public assets...');
+  log.info('Creating test song data from public assets...');
 
   const srtContent = `1
 00:00:51,539 --> 00:00:57,289
@@ -178,7 +181,7 @@ I only find the path when I refuse to be my passion's friend.`;
     imageUrl: `/test_data/${meta.file}`
   }));
 
-  console.log(`✨ Loaded ${prompts.length} test prompts with actual images`);
+  log.info(`Loaded ${prompts.length} test prompts with actual images`);
 
   return {
     fileName: 'the true Saba.mp3',

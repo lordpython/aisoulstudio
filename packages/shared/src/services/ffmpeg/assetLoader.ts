@@ -13,6 +13,9 @@
 
 import { SongData } from "../../types";
 import { RenderAsset } from "./exportConfig";
+import { ffmpegLogger } from '../infrastructure/logger';
+
+const log = ffmpegLogger.child('AssetLoader');
 
 // --- Constants ---
 
@@ -128,7 +131,7 @@ function evictFrameEntries(bytesNeeded: number): void {
             try {
                 oldest.bitmap.close();
             } catch (error) {
-                console.warn(`[AssetLoader] Failed to close cached bitmap for ${oldestKey}:`, error);
+                log.warn(`Failed to close cached bitmap for ${oldestKey}`, error);
             }
         }
     }
@@ -154,7 +157,7 @@ export function cacheFrame(videoSrc: string, time: number, bitmap: ImageBitmap):
         try {
             existing.bitmap.close();
         } catch (error) {
-            console.warn(`[AssetLoader] Failed to replace cached bitmap for ${key}:`, error);
+            log.warn(`Failed to replace cached bitmap for ${key}`, error);
         }
     }
 
@@ -178,12 +181,12 @@ export function clearFrameCache(): void {
         try {
             entry.bitmap.close();
         } catch (error) {
-            console.warn("[AssetLoader] Failed to close cached bitmap during clear:", error);
+            log.warn('Failed to close cached bitmap during clear', error);
         }
     }
     videoFrameCache.clear();
     cachedFrameBytes = 0;
-    console.log("[AssetLoader] Frame cache cleared");
+    log.debug('Frame cache cleared');
 }
 
 /**
@@ -273,7 +276,7 @@ export async function loadVideoAsset(url: string, timeoutMs = ASSET_LOAD_TIMEOUT
                 return;
             }
 
-            console.log(`[AssetLoader] Video loaded: ${vid.videoWidth}x${vid.videoHeight}, ${vid.duration.toFixed(2)}s - ${url}`);
+            log.info(`Video loaded: ${vid.videoWidth}x${vid.videoHeight}, ${vid.duration.toFixed(2)}s - ${url}`);
             resolve();
         };
 
@@ -297,7 +300,7 @@ export async function loadVideoAsset(url: string, timeoutMs = ASSET_LOAD_TIMEOUT
         vid.currentTime = 0;
     } catch (e) {
         // Play might fail due to autoplay policies, but that's ok for export
-        console.warn(`[AssetLoader] Video play/pause init warning (non-fatal): ${e}`);
+        log.warn(`Video play/pause init warning (non-fatal): ${e}`);
     }
 
     return vid;
@@ -356,7 +359,7 @@ export async function seekVideoToTime(
             vid.removeEventListener('seeked', onSeeked);
             vid.removeEventListener('error', onError);
             // Don't reject, just warn and resolve - allows export to continue
-            console.warn(`[AssetLoader] Video seek timeout at ${targetTime.toFixed(2)}s, using current frame`);
+            log.warn(`Video seek timeout at ${targetTime.toFixed(2)}s, using current frame`);
             resolve();
         }, timeoutMs);
 
@@ -371,7 +374,7 @@ export async function seekVideoToTime(
             clearTimeout(timeout);
             vid.removeEventListener('seeked', onSeeked);
             vid.removeEventListener('error', onError);
-            console.warn(`[AssetLoader] Video seek error at ${targetTime.toFixed(2)}s`);
+            log.warn(`Video seek error at ${targetTime.toFixed(2)}s`);
             resolve(); // Don't reject, allow export to continue
         };
 
@@ -526,11 +529,11 @@ export async function preloadAssets(
     // Debug: log timestamp distribution
     const timestamps = sortedPrompts.map(p => p.timestampSeconds || 0);
     const uniqueTimestamps = new Set(timestamps);
-    console.log(`[AssetLoader] Prompt timestamps: ${sortedPrompts.length} prompts, ${uniqueTimestamps.size} unique times`);
+    log.debug(`Prompt timestamps: ${sortedPrompts.length} prompts, ${uniqueTimestamps.size} unique times`);
     if (sortedPrompts.length > 0) {
-        console.log(`[AssetLoader] Time range: ${timestamps[0]}s - ${timestamps[timestamps.length - 1]}s`);
+        log.debug(`Time range: ${timestamps[0]}s - ${timestamps[timestamps.length - 1]}s`);
         if (uniqueTimestamps.size === 1) {
-            console.warn(`[AssetLoader] WARNING: All prompts have same timestamp (${timestamps[0]}s) - video will show only last image!`);
+            log.warn(`All prompts have same timestamp (${timestamps[0]}s) - video will show only last image!`);
         }
     }
 
@@ -583,8 +586,8 @@ export async function preloadAssets(
                     baseScale,
                     nativeDuration,
                 };
-                console.log(
-                    `[AssetLoader] ✓ Video loaded for scene ${prompt.id} (${nativeDuration?.toFixed(1) ?? "unknown"}s)` +
+                log.info(
+                    `Video loaded for scene ${prompt.id} (${nativeDuration?.toFixed(1) ?? "unknown"}s)` +
                     `${generated.cachedBlobUrl ? " (from cache)" : ""}`
                 );
             } else {
@@ -605,8 +608,8 @@ export async function preloadAssets(
                 };
             }
         } catch (error) {
-            console.warn(
-                `[AssetLoader] ✗ Failed to load ${isVideo ? "video" : "image"} for prompt ${prompt.id}:`,
+            log.warn(
+                `Failed to load ${isVideo ? "video" : "image"} for prompt ${prompt.id}`,
                 error
             );
             const placeholder = createPlaceholderImage(1280, 720, `Scene ${prompt.id} unavailable`);
@@ -640,11 +643,11 @@ export async function preloadAssets(
     // Log final distribution
     const assetTimes = assets.map(a => a.time);
     const uniqueAssetTimes = new Set(assetTimes);
-    console.log(`[AssetLoader] Preloaded ${assets.length} assets (${assets.filter(a => a.type === "video").length} videos)`);
+    log.info(`Preloaded ${assets.length} assets (${assets.filter(a => a.type === "video").length} videos)`);
     if (assetTimes.length > 0) {
-        console.log(`[AssetLoader] Asset time distribution: ${uniqueAssetTimes.size} unique times, range: ${Math.min(...assetTimes)}s - ${Math.max(...assetTimes)}s`);
+        log.debug(`Asset time distribution: ${uniqueAssetTimes.size} unique times, range: ${Math.min(...assetTimes)}s - ${Math.max(...assetTimes)}s`);
         if (uniqueAssetTimes.size === 1 && assets.length > 1) {
-            console.error(`[AssetLoader] BUG: All ${assets.length} assets have same time (${assetTimes[0]}s)! Check timestampSeconds calculation.`);
+            log.error(`BUG: All ${assets.length} assets have same time (${assetTimes[0]}s)! Check timestampSeconds calculation.`);
         }
     }
 

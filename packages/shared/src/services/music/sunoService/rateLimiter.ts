@@ -2,6 +2,10 @@
  * Suno Service — Rate limiter (20 req / 10s sliding window)
  */
 
+import { sunoLogger } from '../../infrastructure/logger';
+
+const log = sunoLogger.child('RateLimit');
+
 export class SunoRateLimiter {
   private requestTimestamps: number[] = [];
   private readonly maxRequests = 20;
@@ -16,7 +20,7 @@ export class SunoRateLimiter {
       const waitTime = this.windowMs - (now - oldestTimestamp) + 10;
 
       if (waitTime > 0) {
-        console.log(`[Suno] Rate limit reached, waiting ${waitTime}ms...`);
+        log.info(`Rate limit reached, waiting ${waitTime}ms...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         const newNow = Date.now();
         this.requestTimestamps = this.requestTimestamps.filter(ts => newNow - ts < this.windowMs);

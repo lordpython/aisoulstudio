@@ -2,7 +2,7 @@
  * Suno Service — Types, interfaces, and error classes
  */
 
-import type { SubtitleItem } from "../../types";
+import type { SubtitleItem } from "../../../types";
 
 export type SunoModel = "V4" | "V4_5" | "V4_5PLUS" | "V4_5ALL" | "V5";
 

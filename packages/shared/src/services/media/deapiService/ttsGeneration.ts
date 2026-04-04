@@ -5,6 +5,9 @@
 import { DEAPI_DIRECT_BASE, isBrowser, API_KEY, withExponentialBackoff } from './config';
 import { isDeApiConfigured } from './apiConfig';
 import { DEAPI_TTS_MODELS } from './types';
+import { mediaLogger } from '../../infrastructure/logger';
+
+const log = mediaLogger.child('DeAPI:TTS');
 
 export async function generateDeapiQwenTTS(
     text: string,
@@ -39,8 +42,8 @@ export async function generateDeapiQwenTTS(
         }
     };
 
-    console.log(`[DeAPI TTS] Generating speech with model ${model}: "${safeText.substring(0, 50)}..."`);
-    console.log(`[DeAPI TTS] Voice prompt: "${directorNote}"`);
+    log.info(`Generating speech with model ${model}: "${safeText.substring(0, 50)}..."`);
+    log.debug(`Voice prompt: "${directorNote}"`);
 
     const response = await withExponentialBackoff(async () => {
         const headers: Record<string, string> = {
@@ -79,7 +82,7 @@ export async function generateDeapiQwenTTS(
     });
 
     const arrayBuffer = await response.arrayBuffer();
-    console.log(`[DeAPI TTS] Received ${arrayBuffer.byteLength} bytes of MP3 audio`);
+    log.info(`Received ${arrayBuffer.byteLength} bytes of MP3 audio`);
     return new Blob([arrayBuffer], { type: 'audio/mpeg' });
 }
 

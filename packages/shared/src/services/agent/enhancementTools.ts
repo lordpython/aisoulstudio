@@ -11,6 +11,9 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { ai, MODELS, withRetry } from "../shared/apiClient";
+import { agentLogger } from '../infrastructure/logger';
+
+const log = agentLogger.child('Enhancement');
 
 // --- Types ---
 
@@ -199,7 +202,7 @@ async function removeBackgroundWithGemini(
   imageBase64: string,
   mimeType: string
 ): Promise<string> {
-  console.log("[EnhancementTools] Removing background with Gemini...");
+  log.info('Removing background with Gemini...');
 
   const prompt = `You are an expert image editor. Remove the background from this image completely.
 Keep only the main subject(s) in the foreground.
@@ -249,7 +252,7 @@ async function applyStyleTransferWithGemini(
   mimeType: string,
   targetStyle: string
 ): Promise<string> {
-  console.log(`[EnhancementTools] Applying ${targetStyle} style with Gemini...`);
+  log.info(`Applying ${targetStyle} style with Gemini...`);
 
   const stylePrompts: Record<string, string> = {
     "anime": "Transform this image into anime/manga art style with bold outlines, vibrant colors, and characteristic anime aesthetics.",
@@ -323,7 +326,7 @@ Output the result as a high-quality image.`;
  */
 export const removeBackgroundTool = tool(
   async ({ contentPlanId, sceneIndex, imageBase64 }) => {
-    console.log(`[EnhancementTools] Removing background for scene ${sceneIndex} in session ${contentPlanId}`);
+    log.info(`Removing background for scene ${sceneIndex} in session ${contentPlanId}`);
 
     try {
       // Extract base64 data
@@ -349,7 +352,7 @@ export const removeBackgroundTool = tool(
       });
 
     } catch (error) {
-      console.error("[EnhancementTools] Background removal error:", error);
+      log.error('Background removal error', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Return original image on failure (graceful degradation per Requirement 2.4)
@@ -378,7 +381,7 @@ export const removeBackgroundTool = tool(
  */
 export const restyleImageTool = tool(
   async ({ contentPlanId, sceneIndex, imageBase64, targetStyle }) => {
-    console.log(`[EnhancementTools] Applying ${targetStyle} style to scene ${sceneIndex} in session ${contentPlanId}`);
+    log.info(`Applying ${targetStyle} style to scene ${sceneIndex} in session ${contentPlanId}`);
 
     // Check if style is recognized
     if (!isRecognizedStyle(targetStyle)) {
@@ -386,7 +389,7 @@ export const restyleImageTool = tool(
       const suggestions = getStyleSuggestions(targetStyle);
       
       if (closestMatch) {
-        console.log(`[EnhancementTools] Using closest match: ${closestMatch} for input: ${targetStyle}`);
+        log.info(`Using closest match: ${closestMatch} for input: ${targetStyle}`);
         targetStyle = closestMatch;
       } else {
         return JSON.stringify({
@@ -426,7 +429,7 @@ export const restyleImageTool = tool(
       });
 
     } catch (error) {
-      console.error("[EnhancementTools] Style transfer error:", error);
+      log.error('Style transfer error', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Return available styles on failure (per Requirement 2.5)

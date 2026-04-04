@@ -12,6 +12,9 @@ import { tool } from "@langchain/core/tools";
 import { splitTextIntoSegments } from "../audio-processing/subtitleService";
 import { SubtitleItem } from "../../types";
 import { productionStore } from "../ai/production/store";
+import { agentLogger } from '../infrastructure/logger';
+
+const log = agentLogger.child('Subtitle');
 
 // --- Types ---
 
@@ -265,8 +268,8 @@ export const generateSubtitlesTool = tool(
     narrationSegments,
     maxWordsPerSegment = 8,
   }) => {
-    console.log(`[SubtitleTools] Generating subtitles for session: ${contentPlanId}`);
-    console.log(`[SubtitleTools] Language: ${language}, Format: ${format}, Max words: ${maxWordsPerSegment}`);
+    log.info(`Generating subtitles for session: ${contentPlanId}`);
+    log.info(`Language: ${language}, Format: ${format}, Max words: ${maxWordsPerSegment}`);
 
     // Auto-fetch narration segments from session if not provided
     let finalNarrationSegments = narrationSegments;
@@ -293,7 +296,7 @@ export const generateSubtitlesTool = tool(
         currentTime += segment.audioDuration;
         return result;
       });
-      console.log(`[SubtitleTools] Auto-fetched ${finalNarrationSegments.length} narration segments from session`);
+      log.info(`Auto-fetched ${finalNarrationSegments.length} narration segments from session`);
     }
 
     // Validate each segment has required fields
@@ -324,7 +327,7 @@ export const generateSubtitlesTool = tool(
     try {
       // Check if language is RTL
       const isRTL = isRTLLanguage(language);
-      console.log(`[SubtitleTools] RTL language: ${isRTL}`);
+      log.debug(`RTL language: ${isRTL}`);
 
       // Process narration into subtitle items
       const subtitleItems = processNarrationToSubtitles(
@@ -379,7 +382,7 @@ export const generateSubtitlesTool = tool(
       });
 
     } catch (error) {
-      console.error("[SubtitleTools] Generation error:", error);
+      log.error('Generation error', error);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
 
