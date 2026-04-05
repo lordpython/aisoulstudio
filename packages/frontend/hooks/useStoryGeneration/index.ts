@@ -6,6 +6,8 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { storyLogger } from '@/services/infrastructure/logger';
+const log = storyLogger.child('Generation');
 import type {
     StoryStep,
     StoryState,
@@ -165,7 +167,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
         // Clear stale session if user mismatch (prevents Firebase permission errors)
         if (savedUserId && currentUser && savedUserId !== currentUser.uid) {
-            console.log('[useStoryGeneration] Session belongs to different user, clearing');
+            log.debug('Session belongs to different user, clearing');
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(SESSION_KEY);
             localStorage.removeItem(USER_ID_KEY);
@@ -176,7 +178,7 @@ export function useStoryGeneration(projectId?: string | null) {
         // If a projectId is provided and it differs from the saved one,
         // this is a different/new project — start fresh instead of loading old state
         if (projectId && savedProjectId && projectId !== savedProjectId) {
-            console.log('[useStoryGeneration] Different project detected, resetting state', {
+            log.debug('Different project detected, resetting state', {
                 current: projectId,
                 saved: savedProjectId,
             });
@@ -201,9 +203,9 @@ export function useStoryGeneration(projectId?: string | null) {
             try {
                 const parsed = JSON.parse(savedState);
                 setState(parsed);
-                console.log('[useStoryGeneration] Recovered story state');
+                log.debug('Recovered story state');
             } catch (e) {
-                console.error('Failed to parse saved story state', e);
+                log.error('Failed to parse saved story state', e);
             }
         }
 
@@ -212,7 +214,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Re-initialize cloud storage for the restored session
             cloudAutosave.initSession(savedSession).then(success => {
                 if (success) {
-                    console.log('[useStoryGeneration] Cloud storage re-initialized for restored session');
+                    log.debug('Cloud storage re-initialized for restored session');
                 }
             });
 
@@ -221,9 +223,9 @@ export function useStoryGeneration(projectId?: string | null) {
                 try {
                     const parsed = JSON.parse(savedState);
                     storyModeStore.set(savedSession, buildStoryModeState(savedSession, parsed));
-                    console.log('[useStoryGeneration] Restored storyModeStore for session:', savedSession);
+                    log.debug('Restored storyModeStore for session:', savedSession);
                 } catch (e) {
-                    console.error('[useStoryGeneration] Failed to restore storyModeStore:', e);
+                    log.error('Failed to restore storyModeStore:', e);
                 }
             }
         }
@@ -242,7 +244,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
             } catch (err) {
                 // QuotaExceededError - log but don't crash
-                console.warn('[useStoryGeneration] Failed to save state to localStorage:', err);
+                log.warn('Failed to save state to localStorage:', err);
             }
         }
         if (sessionId) {
@@ -261,14 +263,14 @@ export function useStoryGeneration(projectId?: string | null) {
 
             if (!user) {
                 // User signed out - clear session data
-                console.log('[useStoryGeneration] User signed out, clearing session');
+                log.debug('User signed out, clearing session');
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(SESSION_KEY);
                 localStorage.removeItem(USER_ID_KEY);
                 localStorage.removeItem(PROJECT_ID_KEY);
             } else if (savedUserId && savedUserId !== user.uid) {
                 // Different user signed in - clear stale session
-                console.log('[useStoryGeneration] Different user signed in, clearing stale session');
+                log.debug('Different user signed in, clearing stale session');
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(SESSION_KEY);
                 localStorage.removeItem(USER_ID_KEY);
@@ -345,9 +347,9 @@ export function useStoryGeneration(projectId?: string | null) {
                 // Initialize cloud storage session for media persistence
                 cloudAutosave.initSession(foundSessionId).then(success => {
                     if (success) {
-                        console.log('[useStoryGeneration] Cloud storage initialized for session');
+                        log.debug('Cloud storage initialized for session');
                     } else {
-                        console.warn('[useStoryGeneration] Cloud storage unavailable, using local storage only');
+                        log.warn('Cloud storage unavailable, using local storage only');
                     }
                 });
 
@@ -355,7 +357,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 const breakdownText = foundState.breakdown;
                 const scenes: ScreenplayScene[] = parseBreakdownToScenes(breakdownText, inputTopic);
 
-                console.log('[useStoryGeneration] Breakdown parsed into scenes:', scenes.length);
+                log.debug('Breakdown parsed into scenes:', scenes.length);
 
                 setState((prev: StoryState) => ({
                     ...prev,
@@ -419,7 +421,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Fetch the screenplay from storyModeStore
             const storyState = storyModeStore.get(sessionId);
             if (storyState && storyState.screenplay && storyState.screenplay.length > 0) {
-                console.log('[useStoryGeneration] Screenplay retrieved:', storyState.screenplay.length, 'scenes');
+                log.debug(`Screenplay retrieved: ${storyState.screenplay.length} scenes`);
 
                 // Reconcile scene count: if screenplay has fewer scenes than breakdown,
                 // align breakdown to match screenplay to prevent downstream misalignment
@@ -428,8 +430,8 @@ export function useStoryGeneration(projectId?: string | null) {
                 let reconciledBreakdown = state.breakdown;
 
                 if (screenplayScenes.length !== state.breakdown.length) {
-                    console.warn(
-                        `[useStoryGeneration] Scene count mismatch: breakdown=${state.breakdown.length}, screenplay=${screenplayScenes.length}. Reconciling...`
+                    log.warn(
+                        `Scene count mismatch: breakdown=${state.breakdown.length}, screenplay=${screenplayScenes.length}. Reconciling...`
                     );
                     // Use screenplay as source of truth — trim or pad breakdown to match
                     reconciledBreakdown = screenplayScenes.map((sp, idx) => {
@@ -445,7 +447,7 @@ export function useStoryGeneration(projectId?: string | null) {
                             heading: sp.heading || existing?.heading || `Scene ${idx + 1}`,
                         };
                     });
-                    console.log(`[useStoryGeneration] Reconciled to ${reconciledBreakdown.length} scenes`);
+                    log.debug(`Reconciled to ${reconciledBreakdown.length} scenes`);
                 }
 
                 // Build script object from screenplay scenes
@@ -492,7 +494,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Fetch the characters from storyModeStore
             const storyState = storyModeStore.get(sessionId);
             if (storyState && storyState.characters && storyState.characters.length > 0) {
-                console.log('[useStoryGeneration] Characters retrieved:', storyState.characters.length);
+                log.debug('Characters retrieved:', storyState.characters.length);
 
                 // Enrich with coreAnchors for stronger prompt anchoring in image generation
                 const enrichedCharacters = enrichCharactersWithCoreAnchors(
@@ -579,7 +581,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Fetch the shotlist from storyModeStore
             const storyState = storyModeStore.get(sessionId);
             if (storyState && storyState.shotlist && storyState.shotlist.length > 0) {
-                console.log('[useStoryGeneration] Shotlist retrieved:', storyState.shotlist.length, 'shots');
+                log.debug(`Shotlist retrieved: ${storyState.shotlist.length} shots`);
 
                 setState((prev: StoryState) => ({
                     ...prev,
@@ -1077,7 +1079,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 if (sessionId && finalUrl && (finalUrl.startsWith('data:') || finalUrl.startsWith('blob:'))) {
                     const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, finalUrl, shot.id);
                     if (cloudUrl) {
-                        console.log(`[useStoryGeneration] Image uploaded to cloud: ${shot.id}`);
+                        log.debug(`Image uploaded to cloud: ${shot.id}`);
                         finalUrl = cloudUrl;
                     }
                 }
@@ -1139,9 +1141,9 @@ export function useStoryGeneration(projectId?: string | null) {
                             negativePrompts: generateNegativePromptsForStyle(style),
                         };
                         // Store master style on state for persistence
-                        console.log('[useStoryGeneration] Extracted master style:', extractedStyleOverride.colorPalette?.join(', '));
+                        log.debug('Extracted master style:', extractedStyleOverride.colorPalette?.join(', '));
                     } catch (styleErr) {
-                        console.warn('[useStoryGeneration] Style extraction failed, continuing without:', styleErr);
+                        log.warn('Style extraction failed, continuing without:', styleErr);
                     }
                 }
 
@@ -1174,7 +1176,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         if (result.success && result.imageUrl) {
                             await processShotResult(shot, result.imageUrl);
                         } else {
-                            console.error(`Failed to generate visual for shot ${shot.shotNumber}:`, result.error);
+                            log.error(`Failed to generate visual for shot ${shot.shotNumber}:`, result.error);
                         }
                     }
                 }
@@ -1239,7 +1241,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         });
                     },
                     onTaskFail: (taskId, error) => {
-                        console.error(`[generateVisuals] Shot ${taskId} failed:`, error.message);
+                        log.error(`[generateVisuals] Shot ${taskId} failed:`, error.message);
                         storyboardStatus[taskId] = 'failed';
                     },
                     onTaskComplete: (taskId) => {
@@ -1268,7 +1270,7 @@ export function useStoryGeneration(projectId?: string | null) {
                                 negativePrompts: generateNegativePromptsForStyle(style),
                             };
                         } catch (styleErr) {
-                            console.warn('[useStoryGeneration] Style extraction failed:', styleErr);
+                            log.warn('Style extraction failed:', styleErr);
                         }
                     }
                 }
@@ -1382,7 +1384,7 @@ export function useStoryGeneration(projectId?: string | null) {
             if (sessionId && imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
                 const cloudUrl = await cloudAutosave.saveImageWithUrl(sessionId, imageUrl, shotId);
                 if (cloudUrl) {
-                    console.log(`[useStoryGeneration] Regenerated image uploaded to cloud: ${shotId}`);
+                    log.debug(`Regenerated image uploaded to cloud: ${shotId}`);
                     imageUrl = cloudUrl;
                 }
             }
@@ -1551,7 +1553,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         seg.shotId
                     );
                     if (cloudUrl) {
-                        console.log(`[useStoryGeneration] Shot narration uploaded to cloud: ${seg.shotId}`);
+                        log.debug(`Shot narration uploaded to cloud: ${seg.shotId}`);
                         audioUrl = cloudUrl;
                     }
                 }
@@ -1751,7 +1753,7 @@ export function useStoryGeneration(projectId?: string | null) {
                                     reader.readAsDataURL(blob);
                                 });
                             } catch (fetchErr) {
-                                console.warn(`[useStoryGeneration] Failed to fetch image for img2video, falling back to txt2video:`, fetchErr);
+                                log.warn(`[useStoryGeneration] Failed to fetch image for img2video, falling back to txt2video:`, fetchErr);
                                 imageDataUrl = '';
                             }
                         }
@@ -1760,15 +1762,15 @@ export function useStoryGeneration(projectId?: string | null) {
                             // Optional: Apply style consistency pass (img2img) before animation
                             if (state.applyStyleConsistency) {
                                 try {
-                                    console.log(`[useStoryGeneration] Applying style consistency pass for shot ${shot.id}...`);
+                                    log.debug(`Applying style consistency pass for shot ${shot.id}...`);
                                     imageDataUrl = await applyStyleConsistency(
                                         imageDataUrl,
                                         animationPrompt,
                                         deapiAspectRatio,
                                     );
-                                    console.log(`[useStoryGeneration] Style consistency pass complete for shot ${shot.id}`);
+                                    log.debug(`Style consistency pass complete for shot ${shot.id}`);
                                 } catch (styleErr) {
-                                    console.warn(`[useStoryGeneration] Style consistency pass failed (non-fatal), using original image:`, styleErr);
+                                    log.warn(`[useStoryGeneration] Style consistency pass failed (non-fatal), using original image:`, styleErr);
                                 }
                             }
 
@@ -1815,7 +1817,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     if (sessionId && videoUrl && (videoUrl.startsWith('data:') || videoUrl.startsWith('blob:'))) {
                         const cloudUrl = await cloudAutosave.saveAnimatedVideoWithUrl(sessionId, videoUrl, shot.id);
                         if (cloudUrl) {
-                            console.log(`[useStoryGeneration] Animated video uploaded to cloud: ${shot.id}`);
+                            log.debug(`Animated video uploaded to cloud: ${shot.id}`);
                             videoUrl = cloudUrl;
                         }
                     }
@@ -1834,12 +1836,12 @@ export function useStoryGeneration(projectId?: string | null) {
                     completedShotIds.add(shot.id);
                     consecutiveFailures = 0;
                 } catch (err) {
-                    console.error(`Failed to animate shot ${shot.id}:`, err);
+                    log.error(`Failed to animate shot ${shot.id}:`, err);
                     // Accumulate failed shot ID for batch cleanup (Fix #4)
                     completedShotIds.add(shot.id);
                     consecutiveFailures++;
                     if (consecutiveFailures >= ANIMATION_CIRCUIT_BREAKER_THRESHOLD) {
-                        console.error('[useStoryGeneration] Circuit breaker triggered, aborting animation batch');
+                        log.error('Circuit breaker triggered, aborting animation batch');
                         break;
                     }
                 }
@@ -1895,7 +1897,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
         if (!state.animatedShots || state.animatedShots.length === 0) {
             // Fall back to static images if no animations
-            console.warn('[useStoryGeneration] No animations, will use static images for export');
+            log.warn('No animations, will use static images for export');
         }
 
         setIsProcessing(true);
@@ -1910,7 +1912,7 @@ export function useStoryGeneration(projectId?: string | null) {
             // Calculate total duration with fallback for undefined/NaN values
             const totalDuration = narrationSegs.reduce((sum, s) => sum + (s.duration || 0), 0);
 
-            console.log('[useStoryGeneration] Export stats:', {
+            log.debug('Export stats:', {
                 narrationSegments: narrationSegs.length,
                 totalDuration,
                 shotlistLength: state.shotlist.length,
@@ -1925,9 +1927,9 @@ export function useStoryGeneration(projectId?: string | null) {
                     narrationSegs,
                     (message, percent) => setProgress({ message, percent })
                 );
-                console.log('[useStoryGeneration] Combined', narrationSegs.length, 'narration segments');
+                log.debug(`Combined ${narrationSegs.length} narration segments`);
             } catch (audioErr) {
-                console.warn('[useStoryGeneration] Failed to combine audio, using first segment:', audioErr);
+                log.warn('Failed to combine audio, using first segment:', audioErr);
                 combinedAudioUrl = narrationSegs[0]?.audioUrl || '';
             }
 
@@ -1967,7 +1969,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 accumulatedTime += sceneDuration;
             }
 
-            console.log('[useStoryGeneration] Narration-aware shot timing:', {
+            log.debug('Narration-aware shot timing:', {
                 effectiveDuration,
                 sceneCount: sceneIds.length,
                 totalShots: state.shotlist.length,
@@ -1987,7 +1989,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
             // Validate generatedImages have URLs
             const validImages = generatedImages.filter(g => g.imageUrl);
-            console.log('[useStoryGeneration] Generated images:', {
+            log.debug('Generated images:', {
                 total: generatedImages.length,
                 withUrl: validImages.length,
                 sample: generatedImages.slice(0, 3).map(g => ({ id: g.promptId, hasUrl: !!g.imageUrl, type: g.type })),
@@ -2031,7 +2033,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 durationSeconds: effectiveDuration,
             };
 
-            console.log('[useStoryGeneration] SongData built:', {
+            log.debug('SongData built:', {
                 promptCount: prompts.length,
                 generatedImagesCount: generatedImages.length,
                 durationSeconds: effectiveDuration,
@@ -2159,10 +2161,10 @@ export function useStoryGeneration(projectId?: string | null) {
 
             pushState(cloudState);
             setProgress({ message: 'Story loaded', percent: 100 });
-            console.log(`[useStoryGeneration] Loaded story ${cloudSessionId} from cloud`);
+            log.debug(`Loaded story ${cloudSessionId} from cloud`);
             return true;
         } catch (err) {
-            console.error('[useStoryGeneration] Failed to load from cloud:', err);
+            log.error('Failed to load from cloud:', err);
             setError('Failed to load story from cloud');
             return false;
         } finally {
@@ -2185,7 +2187,7 @@ export function useStoryGeneration(projectId?: string | null) {
      * Apply a template to the current story state
      */
     const applyTemplate = useCallback((templateState: Partial<StoryState>) => {
-        console.log('[useStoryGeneration] Applying template:', templateState);
+        log.debug('Applying template:', templateState);
         pushState({
             ...state,
             ...templateState,
@@ -2199,7 +2201,7 @@ export function useStoryGeneration(projectId?: string | null) {
         sessionId?: string | null;
         topic?: string | null;
     }) => {
-        console.log('[useStoryGeneration] Importing project state');
+        log.debug('Importing project state');
         setPast([]);
         setFuture([]);
         setError(null);
@@ -2217,7 +2219,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
                 cloudAutosave.initSession(options.sessionId, currentUser?.uid).then(success => {
                     if (success) {
-                        console.log('[useStoryGeneration] Cloud storage initialized for imported session');
+                        log.debug('Cloud storage initialized for imported session');
                     }
                 });
                 storyModeStore.set(options.sessionId, buildStoryModeState(options.sessionId, importedState, nextTopic));

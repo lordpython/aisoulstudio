@@ -20,6 +20,9 @@ import {
   isClipSelected,
 } from "@/components/TimelineEditor/graphite-timeline-utils";
 import { clipIdToSceneId } from "@/components/TimelineEditor/timelineAdapter";
+import { uiLogger } from '@/services/infrastructure/logger';
+const log = uiLogger.child('TimelineSelection');
+
 
 export interface UseTimelineSelectionOptions {
   /** Initial selected clip ID */
@@ -53,7 +56,7 @@ export interface UseTimelineSelectionReturn {
  * ```tsx
  * const { selectedClipId, handleSelectClip, handleClearSelection, isSelected } = 
  *   useTimelineSelection({
- *     onSceneSelect: (sceneId) => console.log("Selected:", sceneId),
+ *     onSceneSelect: (sceneId) => log.debug("Selected:", sceneId),
  *   });
  * 
  * // In TrackLane:

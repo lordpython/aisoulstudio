@@ -3,6 +3,9 @@
  */
 
 import type { GradientConfig, ExportOptions, GradientPreset } from './types';
+import { uiLogger } from '@/services/infrastructure/logger';
+const log = uiLogger.child('GradientUtils');
+
 
 /**
  * Generate CSS gradient string from configuration
@@ -70,7 +73,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (error) {
-    console.error('Failed to copy to clipboard:', error);
+    log.error('Failed to copy to clipboard:', error);
     return false;
   }
 }

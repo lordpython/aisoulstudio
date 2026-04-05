@@ -297,6 +297,8 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                         transition={{ duration: 0.15 }}
                         className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
                         onClick={() => setShowTemplatesGallery(false)}
+                        onKeyDown={(e) => e.key === 'Escape' && setShowTemplatesGallery(false)}
+                        role="presentation"
                     >
                         <motion.div
                             initial={{ scale: 0.97, opacity: 0 }}
@@ -305,6 +307,9 @@ export const IdeaView: React.FC<IdeaViewProps> = ({
                             transition={{ duration: 0.2, ease: 'easeOut' }}
                             className="w-full max-w-5xl h-[80vh]"
                             onClick={(e) => e.stopPropagation()}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Templates gallery"
                         >
                             <TemplatesGallery
                                 onApplyTemplate={(state) => {

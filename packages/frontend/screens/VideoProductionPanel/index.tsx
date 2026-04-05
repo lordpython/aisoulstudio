@@ -10,6 +10,8 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('VideoPanel');
 import { motion } from 'framer-motion';
 import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import {
@@ -365,7 +367,7 @@ export function VideoProductionPanel({
     paramsAppliedRef.current = true;
 
     if (restoredState?.contentPlan) {
-      console.log('[VideoProductionPanel] Restoring from project session');
+      log.debug('[VideoProductionPanel] Restoring from project session');
       setContentPlan(restoredState.contentPlan);
       if (restoredState.visuals?.length) {
         setVisuals(restoredState.visuals);
@@ -521,7 +523,7 @@ export function VideoProductionPanel({
         mergedAudioUrlRef.current = newUrl;
         setMergedAudioUrl(newUrl);
       } catch (err) {
-        console.error('Failed to merge audio:', err);
+        log.error('Failed to merge audio:', err);
       }
     };
     mergeAudio();
@@ -969,7 +971,7 @@ const handleTimelinePlayPause = useCallback(() => {
         }
       }
     } catch (err) {
-      console.error('Agent error:', err);
+      log.error('Agent error:', err);
       updateLastMessage({ content: t('errors.generic') });
     } finally {
       setTyping(false);
@@ -1076,10 +1078,10 @@ const handleTimelinePlayPause = useCallback(() => {
           break;
         }
         default:
-          console.warn('Unknown quick action type:', action.type);
+          log.warn('Unknown quick action type:', action.type);
       }
     } catch (err) {
-      console.error('Quick action error:', err);
+      log.error('Quick action error:', err);
       addMessage('assistant', t('errors.generic'));
     }
 
@@ -1109,7 +1111,7 @@ const handleTimelinePlayPause = useCallback(() => {
       timestamp: Date.now(),
     });
 
-    console.log('[Feedback] Recorded:', feedback.helpful ? '👍 Helpful' : '👎 Not helpful');
+    log.debug('[Feedback] Recorded:', feedback.helpful ? '👍 Helpful' : '👎 Not helpful');
   }, [messages, recordFeedback]);
 
   const handleExport = useCallback(async (

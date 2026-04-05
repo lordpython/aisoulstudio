@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { exportLogger } from '@/services/infrastructure/logger';
+const log = exportLogger.child('QuickExport');
+
 
 interface ExportPreset {
   id: string;
@@ -152,7 +155,7 @@ export const QuickExport: React.FC<QuickExportProps> = ({
       setExportProgress(100);
       setExportComplete(true);
     } catch (error: any) {
-      console.error("Export failed:", error);
+      log.error("Export failed:", error);
       setExportError(error.message || "Export failed. Please try again.");
       setIsExporting(false);
     }
@@ -181,12 +184,16 @@ export const QuickExport: React.FC<QuickExportProps> = ({
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        role="presentation"
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 100 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 100 }}
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quick-export-title"
           className={cn(
             "w-full sm:max-w-lg bg-card border border-border/50 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto",
             className
@@ -196,16 +203,17 @@ export const QuickExport: React.FC<QuickExportProps> = ({
           <div className="p-4 sm:p-6 border-b border-border/30 sticky top-0 bg-card z-10">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg sm:text-xl font-bold">Export Video</h2>
+                <h2 id="quick-export-title" className="text-lg sm:text-xl font-bold">Export Video</h2>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                   {videoTitle} • {formatDuration(duration)}
                 </p>
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close export dialog"
                 className="p-2 hover:bg-muted/30 rounded-xl transition-colors"
               >
-                <X className="w-5 h-5 text-muted-foreground" />
+                <X className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
               </button>
             </div>
           </div>

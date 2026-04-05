@@ -132,8 +132,18 @@ export default defineConfig(({ mode }) => {
       exclude: ["node_modules", "dist", "e2e/**"],
     },
     build: {
+      // Warn when any single chunk exceeds 600 kB (before compression)
+      chunkSizeWarningLimit: 600,
+      // Use terser for better dead-code elimination in production
+      minify: "esbuild",
+      // Inline small assets to reduce round-trips
+      assetsInlineLimit: 4096,
       rollupOptions: {
         output: {
+          // Content-hash file names for optimal long-term caching
+          entryFileNames: "assets/[name]-[hash].js",
+          chunkFileNames: "assets/[name]-[hash].js",
+          assetFileNames: "assets/[name]-[hash].[ext]",
           manualChunks(id) {
             // Vendor: Google Generative AI SDK
             if (id.includes("node_modules/@google/genai")) {
@@ -143,7 +153,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes("node_modules/framer-motion")) {
               return "vendor-motion";
             }
-            // Vendor: Radix UI primitives
+            // Vendor: Radix UI primitives — split per-package to allow granular loading
             if (id.includes("node_modules/@radix-ui")) {
               return "vendor-radix";
             }
@@ -159,8 +169,25 @@ export default defineConfig(({ mode }) => {
             if (id.includes("node_modules/i18next") || id.includes("node_modules/react-i18next")) {
               return "vendor-i18n";
             }
+            // Vendor: Lucide icons — tree-shaken but still sizeable
+            if (id.includes("node_modules/lucide-react")) {
+              return "vendor-icons";
+            }
+            // Vendor: LangChain — AI orchestration, only used by agent paths
+            if (id.includes("node_modules/@langchain") || id.includes("node_modules/langchain")) {
+              return "vendor-langchain";
+            }
+            // Vendor: Capacitor — mobile runtime, never needed on web
+            if (id.includes("node_modules/@capacitor")) {
+              return "vendor-capacitor";
+            }
             return undefined;
           },
+        },
+        // Tree-shake unused exports at build time
+        treeshake: {
+          preset: "recommended",
+          moduleSideEffects: false,
         },
       },
     },

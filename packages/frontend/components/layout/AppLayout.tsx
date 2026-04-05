@@ -82,12 +82,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl md:hidden flex items-center justify-center p-6"
             onClick={() => onSidebarToggle(false)}
+            onKeyDown={(e) => e.key === 'Escape' && onSidebarToggle(false)}
+            role="presentation"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.2 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
               className="w-48 rounded-2xl overflow-hidden border border-[oklch(0.14_0.03_240)] bg-[oklch(0.05_0.01_240)] py-2"
               onClick={(e) => e.stopPropagation()}
             >

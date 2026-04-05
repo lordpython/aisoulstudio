@@ -42,6 +42,9 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, isRTL } from "@/lib/utils";
+import { exportLogger } from '@/services/infrastructure/logger';
+const log = exportLogger.child('VideoExport');
+
 
 interface VideoExportModalProps {
   songData: SongData;
@@ -173,7 +176,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
       const url = URL.createObjectURL(result.blob);
       setVideoBlobUrl(url);
     } catch (e: any) {
-      console.error("Export failed:", e);
+      log.error("Export failed:", e);
       setError(e.message || "Export failed. Please try again.");
       setIsExporting(false);
     }

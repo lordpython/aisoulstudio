@@ -12,7 +12,10 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { storyLogger } from '@/services/infrastructure/logger';
 import { StoryWorkspace } from '@/components/story';
+
+const log = storyLogger.child('Panel');
 import { StoryWorkspaceErrorBoundary } from '@/components/story/StoryWorkspaceErrorBoundary';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { useFormatPipeline } from '@/hooks/useFormatPipeline';
@@ -345,7 +348,7 @@ export function StoryPanel({
     <StoryWorkspaceErrorBoundary
       storyState={storyHook.state}
       onRestore={() => {
-        console.log('[StoryWorkspace] Restoring from last saved state');
+        log.debug('Restoring from last saved state');
       }}
     >
       <StoryWorkspace
@@ -386,7 +389,7 @@ export function StoryPanel({
             if (isLocked) {
               storyHook.generateShots();
             } else {
-              console.warn('Story should be locked before generating shots');
+              log.warn('Story should be locked before generating shots');
               storyHook.setStep('script');
             }
           } else if (step === 'shots') {

@@ -32,9 +32,9 @@ export function StepProgressBar({
 
   return (
     <div className="w-full bg-zinc-950 border-b border-zinc-800">
-      <div className="max-w-5xl mx-auto px-6 py-5">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-5 overflow-x-auto scrollbar-none">
         {/* Step track */}
-        <div className="relative flex items-center justify-between">
+        <div className="relative flex items-center justify-between min-w-max sm:min-w-0">
           {/* Background track line */}
           <div className="absolute top-[14px] left-0 right-0 h-px bg-zinc-800" />
 

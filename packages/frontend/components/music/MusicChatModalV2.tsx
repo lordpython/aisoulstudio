@@ -38,6 +38,9 @@ import {
   type PendingToolCall,
 } from "@/services/music/musicProducerAgentV2";
 import { getCredits, getTaskStatus, type SunoGeneratedTrack } from "@/services/music/sunoService";
+import { musicLogger } from '@/services/infrastructure/logger';
+const log = musicLogger.child('ChatV2');
+
 
 interface MusicChatModalV2Props {
   open: boolean;
@@ -172,7 +175,7 @@ export function MusicChatModalV2({
           throw new Error(result.errorMessage || "Music generation failed");
         } else {
           // Still PENDING or PROCESSING - continue polling
-          console.log(`[MusicChatV2] Status: ${result.status}, elapsed: ${elapsed / 1000}s`);
+          log.debug(`[MusicChatV2] Status: ${result.status}, elapsed: ${elapsed / 1000}s`);
           setTimeout(poll, pollInterval);
         }
       } catch (err) {
@@ -236,7 +239,7 @@ export function MusicChatModalV2({
         }]);
       } else if (response.type === "confirmation_required") {
         // Show confirmation UI
-        console.log("[MusicChatV2] Received confirmation_required:", {
+        log.debug("[MusicChatV2] Received confirmation_required:", {
           message: response.message,
           pendingAction: response.pendingAction,
         });
@@ -247,7 +250,7 @@ export function MusicChatModalV2({
         }]);
         setPendingAction(response.pendingAction || null);
         setPhase("confirming");
-        console.log("[MusicChatV2] Set phase to confirming");
+        log.debug("[MusicChatV2] Set phase to confirming");
       } else if (response.type === "generating") {
         setMessages(prev => [...prev, {
           id: generateMessageId(),

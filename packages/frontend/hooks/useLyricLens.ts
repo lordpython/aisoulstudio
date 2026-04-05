@@ -20,6 +20,9 @@ import {
 } from "@/services/media/deapiService";
 import { subtitlesToSRT } from "@/utils/srtParser";
 import { calculateOptimalAssets } from "@/services/content/assetCalculatorService";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('LyricLens');
+
 
 export function useLyricLens() {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -124,8 +127,8 @@ export function useLyricLens() {
         contentType: contentType === "story" ? "story" : "lyrics",
       });
 
-      console.log(`[useLyricLens] Dynamic asset calculation: ${assetCalc.optimalAssetCount} assets recommended`);
-      console.log(`[useLyricLens] Reasoning: ${assetCalc.reasoning}`);
+      log.debug(`[useLyricLens] Dynamic asset calculation: ${assetCalc.optimalAssetCount} assets recommended`);
+      log.debug(`[useLyricLens] Reasoning: ${assetCalc.reasoning}`);
 
       // 6. Generate Prompts using selected Director mode with calculated asset count
       setAppState(AppState.GENERATING_PROMPTS);
@@ -133,7 +136,7 @@ export function useLyricLens() {
       // "agent" = LangChain Agent with tools (smarter, self-improving)
       let prompts;
       if (directorMode === "agent") {
-        console.log("[useLyricLens] Using Agent Director mode");
+        log.debug("[useLyricLens] Using Agent Director mode");
         prompts = await generatePromptsWithAgent(
           srt,
           selectedStyle,
@@ -143,7 +146,7 @@ export function useLyricLens() {
           { targetAssetCount: assetCalc.optimalAssetCount }
         );
       } else {
-        console.log("[useLyricLens] Using Chain Director mode");
+        log.debug("[useLyricLens] Using Chain Director mode");
         prompts = await generatePromptsWithLangChain(
           srt,
           selectedStyle,
@@ -159,7 +162,7 @@ export function useLyricLens() {
 
       setAppState(AppState.READY);
     } catch (e: any) {
-      console.error(e);
+      log.error(e);
       setErrorMsg(e.message || "An unexpected error occurred.");
       setAppState(AppState.ERROR);
     }
@@ -221,7 +224,7 @@ export function useLyricLens() {
       // PARALLEL BATCH GENERATION (DeAPI)
       // Dramatically faster - runs multiple requests concurrently
       // ============================================================
-      console.log(`[useLyricLens] Using parallel batch generation for ${pendingPrompts.length} assets`);
+      log.debug(`[useLyricLens] Using parallel batch generation for ${pendingPrompts.length} assets`);
 
       // First, refine all prompts (this is fast and can be done serially)
       const refinedPrompts: Array<{ prompt: ImagePrompt; refinedText: string }> = [];
@@ -238,7 +241,7 @@ export function useLyricLens() {
           refinedPromptTexts.push(refinedPrompt);
           refinedPrompts.push({ prompt, refinedText: refinedPrompt });
         } catch (e) {
-          console.error(`Failed to refine prompt ${prompt.id}`, e);
+          log.error(`Failed to refine prompt ${prompt.id}`, e);
           // Use original prompt if refinement fails
           refinedPrompts.push({ prompt, refinedText: prompt.text });
         }
@@ -258,7 +261,7 @@ export function useLyricLens() {
         batchItems,
         5, // Concurrency limit - adjust based on API rate limits
         (progress) => {
-          console.log(`[useLyricLens] Batch progress: ${progress.completed}/${progress.total}`);
+          log.debug(`[useLyricLens] Batch progress: ${progress.completed}/${progress.total}`);
         }
       );
 
@@ -271,7 +274,7 @@ export function useLyricLens() {
             type: "image",
           });
         } else {
-          console.error(`Failed to generate image for prompt ${result.id}:`, result.error);
+          log.error(`Failed to generate image for prompt ${result.id}:`, result.error);
         }
       }
     } else {
@@ -279,7 +282,7 @@ export function useLyricLens() {
       // SEQUENTIAL GENERATION (Gemini, Video, or mixed modes)
       // Used when parallel generation isn't suitable
       // ============================================================
-      console.log(`[useLyricLens] Using sequential generation for ${pendingPrompts.length} assets`);
+      log.debug(`[useLyricLens] Using sequential generation for ${pendingPrompts.length} assets`);
 
       for (const prompt of pendingPrompts) {
         try {
@@ -375,7 +378,7 @@ export function useLyricLens() {
             baseImageUrl,
           });
         } catch (e) {
-          console.error(`Failed to generate asset for prompt ${prompt.id}`, e);
+          log.error(`Failed to generate asset for prompt ${prompt.id}`, e);
         }
       }
     }
@@ -402,7 +405,7 @@ export function useLyricLens() {
         prev ? { ...prev, parsedSubtitles: updatedSubs } : null,
       );
     } catch (e) {
-      console.error("Translation failed", e);
+      log.error("Translation failed", e);
       alert("Translation failed. Please try again.");
     } finally {
       setIsTranslating(false);
@@ -421,9 +424,9 @@ export function useLyricLens() {
       setSongData(testData);
       setAppState(AppState.READY);
 
-      console.log("✅ Test data loaded successfully");
+      log.debug("✅ Test data loaded successfully");
     } catch (e: any) {
-      console.error("Failed to load test data:", e);
+      log.error("Failed to load test data:", e);
       setErrorMsg("Failed to load test data: " + e.message);
       setAppState(AppState.ERROR);
     }

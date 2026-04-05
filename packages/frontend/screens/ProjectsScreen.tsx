@@ -48,6 +48,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import { TextShimmer } from '@/components/motion-primitives/text-shimmer';
+import { uiLogger } from '@/services/infrastructure/logger';
+const log = uiLogger.child('Projects');
+
 
 type SortField = 'updatedAt' | 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
@@ -100,7 +103,7 @@ export default function ProjectsScreen() {
         const userProjects = await listUserProjects(100);
         setProjects(userProjects);
       } catch (err) {
-        console.error('[ProjectsScreen] Failed to load projects:', err);
+        log.error('[ProjectsScreen] Failed to load projects:', err);
         setError(t('projects.loadError') || 'Failed to load projects');
       } finally {
         setIsLoading(false);

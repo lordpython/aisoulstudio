@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { Search, Play, Pause, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MediaFile, SubtitleCue } from "@/types/audio-editor";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('VideoPreview');
+
 
 interface VideoPreviewProps {
   video?: MediaFile | null;
@@ -38,14 +41,14 @@ export function VideoPreview({
             el.oncanplay = async () => {
               try { await el.play(); } catch (err) {
                 if (err instanceof Error && err.name !== 'AbortError') {
-                  console.error("Playback failed on canplay", err);
+                  log.error("Playback failed on canplay", err);
                 }
               }
             };
           }
         } catch (err) {
           if (err instanceof Error && err.name !== 'AbortError') {
-            console.error("Playback failed", err);
+            log.error("Playback failed", err);
           }
         }
       };

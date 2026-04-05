@@ -299,16 +299,19 @@ export function CheckpointApproval({
       aria-label={`Checkpoint approval: ${title}`}
     >
       {layout === 'editor' ? (
-        <div className="grid h-full min-h-[68vh] gap-4 grid-cols-[minmax(320px,1.15fr)_minmax(320px,1fr)_minmax(280px,320px)]">
+        <div className="grid gap-4 h-full min-h-[68vh]
+          grid-cols-1
+          md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]
+          xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(280px,320px)]">
           {/* Left: Output preview */}
-          <div className="min-w-0 bg-[#07142b] border border-blue-900/60 rounded-lg p-4 flex flex-col min-h-[320px]">
+          <div className="min-w-0 bg-[#07142b] border border-blue-900/60 rounded-lg p-4 flex flex-col min-h-[240px] xl:min-h-[320px]">
             <div className="flex items-center justify-between mb-3">
               <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-blue-300/80">
                 {outputLabel}
               </span>
               <span className="font-mono text-[10px] text-blue-400/70">{phase}</span>
             </div>
-            <div className="flex-1 min-h-[260px] rounded-md border border-blue-900/60 bg-black/85 overflow-hidden">
+            <div className="flex-1 min-h-[200px] xl:min-h-[260px] rounded-md border border-blue-900/60 bg-black/85 overflow-hidden">
               {outputPreview ?? (
                 <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">
                   Output preview will appear here.
@@ -317,7 +320,7 @@ export function CheckpointApproval({
             </div>
           </div>
           {/* Center: Preview content (scenes/visuals) */}
-          <div className="min-w-0 bg-zinc-900/95 border border-zinc-700 rounded-lg p-4 overflow-y-auto min-h-[200px]">
+          <div className="min-w-0 bg-zinc-900/95 border border-zinc-700 rounded-lg p-4 overflow-y-auto min-h-[160px]">
             <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-3">
               Scene Details
             </span>
@@ -325,8 +328,9 @@ export function CheckpointApproval({
               <div className="text-zinc-500 text-sm">No scene data available.</div>
             )}
           </div>
-          {/* Right: Controls */}
-          <div className="min-w-0 bg-zinc-900/95 border border-zinc-700 rounded-lg p-4 overflow-y-auto">
+          {/* Right: Controls — full-width on mobile/md, sidebar on xl */}
+          <div className="min-w-0 bg-zinc-900/95 border border-zinc-700 rounded-lg p-4 overflow-y-auto
+            md:col-span-2 xl:col-span-1">
             {controlsContent}
           </div>
         </div>

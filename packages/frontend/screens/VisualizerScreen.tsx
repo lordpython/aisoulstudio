@@ -39,6 +39,9 @@ import { QuickUpload } from '@/components/import-export/QuickUpload';
 
 // Services
 import { animateImageWithDeApi, animateImageBatch } from '@/services/media/deapiService';
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('Visualizer');
+
 
 export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();
@@ -227,7 +230,7 @@ export default function VisualizerScreen() {
         };
       });
     } catch (error: any) {
-      console.error('Animation failed:', error);
+      log.error('Animation failed:', error);
       setAnimationError(error.message || 'Animation failed');
     } finally {
       setAnimatingPromptId(null);
@@ -298,10 +301,10 @@ export default function VisualizerScreen() {
       // Report any failures
       const failures = results.filter(r => !r.success);
       if (failures.length > 0) {
-        console.error(`${failures.length} animations failed:`, failures.map(f => f.error));
+        log.error(`${failures.length} animations failed:`, failures.map(f => f.error));
       }
     } catch (error: any) {
-      console.error('Batch animation failed:', error);
+      log.error('Batch animation failed:', error);
       setAnimationError(error.message || 'Batch animation failed');
     }
 

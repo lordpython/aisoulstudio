@@ -21,6 +21,9 @@ import {
     type MixConfig
 } from "@/services/audio-processing/audioMixerService";
 import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('SFX');
+
 
 export interface VideoSFXState {
     sfxPlan: VideoSFXPlan | null;
@@ -37,7 +40,7 @@ export function useVideoSFX(
      */
     const browseSfx = useCallback(async (category: string): Promise<FreesoundSound | null> => {
         if (!isFreesoundConfigured()) {
-            console.warn("[useVideoSFX] Freesound API not configured");
+            log.warn("[useVideoSFX] Freesound API not configured");
             onError?.("Freesound API key not configured. Add VITE_FREESOUND_API_KEY to .env.local");
             return null;
         }
@@ -45,11 +48,11 @@ export function useVideoSFX(
         try {
             const sound = await searchAmbientSound(category);
             if (sound) {
-                console.log(`[useVideoSFX] Found SFX: ${sound.name} (${sound.duration.toFixed(1)}s)`);
+                log.debug(`[useVideoSFX] Found SFX: ${sound.name} (${sound.duration.toFixed(1)}s)`);
             }
             return sound;
         } catch (err) {
-            console.error("[useVideoSFX] SFX browse failed:", err);
+            log.error("[useVideoSFX] SFX browse failed:", err);
             onError?.(err instanceof Error ? err.message : String(err));
             return null;
         }
@@ -134,7 +137,7 @@ export function useVideoSFX(
 
             // Check if we can actually mix SFX
             if (includeSfx && !canMixSFX(sfxPlan)) {
-                console.warn("[useVideoSFX] SFX plan has no audio URLs - mixing narration only");
+                log.warn("[useVideoSFX] SFX plan has no audio URLs - mixing narration only");
             }
 
             onProgress?.({
@@ -156,7 +159,7 @@ export function useVideoSFX(
 
             return mixedBlob;
         } catch (err) {
-            console.error("[useVideoSFX] Audio mixing failed:", err);
+            log.error("[useVideoSFX] Audio mixing failed:", err);
             onError?.(err instanceof Error ? err.message : String(err));
             return null;
         }

@@ -26,6 +26,9 @@ import {
 } from '@/services/project/projectService';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/i18n/useLanguage';
+import { uiLogger } from '@/services/infrastructure/logger';
+const log = uiLogger.child('NewProject');
+
 
 // ─── Mode definitions ────────────────────────────────────────────────────────
 
@@ -140,7 +143,7 @@ export default function NewProjectScreen() {
         }
       }
     } catch (err) {
-      console.error('[NewProjectScreen] Failed to create project:', err);
+      log.error('[NewProjectScreen] Failed to create project:', err);
       setError('Failed to create project. Please try again.');
       setIsCreating(false);
       setSelectedMode(null);

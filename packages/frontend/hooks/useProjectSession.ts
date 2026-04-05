@@ -21,6 +21,9 @@ import {
 } from '@/services/ai/production/store';
 import { cloudAutosave } from '@/services/cloud/cloudStorageService';
 import type { ProductionState } from '@/services/ai/production/types';
+import { firebaseLogger } from '@/services/infrastructure/logger';
+const log = firebaseLogger.child('Session');
+
 
 export interface UseProjectSessionResult {
   project: Project | null;
@@ -91,30 +94,30 @@ export function useProjectSession(projectId: string | undefined): UseProjectSess
         if (cancelled) return;
 
         if (restored) {
-          console.log(
+          log.debug(
             `[useProjectSession] Restored session ${cloudSessionId} with ${restored.contentPlan?.scenes?.length || 0} scenes`
           );
           setRestoredState(restored);
 
           // Reconnect autosave/export uploads to the canonical project session.
           cloudAutosave.initSession(cloudSessionId).catch((err) => {
-            console.warn('[useProjectSession] Cloud autosave init failed:', err);
+            log.warn('[useProjectSession] Cloud autosave init failed:', err);
           });
         } else {
           // No existing session - initialize new one
-          console.log(
+          log.debug(
             `[useProjectSession] No existing session, initializing ${cloudSessionId}`
           );
           await initializeProductionSession(cloudSessionId, {});
 
           // Initialize cloud autosave (fire-and-forget)
           cloudAutosave.initSession(cloudSessionId).catch((err) => {
-            console.warn('[useProjectSession] Cloud autosave init failed:', err);
+            log.warn('[useProjectSession] Cloud autosave init failed:', err);
           });
         }
       } catch (err) {
         if (cancelled) return;
-        console.error('[useProjectSession] Failed to load project:', err);
+        log.error('[useProjectSession] Failed to load project:', err);
         setError(err instanceof Error ? err.message : 'Failed to load project');
       } finally {
         if (!cancelled) {
@@ -161,9 +164,9 @@ export function useProjectSession(projectId: string | undefined): UseProjectSess
 
         try {
           await updateProject(projectId, toSync);
-          console.log('[useProjectSession] Synced project metadata:', Object.keys(toSync));
+          log.debug('[useProjectSession] Synced project metadata:', Object.keys(toSync));
         } catch (err) {
-          console.warn('[useProjectSession] Failed to sync project metadata:', err);
+          log.warn('[useProjectSession] Failed to sync project metadata:', err);
         }
       }, SYNC_DEBOUNCE_MS);
     },

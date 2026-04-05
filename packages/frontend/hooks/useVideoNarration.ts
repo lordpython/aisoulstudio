@@ -6,11 +6,14 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { mediaLogger } from "@/services/infrastructure/logger";
 import { ContentPlan, NarrationSegment } from "@/types";
 import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/media/narratorService";
 import { syncDurationsToNarration } from "@/services/content/editorService";
 import { VideoPurpose } from "@/constants";
 import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+const log = mediaLogger.child('Narration');
+
 
 export interface VideoNarrationState {
     narrationSegments: NarrationSegment[];
@@ -74,7 +77,7 @@ export function useVideoNarration(
             
             // TypeScript strict mode: ensure scene exists
             if (!scene) {
-                console.error(`[useVideoNarration] Scene at index ${i} is undefined`);
+                log.error(`Scene at index ${i} is undefined`);
                 continue;
             }
 
@@ -92,7 +95,7 @@ export function useVideoNarration(
                 segments.push(segment);
 
             } catch (err) {
-                console.error(`[useVideoNarration] Narration failed for scene ${scene.id}:`, err);
+                log.error(`Narration failed for scene ${scene.id}:`, err);
                 onError?.(`Narration failed for "${scene.name}"`);
                 return;
             }
@@ -181,9 +184,9 @@ export function useVideoNarration(
                 message: `Narration updated for: ${currentScene.name}`,
             });
 
-            console.log(`[useVideoNarration] Regenerated narration for scene ${sceneId}, duration: ${segment.audioDuration}s`);
+            log.debug(`Regenerated narration for scene ${sceneId}, duration: ${segment.audioDuration}s`);
         } catch (err) {
-            console.error(`[useVideoNarration] Failed to regenerate narration for scene ${sceneId}:`, err);
+            log.error(`Failed to regenerate narration for scene ${sceneId}:`, err);
             onError?.(err instanceof Error ? err.message : String(err));
         }
     }, [contentPlan, videoPurpose, onProgress, onError, onContentPlanUpdate]);
@@ -205,7 +208,7 @@ export function useVideoNarration(
 
         const url = audioUrlsRef.current.get(sceneId);
         if (!url) {
-            console.warn(`No audio URL for scene ${sceneId}`);
+            log.warn(`No audio URL for scene ${sceneId}`);
             return;
         }
 

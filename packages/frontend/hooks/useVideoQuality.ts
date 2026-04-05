@@ -20,6 +20,9 @@ import {
 } from "@/services/project/qualityMonitorService";
 import { validateContentPlan } from "@/services/content/editorService";
 import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('Quality');
+
 
 export interface VideoQualityState {
     qualityReport: ProductionQualityReport | null;
@@ -50,7 +53,7 @@ export function useVideoQuality(
         );
         setQualityReport(report);
         saveReportToHistory(report);
-        console.log(`[useVideoQuality] Quality Report: ${report.overallScore}/100`);
+        log.debug(`[useVideoQuality] Quality Report: ${report.overallScore}/100`);
         return report;
     }, []);
 
@@ -88,7 +91,7 @@ export function useVideoQuality(
 
             return result;
         } catch (err) {
-            console.error("[useVideoQuality] Validation failed:", err);
+            log.error("[useVideoQuality] Validation failed:", err);
             onError?.(err instanceof Error ? err.message : String(err));
             return null;
         }

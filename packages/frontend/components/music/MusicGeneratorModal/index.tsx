@@ -48,6 +48,9 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { SunoModel, SunoGeneratedTrack, SunoGenerationConfig, SunoTaskStatus } from "@/services/music/sunoService";
+import { musicLogger } from '@/services/infrastructure/logger';
+const log = musicLogger.child('Generator');
+
 
 // Music style/genre options
 const MUSIC_STYLES = [
@@ -267,7 +270,7 @@ export function MusicGeneratorModal({
       const url = await onUploadAudio(file);
       setUploadedUrl(url);
     } catch (error) {
-      console.error("Upload failed", error);
+      log.error("Upload failed", error);
       // Error state handling is implicit via musicState.error usually, 
       // but here we might want local feedback. 
       // Ideally we'd set a local error or reuse the parent's error mechanism if exposed settable.

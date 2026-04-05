@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Scene } from '@/types';
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('PreviewCard');
+
 
 export interface VideoPreviewCardProps {
   /** List of scenes to display */
@@ -121,7 +124,7 @@ export const VideoPreviewCard = React.memo(function VideoPreviewCard({
   useEffect(() => {
     if (!videoRef.current || selfManaged) return;
     if (isPlaying) {
-      videoRef.current.play().catch((e) => console.error('[VideoPreviewCard] Video play failed:', e));
+      videoRef.current.play().catch((e) => log.error('[VideoPreviewCard] Video play failed:', e));
     } else {
       videoRef.current.pause();
     }
@@ -160,7 +163,7 @@ export const VideoPreviewCard = React.memo(function VideoPreviewCard({
   const handlePlayPause = useCallback(() => {
     if (selfManaged && videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play().catch((e) => console.error('[VideoPreviewCard] Video play failed:', e));
+        videoRef.current.play().catch((e) => log.error('[VideoPreviewCard] Video play failed:', e));
       } else {
         videoRef.current.pause();
       }

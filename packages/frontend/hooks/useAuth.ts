@@ -18,6 +18,9 @@ import {
   type AuthUser,
 } from '@/services/firebase';
 import { useAppStore } from '@/stores/appStore';
+import { firebaseLogger } from '@/services/infrastructure/logger';
+const log = firebaseLogger.child('Auth');
+
 
 interface UseAuthReturn {
   user: AuthUser | null;
@@ -60,12 +63,12 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     let mounted = true;
 
-    console.log('[useAuth] Starting auth initialization...');
+    log.debug('[useAuth] Starting auth initialization...');
 
     // Subscribe to auth state changes immediately (don't gate behind redirect check)
     const unsubscribe = onAuthChange((authUser) => {
       if (!mounted) return;
-      console.log('[useAuth] Auth state changed:', authUser?.email || 'signed out');
+      log.debug('[useAuth] Auth state changed:', authUser?.email || 'signed out');
       setUser(authUser);
       syncUserToStore(authUser);
       setIsLoading(false);
@@ -81,13 +84,13 @@ export function useAuth(): UseAuthReturn {
       .then((redirectUser) => {
         if (!mounted) return;
         if (redirectUser) {
-          console.log('[useAuth] Got redirect user:', redirectUser.email);
+          log.debug('[useAuth] Got redirect user:', redirectUser.email);
           setUser(redirectUser);
           syncUserToStore(redirectUser);
         }
       })
       .catch((error) => {
-        console.error('[useAuth] Redirect result error:', error);
+        log.error('[useAuth] Redirect result error:', error);
       });
 
     return () => {

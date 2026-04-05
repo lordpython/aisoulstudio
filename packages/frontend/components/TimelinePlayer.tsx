@@ -12,6 +12,9 @@ import { SubtitleItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { cn, isRTL } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('TimelinePlayer');
+
 
 interface TimelinePlayerProps {
   audioUrl: string;
@@ -176,7 +179,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = React.memo(({
             source.connect(analyser);
             analyser.connect(ctx.destination);
           } catch (e) {
-            console.warn("AudioContext already connected");
+            log.warn("AudioContext already connected");
           }
         }
 
@@ -423,7 +426,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = React.memo(({
   useEffect(() => {
     if (audioRef.current) {
       if (isPlaying) {
-        audioRef.current.play().catch((e) => { if (e?.name !== 'AbortError') console.error("Play error:", e); });
+        audioRef.current.play().catch((e) => { if (e?.name !== 'AbortError') log.error("Play error:", e); });
       } else {
         audioRef.current.pause();
       }
@@ -452,7 +455,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = React.memo(({
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer);
         setWaveformBuffer(decodedBuffer);
       } catch (error) {
-        console.error("Failed to load audio waveform", error);
+        log.error("Failed to load audio waveform", error);
       }
     };
     loadAudioData();

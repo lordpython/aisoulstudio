@@ -5,6 +5,9 @@
 import type { StoryStep, StoryState, ScreenplayScene, CharacterProfile, ShotlistEntry, ConsistencyReport } from '@/types';
 import type { StoryModeState } from '@/services/ai/production/types';
 import { cleanForTTS } from '@/services/audio-processing/textSanitizer';
+import { storyLogger } from '@/services/infrastructure/logger';
+
+const log = storyLogger.child('Helpers');
 
 export type { StoryStep, StoryState, ScreenplayScene, CharacterProfile, ShotlistEntry, ConsistencyReport };
 
@@ -245,7 +248,7 @@ export function stripLLMPreamble(text: string): string {
         const preamble = text.substring(0, match.index).trim();
         const newlineCount = (preamble.match(/\n/g) || []).length;
         if (preamble.length < 300 || newlineCount < 3) {
-            console.log(`[parseBreakdown] Stripped LLM preamble (${preamble.length} chars): "${preamble.substring(0, 80)}..."`);
+            log.debug(`Stripped LLM preamble (${preamble.length} chars)`, { preview: preamble.substring(0, 80) });
             return text.substring(match.index);
         }
     }
@@ -255,7 +258,7 @@ export function stripLLMPreamble(text: string): string {
         const preamble = text.substring(0, numberedMatch.index).trim();
         const newlineCount = (preamble.match(/\n/g) || []).length;
         if (preamble.length < 300 || newlineCount < 3) {
-            console.log(`[parseBreakdown] Stripped LLM preamble before numbered list (${preamble.length} chars)`);
+            log.debug(`Stripped LLM preamble before numbered list (${preamble.length} chars)`);
             return text.substring(numberedMatch.index);
         }
     }

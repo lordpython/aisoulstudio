@@ -16,6 +16,8 @@ import {
   getLyricsStatus,
   getCredits,
 } from "@/services/music/sunoService";
+import { exportLogger } from '@/services/infrastructure/logger';
+const log = exportLogger.child('QuickUpload');
 
 interface QuickUploadProps {
   onFileSelect: (file: File, aspectRatio: string) => void;
@@ -162,7 +164,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
       }
     } catch {
       // Silently fail - credits display is optional
-      console.warn("[QuickUpload] Could not fetch Suno credits");
+      log.warn("[QuickUpload] Could not fetch Suno credits");
     }
   }, []);
 
@@ -210,7 +212,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
       });
       onFileSelect(file, aspectRatio);
     } catch (error) {
-      console.error(error);
+      log.error('YouTube import failed', error);
       alert(
         "Failed to import YouTube video. Make sure the backend server is running (npm run server) and yt-dlp is installed.",
       );
@@ -552,7 +554,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
         open={showMusicModal}
         onClose={() => setShowMusicModal(false)}
         onMusicGenerated={(track) => {
-          console.log("[QuickUpload] Music generated:", track.title);
+          log.debug("[QuickUpload] Music generated:", track.title);
         }}
         musicState={musicState}
         onGenerateMusic={handleGenerateMusic}
@@ -567,7 +569,7 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
         open={showMusicChat}
         onClose={() => setShowMusicChat(false)}
         onMusicGenerated={(track) => {
-          console.log("[QuickUpload] Music generated via chat:", track.title);
+          log.debug("[QuickUpload] Music generated via chat:", track.title);
         }}
       />
     </motion.div>

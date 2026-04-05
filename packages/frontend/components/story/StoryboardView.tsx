@@ -48,21 +48,7 @@ interface SceneGroup {
     shots: ShotlistEntry[];
 }
 
-/** Render a thumbnail with optional processing overlay and video badge */
-function ShotThumbnail({
-    shot,
-    index,
-    isSelected,
-    onClick,
-    processingInfo,
-    hasVideo,
-    isDragging,
-    isDropTarget,
-    onDragStart,
-    onDragOver,
-    onDragEnd,
-    onDrop,
-}: {
+interface ShotThumbnailProps {
     shot: ShotlistEntry;
     index: number;
     isSelected: boolean;
@@ -75,7 +61,23 @@ function ShotThumbnail({
     onDragOver?: (e: React.DragEvent, index: number) => void;
     onDragEnd?: () => void;
     onDrop?: (e: React.DragEvent, index: number) => void;
-}) {
+}
+
+/** Render a thumbnail with optional processing overlay and video badge */
+const ShotThumbnail = React.memo(function ShotThumbnail({
+    shot,
+    index,
+    isSelected,
+    onClick,
+    processingInfo,
+    hasVideo,
+    isDragging,
+    isDropTarget,
+    onDragStart,
+    onDragOver,
+    onDragEnd,
+    onDrop,
+}: ShotThumbnailProps) {
     const imgSrc = processingInfo?.preview || shot.imageUrl;
     return (
         <button
@@ -126,7 +128,7 @@ function ShotThumbnail({
             )}
         </button>
     );
-}
+});
 
 export const StoryboardView: React.FC<StoryboardViewProps> = ({
     shots,
@@ -180,6 +182,18 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
     const currentScene = currentShot ? scenes.find(s => s.id === currentShot.sceneId) : undefined;
     const currentVideoUrl = animatedShotVideos?.get(currentShot?.id || '');
     const currentNarration = shotNarrationMap?.get(currentShot?.id || '');
+
+    // Build O(1) lookup for shot index (avoids O(n²) indexOf in render)
+    const shotIndexMap = useMemo(() => {
+        const map = new Map<string, number>();
+        shots.forEach((shot, i) => map.set(shot.id, i));
+        return map;
+    }, [shots]);
+
+    // Stable onClick handler for thumbnails — avoids new closures per shot
+    const handleThumbnailClick = useCallback((idx: number) => {
+        setSelectedShotIndex(idx);
+    }, []);
 
     // Group shots by scene for the timeline strip
     const sceneGroups = useMemo<SceneGroup[]>(() => {
@@ -858,14 +872,14 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                                 </button>
                                 {/* Feature 5: Show thumbnails only if not collapsed */}
                                 {!isCollapsed && group.shots.map((shot) => {
-                                    const idx = shots.indexOf(shot);
+                                    const idx = shotIndexMap.get(shot.id) ?? 0;
                                     return (
-                                        <BlurFade key={shot.id} delay={idx * 0.04} inView yOffset={4} blur="4px">
+                                        <BlurFade key={shot.id} delay={Math.min(idx * 0.04, 0.4)} inView yOffset={4} blur="4px">
                                         <ShotThumbnail
                                             shot={shot}
                                             index={idx}
                                             isSelected={idx === selectedShotIndex}
-                                            onClick={() => setSelectedShotIndex(idx)}
+                                            onClick={() => handleThumbnailClick(idx)}
                                             processingInfo={processingShots?.get(shot.id)}
                                             hasVideo={!!animatedShotVideos?.get(shot.id)}
                                             isDragging={dragFromIndex === idx}
@@ -883,12 +897,12 @@ export const StoryboardView: React.FC<StoryboardViewProps> = ({
                     })
                 ) : (
                     shots.map((shot, idx) => (
-                        <BlurFade key={shot.id} delay={idx * 0.04} inView yOffset={4} blur="4px">
+                        <BlurFade key={shot.id} delay={Math.min(idx * 0.04, 0.4)} inView yOffset={4} blur="4px">
                         <ShotThumbnail
                             shot={shot}
                             index={idx}
                             isSelected={idx === selectedShotIndex}
-                            onClick={() => setSelectedShotIndex(idx)}
+                            onClick={() => handleThumbnailClick(idx)}
                             processingInfo={processingShots?.get(shot.id)}
                             hasVideo={!!animatedShotVideos?.get(shot.id)}
                             isDragging={dragFromIndex === idx}

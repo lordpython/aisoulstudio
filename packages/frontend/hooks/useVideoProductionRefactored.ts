@@ -28,6 +28,9 @@ import { useVideoQuality } from "./useVideoQuality";
 import { useVideoSFX } from "./useVideoSFX";
 import { useVideoPromptTools } from "./useVideoPromptTools";
 import { useSunoMusic } from "./useSunoMusic";
+import { mediaLogger } from '@/services/infrastructure/logger';
+const log = mediaLogger.child('Production');
+
 
 type CoreStudioProductionConfig = ProductionConfig & {
     sessionId?: string;
@@ -223,7 +226,7 @@ export function useVideoProductionRefactored() {
                     snapshot.validation,
                     videoPurpose
                 );
-                console.log(`[useVideoProduction] Backend Mode Quality Report: ${report.overallScore}/100`);
+                log.debug(`[useVideoProduction] Backend Mode Quality Report: ${report.overallScore}/100`);
             }
 
             if (!snapshot.isComplete || snapshot.errors.length > 0) {
@@ -233,7 +236,7 @@ export function useVideoProductionRefactored() {
             setProgress({ stage: "complete", progress: 100, message: "Production complete!" });
             setAppState(AppState.READY);
         } catch (err) {
-            console.error("[useVideoProduction] Pipeline failed:", err);
+            log.error("[useVideoProduction] Pipeline failed:", err);
             setError(err instanceof Error ? err.message : String(err));
             setAppState(AppState.ERROR);
         }
@@ -265,7 +268,7 @@ export function useVideoProductionRefactored() {
             setProgress({ stage: "content_planning", progress: 100, message: `Created ${plan.scenes.length} scenes` });
             setAppState(AppState.READY);
         } catch (err) {
-            console.error("[useVideoProduction] Plan generation failed:", err);
+            log.error("[useVideoProduction] Plan generation failed:", err);
             setError(err instanceof Error ? err.message : String(err));
             setAppState(AppState.ERROR);
         }
@@ -278,11 +281,11 @@ export function useVideoProductionRefactored() {
         const selectedTrack = musicHook.getSelectedTrack();
 
         if (!selectedTrack) {
-            console.warn("[useVideoProduction] No track selected to add to timeline");
+            log.warn("[useVideoProduction] No track selected to add to timeline");
             return;
         }
 
-        console.log(`[useVideoProduction] Adding track "${selectedTrack.title}" to timeline`);
+        log.debug(`[useVideoProduction] Adding track "${selectedTrack.title}" to timeline`);
 
         sfxHook.setSfxPlan(prev => {
             const basePlan = prev || { scenes: [], backgroundMusic: null, masterVolume: 1.0 };

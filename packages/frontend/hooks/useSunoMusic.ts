@@ -12,6 +12,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { musicLogger } from '@/services/infrastructure/logger';
 import {
     SunoTaskStatus,
     SunoGeneratedTrack,
@@ -106,6 +107,8 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 // Poll interval for status checks
 const POLL_INTERVAL_MS = 5000;
 
+const log = musicLogger.child('Suno');
+
 export function useSunoMusic() {
     const [musicState, setMusicState] = useState<MusicGenerationState>(initialMusicState);
 
@@ -142,7 +145,7 @@ export function useSunoMusic() {
      */
     const cancelGeneration = useCallback(() => {
         if (abortControllerRef.current) {
-            console.log("[useSunoMusic] Cancelling in-progress operation");
+            log.debug("Cancelling in-progress operation");
             abortControllerRef.current.abort();
             abortControllerRef.current = null;
             safeSetState(prev => ({
@@ -195,7 +198,7 @@ export function useSunoMusic() {
             // Check for abort
             if (signal.aborted) throw new Error("Operation was cancelled");
 
-            console.log("[useSunoMusic] Starting music generation...");
+            log.debug("Starting music generation...");
             const taskId = await sunoGenerateMusic(config);
 
             if (signal.aborted) throw new Error("Operation was cancelled");
@@ -227,7 +230,7 @@ export function useSunoMusic() {
 
             if (signal.aborted) throw new Error("Operation was cancelled");
 
-            console.log(`[useSunoMusic] Music generation complete: ${tracks.length} tracks`);
+            log.debug(`Music generation complete: ${tracks.length} tracks`);
 
             safeSetState(prev => ({
                 ...prev,
@@ -241,10 +244,10 @@ export function useSunoMusic() {
             abortControllerRef.current = null;
         } catch (err) {
             if (signal.aborted) {
-                console.log("[useSunoMusic] Music generation was cancelled");
+                log.debug("Music generation was cancelled");
                 return;
             }
-            console.error("[useSunoMusic] Music generation failed:", err);
+            log.error("Music generation failed", err);
             safeSetState(prev => ({
                 ...prev,
                 isGenerating: false,
@@ -286,7 +289,7 @@ export function useSunoMusic() {
         try {
             if (signal.aborted) throw new Error("Operation was cancelled");
 
-            console.log("[useSunoMusic] Starting lyrics generation...");
+            log.debug("Starting lyrics generation...");
             const taskId = await sunoGenerateLyrics(prompt);
 
             if (signal.aborted) throw new Error("Operation was cancelled");
@@ -306,7 +309,7 @@ export function useSunoMusic() {
                 const result = await getLyricsStatus(taskId);
 
                 if (result.status === "SUCCESS" && result.text) {
-                    console.log("[useSunoMusic] Lyrics generation complete");
+                    log.debug("Lyrics generation complete");
                     safeSetState(prev => ({
                         ...prev,
                         lyrics: result.text || null,
@@ -332,10 +335,10 @@ export function useSunoMusic() {
             throw new Error("Lyrics generation timed out. Please try again.");
         } catch (err) {
             if (signal.aborted) {
-                console.log("[useSunoMusic] Lyrics generation was cancelled");
+                log.debug("Lyrics generation was cancelled");
                 return;
             }
-            console.error("[useSunoMusic] Lyrics generation failed:", err);
+            log.error("Lyrics generation failed", err);
             safeSetState(prev => ({
                 ...prev,
                 error: err instanceof Error ? err.message : String(err),
@@ -368,7 +371,7 @@ export function useSunoMusic() {
         }
 
         try {
-            console.log("[useSunoMusic] Fetching Suno credits...");
+            log.debug("Fetching Suno credits...");
             const result = await getCredits();
 
             setMusicState(prev => ({
@@ -376,9 +379,9 @@ export function useSunoMusic() {
                 credits: result.credits,
             }));
 
-            console.log(`[useSunoMusic] Suno credits: ${result.credits}`);
+            log.debug(`Suno credits: ${result.credits}`);
         } catch (err) {
-            console.error("[useSunoMusic] Failed to fetch credits:", err);
+            log.error("Failed to fetch credits", err);
             setMusicState(prev => ({
                 ...prev,
                 credits: null,
@@ -425,7 +428,7 @@ export function useSunoMusic() {
         }));
 
         try {
-            console.log("[useSunoMusic] Starting music extension...");
+            log.debug("Starting music extension...");
             const taskId = await sunoExtendMusic(config);
 
             setMusicState(prev => ({
@@ -437,7 +440,7 @@ export function useSunoMusic() {
 
             const tracks = await waitForCompletion(taskId);
 
-            console.log(`[useSunoMusic] Music extension complete: ${tracks.length} tracks`);
+            log.debug(`Music extension complete: ${tracks.length} tracks`);
 
             setMusicState(prev => ({
                 ...prev,
@@ -450,7 +453,7 @@ export function useSunoMusic() {
 
             return tracks;
         } catch (err) {
-            console.error("[useSunoMusic] Music extension failed:", err);
+            log.error("Music extension failed", err);
             setMusicState(prev => ({
                 ...prev,
                 isExtending: false,
@@ -485,7 +488,7 @@ export function useSunoMusic() {
         }));
 
         try {
-            console.log("[useSunoMusic] Starting upload and extend...");
+            log.debug("Starting upload and extend...");
             const taskId = await sunoUploadAndExtend(config);
 
             setMusicState(prev => ({
@@ -497,7 +500,7 @@ export function useSunoMusic() {
 
             const tracks = await waitForCompletion(taskId);
 
-            console.log(`[useSunoMusic] Upload and extend complete: ${tracks.length} tracks`);
+            log.debug(`Upload and extend complete: ${tracks.length} tracks`);
 
             setMusicState(prev => ({
                 ...prev,
@@ -510,7 +513,7 @@ export function useSunoMusic() {
 
             return tracks;
         } catch (err) {
-            console.error("[useSunoMusic] Upload and extend failed:", err);
+            log.error("Upload and extend failed", err);
             setMusicState(prev => ({
                 ...prev,
                 isExtending: false,
@@ -543,7 +546,7 @@ export function useSunoMusic() {
         }));
 
         try {
-            console.log("[useSunoMusic] Starting WAV conversion...");
+            log.debug("Starting WAV conversion...");
             const conversionTaskId = await sunoConvertToWav(taskId, audioId);
 
             // Poll for completion - WAV conversion uses the same task status endpoint
@@ -552,7 +555,7 @@ export function useSunoMusic() {
             // The converted WAV URL should be in the first track's audio_url
             const wavUrl = tracks.length > 0 ? tracks[0]?.audio_url || null : null;
 
-            console.log(`[useSunoMusic] WAV conversion complete: ${wavUrl}`);
+            log.debug(`WAV conversion complete`, { wavUrl });
 
             setMusicState(prev => ({
                 ...prev,
@@ -562,7 +565,7 @@ export function useSunoMusic() {
 
             return wavUrl;
         } catch (err) {
-            console.error("[useSunoMusic] WAV conversion failed:", err);
+            log.error("WAV conversion failed", err);
             setMusicState(prev => ({
                 ...prev,
                 isConverting: false,
@@ -593,13 +596,13 @@ export function useSunoMusic() {
         }));
 
         try {
-            console.log("[useSunoMusic] Starting vocal separation...");
+            log.debug("Starting vocal separation...");
             const separationTaskId = await sunoSeparateVocals(taskId, audioId);
 
             // Wait for stem separation to complete
             const result = await waitForStemSeparation(separationTaskId);
 
-            console.log(`[useSunoMusic] Vocal separation complete:`, result);
+            log.debug('Vocal separation complete', result);
 
             setMusicState(prev => ({
                 ...prev,
@@ -609,7 +612,7 @@ export function useSunoMusic() {
 
             return result;
         } catch (err) {
-            console.error("[useSunoMusic] Vocal separation failed:", err);
+            log.error("Vocal separation failed", err);
             setMusicState(prev => ({
                 ...prev,
                 isSeparating: false,
@@ -640,7 +643,7 @@ export function useSunoMusic() {
         }));
 
         try {
-            console.log("[useSunoMusic] Starting persona generation...");
+            log.debug("Starting persona generation...");
             const personaTaskId = await sunoGeneratePersona(config);
 
             // Poll for completion - persona generation uses the same task status endpoint
@@ -650,7 +653,7 @@ export function useSunoMusic() {
             // For now, we use the task ID as the persona ID
             const personaId = personaTaskId;
 
-            console.log(`[useSunoMusic] Persona generation complete: ${personaId}`);
+            log.debug(`Persona generation complete`, { personaId });
 
             setMusicState(prev => ({
                 ...prev,
@@ -660,7 +663,7 @@ export function useSunoMusic() {
 
             return personaId;
         } catch (err) {
-            console.error("[useSunoMusic] Persona generation failed:", err);
+            log.error("Persona generation failed", err);
             setMusicState(prev => ({
                 ...prev,
                 isGeneratingPersona: false,
@@ -711,7 +714,7 @@ export function useSunoMusic() {
             }));
 
             try {
-                console.log("[useSunoMusic] Starting add vocals...");
+                log.debug("Starting add vocals...");
                 const taskId = await addVocals(config);
 
                 setMusicState(prev => ({
@@ -723,7 +726,7 @@ export function useSunoMusic() {
 
                 const tracks = await waitForCompletion(taskId);
 
-                console.log(`[useSunoMusic] Add vocals complete: ${tracks.length} tracks`);
+                log.debug(`Add vocals complete: ${tracks.length} tracks`);
 
                 setMusicState(prev => ({
                     ...prev,
@@ -736,7 +739,7 @@ export function useSunoMusic() {
 
                 return taskId;
             } catch (err) {
-                console.error("[useSunoMusic] Add vocals failed:", err);
+                log.error("Add vocals failed", err);
                 setMusicState(prev => ({
                     ...prev,
                     isGenerating: false,
@@ -759,7 +762,7 @@ export function useSunoMusic() {
             }));
 
             try {
-                console.log("[useSunoMusic] Starting add instrumental...");
+                log.debug("Starting add instrumental...");
                 const taskId = await addInstrumental(config);
 
                 setMusicState(prev => ({
@@ -771,7 +774,7 @@ export function useSunoMusic() {
 
                 const tracks = await waitForCompletion(taskId);
 
-                console.log(`[useSunoMusic] Add instrumental complete: ${tracks.length} tracks`);
+                log.debug(`Add instrumental complete: ${tracks.length} tracks`);
 
                 setMusicState(prev => ({
                     ...prev,
@@ -784,7 +787,7 @@ export function useSunoMusic() {
 
                 return taskId;
             } catch (err) {
-                console.error("[useSunoMusic] Add instrumental failed:", err);
+                log.error("Add instrumental failed", err);
                 setMusicState(prev => ({
                     ...prev,
                     isGenerating: false,
@@ -807,7 +810,7 @@ export function useSunoMusic() {
             }));
 
             try {
-                console.log("[useSunoMusic] Starting upload and cover...");
+                log.debug("Starting upload and cover...");
                 const taskId = await uploadAndCover(config);
 
                 setMusicState(prev => ({
@@ -819,7 +822,7 @@ export function useSunoMusic() {
 
                 const tracks = await waitForCompletion(taskId);
 
-                console.log(`[useSunoMusic] Upload and cover complete: ${tracks.length} tracks`);
+                log.debug(`Upload and cover complete: ${tracks.length} tracks`);
 
                 setMusicState(prev => ({
                     ...prev,
@@ -832,7 +835,7 @@ export function useSunoMusic() {
 
                 return taskId;
             } catch (err) {
-                console.error("[useSunoMusic] Upload and cover failed:", err);
+                log.error("Upload and cover failed", err);
                 setMusicState(prev => ({
                     ...prev,
                     isGenerating: false,

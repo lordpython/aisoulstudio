@@ -18,6 +18,9 @@ import { SceneCard } from '../SceneCard';
 import { StepProgressBar } from '../StepProgressBar';
 import type { StoryState, StoryStep, CharacterProfile, ShotlistEntry } from '@/types';
 import type { VisualStyleKey, AspectRatioId } from '@/constants/visualStyles';
+import { storyLogger } from '@/services/infrastructure/logger';
+
+const log = storyLogger.child('Workspace');
 import { estimateProjectCost } from '@/utils/costEstimator';
 import { Download, RefreshCcw, Undo2, Redo2, Lock, CheckCircle2, Circle, Loader2, AlertCircle, X, Film, Mic, Video, Play, Check, History, ImageIcon, MessageCircle, GripVertical, Pencil } from 'lucide-react';
 import { VersionHistoryPanel } from '../VersionHistoryPanel';
@@ -1212,7 +1215,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     return (
         <div className="flex flex-col h-full bg-black font-sans relative overflow-hidden">
             {/* Main Top Navigation */}
-            <div className="relative z-10 flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950">
+            <div className="relative z-10 flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3 border-b border-zinc-800 bg-zinc-950 gap-2 min-w-0">
                 {/* Step Navigation */}
                 <div className="flex items-center gap-1">
                     {mainTabs.map((tab, index) => {
@@ -1248,7 +1251,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         {isCompleted ? <Check className="w-3 h-3" /> : tab.number}
                                     </span>
                                     <span className={`
-                                        font-sans text-[13px] font-medium whitespace-nowrap transition-colors duration-200
+                                        hidden sm:inline font-sans text-[13px] font-medium whitespace-nowrap transition-colors duration-200
                                         ${isActive ? 'text-zinc-100' : isCompleted ? 'text-emerald-400/80' : 'text-zinc-400'}
                                     `}>
                                         {tab.label}
@@ -1382,7 +1385,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         setSubTab('export');
                                     }
                                 } catch (err) {
-                                    console.error('[StoryWorkspace] Export final video failed:', err);
+                                    log.error('Export final video failed', err);
                                 }
                             }}
                             disabled={!canExportFinalVideo}

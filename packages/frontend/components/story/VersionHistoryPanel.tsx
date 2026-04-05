@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StoryState } from '@/types';
+import { storyLogger } from '@/services/infrastructure/logger';
+
+const log = storyLogger.child('VersionHistory');
 import {
   getSnapshots,
   createSnapshot,
@@ -65,7 +68,7 @@ export function VersionHistoryPanel({
       setSnapshots(snapshotList);
       setStats(historyStats);
     } catch (error) {
-      console.error('[VersionHistory] Failed to load snapshots:', error);
+      log.error('Failed to load snapshots', error);
     } finally {
       setLoading(false);
     }
@@ -84,7 +87,7 @@ export function VersionHistoryPanel({
       setSaveDescription('');
       await loadSnapshots();
     } catch (error) {
-      console.error('[VersionHistory] Failed to save snapshot:', error);
+      log.error('Failed to save snapshot', error);
     }
   };
 
@@ -96,7 +99,7 @@ export function VersionHistoryPanel({
         setSelectedSnapshot(null);
       }
     } catch (error) {
-      console.error('[VersionHistory] Failed to delete snapshot:', error);
+      log.error('Failed to delete snapshot', error);
     }
   };
 
@@ -116,7 +119,7 @@ export function VersionHistoryPanel({
       setEditingId(null);
       setEditName('');
     } catch (error) {
-      console.error('[VersionHistory] Failed to rename snapshot:', error);
+      log.error('Failed to rename snapshot', error);
     }
   };
 
