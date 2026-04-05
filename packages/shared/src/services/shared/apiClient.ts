@@ -95,41 +95,64 @@ export function getModelWithFallback(modelType: keyof typeof MODELS): string {
   return model;
 }
 
+// Typed parameter shapes for the two proxy methods
+interface GenerateContentParams {
+  model: string;
+  contents: unknown;
+  config?: Record<string, unknown>;
+}
+
+interface GenerateImagesParams {
+  model: string;
+  prompt: string;
+  config?: Record<string, unknown>;
+}
+
+interface ProxyModels {
+  generateContent(params: GenerateContentParams): Promise<unknown>;
+  generateImages(params: GenerateImagesParams): Promise<unknown>;
+}
+
+/** Error subclass that carries the HTTP status from a failed proxy response. */
+class ProxyError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ProxyError';
+    this.status = status;
+  }
+}
+
 /**
  * Proxy AI Client for Browser
  * Mimics the GoogleGenAI interface but routes requests through the backend proxy.
  */
 class ProxyAIClient {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public models: any;
+  public readonly models: ProxyModels;
 
   constructor() {
     this.models = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      generateContent: async (params: any) => {
-        return this.callProxy('/api/gemini/proxy/generateContent', params);
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      generateImages: async (params: any) => {
-        return this.callProxy('/api/gemini/proxy/generateImages', params);
-      }
+      generateContent: (params: GenerateContentParams) =>
+        this.callProxy('/api/gemini/proxy/generateContent', params),
+      generateImages: (params: GenerateImagesParams) =>
+        this.callProxy('/api/gemini/proxy/generateImages', params),
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async callProxy(endpoint: string, params: any) {
+  private async callProxy(endpoint: string, params: unknown): Promise<unknown> {
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params)
+        body: JSON.stringify(params),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const err = new Error(errorData.error || `Proxy call failed: ${response.status}`);
-        (err as any).status = response.status;
-        throw err;
+        const errorData = await response.json().catch(() => ({})) as { error?: string };
+        throw new ProxyError(
+          errorData.error || `Proxy call failed: ${response.status}`,
+          response.status,
+        );
       }
 
       return await response.json();
@@ -181,13 +204,12 @@ function createAIClient(): GoogleGenAI | ProxyAIClient {
 // Lazy initialization - create client on first access
 let _aiClient: GoogleGenAI | null = null;
 export const ai = new Proxy({} as GoogleGenAI, {
-  get(target, prop) {
+  get(_target, prop: string | symbol) {
     if (!_aiClient) {
       _aiClient = createAIClient() as GoogleGenAI;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (_aiClient as any)[prop];
-  }
+    return (_aiClient as unknown as Record<string | symbol, unknown>)[prop];
+  },
 });
 
 // --- Retry Configuration ---

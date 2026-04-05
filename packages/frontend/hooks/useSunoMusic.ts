@@ -210,23 +210,27 @@ export function useSunoMusic() {
                 progress: 25,
             }));
 
-            // Wait with timeout protection
+            // Wait with timeout protection.
+            // The interval ID is hoisted so .finally() can clear it regardless of
+            // which branch of the race wins — prevents a dangling setInterval when
+            // waitForCompletion resolves before the guard fires.
             const startTime = Date.now();
+            let guardInterval: ReturnType<typeof setInterval> | undefined;
+
             const tracks = await Promise.race([
                 waitForCompletion(taskId),
                 new Promise<never>((_, reject) => {
-                    const checkAbort = setInterval(() => {
+                    guardInterval = setInterval(() => {
                         if (signal.aborted) {
-                            clearInterval(checkAbort);
                             reject(new Error("Operation was cancelled"));
-                        }
-                        if (Date.now() - startTime > DEFAULT_TIMEOUT_MS) {
-                            clearInterval(checkAbort);
+                        } else if (Date.now() - startTime > DEFAULT_TIMEOUT_MS) {
                             reject(new Error(`Music generation timed out after ${DEFAULT_TIMEOUT_MS / 1000}s`));
                         }
                     }, 1000);
                 }),
-            ]);
+            ]).finally(() => {
+                clearInterval(guardInterval);
+            });
 
             if (signal.aborted) throw new Error("Operation was cancelled");
 

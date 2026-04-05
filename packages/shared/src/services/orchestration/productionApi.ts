@@ -88,28 +88,62 @@ export async function startProductionRun(
   return response.json();
 }
 
+const SSE_MAX_RECONNECT_ATTEMPTS = 3;
+const SSE_RECONNECT_BASE_MS = 1000;
+
 export function subscribeToProductionRun(
   runId: string,
   onEvent: (event: ProductionEvent) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  const source = new EventSource(buildServerUrl(`/api/production/events/${runId}`));
+  let source: EventSource | null = null;
+  let attempts = 0;
+  let closed = false;
 
-  source.onmessage = (message) => {
-    try {
-      const event = JSON.parse(message.data) as ProductionEvent;
-      onEvent(event);
-    } catch (error) {
-      onError?.(error instanceof Error ? error : new Error(String(error)));
-    }
-  };
+  function connect(): void {
+    if (closed) return;
 
-  source.onerror = () => {
-    onError?.(new Error("Production event stream disconnected"));
-  };
+    source = new EventSource(buildServerUrl(`/api/production/events/${runId}`));
+
+    source.onmessage = (message) => {
+      attempts = 0; // reset backoff on successful message
+      try {
+        const event = JSON.parse(message.data) as ProductionEvent;
+        onEvent(event);
+
+        // Stop reconnecting once the run has finished
+        if (event.isComplete) {
+          closed = true;
+          source?.close();
+        }
+      } catch (error) {
+        onError?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    source.onerror = () => {
+      source?.close();
+      source = null;
+
+      if (closed) return;
+
+      if (attempts >= SSE_MAX_RECONNECT_ATTEMPTS) {
+        onError?.(new Error("Production event stream disconnected after multiple retries"));
+        return;
+      }
+
+      const delay = SSE_RECONNECT_BASE_MS * 2 ** attempts;
+      attempts++;
+      setTimeout(connect, delay);
+    };
+  }
+
+  connect();
 
   return () => {
-    source.close();
+    closed = true;
+    source?.close();
+    source = null;
   };
 }
 

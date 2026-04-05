@@ -85,6 +85,7 @@ import {
     parseBreakdownToScenes,
     type StoryAgentResult,
 } from './helpers';
+import { useStorySettings } from './useStorySettings';
 
 export function useStoryGeneration(projectId?: string | null) {
     const initialState: StoryState = {
@@ -884,83 +885,17 @@ export function useStoryGeneration(projectId?: string | null) {
         }
     }, [state, pushState]);
 
-    /**
-     * Update Visual Style
-     */
-    const updateVisualStyle = useCallback((style: string) => {
-        setState((prev: StoryState) => ({
-            ...prev,
-            visualStyle: style,
-        }));
-    }, []);
-
-    /**
-     * Update Aspect Ratio
-     */
-    const updateAspectRatio = useCallback((ratio: string) => {
-        setState((prev: StoryState) => ({
-            ...prev,
-            aspectRatio: ratio,
-        }));
-    }, []);
-
-    /**
-     * Update Genre
-     */
-    const updateGenre = useCallback((genre: string) => {
-        setState((prev: StoryState) => ({
-            ...prev,
-            genre,
-        }));
-    }, []);
-
-    /**
-     * Update Image Provider (gemini or deapi)
-     */
-    const updateImageProvider = useCallback((provider: 'gemini' | 'deapi') => {
-        setState((prev: StoryState) => ({
-            ...prev,
-            imageProvider: provider,
-        }));
-    }, []);
-
-    /**
-     * Update DeAPI image model (e.g. 'Flux1schnell', 'Flux_2_Klein_4B_BF16', 'ZImageTurbo_INT8')
-     */
-    const updateDeapiImageModel = useCallback((model: string) => {
-        setState((prev: StoryState) => ({
-            ...prev,
-            deapiImageModel: model,
-        }));
-    }, []);
-
-    /**
-     * Toggle DeAPI style consistency (img2img pass)
-     */
-    const updateStyleConsistency = useCallback((enabled: boolean) => {
-        setState(prev => ({
-            ...prev,
-            applyStyleConsistency: enabled,
-        }));
-    }, []);
-
-    /**
-     * Toggle DeAPI background removal before animation
-     */
-    const updateBgRemoval = useCallback((enabled: boolean) => {
-        setState(prev => ({
-            ...prev,
-            animateWithBgRemoval: enabled,
-        }));
-    }, []);
-
-    const updateTtsSettings = useCallback((provider: TTSProvider, model?: DeApiTtsModel) => {
-        setState(prev => ({
-            ...prev,
-            ttsProvider: provider,
-            ttsModel: model ?? prev.ttsModel ?? DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN,
-        }));
-    }, []);
+    // Settings updaters — stable callbacks that live in their own focused hook
+    const {
+        updateVisualStyle,
+        updateAspectRatio,
+        updateGenre,
+        updateImageProvider,
+        updateDeapiImageModel,
+        updateStyleConsistency,
+        updateBgRemoval,
+        updateTtsSettings,
+    } = useStorySettings(setState);
 
     /**
      * Generate storyboard visuals for all scenes or a specific scene.

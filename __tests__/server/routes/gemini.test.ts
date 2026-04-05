@@ -22,125 +22,126 @@ async function startTestServer(router: ReturnType<typeof createGeminiRouter>) {
 async function closeServer(server: ReturnType<express.Express['listen']>) {
   await new Promise<void>((resolve, reject) => {
     server.close((error?: Error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
+      if (error) { reject(error); return; }
       resolve();
     });
   });
 }
 
-afterEach(() => {
+let currentServer: ReturnType<express.Express['listen']> | undefined;
+
+afterEach(async () => {
   vi.clearAllMocks();
+  if (currentServer) {
+    await closeServer(currentServer);
+    currentServer = undefined;
+  }
 });
 
 describe('/api/gemini routes', () => {
-  it('proxies generateContent requests', async () => {
+  it('proxies generateContent and serializes text getter to plain string', async () => {
     const generateContent = vi.fn().mockResolvedValue({
       text: () => 'hello world',
       candidates: [{ id: 'candidate-1' }],
     });
 
-    const router = createGeminiRouter({
-      generateContent: generateContent as any,
-      generateImages: vi.fn() as any,
-      legacyGenerate: vi.fn() as any,
-      legacyImage: vi.fn() as any,
-    });
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateContent: generateContent as any }),
+    );
+    currentServer = server;
 
-    const { server, baseUrl } = await startTestServer(router);
-
-    try {
-      const response = await fetch(`${baseUrl}/api/gemini/proxy/generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gemini-3-flash-preview',
-          contents: [{ parts: [{ text: 'hello' }] }],
-          config: { temperature: 0.2 },
-        }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = await response.json();
-      expect(body.text).toBe('hello world');
-      expect(generateContent).toHaveBeenCalledWith({
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         model: 'gemini-3-flash-preview',
         contents: [{ parts: [{ text: 'hello' }] }],
         config: { temperature: 0.2 },
-      });
-    } finally {
-      await closeServer(server);
-    }
+      }),
+    });
+
+    expect(response.ok).toBe(true);
+    const body = await response.json();
+    expect(body.text).toBe('hello world');
+    expect(generateContent).toHaveBeenCalledWith({
+      model: 'gemini-3-flash-preview',
+      contents: [{ parts: [{ text: 'hello' }] }],
+      config: { temperature: 0.2 },
+    });
   });
 
-  it('proxies generateImages requests after stripping unsupported seed config', async () => {
+  it('returns 400 when model is missing from generateContent', async () => {
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateContent: vi.fn() as any }),
+    );
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }] }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toMatch(/model/i);
+  });
+
+  it('proxies generateImages and strips unsupported seed param', async () => {
     const generateImages = vi.fn().mockResolvedValue({
       images: [{ url: 'https://example.com/generated.png' }],
     });
 
-    const router = createGeminiRouter({
-      generateContent: vi.fn() as any,
-      generateImages: generateImages as any,
-      legacyGenerate: vi.fn() as any,
-      legacyImage: vi.fn() as any,
-    });
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateImages: generateImages as any }),
+    );
+    currentServer = server;
 
-    const { server, baseUrl } = await startTestServer(router);
-
-    try {
-      const response = await fetch(`${baseUrl}/api/gemini/proxy/generateImages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'imagen-4.0-fast-generate-001',
-          prompt: 'a sunrise over the ocean',
-          config: { aspectRatio: '16:9', seed: 1234 },
-        }),
-      });
-
-      expect(response.ok).toBe(true);
-      expect(generateImages).toHaveBeenCalledWith({
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateImages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         model: 'imagen-4.0-fast-generate-001',
         prompt: 'a sunrise over the ocean',
-        config: { aspectRatio: '16:9' },
-      });
-    } finally {
-      await closeServer(server);
-    }
+        config: { aspectRatio: '16:9', seed: 1234 },
+      }),
+    });
+
+    expect(response.ok).toBe(true);
+    expect(generateImages).toHaveBeenCalledWith({
+      model: 'imagen-4.0-fast-generate-001',
+      prompt: 'a sunrise over the ocean',
+      config: { aspectRatio: '16:9' }, // seed stripped
+    });
   });
 
-  it('marks legacy generate endpoint as deprecated and logs usage through headers', async () => {
-    const legacyGenerate = vi.fn().mockResolvedValue({
-      text: () => 'legacy',
+  it('returns 400 when prompt is missing from generateImages', async () => {
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateImages: vi.fn() as any }),
+    );
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateImages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'imagen-4.0-fast-generate-001' }),
     });
 
-    const router = createGeminiRouter({
-      generateContent: vi.fn() as any,
-      generateImages: vi.fn() as any,
-      legacyGenerate: legacyGenerate as any,
-      legacyImage: vi.fn() as any,
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toMatch(/prompt/i);
+  });
+
+  it('returns 404 for the removed legacy /generate endpoint', async () => {
+    const { server, baseUrl } = await startTestServer(createGeminiRouter());
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'legacy prompt' }),
     });
 
-    const { server, baseUrl } = await startTestServer(router);
-
-    try {
-      const response = await fetch(`${baseUrl}/api/gemini/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'legacy prompt',
-          options: { temperature: 0.4 },
-        }),
-      });
-
-      expect(response.ok).toBe(true);
-      expect(response.headers.get('deprecation')).toBe('true');
-      expect(response.headers.get('link')).toContain('/api/gemini/proxy/generateContent');
-      expect(legacyGenerate).toHaveBeenCalledWith('legacy prompt', { temperature: 0.4 });
-    } finally {
-      await closeServer(server);
-    }
+    expect(response.status).toBe(404);
   });
 });

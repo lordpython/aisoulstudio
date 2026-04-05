@@ -1,24 +1,21 @@
 import { Router, Response, json as expressJson } from 'express';
 import { ApiProxyRequest } from '../types.js';
-import { GEMINI_API_KEY } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
-import { createDeprecatedRouteMiddleware } from './routeUtils.js';
 
 const geminiLog = createLogger('Gemini');
 
 interface GeminiRouteDependencies {
-    generateContent: (params: { model: string; contents: unknown; config?: Record<string, unknown> }) => Promise<any>;
-    generateImages: (params: { model: string; prompt: string; config?: Record<string, unknown> }) => Promise<any>;
-    legacyGenerate: (prompt: string, options?: Record<string, unknown>) => Promise<any>;
-    legacyImage: (prompt: string, options?: Record<string, unknown>) => Promise<any>;
+    generateContent: (params: { model: string; contents: unknown; config?: Record<string, unknown> }) => Promise<unknown>;
+    generateImages: (params: { model: string; prompt: string; config?: Record<string, unknown> }) => Promise<unknown>;
 }
 
 async function defaultGenerateContent(params: {
     model: string;
     contents: unknown;
     config?: Record<string, unknown>;
-}): Promise<any> {
+}): Promise<unknown> {
     const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (ai as any).models.generateContent(params);
 }
 
@@ -26,31 +23,10 @@ async function defaultGenerateImages(params: {
     model: string;
     prompt: string;
     config?: Record<string, unknown>;
-}): Promise<any> {
+}): Promise<unknown> {
     const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (ai as any).models.generateImages(params);
-}
-
-async function defaultLegacyGenerate(prompt: string, options: Record<string, unknown> = {}): Promise<any> {
-    const model = 'gemini-3.1-pro-preview';
-    const contents = [{ role: "user", parts: [{ text: prompt }] }];
-    const config = options;
-
-    const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
-    return (ai as any).models.generateContent({ model, contents, config });
-}
-
-async function defaultLegacyImage(prompt: string, options: Record<string, unknown> = {}): Promise<any> {
-    const { generateImageFromPrompt } = await import('@studio/shared/src/services/media/imageService.js');
-
-    return generateImageFromPrompt(
-        prompt,
-        (options.style as string) || "Cinematic",
-        (options.globalSubject as string) || "",
-        (options.aspectRatio as string) || "16:9",
-        (options.skipRefine as boolean) || false,
-        options.seed as number
-    );
 }
 
 export function createGeminiRouter(
@@ -60,14 +36,12 @@ export function createGeminiRouter(
     const deps: GeminiRouteDependencies = {
         generateContent: defaultGenerateContent,
         generateImages: defaultGenerateImages,
-        legacyGenerate: defaultLegacyGenerate,
-        legacyImage: defaultLegacyImage,
         ...overrides,
     };
 
     // Gemini API Proxy - Generate Content (Text/Data)
-    // Higher body limit needed for base64-encoded audio/video payloads
-    router.post('/proxy/generateContent', expressJson({ limit: '200mb' }), async (req: ApiProxyRequest, res: Response) => {
+    // 10mb covers base64-encoded images; true video bytes are streamed via Cloud Storage
+    router.post('/proxy/generateContent', expressJson({ limit: '10mb' }), async (req: ApiProxyRequest, res: Response) => {
         try {
             const { model, contents, config } = req.body;
 
@@ -174,66 +148,6 @@ export function createGeminiRouter(
                 error: errorMessage || 'Gemini image generation failed',
                 status: statusCode,
                 details: err.stack
-            });
-        }
-    });
-
-    const legacyContentDeprecation = createDeprecatedRouteMiddleware(
-        geminiLog,
-        'POST /api/gemini/generate',
-        '/api/gemini/proxy/generateContent',
-    );
-
-    // Backward compatibility (old format)
-    router.post('/generate', legacyContentDeprecation, async (req: ApiProxyRequest, res: Response): Promise<void> => {
-        try {
-            const { prompt, options = {} } = req.body;
-
-            geminiLog.info('Redirecting legacy call to generateContent');
-
-            const result = await deps.legacyGenerate(prompt || '', options);
-
-            const resultAsAny = result as any;
-            res.json({
-                success: true,
-                data: {
-                    text: typeof resultAsAny.text === 'function' ? resultAsAny.text() : (resultAsAny.text || ''),
-                    raw: result
-                }
-            });
-        } catch (error: unknown) {
-            const err = error as Error;
-            res.status(500).json({ success: false, error: err.message });
-        }
-    });
-
-    const legacyImageDeprecation = createDeprecatedRouteMiddleware(
-        geminiLog,
-        'POST /api/gemini/image',
-        '/api/gemini/proxy/generateImages',
-    );
-
-    router.post('/image', legacyImageDeprecation, async (req: ApiProxyRequest, res: Response): Promise<void> => {
-        if (!GEMINI_API_KEY) {
-            res.status(500).json({ success: false, error: 'Gemini API key not configured' });
-            return;
-        }
-
-        try {
-            const { prompt, options = {} } = req.body;
-
-            if (!prompt) {
-                res.status(400).json({ success: false, error: 'Prompt is required' });
-                return;
-            }
-
-            const result = await deps.legacyImage(prompt, options);
-            res.json({ success: true, data: result });
-        } catch (error) {
-            geminiLog.error('Image proxy error:', error);
-            res.status(500).json({
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
             });
         }
     });

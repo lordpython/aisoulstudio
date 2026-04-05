@@ -3,6 +3,7 @@ import './env.js';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import os from 'os';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { ensureTempDir, ensureJobsDir, TEMP_DIR } from './utils/index.js';
@@ -33,25 +34,86 @@ const app = express();
 ensureTempDir();
 ensureJobsDir();
 
-// --- Middleware ---
-app.use(cors());
+// --- CORS ---
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, mobile apps, Capacitor)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin '${origin}' is not allowed`));
+  },
+  credentials: true,
+}));
+
+// --- Rate limiters ---
+// Generic API limiter: 120 requests / 1 minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later.', code: 'RATE_LIMIT_EXCEEDED' },
+});
+
+// Heavy AI generation routes: stricter limits
+const geminiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Gemini rate limit exceeded. Try again in a minute.', code: 'RATE_LIMIT_EXCEEDED' },
+});
+
+const productionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Production run limit reached (5/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
+  skip: (req) => req.method !== 'POST' || !req.path.includes('/start'),
+});
+
+const exportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Export limit reached (10/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
+  skip: (req) => !['POST', 'PUT'].includes(req.method),
+});
+
+const deapiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'DeAPI rate limit reached (20/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
+  skip: (req) => req.method === 'GET',
+});
+
+// --- Body parsing (global, conservative limit) ---
 app.use(express.json({
-  limit: '200mb',
+  limit: '50mb',
   verify: (req, _res, buf) => {
     (req as { rawBody?: string }).rawBody = buf.toString('utf8');
   },
 }));
 
-// --- Modular Routes ---
-app.use('/api/export', exportRoutes);
-app.use('/api/import', importRoutes);
+// --- Modular Routes (with rate limiting) ---
+app.use('/api/export', apiLimiter, exportLimiter, exportRoutes);
+app.use('/api/import', apiLimiter, importRoutes);
 app.use('/api/health', healthRoutes);
-app.use('/api/gemini', geminiRoutes);
-app.use('/api/deapi', deapiRoutes);
-app.use('/api/suno', sunoRoutes);
-app.use('/api/cloud', cloudRoutes);
-app.use('/api/director', directorRoutes);
-app.use('/api/production', productionRoutes);
+app.use('/api/gemini', apiLimiter, geminiLimiter, geminiRoutes);
+app.use('/api/deapi', apiLimiter, deapiLimiter, deapiRoutes);
+app.use('/api/suno', apiLimiter, sunoRoutes);
+app.use('/api/cloud', apiLimiter, cloudRoutes);
+app.use('/api/director', apiLimiter, directorRoutes);
+app.use('/api/production', apiLimiter, productionLimiter, productionRoutes);
 
 // Global error handler — must be registered after all routes
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

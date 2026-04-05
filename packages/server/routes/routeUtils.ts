@@ -11,8 +11,15 @@ export function sendSuccess<T>(res: Response, data: T, status = 200): void {
 }
 
 /** Send an error JSON response with a consistent envelope */
-export function sendError(res: Response, error: string, status = 500, details?: unknown): void {
+export function sendError(
+  res: Response,
+  error: string,
+  status = 500,
+  details?: unknown,
+  code?: string,
+): void {
   const body: Record<string, unknown> = { success: false, error };
+  if (code !== undefined) body.code = code;
   if (details !== undefined) body.details = details;
   res.status(status).json(body);
 }

@@ -87,8 +87,16 @@ function createRun(runId: string, sessionId: string): ProductionRunRecord {
   return record;
 }
 
+const MAX_EVENTS_PER_RUN = 500;
+
 function broadcastEvent(record: ProductionRunRecord, event: ProductionEvent): void {
   record.events.push(event);
+
+  // Rolling window: evict oldest events when the queue exceeds the cap.
+  // This prevents unbounded memory growth on long productions.
+  if (record.events.length > MAX_EVENTS_PER_RUN) {
+    record.events.splice(0, record.events.length - MAX_EVENTS_PER_RUN);
+  }
 
   for (const listener of record.listeners) {
     listener.write(`data: ${JSON.stringify(event)}\n\n`);

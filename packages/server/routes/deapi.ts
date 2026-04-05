@@ -1,4 +1,5 @@
 import { Router, Response, Request } from 'express';
+import { z } from 'zod';
 import { ApiProxyRequest } from '../types.js';
 import { DEAPI_API_KEY, MAX_SINGLE_FILE } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
@@ -15,6 +16,71 @@ import {
     type ProxyEndpointRule,
     type RawBodyRequest,
 } from './routeUtils.js';
+
+// ---------------------------------------------------------------------------
+// Input schemas (Zod) — validate at the route boundary before any processing
+// ---------------------------------------------------------------------------
+
+const DEAPI_IMAGE_MODELS = [
+    'Flux1schnell', 'Flux1dev', 'Flux2Ultra', 'Flux_2_Klein_4B_BF16',
+    'SDXLLightning', 'SDXL', 'SD35Large', 'Ideogram',
+] as const;
+
+const ImageGenerationSchema = z.object({
+    prompt: z.string().min(1, 'prompt must not be empty').max(2000),
+    options: z.object({
+        model: z.enum(DEAPI_IMAGE_MODELS).optional(),
+    }).passthrough().optional().default({}),
+});
+
+const AnimateSchema = z.object({
+    imageUrl: z.string().min(1, 'imageUrl is required'),
+    options: z.object({
+        prompt: z.string().min(1, 'animation prompt must not be empty').max(2000),
+        aspectRatio: z.enum(['16:9', '9:16', '1:1']).optional(),
+    }).passthrough(),
+});
+
+const Txt2VideoSchema = z.object({
+    prompt: z.string().min(1, 'prompt must not be empty').max(2000),
+    model: z.string().max(100).optional(),
+    width: z.number().int().min(64).max(4096).optional(),
+    height: z.number().int().min(64).max(4096).optional(),
+    frames: z.number().int().min(1).max(1200).optional(),
+    guidance: z.number().min(0).max(50).optional(),
+    steps: z.number().int().min(1).max(100).optional(),
+    seed: z.number().int().optional(),
+});
+
+const BatchSchema = z.object({
+    items: z.array(z.unknown()).min(1).max(50),
+    concurrency: z.number().int().min(1).max(10).optional().default(5),
+});
+
+const PromptEnhanceSchema = z.object({
+    prompt: z.string().min(1, 'prompt must not be empty').max(2000),
+    negative_prompt: z.string().max(500).optional(),
+});
+
+/**
+ * Parse and validate a request body with a Zod schema.
+ * Returns { data } on success or sends a 400 response and returns null.
+ */
+function parseBody<T>(
+    schema: z.ZodType<T>,
+    body: unknown,
+    res: Response,
+): T | null {
+    const result = schema.safeParse(body ?? {});
+    if (!result.success) {
+        const message = result.error.issues
+            .map((i) => `${i.path.join('.') || 'body'}: ${i.message}`)
+            .join('; ');
+        res.status(400).json({ success: false, error: message, code: 'VALIDATION_FAILED' });
+        return null;
+    }
+    return result.data;
+}
 
 const deapiLog = createLogger('DeAPI');
 const router = Router();
@@ -53,25 +119,22 @@ const deprecatedBatchRoute = createDeprecatedRouteMiddleware(
 
 router.post('/image', deprecatedImageRoute, async (req: ApiProxyRequest, res: Response): Promise<void> => {
     if (!DEAPI_API_KEY) {
-        res.status(500).json({ success: false, error: 'DEAPI key not configured' });
+        res.status(500).json({ success: false, error: 'DEAPI key not configured', code: 'CONFIG_MISSING' });
         return;
     }
 
+    const body = parseBody(ImageGenerationSchema, req.body, res);
+    if (!body) return;
+
+    const { prompt, options } = body;
+
     try {
-        // Safely destructure with fallback to prevent TypeError when req.body is undefined
-        const { prompt, options = {} } = req.body ?? {};
-
-        if (!prompt) {
-            res.status(400).json({ success: false, error: 'Prompt is required' });
-            return;
-        }
-
         const { generateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
 
         const params: Txt2ImgParams = {
-            prompt: prompt,
-            model: (options.model as DeApiImageModel) || "Flux1schnell",
-            ...options
+            ...options,
+            prompt,
+            model: (options?.model as DeApiImageModel) || 'Flux1schnell',
         };
 
         const result = await generateImageWithDeApi(params);
@@ -80,40 +143,32 @@ router.post('/image', deprecatedImageRoute, async (req: ApiProxyRequest, res: Re
         deapiLog.error('Image proxy error:', error);
         res.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
         });
     }
 });
 
 router.post('/animate', deprecatedAnimateRoute, async (req: ApiProxyRequest, res: Response) => {
     if (!DEAPI_API_KEY) {
-        return res.status(500).json({ success: false, error: 'DEAPI key not configured' });
+        return res.status(500).json({ success: false, error: 'DEAPI key not configured', code: 'CONFIG_MISSING' });
     }
 
+    const body = parseBody(AnimateSchema, req.body, res);
+    if (!body) return;
+
+    const { imageUrl, options } = body;
+
     try {
-        // Safely destructure with fallback to prevent TypeError when req.body is undefined
-        const { imageUrl, options = {} } = req.body ?? {};
-
-        if (!imageUrl) {
-            return res.status(400).json({ success: false, error: 'Image URL is required' });
-        }
-
-        if (!options.prompt) {
-            return res.status(400).json({ success: false, error: 'Animation prompt is required' });
-        }
-
         const { animateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
 
-        const base64Image = imageUrl;
-        const aspectRatio = (options.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9";
-
-        const result = await animateImageWithDeApi(base64Image, options.prompt as string, aspectRatio);
+        const aspectRatio = options.aspectRatio ?? '16:9';
+        const result = await animateImageWithDeApi(imageUrl, options.prompt, aspectRatio);
         return res.json({ success: true, data: result });
     } catch (error) {
         deapiLog.error('Animate proxy error:', error);
         return res.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
         });
     }
 });
@@ -183,16 +238,12 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
         return;
     }
 
+    const body = parseBody(Txt2VideoSchema, req.body, res);
+    if (!body) return;
+
+    const { prompt, model, width, height, frames, guidance, steps, seed } = body;
+
     try {
-        // Safely destructure with fallback to empty object to prevent TypeError
-        // when req.body is undefined (missing Content-Type: application/json header)
-        const { prompt, width, height, frames, model, guidance, steps, seed } = req.body ?? {};
-
-        if (!prompt) {
-            res.status(400).json({ error: 'Prompt is required' });
-            return;
-        }
-
         const response = await fetch('https://api.deapi.ai/api/v1/client/txt2video', {
             method: 'POST',
             headers: {
@@ -202,14 +253,14 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
             },
             body: JSON.stringify({
                 prompt,
-                model: model || 'Ltxv_13B_0_9_8_Distilled_FP8',
-                width: width || 768,
-                height: height || 432,
+                model: model ?? 'Ltxv_13B_0_9_8_Distilled_FP8',
+                width: width ?? 768,
+                height: height ?? 432,
                 guidance: guidance ?? 0,
-                steps: steps || 1,
-                frames: frames || 120,
+                steps: steps ?? 1,
+                frames: frames ?? 120,
                 fps: 30,
-                seed: seed || -1,
+                seed: seed ?? -1,
             }),
         });
 
@@ -436,20 +487,18 @@ router.post('/batch', deprecatedBatchRoute, async (req: Request, res: Response):
         return;
     }
 
+    const batchBody = parseBody(BatchSchema, req.body, res);
+    if (!batchBody) return;
+
+    const { items, concurrency } = batchBody;
+
     try {
-        const { items, concurrency = 5 } = req.body;
-
-        if (!Array.isArray(items) || items.length === 0) {
-            res.status(400).json({ error: 'Items array is required' });
-            return;
-        }
-
         const { generateImageBatch } = await import('@studio/shared/src/services/media/deapiService.js');
 
         const results = await generateImageBatch(
-            items,
+            items as Parameters<typeof generateImageBatch>[0],
             Math.min(concurrency, 10),
-            (progress) => {
+            (progress: { completed: number; total: number }) => {
                 deapiLog.info(`Batch progress: ${progress.completed}/${progress.total}`);
             }
         );
@@ -479,12 +528,12 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
         return;
     }
 
+    const promptBody = parseBody(PromptEnhanceSchema, req.body, res);
+    if (!promptBody) return;
+
+    const { prompt, negative_prompt } = promptBody;
+
     try {
-        const { prompt } = req.body ?? {};
-        if (!prompt) {
-            res.status(400).json({ error: 'prompt is required' });
-            return;
-        }
 
         // DeAPI requires multipart/form-data for video and image2image prompt
         // enhancement endpoints, but JSON for image and speech endpoints.
@@ -494,12 +543,12 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
         let fetchBody: BodyInit;
         let fetchHeaders: Record<string, string>;
 
-        const { negative_prompt = 'blurry, low quality, distorted, artifacts' } = req.body ?? {};
+        const resolvedNegativePrompt = negative_prompt ?? 'blurry, low quality, distorted, artifacts';
 
         if (useMultipart) {
             const formData = new FormData();
             formData.append('prompt', prompt);
-            formData.append('negative_prompt', negative_prompt);
+            formData.append('negative_prompt', resolvedNegativePrompt);
             fetchBody = formData;
             // Do NOT set Content-Type manually — fetch sets it with the boundary
             fetchHeaders = {
@@ -507,7 +556,7 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
                 'Accept': 'application/json',
             };
         } else {
-            fetchBody = JSON.stringify({ prompt, negative_prompt });
+            fetchBody = JSON.stringify({ prompt, negative_prompt: resolvedNegativePrompt });
             fetchHeaders = {
                 'Authorization': `Bearer ${DEAPI_API_KEY}`,
                 'Content-Type': 'application/json',
