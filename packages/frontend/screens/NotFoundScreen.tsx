@@ -22,11 +22,11 @@ export default function NotFoundScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden flex items-center justify-center">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden flex items-center justify-center">
       {/* Background gradient */}
       <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[128px]" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-destructive/10 rounded-full blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-warning/10 rounded-full blur-[128px]" />
       </div>
 
       {/* Content */}
@@ -48,8 +48,8 @@ export default function NotFoundScreen() {
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
               className="flex justify-center mb-6"
             >
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center border border-red-500/30">
-                <AlertCircle className="w-10 h-10 text-red-400" aria-hidden="true" />
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-destructive/20 to-warning/20 flex items-center justify-center border border-destructive/30">
+                <AlertCircle className="w-10 h-10 text-destructive" aria-hidden="true" />
               </div>
             </motion.div>
 
@@ -58,7 +58,7 @@ export default function NotFoundScreen() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="text-6xl md:text-7xl font-bold mb-4 bg-gradient-to-br from-red-400 to-orange-400 bg-clip-text text-transparent"
+              className="text-6xl md:text-7xl font-bold mb-4 bg-gradient-to-br from-destructive to-warning bg-clip-text text-transparent"
             >
               404
             </motion.h1>

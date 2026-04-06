@@ -400,14 +400,14 @@ export default function VisualizerScreen() {
           className="bg-cyan-600 hover:bg-cyan-500"
         >
           <Wand2 className="w-4 h-4 me-2" aria-hidden="true" />
-          Generate Visuals
+          {t('visualizer.generateVisuals')}
         </Button>
       )}
 
       {isBulkGenerating && songData && (
-        <div className={cn('flex items-center gap-2 text-cyan-400 text-sm', isRTL && 'flex-row-reverse')}>
+        <div className={cn('flex items-center gap-2 text-cyan-400 text-sm', isRTL && 'flex-row-reverse')} role="status" aria-live="polite">
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          Generating ({songData.generatedImages.length}/{songData.prompts.length})
+          {t('visualizer.generating')} ({songData.generatedImages.length}/{songData.prompts.length})
         </div>
       )}
 
@@ -418,14 +418,14 @@ export default function VisualizerScreen() {
           className="bg-purple-600 hover:bg-purple-500"
         >
           <Video className="w-4 h-4 me-2" aria-hidden="true" />
-          Animate All ({animatableImagesCount})
+          {t('visualizer.animateAll')} ({animatableImagesCount})
         </Button>
       )}
 
       {isBatchAnimating && (
-        <div className={cn('flex items-center gap-2 text-purple-400 text-sm', isRTL && 'flex-row-reverse')}>
+        <div className={cn('flex items-center gap-2 text-purple-400 text-sm', isRTL && 'flex-row-reverse')} role="status" aria-live="polite">
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          Animating ({batchAnimationProgress.current}/{batchAnimationProgress.total})
+          {t('visualizer.animating')} ({batchAnimationProgress.current}/{batchAnimationProgress.total})
         </div>
       )}
 
@@ -456,7 +456,7 @@ export default function VisualizerScreen() {
       centerContent={!isReady}
       footer={
         <footer className="p-4 md:p-6 text-center text-sm text-white/40">
-          Powered by Gemini AI
+          {t('visualizer.poweredBy')}
         </footer>
       }
     >
@@ -526,8 +526,8 @@ export default function VisualizerScreen() {
             <div className={cn('mb-6', isRTL && 'text-right')}>
               <h2 className="text-xl font-semibold">{songData?.fileName}</h2>
               <p className="text-sm text-white/60">
-                {songData?.parsedSubtitles.length} subtitles • {songData?.prompts.length} scenes
-                {hasVisuals && ` • ${songData?.generatedImages.length} visuals`}
+                {songData?.parsedSubtitles.length} {t('visualizer.subtitlesCount')} • {songData?.prompts.length} {t('visualizer.scenesCount')}
+                {hasVisuals && ` • ${songData?.generatedImages.length} ${t('visualizer.visualsCount')}`}
               </p>
             </div>
 
@@ -558,12 +558,12 @@ export default function VisualizerScreen() {
 
                 {/* Animation error message */}
                 {animationError && (
-                  <div className="mt-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 text-sm flex items-center justify-between">
+                  <div className="mt-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center justify-between">
                     <span>{animationError}</span>
                     <button
                       onClick={() => setAnimationError(null)}
                       className="p-1 hover:bg-white/10 rounded"
-                      aria-label="Dismiss error"
+                      aria-label={t('visualizer.dismissError')}
                     >
                       <X className="w-4 h-4" aria-hidden="true" />
                     </button>

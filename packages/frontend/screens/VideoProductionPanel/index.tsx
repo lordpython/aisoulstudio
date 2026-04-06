@@ -1252,7 +1252,7 @@ const handleTimelinePlayPause = useCallback(() => {
           </BlurFade>
         ))}
         {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm max-w-2xl mx-auto" role="alert">
+          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm max-w-2xl mx-auto" role="alert">
             {error}
           </div>
         )}

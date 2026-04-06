@@ -212,28 +212,30 @@ export default function StudioScreen() {
   const headerActions = (
     <div className="flex items-center gap-2" role="toolbar" aria-label="Studio actions">
       {/* Mode Toggle Selection */}
-      <div className="flex items-center bg-secondary border border-border rounded-lg p-0.5 me-4">
+      <div className="flex items-center bg-secondary border border-border rounded-lg p-0.5 me-4" role="toolbar" aria-label={t('studio.modeToggle')}>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setStudioMode('chat')}
           className={cn(
-            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            "h-9 px-3 text-xs uppercase font-bold transition-all",
             studioMode === 'chat' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
           )}
+          aria-pressed={studioMode === 'chat'}
         >
-          Chat Mode
+          {t('studio.chatMode')}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setStudioMode('story')}
           className={cn(
-            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            "h-9 px-3 text-xs uppercase font-bold transition-all",
             studioMode === 'story' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
           )}
+          aria-pressed={studioMode === 'story'}
         >
-          Story Mode
+          {t('studio.storyMode')}
         </Button>
         <Button
           variant="ghost"
@@ -241,14 +243,15 @@ export default function StudioScreen() {
           onClick={() => panelOpenInEditorRef.current?.()}
           disabled={!canOpenEditor}
           className={cn(
-            "h-7 px-3 text-[10px] uppercase font-bold transition-all",
+            "h-9 px-3 text-xs uppercase font-bold transition-all",
             studioMode === 'editor'
               ? "bg-primary text-primary-foreground shadow-lg"
               : "text-muted-foreground hover:text-foreground",
             !canOpenEditor && "opacity-50 cursor-not-allowed hover:text-muted-foreground"
           )}
+          aria-pressed={studioMode === 'editor'}
         >
-          Editor
+          {t('studio.editor')}
         </Button>
       </div>
 
@@ -384,8 +387,8 @@ export default function StudioScreen() {
         onBack={() => navigate('/')}
       >
         <div className="flex items-center justify-center h-full min-h-[50vh]">
-          <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center max-w-md">
-            <p className="text-red-400 mb-4">{projectError}</p>
+          <div className="p-6 rounded-xl bg-destructive/10 border border-destructive/20 text-center max-w-md">
+            <p className="text-destructive mb-4">{projectError}</p>
             <Button onClick={() => navigate('/projects')}>
               {t('common.back')}
             </Button>

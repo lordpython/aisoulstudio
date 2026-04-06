@@ -34,8 +34,8 @@ const log = uiLogger.child('NewProject');
 
 type ModeOption = {
   type: ProjectType;
-  label: string;
-  description: string;
+  labelKey: string;
+  descKey: string;
   icon: typeof MessageSquare;
   gradient: string;
   accentColor: string;
@@ -45,8 +45,8 @@ type ModeOption = {
 const MODE_OPTIONS: ModeOption[] = [
   {
     type: 'production',
-    label: 'Chat Mode',
-    description: 'Open-ended AI conversation to build your video scene by scene.',
+    labelKey: 'newProject.chatMode',
+    descKey: 'newProject.chatModeDesc',
     icon: MessageSquare,
     gradient: 'from-primary/30 via-primary/10 to-transparent',
     accentColor: 'text-primary border-primary/40 hover:border-primary',
@@ -54,8 +54,8 @@ const MODE_OPTIONS: ModeOption[] = [
   },
   {
     type: 'story',
-    label: 'Story Mode',
-    description: 'Guided pipeline that turns a topic into a fully produced story video.',
+    labelKey: 'newProject.storyMode',
+    descKey: 'newProject.storyModeDesc',
     icon: BookOpen,
     gradient: 'from-accent/30 via-accent/10 to-transparent',
     accentColor: 'text-accent border-accent/40 hover:border-accent',
@@ -63,8 +63,8 @@ const MODE_OPTIONS: ModeOption[] = [
   },
   {
     type: 'visualizer',
-    label: 'Visualizer',
-    description: 'Audio-driven lyric visualizer with animated backgrounds.',
+    labelKey: 'newProject.visualizerMode',
+    descKey: 'newProject.visualizerModeDesc',
     icon: AudioWaveform,
     gradient: 'from-ring/30 via-ring/10 to-transparent',
     accentColor: 'text-ring border-ring/40 hover:border-ring',
@@ -92,7 +92,7 @@ const itemVariants = {
 export default function NewProjectScreen() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { isRTL } = useLanguage();
+  const { t, isRTL } = useLanguage();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [projectName, setProjectName] = useState('');
@@ -144,7 +144,7 @@ export default function NewProjectScreen() {
       }
     } catch (err) {
       log.error('[NewProjectScreen] Failed to create project:', err);
-      setError('Failed to create project. Please try again.');
+      setError(t('newProject.createError') || 'Failed to create project. Please try again.');
       setIsCreating(false);
       setSelectedMode(null);
     }
@@ -153,7 +153,7 @@ export default function NewProjectScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-4 relative overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Ambient glows */}
       <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
         <div
@@ -173,19 +173,28 @@ export default function NewProjectScreen() {
         transition={{ duration: 0.4 }}
         onClick={() => (step === 2 ? setStep(1) : navigate('/projects'))}
         className={cn(
-          'absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm',
-          isRTL && 'left-auto right-6 flex-row-reverse'
+          'absolute top-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm',
+          isRTL ? 'right-6 left-auto flex-row-reverse' : 'left-6'
         )}
+        aria-label={step === 2 ? t('newProject.back') : t('nav.projects')}
       >
-        <ArrowLeft className="w-4 h-4" />
-        {step === 2 ? 'Back' : 'Projects'}
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+        {step === 2 ? t('newProject.back') : t('nav.projects')}
       </motion.button>
 
       {/* Step indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute top-7 left-1/2 -translate-x-1/2 flex items-center gap-2"
+        className={cn(
+          "absolute top-7 flex items-center gap-2",
+          isRTL ? "right-8 translate-x-0" : "left-1/2 -translate-x-1/2"
+        )}
+        role="progressbar"
+        aria-valuenow={step}
+        aria-valuemin={1}
+        aria-valuemax={2}
+        aria-label={t('newProject.stepIndicator', { current: step, total: 2 })}
       >
         {[1, 2].map((s) => (
           <motion.div
@@ -216,10 +225,10 @@ export default function NewProjectScreen() {
             >
               <motion.div variants={itemVariants} className="flex flex-col items-center gap-2">
                 <h1 className="text-3xl font-display font-bold text-foreground">
-                  Name your project
+                  {t('newProject.nameTitle')}
                 </h1>
                 <p className="text-muted-foreground text-sm">
-                  Give it a title — you can change it any time.
+                  {t('newProject.nameSubtitle')}
                 </p>
               </motion.div>
 
@@ -227,12 +236,13 @@ export default function NewProjectScreen() {
                 <Input
                   ref={nameInputRef}
                   type="text"
-                  placeholder="e.g. My First Story"
+                  placeholder={t('newProject.namePlaceholder')}
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleNameNext()}
                   className="w-full text-center text-lg bg-secondary border-border focus:border-primary/50 h-14 rounded-xl"
                   maxLength={80}
+                  aria-label={t('newProject.nameTitle')}
                 />
               </motion.div>
 
@@ -242,8 +252,8 @@ export default function NewProjectScreen() {
                   disabled={!projectName.trim()}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 h-11 gap-2"
                 >
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
+                  {t('newProject.continue')}
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Button>
               </motion.div>
             </motion.div>
@@ -261,10 +271,10 @@ export default function NewProjectScreen() {
             >
               <motion.div variants={itemVariants} className="flex flex-col items-center gap-2">
                 <h1 className="text-3xl font-display font-bold text-foreground">
-                  How do you want to create?
+                  {t('newProject.chooseTitle')}
                 </h1>
                 <p className="text-muted-foreground text-sm">
-                  Choose the mode that fits your workflow.
+                  {t('newProject.chooseSubtitle')}
                 </p>
               </motion.div>
 
@@ -276,6 +286,8 @@ export default function NewProjectScreen() {
                     exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     className="text-sm text-destructive"
+                    role="alert"
+                    aria-live="assertive"
                   >
                     {error}
                   </motion.p>
@@ -322,19 +334,19 @@ export default function NewProjectScreen() {
                         )}
                       >
                         {isCreating && isSelected ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
                         ) : (
-                          <Icon className="w-5 h-5" />
+                          <Icon className="w-5 h-5" aria-hidden="true" />
                         )}
                       </div>
 
                       {/* Text */}
                       <div className="relative z-10 min-w-0">
                         <p className="font-semibold text-foreground text-sm leading-tight">
-                          {mode.label}
+                          {t(mode.labelKey)}
                         </p>
                         <p className="text-muted-foreground text-xs mt-0.5 leading-snug">
-                          {mode.description}
+                          {t(mode.descKey)}
                         </p>
                       </div>
                     </motion.button>

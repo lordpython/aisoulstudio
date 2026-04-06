@@ -369,7 +369,7 @@ export default function ProjectsScreen() {
                       <Clock className="w-4 h-4 text-primary" />
                       {t('projects.recent') || 'Recent'}
                     </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       <AnimatePresence mode="popLayout">
                         {recentProjects.map((project, i) => (
                           <BlurFade key={project.id} delay={i * 0.06} inView>
@@ -418,13 +418,14 @@ export default function ProjectsScreen() {
                 >
                   {/* Search */}
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
                     <Input
                       type="text"
                       placeholder={t('projects.search') || 'Search...'}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 w-48 bg-secondary border-border"
+                      aria-label={t('projects.search') || 'Search projects'}
                     />
                   </div>
 
@@ -433,14 +434,14 @@ export default function ProjectsScreen() {
                     value={filterType}
                     onValueChange={(value) => setFilterType(value as FilterType)}
                   >
-                    <SelectTrigger className="w-32 bg-secondary border-border">
-                      <SelectValue placeholder="All types" />
+                    <SelectTrigger className="w-32 bg-secondary border-border" aria-label={t('projects.filterByType') || 'Filter by type'}>
+                      <SelectValue placeholder={t('projects.allTypes') || 'All types'} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All types</SelectItem>
-                      <SelectItem value="production">Video</SelectItem>
-                      <SelectItem value="story">Story</SelectItem>
-                      <SelectItem value="visualizer">Visualizer</SelectItem>
+                      <SelectItem value="all">{t('projects.allTypes') || 'All types'}</SelectItem>
+                      <SelectItem value="production">{t('projects.video') || 'Video'}</SelectItem>
+                      <SelectItem value="story">{t('projects.story') || 'Story'}</SelectItem>
+                      <SelectItem value="visualizer">{t('nav.visualizer') || 'Visualizer'}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -449,13 +450,13 @@ export default function ProjectsScreen() {
                     value={sortField}
                     onValueChange={(value) => setSortField(value as SortField)}
                   >
-                    <SelectTrigger className="w-32 bg-secondary border-border">
-                      <SelectValue placeholder="Sort by" />
+                    <SelectTrigger className="w-32 bg-secondary border-border" aria-label={t('projects.sortBy') || 'Sort by'}>
+                      <SelectValue placeholder={t('projects.sortBy') || 'Sort by'} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="updatedAt">Last updated</SelectItem>
-                      <SelectItem value="createdAt">Created</SelectItem>
-                      <SelectItem value="title">Title</SelectItem>
+                      <SelectItem value="updatedAt">{t('projects.sortByUpdated') || 'Last updated'}</SelectItem>
+                      <SelectItem value="createdAt">{t('projects.sortByCreated') || 'Created'}</SelectItem>
+                      <SelectItem value="title">{t('projects.sortByTitle') || 'Title'}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -465,16 +466,17 @@ export default function ProjectsScreen() {
                     size="icon"
                     onClick={toggleSortOrder}
                     className="bg-secondary border-border"
+                    aria-label={t('projects.sortOrder') || 'Toggle sort order'}
                   >
                     {sortOrder === 'desc' ? (
-                      <SortDesc className="w-4 h-4" />
+                      <SortDesc className="w-4 h-4" aria-hidden="true" />
                     ) : (
-                      <SortAsc className="w-4 h-4" />
+                      <SortAsc className="w-4 h-4" aria-hidden="true" />
                     )}
                   </Button>
 
                   {/* View Mode */}
-                  <div className="flex rounded-lg border border-border overflow-hidden">
+                  <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-label={t('projects.viewMode') || 'View mode'}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -483,8 +485,10 @@ export default function ProjectsScreen() {
                         'rounded-none',
                         viewMode === 'grid' && 'bg-secondary'
                       )}
+                      aria-pressed={viewMode === 'grid'}
+                      aria-label={t('projects.gridView') || 'Grid view'}
                     >
-                      <Grid3X3 className="w-4 h-4" />
+                      <Grid3X3 className="w-4 h-4" aria-hidden="true" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -494,10 +498,13 @@ export default function ProjectsScreen() {
                         'rounded-none',
                         viewMode === 'list' && 'bg-secondary'
                       )}
+                      aria-pressed={viewMode === 'list'}
+                      aria-label={t('projects.listView') || 'List view'}
                     >
-                      <List className="w-4 h-4" />
+                      <List className="w-4 h-4" aria-hidden="true" />
                     </Button>
                   </div>
+
                 </div>
               </div>
 

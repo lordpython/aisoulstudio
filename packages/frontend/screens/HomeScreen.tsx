@@ -125,7 +125,7 @@ export default function HomeScreen() {
                   <Sparkles className="w-3 h-3" style={{ color: 'var(--primary)' }} />
                   <span className="text-[10px] font-code font-medium tracking-widest uppercase"
                     style={{ color: 'var(--primary)' }}>
-                    AI-Powered Studio
+                    {t('home.aiPoweredStudio')}
                   </span>
                 </div>
               </motion.div>
@@ -285,7 +285,7 @@ export default function HomeScreen() {
                             className="flex items-center gap-1.5 text-[11px] font-code font-medium tracking-wider uppercase"
                             style={{ color: mode.accentColor }}
                           >
-                            <span>Enter</span>
+                            <span>{t('home.enter')}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </div>
                         </div>
@@ -302,7 +302,7 @@ export default function HomeScreen() {
         {/* Footer */}
         <footer className="p-4 md:p-6 text-center">
           <span className="text-caption-mono" style={{ color: 'oklch(0.35 0.02 240)' }}>
-            Aisoul Studio
+            {t('home.appName')}
           </span>
         </footer>
       </div>

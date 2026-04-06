@@ -118,6 +118,21 @@
     --glow-primary: oklch(0.70 0.15 190 / 0.5);
     --glow-accent: oklch(0.65 0.25 30 / 0.5);
 
+    /* Semantic Status Colors */
+    --success: oklch(0.65 0.18 145);
+    --success-foreground: oklch(0.05 0.01 240);
+    --info: oklch(0.70 0.15 190);
+    --info-foreground: oklch(0.05 0.01 240);
+    --warning: oklch(0.75 0.18 80);
+    --warning-foreground: oklch(0.05 0.01 240);
+
+    /* White Overlay Variables */
+    --overlay-white-5: oklch(1 0 0 / 0.05);
+    --overlay-white-10: oklch(1 0 0 / 0.10);
+    --overlay-white-20: oklch(1 0 0 / 0.20);
+    --overlay-white-40: oklch(1 0 0 / 0.40);
+    --overlay-white-60: oklch(1 0 0 / 0.60);
+
     /* ==========================================
        CINEMATIC/EDITORIAL PALETTE
        Film noir vibes, dramatic lighting

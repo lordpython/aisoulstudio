@@ -9,8 +9,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
 
 // Generate deterministic positions for neural nodes
@@ -238,11 +239,13 @@ function NeuralBackground() {
 export default function SignInScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t, isRTL } = useLanguage();
   const { user, isLoading, error, signInWithGoogle, signInWithEmail, createAccount, clearError, isAuthenticated } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const redirectTo = (location.state as { from?: string } | null)?.from || '/';
 
@@ -290,7 +293,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <div className="fixed inset-0 flex bg-[var(--cinema-void)]">
+    <div className={cn("fixed inset-0 flex bg-[var(--cinema-void)]", isRTL && "flex-row-reverse")}>
       {/* ===== LEFT PANEL: Animated Neural Background ===== */}
       <motion.div
         className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden"
@@ -302,13 +305,13 @@ export default function SignInScreen() {
 
         {/* Floating brand element */}
         <motion.div
-          className="absolute bottom-12 left-12 z-10"
+          className={cn("absolute bottom-12 z-10", isRTL ? "right-12" : "left-12")}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.8 }}
         >
           <p className="text-[var(--cinema-silver)]/40 text-sm tracking-[0.3em] uppercase font-light">
-            Where AI Meets Creativity
+            {t('signIn.tagline')}
           </p>
         </motion.div>
       </motion.div>
@@ -357,15 +360,15 @@ export default function SignInScreen() {
             {/* Brand Name */}
             <div>
               <h1 className="font-display text-4xl md:text-5xl tracking-tight text-[var(--cinema-silver)]">
-                {mode === 'signin' ? 'Welcome Back' : 'Join'}{' '}
+                {mode === 'signin' ? t('signIn.welcomeBack') : t('signIn.join')}{' '}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[oklch(0.70_0.15_190)] to-[oklch(0.65_0.25_30)]">
                   {mode === 'signin' ? '' : 'AIsoul Studio'}
                 </span>
               </h1>
               <p className="mt-3 text-[var(--cinema-silver)]/50 text-base font-light tracking-wide">
                 {mode === 'signin'
-                  ? 'Sign in to sync your projects across devices'
-                  : 'Create an account to save your work to the cloud'}
+                  ? t('signIn.signInSubtitle')
+                  : t('signIn.signupSubtitle')}
               </p>
             </div>
           </motion.div>
@@ -384,9 +387,11 @@ export default function SignInScreen() {
                   initial={{ opacity: 0, y: -10, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: 'auto' }}
                   exit={{ opacity: 0, y: -10, height: 0 }}
-                  className="flex items-center gap-3 p-4 rounded-xl bg-[oklch(0.35_0.15_25_/_0.15)] border border-[oklch(0.35_0.15_25_/_0.3)] text-[oklch(0.75_0.12_25)]"
+                  className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive"
+                  role="alert"
+                  aria-live="assertive"
                 >
-                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
                   <span className="text-sm">{error}</span>
                 </motion.div>
               )}
@@ -406,9 +411,10 @@ export default function SignInScreen() {
               )}
               whileHover={{ scale: isSigningIn ? 1 : 1.02, y: isSigningIn ? 0 : -2 }}
               whileTap={{ scale: 0.98 }}
+              aria-label={isSigningIn ? t('signIn.signingIn') : t('signIn.googleSignIn')}
             >
               {isSigningIn ? (
-                <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+                <Loader2 className="w-5 h-5 animate-spin text-gray-600" aria-hidden="true" />
               ) : (
                 <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -430,7 +436,7 @@ export default function SignInScreen() {
                 </svg>
               )}
               <span className="text-base">
-                {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
+                {isSigningIn ? t('signIn.signingIn') : t('signIn.googleSignIn')}
               </span>
             </motion.button>
 
@@ -441,21 +447,27 @@ export default function SignInScreen() {
               </div>
               <div className="relative flex justify-center">
                 <span className="px-4 text-xs text-[var(--cinema-silver)]/30 bg-[var(--cinema-void)] uppercase tracking-widest">
-                  or continue with email
+                  {t('signIn.divider')}
                 </span>
               </div>
             </div>
 
             {/* Email/Password Form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <form onSubmit={handleEmailSubmit} className="space-y-4" role="form" aria-label={mode === 'signin' ? t('signIn.signInButton') : t('signIn.createAccount')}>
               <div>
+                <label htmlFor="signin-email" className="sr-only">
+                  {t('signIn.emailLabel')}
+                </label>
                 <input
+                  id="signin-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email address"
+                  placeholder={t('signIn.emailPlaceholder')}
                   required
                   disabled={isSigningIn}
+                  autoComplete="email"
+                  aria-label={t('signIn.emailLabel')}
                   className={cn(
                     "w-full px-4 py-3.5 rounded-xl",
                     "bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10",
@@ -467,23 +479,40 @@ export default function SignInScreen() {
                 />
               </div>
               <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  required
-                  minLength={6}
-                  disabled={isSigningIn}
-                  className={cn(
-                    "w-full px-4 py-3.5 rounded-xl",
-                    "bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10",
-                    "text-[var(--cinema-silver)] placeholder:text-[var(--cinema-silver)]/30",
-                    "focus:outline-none focus:border-[oklch(0.70_0.15_190)] focus:ring-1 focus:ring-[oklch(0.70_0.15_190_/_0.3)]",
-                    "transition-all duration-200",
-                    "disabled:opacity-50"
-                  )}
-                />
+                <label htmlFor="signin-password" className="sr-only">
+                  {t('signIn.passwordLabel')}
+                </label>
+                <div className="relative">
+                  <input
+                    id="signin-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t('signIn.passwordPlaceholder')}
+                    required
+                    minLength={6}
+                    disabled={isSigningIn}
+                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                    aria-label={t('signIn.passwordLabel')}
+                    className={cn(
+                      "w-full px-4 py-3.5 rounded-xl pe-12",
+                      "bg-[var(--cinema-celluloid)] border border-[var(--cinema-silver)]/10",
+                      "text-[var(--cinema-silver)] placeholder:text-[var(--cinema-silver)]/30",
+                      "focus:outline-none focus:border-[oklch(0.70_0.15_190)] focus:ring-1 focus:ring-[oklch(0.70_0.15_190_/_0.3)]",
+                      "transition-all duration-200",
+                      "disabled:opacity-50"
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 end-0 flex items-center pe-3 text-[var(--cinema-silver)]/40 hover:text-[var(--cinema-silver)]/70 transition-colors"
+                    aria-label={showPassword ? t('signIn.hidePassword') : t('signIn.showPassword')}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                </div>
               </div>
 
               <motion.button
@@ -503,12 +532,12 @@ export default function SignInScreen() {
                 whileTap={{ scale: 0.98 }}
               >
                 {isSigningIn ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
                 ) : null}
                 <span className="text-base">
                   {isSigningIn
-                    ? (mode === 'signin' ? 'Signing in...' : 'Creating account...')
-                    : (mode === 'signin' ? 'Sign in' : 'Create account')}
+                    ? (mode === 'signin' ? t('signIn.signingIn') : t('signIn.creatingAccount'))
+                    : (mode === 'signin' ? t('signIn.signInButton') : t('signIn.createAccount'))}
                 </span>
               </motion.button>
             </form>
@@ -517,22 +546,24 @@ export default function SignInScreen() {
             <div className="text-center text-sm text-[var(--cinema-silver)]/50">
               {mode === 'signin' ? (
                 <>
-                  Don't have an account?{' '}
+                  {t('signIn.noAccount')}{' '}
                   <button
                     onClick={switchMode}
                     className="text-[oklch(0.70_0.15_190)] hover:text-[oklch(0.75_0.15_190)] transition-colors font-medium"
+                    aria-label={t('signIn.modeSwitcher')}
                   >
-                    Sign up
+                    {t('signIn.signUp')}
                   </button>
                 </>
               ) : (
                 <>
-                  Already have an account?{' '}
+                  {t('signIn.hasAccount')}{' '}
                   <button
                     onClick={switchMode}
                     className="text-[oklch(0.70_0.15_190)] hover:text-[oklch(0.75_0.15_190)] transition-colors font-medium"
+                    aria-label={t('signIn.modeSwitcher')}
                   >
-                    Sign in
+                    {t('signIn.signInLink')}
                   </button>
                 </>
               )}
@@ -545,7 +576,7 @@ export default function SignInScreen() {
               </div>
               <div className="relative flex justify-center">
                 <span className="px-4 text-xs text-[var(--cinema-silver)]/30 bg-[var(--cinema-void)] uppercase tracking-widest">
-                  or
+                  {t('signIn.or')}
                 </span>
               </div>
             </div>
@@ -564,7 +595,7 @@ export default function SignInScreen() {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
-              Continue without signing in
+              {t('signIn.continueWithoutSignIn')}
             </motion.button>
           </motion.div>
 
@@ -576,18 +607,24 @@ export default function SignInScreen() {
             transition={{ delay: 0.8, duration: 0.6 }}
           >
             <p className="text-xs text-[var(--cinema-silver)]/30 leading-relaxed">
-              By signing in, you agree to our{' '}
-              <a href="#" className="text-[var(--cinema-silver)]/50 hover:text-[var(--cinema-silver)]/70 transition-colors underline underline-offset-2">
-                Terms of Service
+              {t('signIn.termsAgreement')}{' '}
+              <a
+                href="#"
+                className="text-[var(--cinema-silver)]/50 hover:text-[var(--cinema-silver)]/70 transition-colors underline underline-offset-2"
+              >
+                {t('signIn.termsOfService')}
               </a>{' '}
-              and{' '}
-              <a href="#" className="text-[var(--cinema-silver)]/50 hover:text-[var(--cinema-silver)]/70 transition-colors underline underline-offset-2">
-                Privacy Policy
+              {t('common.and')}{' '}
+              <a
+                href="#"
+                className="text-[var(--cinema-silver)]/50 hover:text-[var(--cinema-silver)]/70 transition-colors underline underline-offset-2"
+              >
+                {t('signIn.privacyPolicy')}
               </a>
             </p>
 
             <p className="text-xs text-[var(--cinema-silver)]/20">
-              Powered by Gemini AI
+              {t('signIn.poweredBy')}
             </p>
           </motion.div>
         </div>
@@ -599,9 +636,9 @@ export default function SignInScreen() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1, duration: 0.6 }}
         >
-          <div className="flex items-center gap-2 text-[var(--cinema-silver)]/30 text-xs">
+          <div className={cn("flex items-center gap-2 text-[var(--cinema-silver)]/30 text-xs", isRTL && "flex-row-reverse")}>
             <div className="w-8 h-0.5 bg-gradient-to-r from-transparent via-[var(--cinema-silver)]/20 to-transparent" />
-            <span>AI-Powered Video Creation</span>
+            <span>{t('signIn.mobileTagline')}</span>
             <div className="w-8 h-0.5 bg-gradient-to-r from-transparent via-[var(--cinema-silver)]/20 to-transparent" />
           </div>
         </motion.div>
