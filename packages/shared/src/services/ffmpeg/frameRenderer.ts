@@ -28,7 +28,6 @@ export interface RenderFrameState {
 function getSceneAwareSlideBounds(
     assets: RenderAsset[],
     currentIndex: number,
-    currentTime: number,
     config: ExportConfig
 ): { slideStartTime: number; slideEndTime: number; sceneDuration: number } {
     // Default: use asset times (music mode behavior)
@@ -40,7 +39,10 @@ function getSceneAwareSlideBounds(
 
     // Story mode: use narration-driven scene timings if available
     if (config.contentMode === "story" && config.sceneTimings && config.sceneTimings.length > 0) {
-        const sceneTiming = config.sceneTimings[currentIndex];
+        // Match by sceneId to handle filtered assets (prompts without images are excluded)
+        const sceneTiming = currentAsset
+            ? config.sceneTimings.find(st => st.sceneId === currentAsset.id) ?? config.sceneTimings[currentIndex]
+            : config.sceneTimings[currentIndex];
         if (sceneTiming) {
             // Scene runs from its startTime through its duration
             const start = sceneTiming.startTime ?? slideStartTime;
@@ -72,6 +74,11 @@ function getZoneBounds(
     };
 }
 
+/**
+ * Find the index of the active visual asset at the given time.
+ * Uses asset `.time` (from prompt.timestampSeconds) to determine which visual is showing.
+ * Scene duration/boundaries are resolved separately via sceneId-based lookup in getSceneAwareSlideBounds.
+ */
 function findActiveAssetIndex(assets: RenderAsset[], currentTime: number, startIndex: number): number {
     if (assets.length === 0) {
         return 0;
@@ -167,7 +174,6 @@ export async function renderFrameToCanvas(
     const { slideStartTime, slideEndTime, sceneDuration: slideDuration } = getSceneAwareSlideBounds(
         assets,
         currentIndex,
-        currentTime,
         config
     );
     const slideProgress = (currentTime - slideStartTime) / slideDuration;
@@ -246,11 +252,15 @@ export async function renderFrameToCanvas(
     const activeSub = subtitleResult.activeIndex >= 0 ? subtitles[subtitleResult.activeIndex] : undefined;
 
     let subtitleOpacity = 1.0;
-    if (config.fadeOutBeforeCut) {
+    if (config.fadeOutBeforeCut && activeSub) {
         const fadeOutDuration = 0.3;
-        const timeUntilCut = slideEndTime - currentTime;
-        if (timeUntilCut < fadeOutDuration && timeUntilCut > 0) {
-            subtitleOpacity = timeUntilCut / fadeOutDuration;
+        // Only fade if the subtitle naturally ends before the scene cut
+        const subtitleEndsBeforeCut = activeSub.endTime <= slideEndTime + fadeOutDuration;
+        if (subtitleEndsBeforeCut) {
+            const timeUntilCut = slideEndTime - currentTime;
+            if (timeUntilCut < fadeOutDuration && timeUntilCut > 0) {
+                subtitleOpacity = timeUntilCut / fadeOutDuration;
+            }
         }
     }
 

@@ -22,14 +22,14 @@ import {
   TTS_VOICES,
   type FormatVoiceProfile,
   type TTSVoice,
-} from './media/narratorService';
+} from './narratorService';
 import {
   generateBeatMetadata,
   findNearestBeat,
   snapToBeat,
   alignTransitionsToBeat,
-} from './ffmpeg/formatAssembly';
-import type { VideoFormat } from '../types';
+} from '../ffmpeg/formatAssembly';
+import type { VideoFormat } from '../../types';
 
 // ============================================================================
 // Constants

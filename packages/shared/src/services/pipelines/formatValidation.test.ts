@@ -11,9 +11,9 @@ import {
   validateGenrePipelineInvariance,
   getFormatPipelineStructure,
   getGenreStyleParams,
-} from './format/formatValidation';
-import { formatRegistry } from './format/formatRegistry';
-import type { VideoFormat } from '../types';
+} from './formatValidation';
+import { formatRegistry } from './formatRegistry';
+import type { VideoFormat } from '../../types';
 
 const ALL_FORMATS: VideoFormat[] = [
   'youtube-narrator',

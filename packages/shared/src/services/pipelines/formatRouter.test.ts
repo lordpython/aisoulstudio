@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FormatRouter, FormatRouterError, FormatRouterErrorCode, type FormatPipeline, type PipelineRequest, type PipelineResult } from './format/formatRouter';
-import { formatRegistry } from './format/formatRegistry';
-import type { VideoFormat, FormatMetadata } from '../types';
+import { FormatRouter, FormatRouterError, FormatRouterErrorCode, type FormatPipeline, type PipelineRequest, type PipelineResult } from './formatRouter';
+import { formatRegistry } from './formatRegistry';
+import type { VideoFormat, FormatMetadata } from '../../types';
 
 describe('FormatRouter', () => {
   let router: FormatRouter;

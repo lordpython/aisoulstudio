@@ -24,9 +24,9 @@ import {
   IndexedDocument,
   ResearchQuery,
   extractFileContent,
-} from './content/researchService';
-import { tokenize, jaccardSimilarity, chunkContent } from './utils/textProcessing';
-import { ParallelExecutionEngine, Task } from './orchestration/parallelExecutionEngine';
+} from './researchService';
+import { tokenize, jaccardSimilarity, chunkContent } from '../utils/textProcessing';
+import { ParallelExecutionEngine, Task } from '../orchestration/parallelExecutionEngine';
 
 // ============================================================================
 // Arbitraries (fast-check generators)

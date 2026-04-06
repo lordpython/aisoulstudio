@@ -145,3 +145,8 @@ export {
     getRecoveryStrategy,
     classifyError,
 } from "../../agent/errorRecovery";
+
+// --- Orchestration (merged from services/orchestration/) ---
+export * from "./orchestratorTypes";
+export * from "./productionApi";
+export * from "./parallelExecutionEngine";

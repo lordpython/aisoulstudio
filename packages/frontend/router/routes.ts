@@ -33,6 +33,11 @@ export const routes: RouteConfig[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/projects/:projectId/settings',
+    title: 'nav.projectSettings',
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/story/:projectId',
     title: 'nav.story',
   },
@@ -45,6 +50,29 @@ export const routes: RouteConfig[] = [
     path: '/visualizer',
     title: 'nav.visualizer',
     meta: { preserveState: true },
+  },
+  {
+    path: '/preview/:projectId',
+    title: 'nav.preview',
+  },
+  {
+    path: '/templates',
+    title: 'nav.templates',
+  },
+  {
+    path: '/account',
+    title: 'nav.account',
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/exports',
+    title: 'nav.exports',
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/analytics',
+    title: 'nav.analytics',
+    meta: { requiresAuth: true },
   },
   {
     path: '/gradient-generator',

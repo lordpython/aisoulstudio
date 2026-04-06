@@ -19,6 +19,7 @@ import {
     startProductionRun,
     subscribeToProductionRun,
     type ProductionEvent,
+    type ProductionMode,
 } from "@/services/orchestration/productionApi";
 
 // Import focused hooks
@@ -90,7 +91,8 @@ export function useVideoProductionRefactored() {
     const [videoPurpose, setVideoPurpose] = useState<VideoPurpose>("documentary");
     const [visualStyle, setVisualStyle] = useState("Cinematic");
     const [language, setLanguage] = useState<LanguageCode>("auto");
-    const [useAgentMode, setUseAgentMode] = useState(true);
+    /** @deprecated All production runs now use agent mode. Kept for API compat. */
+    const useAgentMode = true;
     const [veoVideoCount, setVeoVideoCount] = useState(1);
 
     const updateScenes = useCallback((scenes: Scene[]) => {
@@ -158,7 +160,7 @@ export function useVideoProductionRefactored() {
 
             setAppState(AppState.CONTENT_PLANNING);
 
-            const mode = useAgentMode ? 'agent' : 'orchestrator';
+            const mode: ProductionMode = 'agent';
             const { runId, sessionId } = await startProductionRun({
                 sessionId: requestSessionId,
                 projectId: config?.projectId,
@@ -240,7 +242,7 @@ export function useVideoProductionRefactored() {
             setError(err instanceof Error ? err.message : String(err));
             setAppState(AppState.ERROR);
         }
-    }, [topic, contentPlan, validation, targetDuration, targetAudience, visualStyle, videoPurpose, language, veoVideoCount, useAgentMode, narrationHook, visualsHook, sfxHook, qualityHook]);
+    }, [topic, contentPlan, validation, targetDuration, targetAudience, visualStyle, videoPurpose, language, veoVideoCount, narrationHook, visualsHook, sfxHook, qualityHook]);
 
     /**
      * Generate content plan only (without narration)
@@ -358,7 +360,6 @@ export function useVideoProductionRefactored() {
         setVideoPurpose,
         setVisualStyle,
         setLanguage,
-        setUseAgentMode,
         veoVideoCount,
         setVeoVideoCount,
 

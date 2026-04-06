@@ -14,8 +14,8 @@ import {
   RateLimitQueue,
   type PipelineError,
   type OnCriticalFailure,
-} from './infrastructure/errorAggregator';
-import { loadTemplate } from './prompt/templateLoader';
+} from './errorAggregator';
+import { loadTemplate } from '../prompt/templateLoader';
 
 describe('ErrorAggregator', () => {
   describe('Property 41: Error Aggregation', () => {

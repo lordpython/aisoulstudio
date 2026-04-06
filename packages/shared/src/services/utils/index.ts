@@ -5,3 +5,4 @@
  */
 
 export * from './textProcessing';
+export * from './robustUtils';

@@ -22,6 +22,12 @@ const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
 const ProjectsScreen = lazy(() => import('../screens/ProjectsScreen'));
 const NewProjectScreen = lazy(() => import('../screens/NewProjectScreen'));
 const GradientGeneratorScreen = lazy(() => import('../screens/GradientGeneratorScreen'));
+const PreviewScreen = lazy(() => import('../screens/PreviewScreen'));
+const ProjectSettingsScreen = lazy(() => import('../screens/ProjectSettingsScreen'));
+const TemplatesScreen = lazy(() => import('../screens/TemplatesScreen'));
+const AccountScreen = lazy(() => import('../screens/AccountScreen'));
+const ExportsScreen = lazy(() => import('../screens/ExportsScreen'));
+const AnalyticsScreen = lazy(() => import('../screens/AnalyticsScreen'));
 const SignInScreen = lazy(() => import('../screens/SignInScreen'));
 const HelpScreen = lazy(() => import('../screens/HelpScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
@@ -74,6 +80,24 @@ export function AppRouter() {
 
             {/* Visualizer route - audio-first lyric videos */}
             <Route path="/visualizer" element={<VisualizerScreen />} />
+
+            {/* Video preview route */}
+            <Route path="/preview/:projectId" element={<PreviewScreen />} />
+
+            {/* Project settings route */}
+            <Route path="/projects/:projectId/settings" element={<ProjectSettingsScreen />} />
+
+            {/* Template gallery route */}
+            <Route path="/templates" element={<TemplatesScreen />} />
+
+            {/* Account / profile route */}
+            <Route path="/account" element={<AccountScreen />} />
+
+            {/* Export history route */}
+            <Route path="/exports" element={<ExportsScreen />} />
+
+            {/* Analytics dashboard route */}
+            <Route path="/analytics" element={<AnalyticsScreen />} />
 
             {/* Gradient Generator route - CSS gradient creation tool */}
             <Route path="/gradient-generator" element={<GradientGeneratorScreen />} />

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CheckpointSystem, type CheckpointApproval } from './project/checkpointSystem';
+import { CheckpointSystem, type CheckpointApproval } from './checkpointSystem';
 
 describe('CheckpointSystem', () => {
   beforeEach(() => {
