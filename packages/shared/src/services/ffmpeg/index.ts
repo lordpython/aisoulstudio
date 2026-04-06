@@ -92,5 +92,13 @@ export {
     type FrameChecksum,
 } from "./checksumGenerator";
 
+// Format-aware render quality presets
+export {
+    FORMAT_RENDER_QUALITY,
+    getFormatRenderQuality,
+    getServerRenderQuality,
+    type FormatRenderQuality,
+} from "./formatQuality";
+
 // Export options type
 export type { ExportOptions, ExportResult } from "./exporters";

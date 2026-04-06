@@ -137,8 +137,17 @@ export interface ProductionState {
 }
 
 /**
- * Story Mode State
- * Manages the step-by-step generation workflow
+ * Story Mode State — Agent pipeline lifecycle state.
+ *
+ * This is the **pipeline-level** state used by BasePipeline, storyPipeline,
+ * and production agent tools during automated video generation.
+ *
+ * NOT the same as `StoryState` (in types/story.ts) which is the **frontend UI**
+ * state for the interactive storyboard workspace. StoryState has 40+ additional
+ * fields for visual generation status, animation, TTS providers, export progress,
+ * and shot-level error recovery.
+ *
+ * Shared sub-types: ScreenplayScene, CharacterProfile, ShotlistEntry, CheckpointState.
  */
 export interface StoryModeState {
     id: string;

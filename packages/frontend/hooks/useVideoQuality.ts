@@ -19,7 +19,7 @@ import {
     ProductionQualityReport
 } from "@/services/project/qualityMonitorService";
 import { validateContentPlan } from "@/services/content/editorService";
-import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+import { ProductionProgress } from "@/services/orchestration/orchestratorTypes";
 import { mediaLogger } from '@/services/infrastructure/logger';
 const log = mediaLogger.child('Quality');
 

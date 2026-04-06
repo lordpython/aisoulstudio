@@ -21,6 +21,42 @@ export interface RenderFrameState {
 }
 
 /**
+ * Calculate scene-aware slide boundaries for story mode.
+ * When sceneTimings are provided, visuals align with narration segments.
+ * Each scene's visual displays from its start time through the narration duration.
+ */
+function getSceneAwareSlideBounds(
+    assets: RenderAsset[],
+    currentIndex: number,
+    currentTime: number,
+    config: ExportConfig
+): { slideStartTime: number; slideEndTime: number; sceneDuration: number } {
+    // Default: use asset times (music mode behavior)
+    const currentAsset = assets[currentIndex];
+    const nextAsset = assets[currentIndex + 1];
+    const slideStartTime = currentAsset?.time ?? 0;
+    const slideEndTime = nextAsset ? nextAsset.time : slideStartTime + 30;
+    const sceneDuration = slideEndTime - slideStartTime;
+
+    // Story mode: use narration-driven scene timings if available
+    if (config.contentMode === "story" && config.sceneTimings && config.sceneTimings.length > 0) {
+        const sceneTiming = config.sceneTimings[currentIndex];
+        if (sceneTiming) {
+            // Scene runs from its startTime through its duration
+            const start = sceneTiming.startTime ?? slideStartTime;
+            const duration = sceneTiming.duration ?? sceneDuration;
+            return {
+                slideStartTime: start,
+                slideEndTime: start + duration,
+                sceneDuration: duration,
+            };
+        }
+    }
+
+    return { slideStartTime, slideEndTime, sceneDuration };
+}
+
+/**
  * Get zone bounds from normalized coordinates
  */
 function getZoneBounds(
@@ -127,10 +163,13 @@ export async function renderFrameToCanvas(
     const TRANSITION_DURATION = config.transitionDuration || 1.5;
     const PRESEEK_WINDOW_SECONDS = 1.5;
 
-    // Calculate duration of current slide
-    const slideStartTime = currentAsset?.time ?? 0;
-    const slideEndTime = nextAsset ? nextAsset.time : slideStartTime + 30;
-    const slideDuration = slideEndTime - slideStartTime;
+    // Calculate duration of current slide using scene-aware timing for story mode
+    const { slideStartTime, slideEndTime, sceneDuration: slideDuration } = getSceneAwareSlideBounds(
+        assets,
+        currentIndex,
+        currentTime,
+        config
+    );
     const slideProgress = (currentTime - slideStartTime) / slideDuration;
 
     if (

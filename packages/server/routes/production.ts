@@ -16,11 +16,6 @@ import {
 } from '@studio/shared/src/services/orchestration/productionApi';
 import { resolveServerAssetUrl } from '@studio/shared/src/services/cloud/serverBaseUrl';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger';
-import type {
-  ProductionConfig,
-  ProductionProgress as OrchestratorProgress,
-  ProductionResult,
-} from '@studio/shared/src/services/orchestration/agentOrchestrator';
 import type { ToolError } from '@studio/shared/src/services/agent/errorRecovery';
 
 const productionLog = createLogger('ProductionRoute');
@@ -31,16 +26,8 @@ type AgentRunner = (
   options?: { sessionId?: string | null },
 ) => Promise<ProductionState | null>;
 
-type OrchestratorRunner = (
-  input: string | { topic: string },
-  config?: ProductionConfig,
-  onProgress?: (progress: OrchestratorProgress) => void,
-  signal?: AbortSignal,
-) => Promise<ProductionResult>;
-
 interface ProductionRouteDependencies {
   runAgent: AgentRunner;
-  runOrchestrator: OrchestratorRunner;
   buildSnapshot: (sessionId: string, state: ProductionState) => Promise<ProductionSessionSnapshot>;
   initSession: (sessionId: string) => Promise<unknown>;
 }
@@ -63,16 +50,6 @@ async function defaultRunAgent(
 ): Promise<ProductionState | null> {
   const { runProductionAgentWithSubagents } = await import('@studio/shared/src/services/ai/production/agentCore');
   return runProductionAgentWithSubagents(userRequest, onProgress, options);
-}
-
-async function defaultRunOrchestrator(
-  input: string | { topic: string },
-  config?: ProductionConfig,
-  onProgress?: (progress: OrchestratorProgress) => void,
-  signal?: AbortSignal,
-): Promise<ProductionResult> {
-  const { runProductionPipeline } = await import('@studio/shared/src/services/orchestration/agentOrchestrator');
-  return runProductionPipeline(input, config, onProgress, signal);
 }
 
 function createRun(runId: string, sessionId: string): ProductionRunRecord {
@@ -138,6 +115,7 @@ function validateStartRequest(body: Partial<ProductionStartRequest>): string | n
     return 'topic is required';
   }
 
+  // Accept 'orchestrator' for backward compatibility but route through agent
   if (!body.mode || (body.mode !== 'agent' && body.mode !== 'orchestrator')) {
     return 'mode must be "agent" or "orchestrator"';
   }
@@ -156,17 +134,6 @@ Target audience: ${request.targetAudience || 'General audience'}.
 ${request.targetDuration > 300 ? 'This is a long video, use appropriate number of scenes.' : ''}
 ${request.animateVisuals ? 'IMPORTANT: The user wants VIDEO, so you MUST use the animate_image tool for every scene.' : ''}
 ${(request.veoVideoCount || 0) > 0 ? `IMPORTANT: Use generate_visuals with veoVideoCount=${request.veoVideoCount} to generate professional videos for the first ${request.veoVideoCount} scenes.` : ''}`;
-}
-
-function mapOrchestratorErrors(errors: string[] | undefined): ToolError[] {
-  return (errors || []).map((message) => ({
-    tool: 'agent_orchestrator',
-    error: message,
-    category: 'fatal',
-    timestamp: Date.now(),
-    retryCount: 0,
-    recoverable: false,
-  }));
 }
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
@@ -271,63 +238,22 @@ async function executeProductionRun(
   try {
     await deps.initSession(sessionId);
 
-    if (request.mode === 'agent') {
-      const state = await deps.runAgent(
-        buildUserRequest(request),
-        (event) => {
-          broadcastEvent(record, normalizeProgressEvent(event, sessionId));
-        },
-        { sessionId },
-      );
+    // Both 'agent' and legacy 'orchestrator' modes now route through the
+    // supervisor+subagent architecture (agentOrchestrator.ts removed).
+    const state = await deps.runAgent(
+      buildUserRequest(request),
+      (event) => {
+        broadcastEvent(record, normalizeProgressEvent(event, sessionId));
+      },
+      { sessionId },
+    );
 
-      if (!state) {
-        throw new Error('Production agent returned no session state');
-      }
-
-      const snapshot = await deps.buildSnapshot(sessionId, state);
-      snapshots.set(sessionId, snapshot);
-    } else {
-      const result = await deps.runOrchestrator(
-        request.topic,
-        {
-          sessionId,
-          targetDuration: request.targetDuration,
-          sceneCount: Math.max(3, Math.floor(request.targetDuration / 12)),
-          targetAudience: request.targetAudience,
-          visualStyle: request.visualStyle,
-          animateVisuals: request.animateVisuals,
-          veoVideoCount: request.veoVideoCount,
-          contentPlannerConfig: {
-            videoPurpose: (request.videoPurpose || 'documentary') as any,
-            visualStyle: request.visualStyle || 'Cinematic',
-            language: request.language || 'auto',
-          },
-          narratorConfig: {
-            videoPurpose: (request.videoPurpose || 'documentary') as any,
-            language: request.language || 'auto',
-          },
-        },
-        (event) => {
-          broadcastEvent(record, normalizeProgressEvent(event, sessionId));
-        },
-      );
-
-      const state = productionStore.get(sessionId) || {
-        ...createInitialState(),
-        contentPlan: result.contentPlan,
-        validation: result.validation,
-        narrationSegments: result.narrationSegments,
-        visuals: result.visuals,
-        sfxPlan: result.sfxPlan,
-        errors: mapOrchestratorErrors(result.errors),
-        qualityScore: result.validation.score,
-        bestQualityScore: result.validation.score,
-        isComplete: result.success,
-      };
-
-      const snapshot = await deps.buildSnapshot(sessionId, state);
-      snapshots.set(sessionId, snapshot);
+    if (!state) {
+      throw new Error('Production agent returned no session state');
     }
+
+    const snapshot = await deps.buildSnapshot(sessionId, state);
+    snapshots.set(sessionId, snapshot);
 
     record.status = 'completed';
     broadcastEvent(record, {
@@ -358,7 +284,6 @@ export function createProductionRouter(
   const router = Router();
   const deps: ProductionRouteDependencies = {
     runAgent: defaultRunAgent,
-    runOrchestrator: defaultRunOrchestrator,
     buildSnapshot: buildProductionSnapshot,
     initSession: async (sessionId: string) => cloudAutosave.initSession(sessionId),
     ...overrides,

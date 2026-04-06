@@ -25,6 +25,7 @@ import {
 import { preloadAssets, clearFrameCache } from "./assetLoader";
 import { prepareAudio } from "./audioPreparation";
 import { runRenderPipeline } from "./renderPipeline";
+import { getServerRenderQuality, getFormatRenderQuality } from "./formatQuality";
 import { initExportSession, uploadFrameBatch, finalizeAndDownload, type UploadFrame } from "./exportUpload";
 import { persistExport } from "./exportPersistence";
 import { ffmpegLogger } from '../infrastructure/logger';
@@ -57,6 +58,8 @@ export interface ExportOptions {
     cloudSessionId?: string;
     userId?: string;
     projectId?: string;
+    /** Video format ID for format-aware render quality (e.g., 'documentary', 'shorts'). */
+    videoFormat?: string;
 }
 
 export interface ExportResult {
@@ -74,10 +77,16 @@ export async function exportVideoWithFFmpeg(
     config: Partial<ExportConfig> = {},
     options: ExportOptions = {}
 ): Promise<ExportResult> {
-    const { cloudSessionId, userId, projectId } = options;
+    const { cloudSessionId, userId, projectId, videoFormat } = options;
     const mergedConfig = mergeExportConfig(config);
     const { width, height } = getExportDimensions(mergedConfig);
     const qualityValue = getExportQualityValue(mergedConfig.quality);
+
+    // Apply format-aware quality when a videoFormat is specified
+    const formatQuality = videoFormat ? getServerRenderQuality(videoFormat) : null;
+    if (formatQuality) {
+        log.info(`Using format quality preset for "${videoFormat}": ${formatQuality.frameFormat}, ${formatQuality.targetFps}fps`);
+    }
 
     onProgress({ stage: "preparing", progress: 0, message: "Analyzing audio...", renderedAt: Date.now() });
 

@@ -155,16 +155,11 @@ export function isDefaultRetryable(error: Error): boolean {
 }
 
 /**
- * Retries an async function with exponential backoff.
+ * Retries an async function with exponential backoff, jitter, and AbortSignal support.
  *
- * @example
- * const result = await withRetry(
- *   async () => fetchFromAPI(),
- *   {
- *     maxRetries: 5,
- *     onRetry: (attempt, error) => console.log(`Retry ${attempt}: ${error.message}`)
- *   }
- * );
+ * @deprecated Prefer {@link withRetry} for AI API calls — it includes circuit breaker
+ * protection. agentOrchestrator.ts (the sole consumer) has been removed.
+ * This function can be deleted in a future cleanup pass.
  *
  * @param fn - Async function to retry
  * @param options - Retry configuration
@@ -581,128 +576,6 @@ export const safeLocalStorage = {
     return total * 2;
   },
 };
-
-// ============================================================
-// JSON EXTRACTION UTILITIES
-// ============================================================
-
-/**
- * Robust JSON extraction from AI responses with multiple fallback strategies.
- * Handles common LLM output patterns like markdown code blocks, wrapped text, etc.
- *
- * @example
- * const data = extractJSONFromResponse<MyType>(llmResponse);
- * if (data) {
- *   // Use the extracted data
- * }
- *
- * @param response - Raw string response from LLM
- * @returns Parsed JSON object or null if extraction failed
- */
-export function extractJSONFromResponse<T = unknown>(response: string): T | null {
-  if (!response || typeof response !== 'string') {
-    return null;
-  }
-
-  const strategies: Array<() => unknown> = [
-    // Strategy 1: Direct parse (response is pure JSON)
-    () => JSON.parse(response.trim()),
-
-    // Strategy 2: Extract from ```json ... ``` block
-    () => {
-      const match = response.match(/```json\s*([\s\S]*?)\s*```/i);
-      if (!match || !match[1]) throw new Error('No json block found');
-      return JSON.parse(match[1].trim());
-    },
-
-    // Strategy 3: Extract from ``` ... ``` block (without json tag)
-    () => {
-      const match = response.match(/```\s*([\s\S]*?)\s*```/);
-      if (!match || !match[1]) throw new Error('No code block found');
-      return JSON.parse(match[1].trim());
-    },
-
-    // Strategy 4: Find first { ... } object
-    () => {
-      const match = response.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('No object found');
-      return JSON.parse(match[0]);
-    },
-
-    // Strategy 5: Find first [ ... ] array
-    () => {
-      const match = response.match(/\[[\s\S]*\]/);
-      if (!match) throw new Error('No array found');
-      return JSON.parse(match[0]);
-    },
-
-    // Strategy 6: Remove common prefixes/suffixes and try again
-    () => {
-      const cleaned = response
-        .replace(/^[\s\S]*?(?=[\[{])/, '') // Remove everything before first [ or {
-        .replace(/[\]}][\s\S]*$/, (match) => match[0] ?? "") // Keep only up to last ] or }
-        .trim();
-      return JSON.parse(cleaned);
-    },
-
-    // Strategy 7: Fix common JSON issues and retry
-    () => {
-      let fixed = response
-        .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
-        .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // Quote unquoted keys
-        .replace(/:\s*'([^']*)'/g, ': "$1"') // Convert single quotes to double
-        .replace(/\n/g, '\\n') // Escape newlines in strings
-        .trim();
-
-      // Find the JSON part
-      const start = fixed.indexOf('{');
-      const end = fixed.lastIndexOf('}');
-      if (start === -1 || end === -1) throw new Error('No object boundaries');
-
-      return JSON.parse(fixed.substring(start, end + 1));
-    },
-  ];
-
-  for (let i = 0; i < strategies.length; i++) {
-    const strategy = strategies[i];
-    if (!strategy) continue;
-    try {
-      const result = strategy();
-      if (result !== null && result !== undefined) {
-        log.debug(`[JSONExtract] Succeeded with strategy ${i + 1}`);
-        return result as T;
-      }
-    } catch {
-      // Strategy failed, try next
-      continue;
-    }
-  }
-
-  log.warn(`[JSONExtract] All strategies failed. Response preview: ${response.substring(0, 200)}`);
-  return null;
-}
-
-/**
- * Extract JSON with schema validation using a custom validator function.
- *
- * @param response - Raw string response from LLM
- * @param validate - Validation function (e.g., Zod schema.parse)
- * @returns Validated data or null
- */
-export function extractAndValidateJSON<T>(
-  response: string,
-  validate: (data: unknown) => T
-): T | null {
-  const extracted = extractJSONFromResponse(response);
-  if (extracted === null) return null;
-
-  try {
-    return validate(extracted);
-  } catch (error) {
-    log.warn('[JSONExtract] Validation failed', error);
-    return null;
-  }
-}
 
 // ============================================================
 // ASYNC OPERATION HELPERS

@@ -53,11 +53,21 @@ const CACHE_FPS = 24;
 
 let cachedFrameBytes = 0;
 
-// Run TTL eviction on a fixed interval instead of on every cache insert (avoids O(n) scan per write).
-let _ttlEvictionTimer: ReturnType<typeof setInterval> | null = setInterval(evictExpiredEntries, 10_000);
-// Prevent the timer from keeping non-browser runtimes alive.
-if (typeof (_ttlEvictionTimer as unknown as { unref?: () => void }).unref === 'function') {
-    (_ttlEvictionTimer as unknown as { unref: () => void }).unref();
+// Lazy TTL eviction: timer starts on first cache insert, not at module load.
+// Avoids firing on the server or when no export is in progress.
+let _ttlEvictionTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Ensure the background TTL eviction timer is running.
+ * Called automatically when a frame is cached. Safe to call multiple times.
+ */
+function ensureCacheTimer(): void {
+    if (_ttlEvictionTimer !== null) return;
+    _ttlEvictionTimer = setInterval(evictExpiredEntries, 10_000);
+    // Prevent the timer from keeping non-browser runtimes alive.
+    if (typeof (_ttlEvictionTimer as unknown as { unref?: () => void }).unref === 'function') {
+        (_ttlEvictionTimer as unknown as { unref: () => void }).unref();
+    }
 }
 
 /**
@@ -141,6 +151,7 @@ function evictFrameEntries(bytesNeeded: number): void {
  * Cache a video frame
  */
 export function cacheFrame(videoSrc: string, time: number, bitmap: ImageBitmap): void {
+    ensureCacheTimer();
     const key = getFrameCacheKey(videoSrc, time);
     const bytes = estimateBitmapBytes(bitmap);
 

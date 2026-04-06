@@ -24,7 +24,6 @@ import {
 // --- Re-exports from focused modules ---
 
 export { checkResultCache } from "./resultCache";
-export { runProductionAgent } from "./agentExecutor";
 
 const log = agentLogger.child('AgentCore');
 

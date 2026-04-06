@@ -20,7 +20,14 @@ import type {
     StoryNarrationSegment,
     AnimatedShot,
 } from '@/types';
-import { runProductionAgent } from '@/services/ai/production';
+import {
+    invokeGenerateBreakdown,
+    invokeCreateScreenplay,
+    invokeGenerateCharacters,
+    invokeGenerateShotlist,
+    invokeVerifyCharacterConsistency,
+    invokeRegenerateScene,
+} from '@/services/ai/production';
 import { breakAllScenesIntoShots } from '@/services/ai/shotBreakdownAgent';
 import { storyModeStore } from '@/services/ai/production/store';
 import type { StoryModeState } from '@/services/ai/production/types';
@@ -294,20 +301,16 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Generating story breakdown...', percent: 20 });
 
         try {
-            const prompt = `Use the generate_breakdown tool to create a ${genre} story about ${inputTopic}. Return 3-5 scenes.`;
-            let capturedSessionId: string | null = null;
+            const result = await invokeGenerateBreakdown(inputTopic);
 
-            await runProductionAgent(prompt, (progress) => {
-                setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 50 });
-                // Capture sessionId from the progress callback
-                if (progress.sessionId) {
-                    capturedSessionId = progress.sessionId;
-                }
-            });
+            if (!result.success) {
+                setError(result.error || 'Breakdown generation failed');
+                return;
+            }
 
-            // Use the captured sessionId, or fall back to searching storyModeStore
-            let foundSessionId: string | null = capturedSessionId;
-            let foundState = null;
+            // The tool returns the sessionId directly
+            let foundSessionId: string | null = (result.sessionId as string) || null;
+            let foundState = foundSessionId ? storyModeStore.get(foundSessionId) : null;
 
             if (!foundSessionId) {
                 // Fallback: Find the best matching story session
@@ -331,9 +334,6 @@ export function useStoryGeneration(projectId?: string | null) {
                     foundSessionId = bestMatch.sid;
                     foundState = bestMatch.state;
                 }
-            } else {
-                // Get the state from storyModeStore using the captured sessionId
-                foundState = storyModeStore.get(foundSessionId);
             }
 
             if (foundSessionId && foundState && foundState.breakdown) {
@@ -386,16 +386,21 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: `Regenerating scene ${sceneNumber}...`, percent: 30 });
 
         try {
-            const prompt = `Using sessionId ${sessionId}, call regenerate_scene_breakdown for scene ${sceneNumber} with feedback: ${feedback}`;
-            const result = await runProductionAgent(prompt, (p) => {
-                setProgress({ message: p.message, percent: p.isComplete ? 100 : 50 });
-            });
+            setProgress({ message: `Regenerating scene ${sceneNumber}...`, percent: 40 });
+            const result = await invokeRegenerateScene(sessionId, sceneNumber, feedback);
 
-            if (result && (result as unknown as StoryAgentResult).scenes) {
-                setState((prev: StoryState) => ({
-                    ...prev,
-                    breakdown: (result as unknown as StoryAgentResult).scenes || prev.breakdown
-                }));
+            if (result.success) {
+                // Re-fetch state from storyModeStore after regeneration
+                const updatedState = storyModeStore.get(sessionId);
+                if (updatedState && updatedState.breakdown) {
+                    const scenes = parseBreakdownToScenes(updatedState.breakdown, topic || '');
+                    setState((prev: StoryState) => ({
+                        ...prev,
+                        breakdown: scenes,
+                    }));
+                }
+            } else {
+                setError(result.error || 'Scene regeneration failed');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -414,10 +419,13 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Expanding breakdown into full screenplay...', percent: 40 });
 
         try {
-            const prompt = `Using sessionId ${sessionId}, call create_screenplay with the current breakdown.`;
-            await runProductionAgent(prompt, (progress) => {
-                setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 60 });
-            });
+            setProgress({ message: 'Creating screenplay...', percent: 45 });
+            const result = await invokeCreateScreenplay(sessionId);
+
+            if (!result.success) {
+                setError(result.error || 'Screenplay generation failed');
+                return;
+            }
 
             // Fetch the screenplay from storyModeStore
             const storyState = storyModeStore.get(sessionId);
@@ -487,10 +495,13 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Extracting and visualizing characters...', percent: 60 });
 
         try {
-            const prompt = `Using sessionId ${sessionId}, call generate_characters for the current script.`;
-            await runProductionAgent(prompt, (progress) => {
-                setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 75 });
-            });
+            setProgress({ message: 'Extracting characters...', percent: 65 });
+            const result = await invokeGenerateCharacters(sessionId);
+
+            if (!result.success) {
+                setError(result.error || 'Character generation failed');
+                return;
+            }
 
             // Fetch the characters from storyModeStore
             const storyState = storyModeStore.get(sessionId);
@@ -574,10 +585,13 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Creating technical shotlist/storyboard...', percent: 80 });
 
         try {
-            const prompt = `Using sessionId ${sessionId}, call generate_shotlist for the current screenplay.`;
-            await runProductionAgent(prompt, (progress) => {
-                setProgress({ message: progress.message, percent: progress.isComplete ? 100 : 90 });
-            });
+            setProgress({ message: 'Generating shotlist...', percent: 82 });
+            const result = await invokeGenerateShotlist(sessionId);
+
+            if (!result.success) {
+                setError(result.error || 'Shotlist generation failed');
+                return;
+            }
 
             // Fetch the shotlist from storyModeStore
             const storyState = storyModeStore.get(sessionId);
@@ -754,13 +768,11 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: `Verifying consistency for ${characterName}...`, percent: 90 });
 
         try {
-            const prompt = `Using sessionId ${sessionId}, verify consistency for character ${characterName}`;
-            const result = await runProductionAgent(prompt, (p) => {
-                setProgress({ message: p.message, percent: p.isComplete ? 100 : 95 });
-            });
+            setProgress({ message: `Verifying consistency for ${characterName}...`, percent: 92 });
+            const result = await invokeVerifyCharacterConsistency(sessionId, characterName);
 
-            if (result && (result as any).report) {
-                const report = (result as any).report as ConsistencyReport;
+            if (result.success && result.report) {
+                const report = result.report as ConsistencyReport;
                 setState((prev: StoryState) => ({
                     ...prev,
                     consistencyReports: {
@@ -768,6 +780,8 @@ export function useStoryGeneration(projectId?: string | null) {
                         [characterName]: report
                     }
                 }));
+            } else if (!result.success) {
+                setError(result.error || 'Consistency verification failed');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));

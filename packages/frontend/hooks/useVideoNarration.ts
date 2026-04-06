@@ -11,7 +11,7 @@ import { ContentPlan, NarrationSegment } from "@/types";
 import { narrateScene, createAudioUrl, revokeAudioUrl, NarratorConfig } from "@/services/media/narratorService";
 import { syncDurationsToNarration } from "@/services/content/editorService";
 import { VideoPurpose } from "@/constants";
-import { ProductionProgress } from "@/services/orchestration/agentOrchestrator";
+import { ProductionProgress } from "@/services/orchestration/orchestratorTypes";
 const log = mediaLogger.child('Narration');
 
 

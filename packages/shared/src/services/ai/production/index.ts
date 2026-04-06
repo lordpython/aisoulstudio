@@ -107,12 +107,22 @@ export {
 
 // --- Agent Core ---
 export {
-    runProductionAgent,
     runProductionAgentWithSubagents,
     getProductionSession,
     clearProductionSession,
     checkResultCache,
 } from "./agentCore";
+
+// --- Story Service (direct tool invocations, replaces runProductionAgent) ---
+export {
+    invokeGenerateBreakdown,
+    invokeCreateScreenplay,
+    invokeGenerateCharacters,
+    invokeGenerateShotlist,
+    invokeVerifyCharacterConsistency,
+    invokeRegenerateScene,
+    type StoryToolResult,
+} from "./storyService";
 
 // --- Re-exports from external modules ---
 export {

@@ -380,7 +380,7 @@ export const studioAgent = new StudioAgent();
 
 // Re-export productionAgent for autonomous video creation
 export {
-  runProductionAgent,
+  runProductionAgentWithSubagents,
   getProductionSession,
   clearProductionSession,
   type ProductionProgress
