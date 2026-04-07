@@ -4,14 +4,15 @@
  */
 
 import type { DeApiResponse } from './types';
+import { DEAPI_DEFAULTS } from './models';
 import { mediaLogger } from '../../infrastructure/logger';
 
 const log = mediaLogger.child('DeAPI');
 
 export const DEAPI_DIRECT_BASE = "https://api.deapi.ai/api/v1/client";
 export const PROXY_BASE = "/api/deapi/proxy";
-export const DEFAULT_VIDEO_MODEL = "Ltx2_3_22B_Dist_INT8";
-export const DEFAULT_IMAGE_MODEL = "Flux1schnell";
+export const DEFAULT_VIDEO_MODEL = DEAPI_DEFAULTS.VIDEO_MODEL;
+export const DEFAULT_IMAGE_MODEL = DEAPI_DEFAULTS.IMAGE_MODEL;
 
 const RATE_LIMIT_MS = 60 * 1000;
 

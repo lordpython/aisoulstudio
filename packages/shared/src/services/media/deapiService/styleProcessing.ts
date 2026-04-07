@@ -13,6 +13,7 @@ import {
   pollRequest,
 } from './config';
 import { isDeApiConfigured } from './apiConfig';
+import { DEAPI_DEFAULTS } from './models';
 import type { DeApiResponse } from './types';
 import { mediaLogger } from '../../infrastructure/logger';
 
@@ -34,7 +35,7 @@ export const removeImageBackground = async (
   const imageBlob = await base64ToBlob(base64Image);
   const formData = new FormData();
   formData.append('image', imageBlob, 'image.png');
-  formData.append('model', 'Ben2');
+  formData.append('model', DEAPI_DEFAULTS.BG_REMOVAL_MODEL);
 
   let response: Response;
   if (isBrowser) {
@@ -117,7 +118,7 @@ export const applyStyleConsistency = async (
   const formData = new FormData();
   formData.append('image', imageBlob, 'reference.png');
   formData.append('prompt', enhancedPrompt);
-  formData.append('model', 'Flux_2_Klein_4B_BF16');
+  formData.append('model', DEAPI_DEFAULTS.IMG2IMG_MODEL);
   formData.append('guidance', '5');
   formData.append('steps', '4');
   formData.append('seed', '-1');

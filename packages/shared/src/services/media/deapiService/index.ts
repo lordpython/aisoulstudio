@@ -1,5 +1,6 @@
 export * from './types';
 export * from './apiConfig';
+export * from './modelDiscovery';
 export * from './imageGeneration';
 export * from './videoGeneration';
 export * from './styleProcessing';

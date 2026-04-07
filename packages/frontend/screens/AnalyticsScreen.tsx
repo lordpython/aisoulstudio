@@ -41,6 +41,10 @@ import { uiLogger } from '@/services/infrastructure/logger';
 
 const log = uiLogger.child('Analytics');
 
+const MAX_PROJECTS_PAGE_SIZE = 500;
+const MAX_EXPORTS_PAGE_SIZE = 100;
+const RECENT_PROJECTS_LIMIT = 5;
+
 interface AnalyticsData {
   totalProjects: number;
   totalExports: number;
@@ -146,7 +150,7 @@ export default function AnalyticsScreen() {
 
     (async () => {
       try {
-        const projects = await listUserProjects(500);
+        const projects = await listUserProjects(MAX_PROJECTS_PAGE_SIZE);
 
         const projectsByType: Record<string, number> = {};
         const exportsByFormat: Record<string, number> = {};
@@ -163,7 +167,7 @@ export default function AnalyticsScreen() {
             durationCount++;
           }
 
-          const exports = await getExportHistory(project.id, 100);
+          const exports = await getExportHistory(project.id, MAX_EXPORTS_PAGE_SIZE);
           totalExports += exports.length;
 
           for (const exp of exports) {
@@ -178,7 +182,7 @@ export default function AnalyticsScreen() {
           projectsByType,
           exportsByFormat,
           exportsByQuality,
-          recentProjects: projects.slice(0, 5),
+          recentProjects: projects.slice(0, RECENT_PROJECTS_LIMIT),
           favoriteCount: projects.filter(p => p.isFavorite).length,
           avgDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
           completedCount: projects.filter(p => p.status === 'completed').length,
@@ -222,17 +226,17 @@ export default function AnalyticsScreen() {
         <div className="space-y-8">
           {/* Top Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <MetricCard icon={FolderOpen} label="Projects" value={data.totalProjects} delay={0} />
-            <MetricCard icon={FileVideo} label="Exports" value={data.totalExports} delay={0.05} />
-            <MetricCard icon={Target} label="Completed" value={data.completedCount} delay={0.1} />
-            <MetricCard icon={Star} label="Favorites" value={data.favoriteCount} color="text-amber-400" delay={0.15} />
+            <MetricCard icon={FolderOpen} label={t('analytics.projects') || 'Projects'} value={data.totalProjects} delay={0} />
+            <MetricCard icon={FileVideo} label={t('analytics.exports') || 'Exports'} value={data.totalExports} delay={0.05} />
+            <MetricCard icon={Target} label={t('analytics.completed') || 'Completed'} value={data.completedCount} delay={0.1} />
+            <MetricCard icon={Star} label={t('analytics.favorites') || 'Favorites'} value={data.favoriteCount} color="text-amber-400" delay={0.15} />
             <MetricCard
               icon={Clock}
-              label="Avg Duration"
+              label={t('analytics.avgDuration') || 'Avg Duration'}
               value={data.avgDuration > 0 ? `${Math.round(data.avgDuration / 60)}m` : '—'}
               delay={0.2}
             />
-            <MetricCard icon={TrendingUp} label="With Visuals" value={data.hasVisualsCount} delay={0.25} />
+            <MetricCard icon={TrendingUp} label={t('analytics.withVisuals') || 'With Visuals'} value={data.hasVisualsCount} delay={0.25} />
           </div>
 
           {/* Charts Row */}
@@ -242,7 +246,7 @@ export default function AnalyticsScreen() {
               <div className="p-5 rounded-xl bg-secondary/50 border border-border space-y-4">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Activity className="w-4 h-4 text-primary" />
-                  Projects by Mode
+                  {t('analytics.projectsByMode') || 'Projects by Mode'}
                 </h3>
                 <div className="space-y-3">
                   {Object.entries(data.projectsByType).map(([type, count]) => (
@@ -255,7 +259,7 @@ export default function AnalyticsScreen() {
                     />
                   ))}
                   {Object.keys(data.projectsByType).length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No data yet</p>
+                    <p className="text-xs text-muted-foreground text-center py-4">{t('analytics.noData') || 'No data yet'}</p>
                   )}
                 </div>
               </div>
@@ -266,7 +270,7 @@ export default function AnalyticsScreen() {
               <div className="p-5 rounded-xl bg-secondary/50 border border-border space-y-4">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Film className="w-4 h-4 text-primary" />
-                  Exports by Format
+                  {t('analytics.exportsByFormat') || 'Exports by Format'}
                 </h3>
                 <div className="space-y-3">
                   {Object.entries(data.exportsByFormat).map(([format, count]) => (
@@ -279,7 +283,7 @@ export default function AnalyticsScreen() {
                     />
                   ))}
                   {Object.keys(data.exportsByFormat).length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No exports yet</p>
+                    <p className="text-xs text-muted-foreground text-center py-4">{t('analytics.noExports') || 'No exports yet'}</p>
                   )}
                 </div>
               </div>
@@ -290,7 +294,7 @@ export default function AnalyticsScreen() {
               <div className="p-5 rounded-xl bg-secondary/50 border border-border space-y-4">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  Quality Distribution
+                  {t('analytics.qualityDistribution') || 'Quality Distribution'}
                 </h3>
                 <div className="space-y-3">
                   {Object.entries(data.exportsByQuality).map(([quality, count]) => (
@@ -303,7 +307,7 @@ export default function AnalyticsScreen() {
                     />
                   ))}
                   {Object.keys(data.exportsByQuality).length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No exports yet</p>
+                    <p className="text-xs text-muted-foreground text-center py-4">{t('analytics.noExports') || 'No exports yet'}</p>
                   )}
                 </div>
               </div>
@@ -315,14 +319,14 @@ export default function AnalyticsScreen() {
             <div className="p-5 rounded-xl bg-secondary/50 border border-border">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
                 <Zap className="w-4 h-4 text-primary" />
-                Pipeline Completion
+                {t('analytics.pipelineCompletion') || 'Pipeline Completion'}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Has Visuals', count: data.hasVisualsCount, icon: '🎨' },
-                  { label: 'Has Narration', count: data.hasNarrationCount, icon: '🎙️' },
-                  { label: 'Has Music', count: data.hasMusicCount, icon: '🎵' },
-                  { label: 'Exported', count: data.totalExports > 0 ? data.totalExports : 0, icon: '📦' },
+                  { label: t('analytics.hasVisuals') || 'Has Visuals', count: data.hasVisualsCount, icon: '🎨' },
+                  { label: t('analytics.hasNarration') || 'Has Narration', count: data.hasNarrationCount, icon: '🎙️' },
+                  { label: t('analytics.hasMusic') || 'Has Music', count: data.hasMusicCount, icon: '🎵' },
+                  { label: t('analytics.exported') || 'Exported', count: data.totalExports > 0 ? data.totalExports : 0, icon: '📦' },
                 ].map(({ label, count, icon }) => (
                   <div key={label} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.02]">
                     <span className="text-xl">{icon}</span>
@@ -341,10 +345,10 @@ export default function AnalyticsScreen() {
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <BarChart3 className="w-12 h-12 text-muted-foreground opacity-20" />
               <p className="text-sm text-muted-foreground">
-                Start creating videos to see your analytics here
+                {t('analytics.emptyState') || 'Start creating videos to see your analytics here'}
               </p>
               <Button variant="outline" size="sm" onClick={() => navigate('/studio?mode=video')}>
-                Create your first video
+                {t('analytics.createFirst') || 'Create your first video'}
               </Button>
             </div>
           )}

@@ -2,6 +2,9 @@
  * DeAPI public types and interfaces
  */
 
+export type { DeApiImageModel, DeApiTtsModel } from './models';
+export { DEAPI_TTS_MODELS, IMAGE_MODEL_RECOMMENDATIONS as MODEL_RECOMMENDATIONS } from './models';
+
 export type DeApiTier = "basic" | "premium" | "unknown";
 
 export interface DeApiResponse {
@@ -13,20 +16,9 @@ export interface DeApiResponse {
   error?: string;
 }
 
-export type DeApiImageModel =
-  | "Flux1schnell"
-  | "Flux_2_Klein_4B_BF16"
-  | "ZImageTurbo_INT8";
-
-export const MODEL_RECOMMENDATIONS = {
-  speed: "Flux1schnell" as DeApiImageModel,
-  storyboard: "Flux_2_Klein_4B_BF16" as DeApiImageModel,
-  quality: "ZImageTurbo_INT8" as DeApiImageModel,
-} as const;
-
 export interface Txt2ImgParams {
   prompt: string;
-  model?: DeApiImageModel;
+  model?: import('./models').DeApiImageModel;
   width?: number;
   height?: number;
   guidance?: number;
@@ -79,7 +71,7 @@ export interface BatchGenerationItem {
   id: string;
   prompt: string;
   aspectRatio?: "16:9" | "9:16" | "1:1";
-  model?: DeApiImageModel;
+  model?: import('./models').DeApiImageModel;
   negativePrompt?: string;
 }
 
@@ -98,8 +90,3 @@ export interface BatchGenerationProgress {
   results: BatchGenerationResult[];
 }
 
-export const DEAPI_TTS_MODELS = {
-  QWEN3_VOICE_DESIGN: "Qwen3_TTS_12Hz_1_7B_VoiceDesign",
-} as const;
-
-export type DeApiTtsModel = typeof DEAPI_TTS_MODELS[keyof typeof DEAPI_TTS_MODELS];

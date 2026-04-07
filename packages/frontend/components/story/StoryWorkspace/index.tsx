@@ -933,7 +933,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onSelectAspectRatio={(ratio) => onUpdateAspectRatio?.(ratio)}
                                         imageProvider={storyState.imageProvider || 'gemini'}
                                         onSelectImageProvider={onUpdateImageProvider}
-                                        deapiImageModel={storyState.deapiImageModel}
+                                        deapiImageModel={storyState.deapiImageModel as import('@/services/media/deapiService/models').DeApiImageModel | undefined}
                                         onSelectDeapiImageModel={onUpdateDeapiImageModel}
                                         applyStyleConsistency={storyState.applyStyleConsistency}
                                         onToggleStyleConsistency={onUpdateStyleConsistency}

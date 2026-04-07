@@ -33,12 +33,14 @@ import { uiLogger } from '@/services/infrastructure/logger';
 
 const log = uiLogger.child('Preview');
 
+const SKIP_SECONDS = 5;
+
 type AspectMode = '16:9' | '9:16' | '1:1';
 
-const ASPECT_OPTIONS: { mode: AspectMode; icon: typeof Monitor; label: string }[] = [
-  { mode: '16:9', icon: Monitor, label: 'Landscape' },
-  { mode: '9:16', icon: Smartphone, label: 'Portrait' },
-  { mode: '1:1', icon: Square, label: 'Square' },
+const ASPECT_OPTIONS: { mode: AspectMode; icon: typeof Monitor; labelKey: string; fallback: string }[] = [
+  { mode: '16:9', icon: Monitor, labelKey: 'preview.landscape', fallback: 'Landscape' },
+  { mode: '9:16', icon: Smartphone, labelKey: 'preview.portrait', fallback: 'Portrait' },
+  { mode: '1:1', icon: Square, labelKey: 'preview.square', fallback: 'Square' },
 ];
 
 export default function PreviewScreen() {
@@ -130,7 +132,7 @@ export default function PreviewScreen() {
     <div className="flex items-center gap-2">
       {/* Aspect Ratio Toggle */}
       <div className="flex items-center bg-secondary border border-border rounded-lg p-0.5">
-        {ASPECT_OPTIONS.map(({ mode, icon: Icon, label }) => (
+        {ASPECT_OPTIONS.map(({ mode, icon: Icon, labelKey, fallback }) => (
           <Button
             key={mode}
             variant="ghost"
@@ -142,7 +144,7 @@ export default function PreviewScreen() {
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
-            title={label}
+            title={t(labelKey) || fallback}
           >
             <Icon className="w-3.5 h-3.5" />
           </Button>
@@ -219,7 +221,7 @@ export default function PreviewScreen() {
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-            onClick={() => setCurrentTime(Math.max(0, currentTime - 5))}
+            onClick={() => setCurrentTime(Math.max(0, currentTime - SKIP_SECONDS))}
           >
             <SkipBack className="w-4 h-4" />
           </Button>
@@ -242,7 +244,7 @@ export default function PreviewScreen() {
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-            onClick={() => setCurrentTime(Math.min(duration, currentTime + 5))}
+            onClick={() => setCurrentTime(Math.min(duration, currentTime + SKIP_SECONDS))}
           >
             <SkipForward className="w-4 h-4" />
           </Button>

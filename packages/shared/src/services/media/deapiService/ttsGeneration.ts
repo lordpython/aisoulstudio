@@ -4,7 +4,7 @@
 
 import { DEAPI_DIRECT_BASE, isBrowser, API_KEY, withExponentialBackoff } from './config';
 import { isDeApiConfigured } from './apiConfig';
-import { DEAPI_TTS_MODELS } from './types';
+import { DEAPI_TTS_MODELS, TTS_MODEL_META, DEAPI_DEFAULTS } from './models';
 import { mediaLogger } from '../../infrastructure/logger';
 
 const log = mediaLogger.child('DeAPI:TTS');
@@ -13,7 +13,7 @@ export async function generateDeapiQwenTTS(
     text: string,
     directorNote: string,
     language: string = "English",
-    model: string = "Qwen3_TTS_12Hz_1_7B_VoiceDesign"
+    model: string = DEAPI_DEFAULTS.TTS_MODEL;
 ): Promise<Blob> {
     if (!isDeApiConfigured()) {
         throw new Error(
@@ -86,18 +86,7 @@ export async function generateDeapiQwenTTS(
     return new Blob([arrayBuffer], { type: 'audio/mpeg' });
 }
 
-export const getDeApiTtsModels = () => ({
-    [DEAPI_TTS_MODELS.QWEN3_VOICE_DESIGN]: {
-        name: "Qwen3 VoiceDesign",
-        description: "12Hz 1.7B model with voice design capabilities",
-        supportsVoiceDesign: true,
-        maxChars: 5000,
-        minChars: 10,
-        languages: ["English", "Arabic", "Chinese", "Spanish", "French", "German", "Russian", "Japanese", "Korean"],
-        sampleRate: 24000,
-        format: "mp3"
-    },
-});
+export const getDeApiTtsModels = () => TTS_MODEL_META;
 
 export const mapLanguageToDeApiFormat = (languageCode?: string): string => {
     if (!languageCode || languageCode === 'auto') return "English";

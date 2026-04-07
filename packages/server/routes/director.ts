@@ -9,7 +9,7 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
         const { srtContent, style, contentType, videoPurpose, globalSubject, config } = req.body;
         directorLog.info(`Generating prompts for ${contentType} (${style})`);
 
-        const { generatePromptsWithLangChain } = await import('@studio/shared/src/services/directorService.js');
+        const { generatePromptsWithLangChain } = await import('@studio/shared/src/services/content/directorService/index.js');
         const prompts = await generatePromptsWithLangChain(srtContent, style, contentType, videoPurpose, globalSubject, config);
 
         res.json({ success: true, prompts });

@@ -5,7 +5,8 @@ import { DEAPI_API_KEY, MAX_SINGLE_FILE } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import fs from 'fs';
 import multer from 'multer';
-import type { Txt2ImgParams, DeApiImageModel } from '@studio/shared/src/services/media/deapiService.js';
+import type { Txt2ImgParams, DeApiImageModel } from '@studio/shared/src/services/media/deapiService/index.js';
+import { DEAPI_DEFAULTS } from '@studio/shared/src/services/media/deapiService/models.js';
 import {
     buildProxyUrl,
     createDeprecatedRouteMiddleware,
@@ -21,15 +22,10 @@ import {
 // Input schemas (Zod) — validate at the route boundary before any processing
 // ---------------------------------------------------------------------------
 
-const DEAPI_IMAGE_MODELS = [
-    'Flux1schnell', 'Flux1dev', 'Flux2Ultra', 'Flux_2_Klein_4B_BF16',
-    'SDXLLightning', 'SDXL', 'SD35Large', 'Ideogram',
-] as const;
-
 const ImageGenerationSchema = z.object({
     prompt: z.string().min(1, 'prompt must not be empty').max(2000),
     options: z.object({
-        model: z.enum(DEAPI_IMAGE_MODELS).optional(),
+        model: z.string().max(100).optional(),
     }).passthrough().optional().default({}),
 });
 
@@ -93,6 +89,7 @@ const DEAPI_PROXY_RULES: ProxyEndpointRule[] = [
     { methods: ['POST'], pattern: /^txt2img$/ },
     { methods: ['GET'], pattern: /^request-status\/[A-Za-z0-9_-]+$/ },
     { methods: ['POST'], pattern: /^predict$/ },
+    { methods: ['GET'], pattern: /^models$/ },
 ];
 
 function getWebhookSecret(): string | undefined {
@@ -129,12 +126,12 @@ router.post('/image', deprecatedImageRoute, async (req: ApiProxyRequest, res: Re
     const { prompt, options } = body;
 
     try {
-        const { generateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
+        const { generateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService/index.js');
 
         const params: Txt2ImgParams = {
             ...options,
             prompt,
-            model: (options?.model as DeApiImageModel) || 'Flux1schnell',
+            model: (options?.model as DeApiImageModel) || DEAPI_DEFAULTS.IMAGE_MODEL,
         };
 
         const result = await generateImageWithDeApi(params);
@@ -159,7 +156,7 @@ router.post('/animate', deprecatedAnimateRoute, async (req: ApiProxyRequest, res
     const { imageUrl, options } = body;
 
     try {
-        const { animateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService.js');
+        const { animateImageWithDeApi } = await import('@studio/shared/src/services/media/deapiService/index.js');
 
         const aspectRatio = options.aspectRatio ?? '16:9';
         const result = await animateImageWithDeApi(imageUrl, options.prompt, aspectRatio);
@@ -253,7 +250,7 @@ router.post('/txt2video', async (req: Request, res: Response): Promise<void> => 
             },
             body: JSON.stringify({
                 prompt,
-                model: model ?? 'Ltxv_13B_0_9_8_Distilled_FP8',
+                model: model ?? DEAPI_DEFAULTS.VIDEO_MODEL,
                 width: width ?? 768,
                 height: height ?? 432,
                 guidance: guidance ?? 0,
@@ -293,7 +290,7 @@ router.post('/img-rmbg', upload.single('image'), async (req: Request, res: Respo
 
         const formData = new FormData();
         formData.append('image', blob, req.file.originalname || 'image.png');
-        formData.append('model', req.body.model || 'Ben2');
+        formData.append('model', req.body.model || DEAPI_DEFAULTS.BG_REMOVAL_MODEL);
 
         if (req.body.webhook_url) {
             formData.append('webhook_url', req.body.webhook_url);
@@ -348,7 +345,7 @@ router.post('/img2img', upload.single('image'), async (req: Request, res: Respon
         });
 
         // Defaults
-        if (!req.body.model) formData.append('model', 'Flux_2_Klein_4B_BF16');
+        if (!req.body.model) formData.append('model', DEAPI_DEFAULTS.IMG2IMG_MODEL);
         if (!req.body.guidance) formData.append('guidance', '5');
         if (!req.body.steps) formData.append('steps', '4');
 
@@ -493,7 +490,7 @@ router.post('/batch', deprecatedBatchRoute, async (req: Request, res: Response):
     const { items, concurrency } = batchBody;
 
     try {
-        const { generateImageBatch } = await import('@studio/shared/src/services/media/deapiService.js');
+        const { generateImageBatch } = await import('@studio/shared/src/services/media/deapiService/index.js');
 
         const results = await generateImageBatch(
             items as Parameters<typeof generateImageBatch>[0],
@@ -576,6 +573,48 @@ router.post('/prompt/:type', async (req: Request, res: Response): Promise<void> 
         const err = error as Error;
         deapiLog.error(`Prompt enhancement (${req.params.type}) error:`, err);
         res.status(500).json({ error: err.message || 'Prompt enhancement failed' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// GET /models — Proxy deAPI model list for browser consumption
+// ---------------------------------------------------------------------------
+
+router.get('/models', async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured on server' });
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams();
+        if (typeof req.query['filter[inference_types]'] === 'string') {
+            params.set('filter[inference_types]', req.query['filter[inference_types]']);
+        }
+        if (typeof req.query.per_page === 'string') {
+            params.set('per_page', req.query.per_page);
+        }
+        if (typeof req.query.page === 'string') {
+            params.set('page', req.query.page);
+        }
+
+        const qs = params.toString();
+        const deapiUrl = `https://api.deapi.ai/api/v1/client/models${qs ? `?${qs}` : ''}`;
+
+        const response = await fetch(deapiUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${DEAPI_API_KEY}`,
+                'Accept': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        const err = error as Error;
+        deapiLog.error('Models proxy error:', err);
+        res.status(500).json({ error: err.message || 'DeAPI models fetch failed' });
     }
 });
 

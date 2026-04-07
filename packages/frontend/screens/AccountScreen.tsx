@@ -42,6 +42,11 @@ interface ApiKeyConfig {
   docsUrl?: string;
 }
 
+const COPY_FEEDBACK_MS = 1500;
+const MASK_LENGTH = 20;
+const MASK_PREVIEW_LENGTH = 6;
+const UID_PREVIEW_LENGTH = 16;
+
 const API_KEYS: ApiKeyConfig[] = [
   {
     label: 'Gemini API Key',
@@ -80,19 +85,19 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof FolderOpen; label
   );
 }
 
-function ApiKeyRow({ config }: { config: ApiKeyConfig }) {
+function ApiKeyRow({ config, t }: { config: ApiKeyConfig; t: (key: string) => string }) {
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const currentValue = (import.meta as any).env?.[config.envKey] || '';
   const isSet = Boolean(currentValue);
-  const maskedValue = isSet ? `${currentValue.slice(0, 6)}${'•'.repeat(20)}` : '';
+  const maskedValue = isSet ? `${currentValue.slice(0, MASK_PREVIEW_LENGTH)}${'•'.repeat(MASK_LENGTH)}` : '';
 
   const handleCopy = useCallback(() => {
     if (currentValue) {
       navigator.clipboard.writeText(currentValue);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     }
   }, [currentValue]);
 
@@ -103,7 +108,7 @@ function ApiKeyRow({ config }: { config: ApiKeyConfig }) {
         <div>
           <p className="text-sm font-medium text-foreground">{config.label}</p>
           <p className="text-xs text-muted-foreground font-mono">
-            {isSet ? (showKey ? currentValue : maskedValue) : 'Not configured'}
+            {isSet ? (showKey ? currentValue : maskedValue) : (t('account.notConfigured') || 'Not configured')}
           </p>
         </div>
       </div>
@@ -131,7 +136,7 @@ function ApiKeyRow({ config }: { config: ApiKeyConfig }) {
             ? 'bg-green-500/10 text-green-400 border border-green-500/20'
             : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
         )}>
-          {isSet ? 'Active' : 'Missing'}
+          {isSet ? (t('account.keyActive') || 'Active') : (t('account.keyMissing') || 'Missing')}
         </span>
       </div>
     </div>
@@ -205,7 +210,7 @@ export default function AccountScreen() {
                 )}
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-foreground">
-                    {user?.displayName || t('account.unnamed') || 'Anonymous User'}
+                    {user?.displayName || t('account.anonymous') || 'Anonymous User'}
                   </h3>
                   <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
                     <Mail className="w-3.5 h-3.5" />
@@ -244,7 +249,7 @@ export default function AccountScreen() {
               <StatCard
                 icon={Video}
                 label={t('account.storageUsed') || 'Account Type'}
-                value={user?.email?.includes('google') ? 'Google' : 'Email'}
+                value={user?.email?.includes('google') ? (t('account.googleAuth') || 'Google') : (t('account.emailAuth') || 'Email')}
               />
             </div>
           </motion.section>
@@ -269,7 +274,7 @@ export default function AccountScreen() {
             </div>
             <div className="p-5 rounded-xl bg-secondary/50 border border-border">
               {API_KEYS.map((config) => (
-                <ApiKeyRow key={config.envKey} config={config} />
+                <ApiKeyRow key={config.envKey} config={config} t={t} />
               ))}
             </div>
           </motion.section>
@@ -287,11 +292,11 @@ export default function AccountScreen() {
             <div className="p-5 rounded-xl bg-secondary/50 border border-border space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('account.provider') || 'Auth Provider'}</span>
-                <span className="text-foreground font-medium">Firebase</span>
+                <span className="text-foreground font-medium">{t('account.firebase') || 'Firebase'}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('account.uid') || 'User ID'}</span>
-                <span className="text-foreground font-mono text-xs">{user?.uid?.slice(0, 16)}...</span>
+                <span className="text-foreground font-mono text-xs">{user?.uid?.slice(0, UID_PREVIEW_LENGTH)}...</span>
               </div>
             </div>
           </motion.section>

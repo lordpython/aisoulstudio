@@ -35,12 +35,14 @@ import { uiLogger } from '@/services/infrastructure/logger';
 
 const log = uiLogger.child('ProjectSettings');
 
+const SAVE_FEEDBACK_MS = 2000;
+
 type AspectPreset = '16:9' | '9:16' | '1:1';
 
-const ASPECT_PRESETS: { value: AspectPreset; label: string; icon: typeof Monitor }[] = [
-  { value: '16:9', label: 'Landscape (16:9)', icon: Monitor },
-  { value: '9:16', label: 'Portrait (9:16)', icon: Smartphone },
-  { value: '1:1', label: 'Square (1:1)', icon: Square },
+const ASPECT_PRESETS: { value: AspectPreset; labelKey: string; fallback: string; icon: typeof Monitor }[] = [
+  { value: '16:9', labelKey: 'settings.landscape', fallback: 'Landscape (16:9)', icon: Monitor },
+  { value: '9:16', labelKey: 'settings.portrait', fallback: 'Portrait (9:16)', icon: Smartphone },
+  { value: '1:1', labelKey: 'settings.square', fallback: 'Square (1:1)', icon: Square },
 ];
 
 const VISUAL_STYLES = [
@@ -48,10 +50,10 @@ const VISUAL_STYLES = [
   'Digital Art', 'Oil Painting', 'Pixel Art', 'Minimalist',
 ];
 
-const LANGUAGES = [
-  { code: 'auto', label: 'Auto-detect' },
-  { code: 'en', label: 'English' },
-  { code: 'ar', label: 'Arabic (العربية)' },
+const LANGUAGES: { code: string; labelKey: string; fallback: string }[] = [
+  { code: 'auto', labelKey: 'settings.langAuto', fallback: 'Auto-detect' },
+  { code: 'en', labelKey: 'settings.langEnglish', fallback: 'English' },
+  { code: 'ar', labelKey: 'settings.langArabic', fallback: 'Arabic (العربية)' },
 ];
 
 interface FormState {
@@ -101,11 +103,11 @@ export default function ProjectSettingsScreen() {
             visualStyle: p.style || 'Cinematic',
           });
         } else {
-          setError('Project not found');
+          setError(t('settings.errors.notFound') || 'Project not found');
         }
       } catch (err) {
         log.error('Failed to load project', err);
-        setError('Failed to load project');
+        setError(t('settings.errors.loadFailed') || 'Failed to load project');
       } finally {
         setIsLoading(false);
       }
@@ -124,11 +126,11 @@ export default function ProjectSettingsScreen() {
         style: form.visualStyle,
       });
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
+      setTimeout(() => setSaveSuccess(false), SAVE_FEEDBACK_MS);
       log.info(`Saved settings for project ${projectId}`);
     } catch (err) {
       log.error('Failed to save settings', err);
-      setError('Failed to save settings');
+      setError(t('settings.errors.saveFailed') || 'Failed to save settings');
     } finally {
       setIsSaving(false);
     }
@@ -144,7 +146,7 @@ export default function ProjectSettingsScreen() {
       navigate('/projects');
     } catch (err) {
       log.error('Failed to delete project', err);
-      setError('Failed to delete project');
+      setError(t('settings.errors.deleteFailed') || 'Failed to delete project');
       setIsDeleting(false);
     }
   }, [projectId, navigate]);
@@ -215,7 +217,7 @@ export default function ProjectSettingsScreen() {
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="My Video Project"
+                placeholder={t('settings.namePlaceholder') || 'My Video Project'}
                 className="bg-background"
               />
             </div>
@@ -226,7 +228,7 @@ export default function ProjectSettingsScreen() {
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Optional description..."
+                placeholder={t('settings.descriptionPlaceholder') || 'Optional description...'}
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
               />
@@ -250,7 +252,7 @@ export default function ProjectSettingsScreen() {
                 {t('settings.aspectRatio') || 'Aspect Ratio'}
               </label>
               <div className="flex gap-2">
-                {ASPECT_PRESETS.map(({ value, label, icon: Icon }) => (
+                {ASPECT_PRESETS.map(({ value, labelKey, fallback, icon: Icon }) => (
                   <Button
                     key={value}
                     variant={form.aspectRatio === value ? 'default' : 'outline'}
@@ -259,7 +261,7 @@ export default function ProjectSettingsScreen() {
                     className="gap-2"
                   >
                     <Icon className="w-4 h-4" />
-                    {label}
+                    {t(labelKey) || fallback}
                   </Button>
                 ))}
               </div>
@@ -272,14 +274,14 @@ export default function ProjectSettingsScreen() {
                 {t('settings.language') || 'Language'}
               </label>
               <div className="flex gap-2">
-                {LANGUAGES.map(({ code, label }) => (
+                {LANGUAGES.map(({ code, labelKey, fallback }) => (
                   <Button
                     key={code}
                     variant={form.language === code ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setForm({ ...form, language: code })}
                   >
-                    {label}
+                    {t(labelKey) || fallback}
                   </Button>
                 ))}
               </div>

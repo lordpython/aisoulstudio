@@ -12,6 +12,13 @@ import {
     type VisualStyleKey,
     type AspectRatioId,
 } from '@/constants/visualStyles';
+import {
+    DEAPI_IMAGE_MODELS,
+    DEAPI_DEFAULTS,
+    IMAGE_MODEL_META,
+    type DeApiImageModel,
+} from '@/services/media/deapiService/models';
+import { useDeApiModels } from '@/hooks/useDeApiModels';
 
 interface StyleSelectorProps {
     selectedStyle: VisualStyleKey;
@@ -20,8 +27,8 @@ interface StyleSelectorProps {
     onSelectAspectRatio: (ratio: AspectRatioId) => void;
     imageProvider?: 'gemini' | 'deapi';
     onSelectImageProvider?: (provider: 'gemini' | 'deapi') => void;
-    deapiImageModel?: string;
-    onSelectDeapiImageModel?: (model: string) => void;
+    deapiImageModel?: DeApiImageModel;
+    onSelectDeapiImageModel?: (model: DeApiImageModel) => void;
     applyStyleConsistency?: boolean;
     onToggleStyleConsistency?: (enabled: boolean) => void;
     animateWithBgRemoval?: boolean;
@@ -35,13 +42,14 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     onSelectAspectRatio,
     imageProvider = 'gemini',
     onSelectImageProvider,
-    deapiImageModel = 'Flux_2_Klein_4B_BF16',
+    deapiImageModel = DEAPI_DEFAULTS.IMG2IMG_MODEL,
     onSelectDeapiImageModel,
     applyStyleConsistency = false,
     onToggleStyleConsistency,
     animateWithBgRemoval = false,
     onToggleBgRemoval,
 }) => {
+    const { imageModels: discoveredImageModels } = useDeApiModels();
     const styles = Object.values(VISUAL_STYLES);
 
     const stylesByCategory = {
@@ -117,9 +125,14 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                     <div className="flex flex-wrap gap-3">
                         {([
                             { provider: 'gemini' as const, model: null, label: 'Imagen 4', desc: 'Google AI (default)' },
-                            { provider: 'deapi' as const, model: 'Flux1schnell', label: 'FLUX Schnell', desc: 'DeAPI, fastest' },
-                            { provider: 'deapi' as const, model: 'Flux_2_Klein_4B_BF16', label: 'FLUX.2 Klein', desc: 'DeAPI, fast + guided' },
-                            { provider: 'deapi' as const, model: 'ZImageTurbo_INT8', label: 'ZImage Turbo', desc: 'DeAPI, photorealistic' },
+                            ...discoveredImageModels.map((dm) => ({
+                                provider: 'deapi' as const,
+                                model: dm.slug,
+                                label: dm.name,
+                                desc: dm.source === 'api'
+                                    ? dm.inferenceTypes.map(t => t).join(', ')
+                                    : (IMAGE_MODEL_META[dm.slug as DeApiImageModel]?.description ?? dm.name),
+                            })),
                         ]).map((option) => {
                             const isSelected = option.provider === 'gemini'
                                 ? imageProvider === 'gemini'
@@ -130,7 +143,7 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                                     onClick={() => {
                                         onSelectImageProvider(option.provider);
                                         if (option.model && onSelectDeapiImageModel) {
-                                            onSelectDeapiImageModel(option.model);
+                                            onSelectDeapiImageModel(option.model as DeApiImageModel);
                                         }
                                     }}
                                     className={`

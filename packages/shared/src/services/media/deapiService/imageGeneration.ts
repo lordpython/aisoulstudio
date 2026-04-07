@@ -4,6 +4,7 @@
 
 import { API_BASE, isBrowser, API_KEY, getDeApiDimensions, pollRequest, Semaphore } from './config';
 import { isDeApiConfigured } from './apiConfig';
+import { DEAPI_DEFAULTS } from './models';
 import { mediaLogger } from '../../infrastructure/logger';
 
 import type {
@@ -32,7 +33,7 @@ export const generateImageWithDeApi = async (
 
   const {
     prompt,
-    model = "Flux1schnell",
+    model = DEAPI_DEFAULTS.IMAGE_MODEL,
     width = 768,
     height = 768,
     guidance = 7.5,
@@ -125,7 +126,7 @@ export const generateImageWithDeApi = async (
 export const generateImageWithAspectRatio = async (
   prompt: string,
   aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
-  model: DeApiImageModel = "Flux1schnell",
+  model: DeApiImageModel = DEAPI_DEFAULTS.IMAGE_MODEL,
   negativePrompt?: string
 ): Promise<string> => {
   const dimensions = getDeApiDimensions(aspectRatio);
@@ -169,7 +170,7 @@ export const generateImageBatch = async (
       const imageUrl = await generateImageWithAspectRatio(
         item.prompt,
         item.aspectRatio || "16:9",
-        item.model || "Flux1schnell",
+        item.model || DEAPI_DEFAULTS.IMAGE_MODEL,
         item.negativePrompt
       );
 

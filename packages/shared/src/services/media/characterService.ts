@@ -105,11 +105,11 @@ export async function generateCharacterReference(
     const negativePrompt = guide.avoid.map(item => `no ${item}`).join(", ");
 
     const seed = getCharacterSeed(charName);
-    log.info(`Generating reference sheet for: ${charName} (DeAPI Flux_2_Klein_4B_BF16, seed=${seed}, style=${style})`);
+    log.info(`Generating reference sheet for: ${charName} (DeAPI ${DEAPI_DEFAULTS.IMG2IMG_MODEL}, seed=${seed}, style=${style})`);
 
     return generateImageWithDeApi({
         prompt,
-        model: "Flux_2_Klein_4B_BF16",
+        model: DEAPI_DEFAULTS.IMG2IMG_MODEL,
         width: 768,
         height: 768,
         guidance: 3.5,

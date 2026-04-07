@@ -42,6 +42,7 @@ import {
 } from '@/services/media/narratorService';
 import { generateVideoFromPrompt } from '@/services/media/videoService';
 import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency, type DeApiImageModel } from '@/services/media/deapiService';
+import { DEAPI_DEFAULTS } from '@/services/media/deapiService/models';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/media/characterService';
 import { cloudAutosave } from '@/services/cloud/cloudStorageService';
@@ -1074,7 +1075,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     const firstResult = await generateImageWithAspectRatio(
                         buildShotPrompt(firstShot),
                         (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                        (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
+                        (state.deapiImageModel || DEAPI_DEFAULTS.IMG2IMG_MODEL) as DeApiImageModel,
                         undefined, // negativePrompt — style guide handles avoid
                     );
                     await processShotResult(firstShot, firstResult);
@@ -1103,7 +1104,7 @@ export function useStoryGeneration(projectId?: string | null) {
                         id: shot.id,
                         prompt: buildShotPrompt(shot), // Now includes extractedStyleOverride
                         aspectRatio: (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                        model: (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
+                        model: (state.deapiImageModel || DEAPI_DEFAULTS.IMG2IMG_MODEL) as DeApiImageModel,
                         seed: getShotSeed(shot),
                     }));
 
@@ -1312,7 +1313,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 imageUrl = await generateImageWithAspectRatio(
                     guidePrompt,
                     (state.aspectRatio || '16:9') as '16:9' | '9:16' | '1:1',
-                    (state.deapiImageModel || 'Flux_2_Klein_4B_BF16') as DeApiImageModel,
+                    (state.deapiImageModel || DEAPI_DEFAULTS.IMG2IMG_MODEL) as DeApiImageModel,
                     negativePrompt,
                 );
             } else {

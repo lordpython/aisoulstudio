@@ -26,6 +26,8 @@ import { BlurFade } from '@/components/motion-primitives/blur-fade';
 import { formatRegistry } from '@/services/format/formatRegistry';
 import type { FormatMetadata } from '@/types';
 
+const MAX_VISIBLE_GENRES = 4;
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const m = Math.floor(seconds / 60);
@@ -47,10 +49,12 @@ function TemplateCard({
   format,
   index,
   onUse,
+  t,
 }: {
   format: FormatMetadata;
   index: number;
   onUse: (format: FormatMetadata) => void;
+  t: (key: string) => string;
 }) {
   const colorClass = FORMAT_COLORS[format.id] || 'from-primary/20 to-primary/5 border-primary/20';
 
@@ -92,7 +96,7 @@ function TemplateCard({
 
         {/* Genres */}
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {format.applicableGenres.slice(0, 4).map((genre) => (
+          {format.applicableGenres.slice(0, MAX_VISIBLE_GENRES).map((genre) => (
             <span
               key={genre}
               className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-white/5 text-muted-foreground border border-white/10"
@@ -100,9 +104,9 @@ function TemplateCard({
               {genre}
             </span>
           ))}
-          {format.applicableGenres.length > 4 && (
+          {format.applicableGenres.length > MAX_VISIBLE_GENRES && (
             <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-white/5 text-muted-foreground border border-white/10">
-              +{format.applicableGenres.length - 4}
+              +{format.applicableGenres.length - MAX_VISIBLE_GENRES}
             </span>
           )}
         </div>
@@ -112,7 +116,7 @@ function TemplateCard({
           {format.requiresResearch && (
             <span className="flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-400" />
-              Research-backed
+              {t('templates.researchBacked') || 'Research-backed'}
             </span>
           )}
           <span className="flex items-center gap-1">
@@ -124,7 +128,7 @@ function TemplateCard({
 
         {format.deprecated && (
           <div className="absolute top-3 end-3 px-2 py-0.5 text-[10px] font-medium rounded-full bg-destructive/20 text-destructive border border-destructive/30">
-            Deprecated
+            {t('templates.deprecated') || 'Deprecated'}
           </div>
         )}
       </motion.div>
@@ -200,7 +204,7 @@ export default function TemplatesScreen() {
               className="text-xs text-muted-foreground"
             >
               <Filter className="w-3 h-3 me-1" />
-              {showDeprecated ? 'Hide deprecated' : 'Show deprecated'}
+              {showDeprecated ? (t('templates.hideDeprecated') || 'Hide deprecated') : (t('templates.showDeprecated') || 'Show deprecated')}
             </Button>
           )}
         </div>
@@ -213,6 +217,7 @@ export default function TemplatesScreen() {
               format={format}
               index={index}
               onUse={handleUseTemplate}
+              t={t}
             />
           ))}
         </div>

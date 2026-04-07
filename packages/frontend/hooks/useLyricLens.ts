@@ -18,6 +18,7 @@ import {
   generateImageBatch,
   BatchGenerationItem,
 } from "@/services/media/deapiService";
+import { DEAPI_IMAGE_MODELS, DEAPI_DEFAULTS } from '@/services/media/deapiService/models';
 import { subtitlesToSRT } from "@/utils/srtParser";
 import { calculateOptimalAssets } from "@/services/content/assetCalculatorService";
 import { mediaLogger } from '@/services/infrastructure/logger';
@@ -252,7 +253,7 @@ export function useLyricLens() {
         id: prompt.id,
         prompt: refinedText,
         aspectRatio: selectedAspectRatio as "16:9" | "9:16" | "1:1",
-        model: "Flux1schnell" as const,
+        model: DEAPI_IMAGE_MODELS.FLUX_SCHNELL,
         negativePrompt: "blur, darkness, noise, low quality, text, watermark, logo",
       }));
 
@@ -356,7 +357,7 @@ export function useLyricLens() {
               base64 = await generateImageWithAspectRatio(
                 refinedPrompt,
                 selectedAspectRatio as "16:9" | "9:16" | "1:1",
-                "Flux1schnell", // Fast, high-quality model
+                DEAPI_IMAGE_MODELS.FLUX_SCHNELL,
               );
             } else {
               // Use Gemini Imagen (default)

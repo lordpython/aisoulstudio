@@ -208,6 +208,15 @@ app.listen(Number(PORT), '0.0.0.0', async () => {
 
   // Initialize rendering infrastructure after server starts
   await initializeRenderingInfrastructure();
+
+  // Warm up DeAPI model registry cache (non-fatal)
+  try {
+    const { deApiModelRegistry } = await import('@studio/shared/src/services/media/deapiService/modelDiscovery.js');
+    await deApiModelRegistry.refresh();
+    serverLog.info('DeAPI model registry warmed up');
+  } catch (error) {
+    serverLog.warn('DeAPI model registry warm-up failed (non-fatal), will use fallback models');
+  }
 });
 
 // Graceful shutdown

@@ -37,6 +37,8 @@ import { uiLogger } from '@/services/infrastructure/logger';
 
 const log = uiLogger.child('Exports');
 
+const MAX_PROJECTS_PAGE_SIZE = 100;
+
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '—';
   if (bytes < 1024) return `${bytes} B`;
@@ -44,8 +46,8 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
+function formatDate(date: Date, locale?: string): string {
+  return new Intl.DateTimeFormat(locale || undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -73,7 +75,7 @@ interface ProjectExports {
   exports: ExportRecord[];
 }
 
-function ExportRow({ record }: { record: ExportRecord }) {
+function ExportRow({ record, t }: { record: ExportRecord; t: (key: string) => string }) {
   return (
     <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-white/[0.02] transition-colors">
       <div className="flex items-center gap-3">
@@ -120,7 +122,7 @@ function ExportRow({ record }: { record: ExportRecord }) {
             download
           >
             <Download className="w-3.5 h-3.5" />
-            Download
+            {t('common.download') || 'Download'}
           </a>
         </Button>
       )}
@@ -128,7 +130,7 @@ function ExportRow({ record }: { record: ExportRecord }) {
   );
 }
 
-function ProjectExportGroup({ data, index }: { data: ProjectExports; index: number }) {
+function ProjectExportGroup({ data, index, t }: { data: ProjectExports; index: number; t: (key: string) => string }) {
   const [isExpanded, setIsExpanded] = useState(index === 0);
 
   return (
@@ -144,7 +146,7 @@ function ProjectExportGroup({ data, index }: { data: ProjectExports; index: numb
             <div className="text-start">
               <h3 className="text-sm font-semibold text-foreground">{data.project.title}</h3>
               <p className="text-xs text-muted-foreground">
-                {data.exports.length} export{data.exports.length !== 1 ? 's' : ''}
+                {data.exports.length} {t('exports.exportCount') || (data.exports.length !== 1 ? 'exports' : 'export')}
               </p>
             </div>
           </div>
@@ -167,7 +169,7 @@ function ProjectExportGroup({ data, index }: { data: ProjectExports; index: numb
             >
               <div className="px-3 pb-3 space-y-0.5">
                 {data.exports.map((record) => (
-                  <ExportRow key={record.id} record={record} />
+                  <ExportRow key={record.id} record={record} t={t} />
                 ))}
               </div>
             </motion.div>
@@ -195,7 +197,7 @@ export default function ExportsScreen() {
 
     (async () => {
       try {
-        const projects = await listUserProjects(100);
+        const projects = await listUserProjects(MAX_PROJECTS_PAGE_SIZE);
         const results: ProjectExports[] = [];
 
         for (const project of projects) {
@@ -278,14 +280,14 @@ export default function ExportsScreen() {
         <div className="space-y-6">
           {/* Summary */}
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <span>{totalExports} total export{totalExports !== 1 ? 's' : ''}</span>
-            <span>{projectExports.length} project{projectExports.length !== 1 ? 's' : ''}</span>
+            <span>{totalExports} {t('exports.totalExports') || (totalExports !== 1 ? 'total exports' : 'total export')}</span>
+            <span>{projectExports.length} {t('exports.projectCount') || (projectExports.length !== 1 ? 'projects' : 'project')}</span>
           </div>
 
           {/* Export Groups */}
           <div className="space-y-3">
             {filteredExports.map((data, index) => (
-              <ProjectExportGroup key={data.project.id} data={data} index={index} />
+              <ProjectExportGroup key={data.project.id} data={data} index={index} t={t} />
             ))}
           </div>
 
