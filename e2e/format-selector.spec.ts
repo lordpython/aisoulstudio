@@ -1,4 +1,6 @@
-import { expect, test } from '@playwright/test';
+import playwrightTest from '@playwright/test';
+
+const { expect, test } = playwrightTest;
 
 import { formatRegistry } from '../packages/shared/src/services/formatRegistry';
 

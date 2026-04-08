@@ -13,7 +13,7 @@ export async function generateDeapiQwenTTS(
     text: string,
     directorNote: string,
     language: string = "English",
-    model: string = DEAPI_DEFAULTS.TTS_MODEL;
+    model: string = DEAPI_DEFAULTS.TTS_MODEL,
 ): Promise<Blob> {
     if (!isDeApiConfigured()) {
         throw new Error(

@@ -24,7 +24,10 @@
       "video": ["السرد بالذكاء الاصطناعي", "توليد المرئيات", "موسيقى خلفية"],
       "music": ["أغاني كاملة", "موسيقى آلية", "كلمات مخصصة"],
       "visualizer": ["مزامنة الكلمات", "مؤثرات بصرية", "توقيت مخصص"]
-    }
+    },
+    "aiPoweredStudio": "استوديو بالذكاء الاصطناعي",
+    "enter": "دخول",
+    "appName": "استوديو AISoul"
   },
   "studio": {
     "title": "الاستوديو",
@@ -40,7 +43,14 @@
     "scenes": "المشاهد",
     "preview": "معاينة",
     "generating": "جارٍ الإنشاء...",
-    "processing": "جارٍ المعالجة..."
+    "processing": "جارٍ المعالجة...",
+    "settings": "الإعدادات",
+    "chatMode": "وضع الدردشة",
+    "storyMode": "وضع القصة",
+    "editor": "المحرر",
+    "loadingProject": "جارٍ تحميل المشروع...",
+    "back": "رجوع",
+    "modeToggle": "تبديل وضع الاستوديو"
   },
   "visualizer": {
     "title": "المُصوِّر",
@@ -48,7 +58,16 @@
     "uploadSubtitles": "رفع ملف ترجمة",
     "dropAudio": "اسحب الملف الصوتي هنا أو انقر للتصفح",
     "dropSubtitles": "اسحب ملف SRT هنا أو انقر للتصفح",
-    "generate": "إنشاء الفيديو"
+    "generate": "إنشاء الفيديو",
+    "generateVisuals": "إنشاء المرئيات",
+    "generating": "جارٍ الإنشاء",
+    "animateAll": "تحريك الكل",
+    "animating": "جارٍ التحريك",
+    "poweredBy": "مدعوم بالذكاء الاصطناعي Gemini",
+    "subtitlesCount": "ترجمات",
+    "scenesCount": "مشاهد",
+    "visualsCount": "مرئيات",
+    "dismissError": "تجاهل الخطأ"
   },
   "common": {
     "loading": "جارٍ التحميل...",
@@ -584,30 +603,5 @@
     "musicMode": "وضع الموسيقى",
     "musicModeDesc": "إنشاء فيديوهات كلمات متزامنة مع الموسيقى",
     "backHome": "العودة للرئيسية"
-  },
-  "visualizer": {
-    "generateVisuals": "إنشاء المرئيات",
-    "generating": "جارٍ الإنشاء",
-    "animateAll": "تحريك الكل",
-    "animating": "جارٍ التحريك",
-    "poweredBy": "مدعوم بالذكاء الاصطناعي Gemini",
-    "subtitlesCount": "ترجمات",
-    "scenesCount": "مشاهد",
-    "visualsCount": "مرئيات",
-    "dismissError": "تجاهل الخطأ"
-  },
-  "home": {
-    "aiPoweredStudio": "استوديو بالذكاء الاصطناعي",
-    "enter": "دخول",
-    "appName": "استوديو AISoul"
-  },
-  "studio": {
-    "settings": "الإعدادات",
-    "chatMode": "وضع الدردشة",
-    "storyMode": "وضع القصة",
-    "editor": "المحرر",
-    "loadingProject": "جارٍ تحميل المشروع...",
-    "back": "رجوع",
-    "modeToggle": "تبديل وضع الاستوديو"
   }
 }

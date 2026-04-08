@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, FolderOpen, Bot, Zap, Palette, HelpCircle, Music } from "lucide-react";
+import { Home, FolderOpen, Bot, Zap, HelpCircle, Music } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,6 @@ const TOP_NAV: NavItemConfig[] = [
 const TOOL_NAV: NavItemConfig[] = [
   { icon: Bot, labelKey: "nav.studio", miniLabel: "Studio", route: "/studio", variant: "primary", isExact: false },
   { icon: Zap, labelKey: "nav.quickCreate", miniLabel: "Quick", route: "/visualizer", isExact: false },
-  { icon: Palette, labelKey: "nav.gradientGenerator", miniLabel: "Color", route: "/gradient-generator", isExact: true },
 ];
 
 const BOTTOM_NAV: NavItemConfig[] = [

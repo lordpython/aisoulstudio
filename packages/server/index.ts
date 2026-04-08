@@ -98,7 +98,7 @@ const deapiLimiter = rateLimit({
 
 // --- Body parsing (global, conservative limit) ---
 app.use(express.json({
-  limit: '50mb',
+  limit: '150mb',
   verify: (req, _res, buf) => {
     (req as { rawBody?: string }).rawBody = buf.toString('utf8');
   },

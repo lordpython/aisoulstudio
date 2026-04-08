@@ -1,6 +1,8 @@
 // @ts-nocheck
 
-import { expect, test } from '@playwright/test';
+import playwrightTest from '@playwright/test';
+
+const { expect, test } = playwrightTest;
 
 // Mode cards have role="listitem" — scopes to the 3 creation mode buttons only
 const MAIN_NAV_SELECTOR = 'nav[aria-label="Main navigation"] button[role="listitem"]';

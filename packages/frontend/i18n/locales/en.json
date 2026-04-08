@@ -24,7 +24,10 @@
       "video": ["AI Narration", "Visual Generation", "Background Music"],
       "music": ["Full Songs", "Instrumentals", "Custom Lyrics"],
       "visualizer": ["Lyric Sync", "Visual Effects", "Custom Timing"]
-    }
+    },
+    "aiPoweredStudio": "AI-Powered Studio",
+    "enter": "Enter",
+    "appName": "Aisoul Studio"
   },
   "studio": {
     "title": "Studio",
@@ -40,7 +43,14 @@
     "scenes": "Scenes",
     "preview": "Preview",
     "generating": "Generating...",
-    "processing": "Processing..."
+    "processing": "Processing...",
+    "settings": "Settings",
+    "chatMode": "Chat Mode",
+    "storyMode": "Story Mode",
+    "editor": "Editor",
+    "loadingProject": "Loading project...",
+    "back": "Back",
+    "modeToggle": "Studio mode toggle"
   },
   "visualizer": {
     "title": "Visualizer",
@@ -48,7 +58,16 @@
     "uploadSubtitles": "Upload Subtitles",
     "dropAudio": "Drop audio file here or click to browse",
     "dropSubtitles": "Drop SRT file here or click to browse",
-    "generate": "Generate Video"
+    "generate": "Generate Video",
+    "generateVisuals": "Generate Visuals",
+    "generating": "Generating",
+    "animateAll": "Animate All",
+    "animating": "Animating",
+    "poweredBy": "Powered by Gemini AI",
+    "subtitlesCount": "subtitles",
+    "scenesCount": "scenes",
+    "visualsCount": "visuals",
+    "dismissError": "Dismiss error"
   },
   "common": {
     "loading": "Loading...",
@@ -579,30 +598,5 @@
     "musicMode": "Music Mode",
     "musicModeDesc": "Generate music-synchronized lyric videos",
     "backHome": "Back to Home"
-  },
-  "visualizer": {
-    "generateVisuals": "Generate Visuals",
-    "generating": "Generating",
-    "animateAll": "Animate All",
-    "animating": "Animating",
-    "poweredBy": "Powered by Gemini AI",
-    "subtitlesCount": "subtitles",
-    "scenesCount": "scenes",
-    "visualsCount": "visuals",
-    "dismissError": "Dismiss error"
-  },
-  "home": {
-    "aiPoweredStudio": "AI-Powered Studio",
-    "enter": "Enter",
-    "appName": "Aisoul Studio"
-  },
-  "studio": {
-    "settings": "Settings",
-    "chatMode": "Chat Mode",
-    "storyMode": "Story Mode",
-    "editor": "Editor",
-    "loadingProject": "Loading project...",
-    "back": "Back",
-    "modeToggle": "Studio mode toggle"
   }
 }

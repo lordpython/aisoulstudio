@@ -23,6 +23,7 @@ i18n
     },
     fallbackLng: 'en',
     supportedLngs: supportedLanguages,
+    load: 'languageOnly',
     interpolation: {
       escapeValue: false, // React already escapes values
     },
@@ -31,6 +32,7 @@ i18n
       caches: ['localStorage'],
       lookupLocalStorage: 'lyriclens-language',
     },
+    initImmediate: false,
   });
 
 export default i18n;

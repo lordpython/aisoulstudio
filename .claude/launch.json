@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Frontend (Vite)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Backend (Express)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "server"],
+      "port": 3001
+    },
+    {
+      "name": "Frontend + Backend (concurrent)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev:all"],
+      "port": 3000
+    }
+  ]
+}

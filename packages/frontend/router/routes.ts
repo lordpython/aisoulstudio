@@ -75,10 +75,6 @@ export const routes: RouteConfig[] = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/gradient-generator',
-    title: 'nav.gradientGenerator',
-  },
-  {
     path: '/signin',
     title: 'nav.signIn',
   },

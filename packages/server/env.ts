@@ -11,9 +11,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../');
 
 // Load environment variables from .env files
-// .env.local takes precedence over .env
-config({ path: path.join(root, '.env.local'), debug: process.env.DEBUG === 'true' });
-config({ path: path.join(root, '.env'), debug: process.env.DEBUG === 'true' });
+// override: true ensures .env values win over system env vars (e.g. system PORT=3000)
+// .env loads first (base), then .env.local overrides on top
+config({ path: path.join(root, '.env'), override: true, debug: process.env.DEBUG === 'true' });
+config({ path: path.join(root, '.env.local'), override: true, debug: process.env.DEBUG === 'true' });
 
 // Re-export for convenience
 export const env = process.env;
