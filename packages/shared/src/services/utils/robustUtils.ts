@@ -692,3 +692,123 @@ export async function tryCatch<T>(
 export function createServiceLogger(serviceName: string) {
   return new Logger(serviceName);
 }
+
+// ============================================================
+// TOKEN BUCKET (RATE LIMITING)
+// ============================================================
+
+/**
+ * A simple token bucket for client-side request throttling.
+ *
+ * Refills `maxTokens` every `refillPeriodMs`. Callers `await acquire()` before
+ * making a request; if no tokens are available the call is queued FIFO and
+ * resolved as tokens become available.
+ *
+ * Used to smooth out bursts of parallel requests to an upstream service with a
+ * per-minute rate limit (e.g. Gemini 60 RPM), preventing 429 cascades.
+ *
+ * @example
+ * const bucket = new TokenBucket(50, 60_000);
+ * await bucket.acquire();
+ * await fetch(url);
+ */
+export class TokenBucket {
+  private tokens: number;
+  private readonly maxTokens: number;
+  private readonly refillPeriodMs: number;
+  private lastRefill: number;
+  private queue: Array<() => void> = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(maxTokens: number, refillPeriodMs: number) {
+    if (maxTokens <= 0) throw new Error('TokenBucket maxTokens must be > 0');
+    if (refillPeriodMs <= 0) throw new Error('TokenBucket refillPeriodMs must be > 0');
+    this.maxTokens = maxTokens;
+    this.refillPeriodMs = refillPeriodMs;
+    this.tokens = maxTokens;
+    this.lastRefill = Date.now();
+  }
+
+  /**
+   * Acquire a single token, waiting if none are available.
+   */
+  async acquire(): Promise<void> {
+    this.refill();
+
+    if (this.tokens > 0) {
+      this.tokens--;
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+      this.scheduleRefill();
+    });
+  }
+
+  /**
+   * Number of tokens currently available (after refill).
+   */
+  get availableTokens(): number {
+    this.refill();
+    return this.tokens;
+  }
+
+  /**
+   * Refill tokens based on elapsed time since last refill.
+   * Uses a sliding window: tokens are granted proportionally to the fraction
+   * of `refillPeriodMs` that has elapsed.
+   */
+  private refill(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastRefill;
+    if (elapsed <= 0) return;
+
+    const granted = Math.floor((elapsed / this.refillPeriodMs) * this.maxTokens);
+    if (granted > 0) {
+      this.tokens = Math.min(this.maxTokens, this.tokens + granted);
+      this.lastRefill = now;
+      this.drainQueue();
+    }
+  }
+
+  /**
+   * Hand out newly-available tokens to queued waiters in FIFO order.
+   */
+  private drainQueue(): void {
+    while (this.queue.length > 0 && this.tokens > 0) {
+      const resolve = this.queue.shift();
+      if (resolve) {
+        this.tokens--;
+        resolve();
+      }
+    }
+  }
+
+  /**
+   * Schedule a future refill when the queue is non-empty and the bucket is
+   * empty, so waiters eventually unblock even without another acquire() call.
+   */
+  private scheduleRefill(): void {
+    if (this.timer !== null) return;
+    const msPerToken = this.refillPeriodMs / this.maxTokens;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.refill();
+      if (this.queue.length > 0) this.scheduleRefill();
+    }, msPerToken);
+  }
+
+  /**
+   * Cancel the scheduled refill timer and drain the waiter queue.
+   * Call this in test teardown (especially with `vi.useFakeTimers()`) to
+   * prevent leaked timers keeping the Node.js event loop alive.
+   */
+  destroy(): void {
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.queue.length = 0;
+  }
+}

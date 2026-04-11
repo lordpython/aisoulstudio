@@ -57,30 +57,37 @@ export const generateVideoWithDeApi = async (
 
   log.info(`Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
 
-  const formData = new FormData();
-  formData.append("prompt", prompt);
-  formData.append("model", model);
-  formData.append("width", width.toString());
-  formData.append("height", height.toString());
-  formData.append("guidance", guidance.toString());
-  formData.append("steps", steps.toString());
-  formData.append("frames", frames.toString());
-  formData.append("fps", fps.toString());
-  formData.append("seed", seed.toString());
-
-  if (webhook_url) {
-    formData.append("webhook_url", webhook_url);
-  }
-
   let response: Response;
 
   if (isBrowser) {
+    // Browser: send JSON to the dedicated server proxy endpoint.
+    // FormData is NOT used here — the server route accepts JSON for txt2video.
+    // webhook_url included only when provided (server validates it server-side).
+    const jsonBody: Record<string, unknown> = {
+      prompt, model, width, height, guidance, steps, frames, fps, seed,
+    };
+    if (webhook_url) jsonBody.webhook_url = webhook_url;
+
     response = await fetch('/api/deapi/txt2video', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, model, width, height, guidance, steps, frames, fps, seed }),
+      body: JSON.stringify(jsonBody),
+      signal: AbortSignal.timeout(60_000),
     });
   } else {
+    // Server: send multipart/form-data directly to DeAPI.
+    const formData = new FormData();
+    formData.append("prompt", prompt);
+    formData.append("model", model);
+    formData.append("width", width.toString());
+    formData.append("height", height.toString());
+    formData.append("guidance", guidance.toString());
+    formData.append("steps", steps.toString());
+    formData.append("frames", frames.toString());
+    formData.append("fps", fps.toString());
+    formData.append("seed", seed.toString());
+    if (webhook_url) formData.append("webhook_url", webhook_url);
+
     response = await fetch(`${DEAPI_DIRECT_BASE}/txt2video`, {
       method: "POST",
       headers: {
@@ -89,6 +96,7 @@ export const generateVideoWithDeApi = async (
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0",
       },
       body: formData,
+      signal: AbortSignal.timeout(60_000),
     });
   }
 
@@ -134,7 +142,7 @@ export const generateVideoWithDeApi = async (
   }
 
   log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
-  const vidResp = await fetch(videoUrl);
+  const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
 
   if (!vidResp.ok) {
     throw new Error(`Failed to download generated video: ${vidResp.status}`);
@@ -267,6 +275,7 @@ export const animateImageWithDeApi = async (
     response = await fetch('/api/deapi/img2video', {
       method: "POST",
       body: formData,
+      signal: AbortSignal.timeout(60_000),
     });
   } else {
     response = await fetch(`${DEAPI_DIRECT_BASE}/img2video`, {
@@ -274,9 +283,10 @@ export const animateImageWithDeApi = async (
       headers: {
         Authorization: `Bearer ${API_KEY}`,
         Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LyricLens/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0",
       },
       body: formData,
+      signal: AbortSignal.timeout(60_000),
     });
   }
 
@@ -337,7 +347,7 @@ export const animateImageWithDeApi = async (
   }
 
   log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
-  const vidResp = await fetch(videoUrl);
+  const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
 
   if (!vidResp.ok) {
     throw new Error(`Failed to download generated video: ${vidResp.status}`);
@@ -365,80 +375,6 @@ export const animateImageWithDeApi = async (
   });
 };
 
-export const generateVideoFromText = async (
-  prompt: string,
-  aspectRatio: "16:9" | "9:16" | "1:1" = "16:9",
-  durationFrames: number = 120
-): Promise<string> => {
-  if (!isDeApiConfigured()) {
-    throw new Error("DeAPI API key is not configured.");
-  }
-
-  const { width, height } = getDeApiDimensions(aspectRatio);
-
-  log.info(`Generating video from text: ${width}x${height}, ${durationFrames} frames`);
-  log.debug(`Prompt: ${prompt.substring(0, 80)}...`);
-
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-
-  if (!isBrowser) {
-    headers.Authorization = `Bearer ${API_KEY}`;
-    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LyricLens/1.0";
-  }
-
-  const response = await fetch(`${isBrowser ? '/api/deapi/proxy' : DEAPI_DIRECT_BASE}/txt2video`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      prompt,
-      model: DEFAULT_VIDEO_MODEL,
-      width,
-      height,
-      guidance: 0,
-      steps: 1,
-      frames: durationFrames,
-      fps: 30,
-      seed: -1,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`DeAPI txt2video failed (${response.status}): ${errText.substring(0, 200)}`);
-  }
-
-  const rawData = await response.json();
-  const data: DeApiResponse = rawData.data || rawData;
-
-  let videoUrl: string;
-
-  if (data.result_url) {
-    videoUrl = data.result_url;
-  } else if (data.request_id) {
-    log.info(`Polling for txt2video request: ${data.request_id}`);
-    videoUrl = await pollRequest(data.request_id);
-  } else {
-    throw new Error("No request_id or result_url received from DeAPI txt2video");
-  }
-
-  const vidResp = await fetch(videoUrl);
-  if (!vidResp.ok) {
-    throw new Error(`Failed to download video: ${vidResp.status}`);
-  }
-
-  const vidBlob = await vidResp.blob();
-  log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to convert video to base64"));
-    reader.readAsDataURL(vidBlob);
-  });
-};
 
 export const animateImageBatch = async (
   items: Array<{

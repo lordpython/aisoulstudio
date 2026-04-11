@@ -179,4 +179,56 @@ describe('/api/cloud routes', () => {
       await closeServer(server);
     }
   });
+
+  it('uses a short-lived Cache-Control header (not 1-year) on file proxy responses', async () => {
+    // Create mock storage with a file that has size metadata so the file proxy path is exercised
+    const files = new Map<string, { body: Buffer; contentType: string }>();
+    const testContent = Buffer.from('audio-bytes');
+    const testPath = 'production_cache_test/audio/narration.wav';
+    files.set(testPath, { body: testContent, contentType: 'audio/wav' });
+
+    const mockStorage = {
+      bucket: (_name: string) => ({
+        exists: async () => [true] as [boolean],
+        file: (filePath: string) => ({
+          save: async (_content: string) => { /* no-op */ },
+          createWriteStream: () => { throw new Error('not used'); },
+          exists: async () => [files.has(filePath)] as [boolean],
+          getMetadata: async () => [{
+            contentType: files.get(filePath)?.contentType || 'application/octet-stream',
+            size: files.get(filePath)?.body.length ?? 0,
+            etag: 'abc123etag',
+          }],
+          createReadStream: () => {
+            const file = files.get(filePath);
+            return Readable.from(file ? [file.body] : []);
+          },
+        }),
+      }),
+    };
+
+    const router = createCloudRouter({
+      getStorageClient: async () => mockStorage as any,
+    });
+
+    const { server, baseUrl } = await startTestServer(router);
+
+    try {
+      const response = await fetch(`${baseUrl}/api/cloud/file?path=${encodeURIComponent(testPath)}`);
+      expect(response.ok).toBe(true);
+
+      const cacheControl = response.headers.get('cache-control') ?? '';
+
+      // Must NOT be the old 1-year immutable value
+      expect(cacheControl).not.toContain('max-age=31536000');
+      // Must include short revalidation window
+      expect(cacheControl).toContain('max-age=300');
+      expect(cacheControl).toContain('must-revalidate');
+
+      // ETag should be forwarded from GCS metadata
+      expect(response.headers.get('etag')).toBe('abc123etag');
+    } finally {
+      await closeServer(server);
+    }
+  });
 });

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import fs from 'fs';
 import type { NextFunction, Request, Response } from 'express';
 
 // ============================================================================
@@ -72,6 +73,41 @@ export function isSafeProxyEndpoint(endpoint: string): boolean {
   if (endpoint.includes('..')) return false;
   if (endpoint.includes('\\')) return false;
   return !/[<>"'\s]/.test(endpoint);
+}
+
+/**
+ * Allowed hostnames for webhook callbacks forwarded to external APIs.
+ * Configure via DEAPI_ALLOWED_WEBHOOK_HOSTS (comma-separated) to extend.
+ */
+const ALLOWED_WEBHOOK_HOSTS = new Set<string>(
+    (process.env.DEAPI_ALLOWED_WEBHOOK_HOSTS || 'api.deapi.ai')
+        .split(',')
+        .map((h) => h.trim())
+        .filter(Boolean),
+);
+
+/**
+ * Validates a webhook URL is safe to forward to an external service.
+ * Prevents SSRF by requiring HTTPS and restricting to known-safe hosts.
+ */
+export function isAllowedWebhookUrl(raw: string): boolean {
+    try {
+        const parsed = new URL(raw);
+        return parsed.protocol === 'https:' && ALLOWED_WEBHOOK_HOSTS.has(parsed.hostname);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Deletes a file without throwing if it has already been removed.
+ */
+export async function safeUnlinkAsync(filePath: string): Promise<void> {
+    try {
+        await fs.promises.unlink(filePath);
+    } catch {
+        // Already deleted or never written — safe to ignore
+    }
 }
 
 export function isAllowedProxyEndpoint(

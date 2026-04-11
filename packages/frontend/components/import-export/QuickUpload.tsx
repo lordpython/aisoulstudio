@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Music, Monitor, Smartphone, Sparkles, ChevronRight, Youtube, Loader2, FileVideo } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,13 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const [showMusicChat, setShowMusicChat] = useState(false);
+  const youtubeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      youtubeAbortRef.current?.abort();
+    };
+  }, []);
 
   // Music generation state
   const [musicState, setMusicState] = useState<{
@@ -194,12 +201,17 @@ export const QuickUpload: React.FC<QuickUploadProps> = ({
   const handleYoutubeImport = async () => {
     if (!youtubeUrl.trim() || isImporting) return;
 
+    youtubeAbortRef.current?.abort();
+    const controller = new AbortController();
+    youtubeAbortRef.current = controller;
+
     setIsImporting(true);
     try {
       const response = await fetch(`${SERVER_URL}/api/import/youtube`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: youtubeUrl }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {

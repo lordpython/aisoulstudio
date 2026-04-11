@@ -1,7 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { geminiLogger } from '../infrastructure/logger';
+import { TokenBucket } from '../utils/robustUtils';
 
 const log = geminiLogger.child('APIClient');
+
+// Client-side throttle for all proxied Gemini calls. The server applies a 60
+// RPM limit (`geminiLimiter` in server/index.ts); 50 tokens/60s leaves
+// headroom for burst variance and retries so parallel scene generation does
+// not cascade into 429s.
+export const geminiThrottle = new TokenBucket(50, 60_000);
 
 // --- Environment Detection ---
 const isBrowser = typeof window !== "undefined";
@@ -140,6 +147,11 @@ class ProxyAIClient {
   }
 
   private async callProxy(endpoint: string, params: unknown): Promise<unknown> {
+    // Client-side throttle: wait for a token before dispatching. Prevents
+    // parallel shared-pipeline calls from saturating the server's Gemini
+    // rate limiter and triggering 429 retries.
+    await geminiThrottle.acquire();
+
     try {
       const response = await fetch(endpoint, {
         method: 'POST',

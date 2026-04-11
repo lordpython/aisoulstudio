@@ -101,3 +101,28 @@ export const generateJobId = (): string => {
   const random = Math.random().toString(36).substring(2, 10);
   return `job_${timestamp}_${random}`;
 };
+
+/**
+ * Write a raw frame buffer directly into a session directory using the
+ * `frameNNNNNN.{jpg|png}` naming convention. Intended for server-side
+ * production paths that have the frame in-memory and want to avoid the
+ * round-trip through the multipart /chunk upload endpoint.
+ *
+ * Returns the absolute path of the written file.
+ */
+export const writeFrameToSessionDir = async (
+  sessionId: string,
+  frameIndex: number,
+  buffer: Buffer,
+  extension: 'jpg' | 'png' = 'jpg',
+): Promise<string> => {
+  if (!Number.isInteger(frameIndex) || frameIndex < 0) {
+    throw new Error(`Invalid frameIndex: ${frameIndex}`);
+  }
+  const sessionDir = getSessionDir(sessionId);
+  await fs.promises.mkdir(sessionDir, { recursive: true });
+  const filename = `frame${String(frameIndex).padStart(6, '0')}.${extension}`;
+  const filePath = path.join(sessionDir, filename);
+  await fs.promises.writeFile(filePath, buffer);
+  return filePath;
+};

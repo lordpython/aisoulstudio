@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Response, json as expressJson } from 'express';
 import { ApiProxyRequest } from '../types.js';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
@@ -84,10 +85,12 @@ export function createGeminiRouter(
                 // Not JSON
             }
 
+            const errorId = crypto.randomUUID();
+            geminiLog.error(`[${errorId}] generateContent stack:`, err.stack);
             res.status(500).json({
                 success: false,
                 error: errorMessage || 'Gemini proxy failed',
-                details: err.stack
+                errorId,
             });
         }
     });
@@ -140,14 +143,15 @@ export function createGeminiRouter(
                 }
             }
 
-            geminiLog.error(`generateImages Error (${statusCode}):`, errorMessage);
-            geminiLog.error('Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+            const errorId = crypto.randomUUID();
+            geminiLog.error(`[${errorId}] generateImages Error (${statusCode}):`, errorMessage);
+            geminiLog.error(`[${errorId}] Full error object:`, JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
 
             res.status(500).json({
                 success: false,
                 error: errorMessage || 'Gemini image generation failed',
                 status: statusCode,
-                details: err.stack
+                errorId,
             });
         }
     });

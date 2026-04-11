@@ -221,7 +221,13 @@ export function createCloudRouter(
 
             // Set response headers
             res.setHeader('Content-Type', contentType);
-            res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+            // 5-minute revalidation window — user-generated content can be overwritten,
+            // so a 1-year immutable cache would serve stale audio/video to clients.
+            res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+            const etag = typeof metadata.etag === 'string' ? metadata.etag : undefined;
+            if (etag) {
+                res.setHeader('ETag', etag);
+            }
             res.setHeader('Accept-Ranges', 'bytes');
             res.setHeader('Content-Disposition', 'inline');
 

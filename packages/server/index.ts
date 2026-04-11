@@ -78,15 +78,6 @@ const productionLimiter = rateLimit({
   skip: (req) => req.method !== 'POST' || !req.path.includes('/start'),
 });
 
-const exportLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Export limit reached (10/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
-  skip: (req) => !['POST', 'PUT'].includes(req.method),
-});
-
 const deapiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
@@ -105,7 +96,7 @@ app.use(express.json({
 }));
 
 // --- Modular Routes (with rate limiting) ---
-app.use('/api/export', apiLimiter, exportLimiter, exportRoutes);
+app.use('/api/export', apiLimiter, exportRoutes);
 app.use('/api/import', apiLimiter, importRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/gemini', apiLimiter, geminiLimiter, geminiRoutes);
@@ -208,6 +199,11 @@ app.listen(Number(PORT), '0.0.0.0', async () => {
 
   // Initialize rendering infrastructure after server starts
   await initializeRenderingInfrastructure();
+
+  // Warn about missing optional secrets that affect runtime behavior
+  if (!process.env.DEAPI_WEBHOOK_SECRET) {
+    serverLog.warn('DEAPI_WEBHOOK_SECRET is not set — async DeAPI webhook jobs will return 500 and async jobs will hang until timeout');
+  }
 
   // Warm up DeAPI model registry cache (non-fatal)
   try {

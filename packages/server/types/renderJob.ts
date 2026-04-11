@@ -7,13 +7,19 @@
 /**
  * Job status state machine:
  * pending → uploading → queued → encoding → complete
- *                                    ↓
- *                                 failed (with retry)
+ *                         ↑         ↓
+ *                   recovering   failed (with retry)
+ *
+ * `recovering` is a transient, startup-only state used while the JobQueue is
+ * re-hydrating jobs from disk after a crash. It protects in-flight jobs from
+ * being cleaned up or double-processed before the second-pass transition to
+ * `queued` runs.
  */
 export type JobStatus =
   | 'pending'
   | 'uploading'
   | 'queued'
+  | 'recovering'
   | 'encoding'
   | 'complete'
   | 'failed';

@@ -185,6 +185,115 @@ export const refineImagePrompt = async (params: {
   return { refinedPrompt, issues };
 };
 
+// --- Merged refine + compress (single Gemini hop) ---
+
+async function refineAndCompressWithAI(params: {
+  promptText: string;
+  style: string;
+  globalSubject?: string;
+  aspectRatio?: string;
+  intent?: PromptRefinementIntent;
+  issues?: PromptLintIssue[];
+}): Promise<{ refinedPrompt: string; compressedPrompt: string }> {
+  const { promptText, style, globalSubject = "", aspectRatio = "16:9", intent = "auto", issues = [] } = params;
+
+  const issueSummary = issues.length > 0
+    ? issues.map(i => `- (${i.code}) ${i.message}`).join("\n")
+    : "- (none)";
+
+  const response = await ai.models.generateContent({
+    model: MODELS.TEXT,
+    contents: `You are a prompt engineer for high-quality image generation.
+Rewrite the user's prompt and ALSO produce a compressed keyword form, in a single response.
+
+Global Subject (must remain consistent across scenes):
+${globalSubject ? globalSubject : "(none)"}
+
+Chosen Style Preset:
+${style}
+
+Aspect Ratio:
+${aspectRatio}
+
+User Intent:
+${intent}
+
+Detected Issues:
+${issueSummary}
+
+Output two fields:
+
+1. "refinedPrompt" — vivid, specific rewrite (70–130 words):
+   - Single image-model prompt, preserves the user's intent.
+   - Focus EXCLUSIVELY on visual elements: subjects, lighting, textures, colors, camera angles, atmosphere.
+   - If Global Subject is provided, it MUST be the primary focus. Restate its key identifiers explicitly (face, hair, outfit, materials) so the subject stays 100% consistent across scenes.
+   - Starts with the subject name or a concrete description of it.
+   - Uses specific descriptors (e.g., "amber light", "weathered oak", "muted teal") rather than generic phrases.
+   - Style consistent with the chosen preset.
+
+2. "compressedPrompt" — comma-separated keyword form (max 80 words):
+   - Front-load: subject → action/pose → lighting → mood → style keyword.
+   - Preserve: main subject, key action, lighting quality, mood, one style keyword.
+   - Drop: filler, repeated adjectives, verbose background descriptions.
+   - Single comma-separated line, no sentences.
+   - Must describe the SAME scene as refinedPrompt — not a different image.
+
+Output ONLY a JSON object: { "refinedPrompt": string, "compressedPrompt": string }.
+
+User Prompt:
+${promptText}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          refinedPrompt: { type: Type.STRING },
+          compressedPrompt: { type: Type.STRING },
+        },
+        required: ["refinedPrompt", "compressedPrompt"],
+      },
+    },
+  });
+
+  const jsonStr = response.text;
+  if (!jsonStr) return { refinedPrompt: promptText, compressedPrompt: promptText };
+
+  try {
+    const parsed = JSON.parse(jsonStr) as { refinedPrompt: string; compressedPrompt: string };
+    const refinedPrompt = parsed.refinedPrompt?.trim() || promptText;
+    const compressedPrompt = parsed.compressedPrompt?.trim() || promptText;
+    return { refinedPrompt, compressedPrompt };
+  } catch {
+    return { refinedPrompt: promptText, compressedPrompt: promptText };
+  }
+}
+
+export const refineAndCompressPrompt = async (params: {
+  promptText: string;
+  style?: string;
+  globalSubject?: string;
+  aspectRatio?: string;
+  intent?: PromptRefinementIntent;
+  previousPrompts?: string[];
+}): Promise<{ refinedPrompt: string; compressedPrompt: string; issues: PromptLintIssue[] }> => {
+  const { promptText, style = "Cinematic", globalSubject = "", aspectRatio = "16:9", intent = "auto", previousPrompts = [] } = params;
+
+  const issues = lintPrompt({ promptText, globalSubject, previousPrompts });
+
+  const shouldRefine = intent !== "auto" || issues.some(i => i.code === "too_short" || i.code === "repetitive" || i.code === "missing_subject");
+
+  if (!shouldRefine) {
+    const trimmed = promptText.trim();
+    return { refinedPrompt: trimmed, compressedPrompt: trimmed, issues };
+  }
+
+  const { refinedPrompt, compressedPrompt } = await withRetry(async () =>
+    refineAndCompressWithAI({ promptText, style, globalSubject, aspectRatio, intent, issues })
+  );
+
+  return { refinedPrompt, compressedPrompt, issues };
+};
+
 export const refineImagePromptAsGuide = async (params: {
   promptText: string;
   style?: string;

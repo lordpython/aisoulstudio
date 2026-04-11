@@ -144,4 +144,71 @@ describe('/api/gemini routes', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('does not leak stack traces in generateContent error responses', async () => {
+    const generateContent = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Upstream API failure'), { stack: 'Error: Upstream API failure\n    at /packages/server/routes/gemini.ts:55:10' }),
+    );
+
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateContent: generateContent as any }),
+    );
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gemini-flash', contents: [{ parts: [{ text: 'hi' }] }] }),
+    });
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).not.toHaveProperty('details');
+    expect(body).not.toHaveProperty('stack');
+    expect(JSON.stringify(body)).not.toContain('gemini.ts');
+  });
+
+  it('does not leak stack traces in generateImages error responses', async () => {
+    const generateImages = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Image generation failed'), { stack: 'Error: Image generation failed\n    at /packages/server/routes/gemini.ts:120:10' }),
+    );
+
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateImages: generateImages as any }),
+    );
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateImages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'imagen-4.0-fast-generate-001', prompt: 'a cat' }),
+    });
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).not.toHaveProperty('details');
+    expect(body).not.toHaveProperty('stack');
+    expect(JSON.stringify(body)).not.toContain('gemini.ts');
+  });
+
+  it('includes a UUID errorId in error responses for log correlation', async () => {
+    const generateContent = vi.fn().mockRejectedValue(new Error('Some error'));
+
+    const { server, baseUrl } = await startTestServer(
+      createGeminiRouter({ generateContent: generateContent as any }),
+    );
+    currentServer = server;
+
+    const response = await fetch(`${baseUrl}/api/gemini/proxy/generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gemini-flash', contents: [{ parts: [{ text: 'hi' }] }] }),
+    });
+
+    const body = await response.json();
+    expect(body).toHaveProperty('errorId');
+    expect(typeof body.errorId).toBe('string');
+    // UUID v4 format
+    expect(body.errorId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
 });

@@ -71,8 +71,11 @@ export class JobQueueManager extends EventEmitter {
     // Recover incomplete jobs from disk
     try {
       const incompleteJobs = await loadIncompleteJobs();
+
+      // First pass: validate disk state and mark recoverable jobs as 'recovering'.
+      // This transient status prevents the cleanup sweep or any external cleanup
+      // racing against jobs that are in the middle of being re-hydrated.
       for (const job of incompleteJobs) {
-        // Reset jobs that were in progress
         if (job.status === 'encoding') {
           // Verify the session directory and frames still exist before re-queuing.
           // A crash may have left the disk in an inconsistent state.
@@ -90,15 +93,28 @@ export class JobQueueManager extends EventEmitter {
             log.warn(`Job ${job.jobId} marked failed — session data not found on disk`);
             await saveJob(job);
           } else {
-            job.status = 'queued';
+            job.status = 'recovering';
             job.retryCount++;
-            log.info(`Recovered job ${job.jobId} - reset to queued (retry ${job.retryCount})`);
+            await saveJob(job);
+            log.info(`Recovered job ${job.jobId} - marked recovering (retry ${job.retryCount})`);
           }
         }
         this.jobs.set(job.jobId, job);
+      }
 
-        // Add queued jobs to processing queue
-        if (job.status === 'queued') {
+      // Second pass: transition all 'recovering' jobs to 'queued' and enqueue them.
+      // Splitting the passes means even if the server crashes mid-recovery, the
+      // disk state still reflects the protected 'recovering' marker rather than
+      // getting silently dropped back to 'queued' before all jobs are loaded.
+      for (const job of this.jobs.values()) {
+        if (job.status === 'recovering') {
+          job.status = 'queued';
+          await saveJob(job);
+          this.processingQueue.push(job.jobId);
+          log.info(`Job ${job.jobId} transitioned recovering → queued`);
+        } else if (job.status === 'queued') {
+          // Jobs that were already in the queued state before the crash still need
+          // to be added to the in-memory processing queue.
           this.processingQueue.push(job.jobId);
         }
       }
@@ -495,6 +511,7 @@ export class JobQueueManager extends EventEmitter {
       pending: 'Initializing...',
       uploading: `Receiving frames (${job.frameManifest.receivedFrames}/${job.frameManifest.totalFrames || '?'})`,
       queued: `Queued for encoding (position ${this.processingQueue.indexOf(job.jobId) + 1})`,
+      recovering: 'Recovering after server restart...',
       encoding: `Encoding frame ${job.currentFrame}/${job.frameManifest.totalFrames}`,
       complete: 'Export complete!',
       failed: job.lastError || 'Export failed',
@@ -534,6 +551,7 @@ export class JobQueueManager extends EventEmitter {
     pending: number;
     uploading: number;
     queued: number;
+    recovering: number;
     encoding: number;
     complete: number;
     failed: number;
@@ -543,6 +561,7 @@ export class JobQueueManager extends EventEmitter {
       pending: 0,
       uploading: 0,
       queued: 0,
+      recovering: 0,
       encoding: 0,
       complete: 0,
       failed: 0,

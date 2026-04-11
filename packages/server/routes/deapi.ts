@@ -11,9 +11,11 @@ import {
     buildProxyUrl,
     createDeprecatedRouteMiddleware,
     isAllowedProxyEndpoint,
+    isAllowedWebhookUrl,
     isSafeProxyEndpoint,
     isWebhookAuthorized,
     normalizeProxyEndpoint,
+    safeUnlinkAsync,
     type ProxyEndpointRule,
     type RawBodyRequest,
 } from './routeUtils.js';
@@ -183,7 +185,8 @@ router.post('/img2video', upload.single('first_frame_image'), async (req: Reques
     }
 
     try {
-        const fileBuffer = fs.readFileSync(req.file.path);
+        // Async read to avoid blocking the event loop for large image files
+        const fileBuffer = await fs.promises.readFile(req.file.path);
         const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
 
         const formData = new FormData();
@@ -196,8 +199,19 @@ router.post('/img2video', upload.single('first_frame_image'), async (req: Reques
             }
         });
 
-        if (!req.body.guidance) {
+        // Strict undefined check: 0 is a valid guidance value, so falsy check would double-append it
+        if (req.body.guidance === undefined) {
             formData.append('guidance', '0');
+        }
+
+        // Validate and append webhook_url only if it targets an allowed HTTPS host
+        if (req.body.webhook_url !== undefined) {
+            if (!isAllowedWebhookUrl(req.body.webhook_url as string)) {
+                await safeUnlinkAsync(req.file.path);
+                res.status(400).json({ error: 'webhook_url must use HTTPS on an allowed domain (set DEAPI_ALLOWED_WEBHOOK_HOSTS to extend)' });
+                return;
+            }
+            formData.append('webhook_url', req.body.webhook_url as string);
         }
 
         const response = await fetch('https://api.deapi.ai/api/v1/client/img2video', {
@@ -209,7 +223,7 @@ router.post('/img2video', upload.single('first_frame_image'), async (req: Reques
             body: formData,
         });
 
-        fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
 
         if (response.status === 429) {
             const retryAfter = response.headers.get('retry-after') || '30';
@@ -220,7 +234,7 @@ router.post('/img2video', upload.single('first_frame_image'), async (req: Reques
         const data = await response.json();
         res.status(response.status).json(data);
     } catch (error: unknown) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
         const err = error as Error;
         res.status(500).json({ error: err.message || 'DeAPI img2video failed' });
     }
@@ -285,15 +299,21 @@ router.post('/img-rmbg', upload.single('image'), async (req: Request, res: Respo
     }
 
     try {
-        const fileBuffer = fs.readFileSync(req.file.path);
+        // Async read to avoid blocking the event loop for large image files
+        const fileBuffer = await fs.promises.readFile(req.file.path);
         const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
 
         const formData = new FormData();
         formData.append('image', blob, req.file.originalname || 'image.png');
         formData.append('model', req.body.model || DEAPI_DEFAULTS.BG_REMOVAL_MODEL);
 
-        if (req.body.webhook_url) {
-            formData.append('webhook_url', req.body.webhook_url);
+        if (req.body.webhook_url !== undefined) {
+            if (!isAllowedWebhookUrl(req.body.webhook_url as string)) {
+                await safeUnlinkAsync(req.file.path);
+                res.status(400).json({ error: 'webhook_url must use HTTPS on an allowed domain (set DEAPI_ALLOWED_WEBHOOK_HOSTS to extend)' });
+                return;
+            }
+            formData.append('webhook_url', req.body.webhook_url as string);
         }
 
         const response = await fetch('https://api.deapi.ai/api/v1/client/img-rmbg', {
@@ -305,12 +325,12 @@ router.post('/img-rmbg', upload.single('image'), async (req: Request, res: Respo
             body: formData,
         });
 
-        fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
 
         const data = await response.json();
         res.status(response.status).json(data);
     } catch (error: unknown) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
         const err = error as Error;
         res.status(500).json({ error: err.message || 'DeAPI img-rmbg failed' });
     }
@@ -331,23 +351,35 @@ router.post('/img2img', upload.single('image'), async (req: Request, res: Respon
     }
 
     try {
-        const fileBuffer = fs.readFileSync(req.file.path);
+        // Async read to avoid blocking the event loop for large image files
+        const fileBuffer = await fs.promises.readFile(req.file.path);
         const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
 
         const formData = new FormData();
         formData.append('image', blob, req.file.originalname || 'image.png');
 
-        const fields = ['prompt', 'model', 'guidance', 'steps', 'seed', 'negative_prompt', 'loras', 'webhook_url', 'width', 'height'];
+        // webhook_url excluded from generic loop — validated separately below
+        const fields = ['prompt', 'model', 'guidance', 'steps', 'seed', 'negative_prompt', 'loras', 'width', 'height'];
         fields.forEach(field => {
             if (req.body[field] !== undefined) {
                 formData.append(field, req.body[field]);
             }
         });
 
-        // Defaults
-        if (!req.body.model) formData.append('model', DEAPI_DEFAULTS.IMG2IMG_MODEL);
-        if (!req.body.guidance) formData.append('guidance', '5');
-        if (!req.body.steps) formData.append('steps', '4');
+        // Validate and append webhook_url only if it targets an allowed HTTPS host
+        if (req.body.webhook_url !== undefined) {
+            if (!isAllowedWebhookUrl(req.body.webhook_url as string)) {
+                await safeUnlinkAsync(req.file.path);
+                res.status(400).json({ error: 'webhook_url must use HTTPS on an allowed domain (set DEAPI_ALLOWED_WEBHOOK_HOSTS to extend)' });
+                return;
+            }
+            formData.append('webhook_url', req.body.webhook_url as string);
+        }
+
+        // Defaults — use strict undefined check so 0 / '' values are not overridden
+        if (req.body.model === undefined) formData.append('model', DEAPI_DEFAULTS.IMG2IMG_MODEL);
+        if (req.body.guidance === undefined) formData.append('guidance', '5');
+        if (req.body.steps === undefined) formData.append('steps', '4');
 
         const response = await fetch('https://api.deapi.ai/api/v1/client/img2img', {
             method: 'POST',
@@ -358,12 +390,12 @@ router.post('/img2img', upload.single('image'), async (req: Request, res: Respon
             body: formData,
         });
 
-        fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
 
         const data = await response.json();
         res.status(response.status).json(data);
     } catch (error: unknown) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        await safeUnlinkAsync(req.file.path);
         const err = error as Error;
         res.status(500).json({ error: err.message || 'DeAPI img2img failed' });
     }
@@ -428,8 +460,10 @@ router.post('/webhook', async (req: RawBodyRequest, res: Response): Promise<void
         const webhookSecret = getWebhookSecret();
 
         if (!webhookSecret) {
-            deapiLog.warn('Rejected webhook because DEAPI_WEBHOOK_SECRET is not configured');
-            res.status(503).json({ error: 'Webhook secret not configured' });
+            deapiLog.warn('Rejected webhook: DEAPI_WEBHOOK_SECRET is not configured on this server');
+            // 500 (not 503) — this is a server misconfiguration, not a transient outage.
+            // 503 would trigger LB/client retry storms against an issue that won't self-resolve.
+            res.status(500).json({ error: 'Webhook endpoint is not available' });
             return;
         }
 
@@ -657,7 +691,20 @@ router.use('/proxy', async (req: Request, res: Response): Promise<void> => {
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             if (contentType.includes('application/json')) {
                 (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json';
-                fetchOptions.body = JSON.stringify(req.body);
+                // Strip webhook_url from proxied JSON bodies — the general proxy has no
+                // SSRF validation for callback URLs. Callers that genuinely need webhook
+                // callbacks must use the dedicated endpoints (/img-rmbg, /img2img) which
+                // validate the URL against DEAPI_ALLOWED_WEBHOOK_HOSTS.
+                const { webhook_url: _stripped, ...safeBody } = (req.body ?? {}) as Record<string, unknown>;
+                fetchOptions.body = JSON.stringify(safeBody);
+            } else if (contentType) {
+                // Return 415 instead of silently dropping non-JSON bodies.
+                // Multipart/form-data callers should use the dedicated endpoints
+                // (/img2video, /img2img, /img-rmbg) which handle file uploads properly.
+                res.status(415).json({
+                    error: `Unsupported content type: ${contentType.split(';')[0].trim()}. The general proxy only accepts application/json. Use the dedicated upload endpoints for multipart/form-data.`,
+                });
+                return;
             }
         }
 

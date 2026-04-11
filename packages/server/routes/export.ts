@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { sanitizeId, getSessionDir, cleanupSession, MAX_FILE_SIZE, MAX_SINGLE_FILE, MAX_FILES, generateJobId } from '../utils/index.js';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import { jobQueue } from '../services/jobQueue/index.js';
@@ -20,6 +21,35 @@ const deprecatedCancelRoute = createDeprecatedRouteMiddleware(
 );
 
 const router = Router();
+
+// Route-level rate limiters.
+// `exportInitLimiter` gates expensive job starts (/init, /finalize) at 10/hr to
+// protect the worker pool from overload. Frame chunk uploads get a separate,
+// much more generous bucket so a single export (which may upload thousands of
+// frames) does not exhaust the start-job budget.
+const exportInitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Export limit reached (10/hour). Try again later.',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+const exportChunkLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Frame upload rate limit exceeded.',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
 
 function parseOptionalNumber(value: unknown): number | undefined {
   const parsed = Number(value);
@@ -91,7 +121,7 @@ const uploadFrames = multer({
  * Receives the audio file and creates the session directory.
  * Now also creates a job in the queue.
  */
-router.post('/init', uploadAudio.single('audio'), async (req: Request, res: Response) => {
+router.post('/init', exportInitLimiter, uploadAudio.single('audio'), async (req: Request, res: Response) => {
   try {
     const request = req as ExportRequest;
     if (!request.sessionId) {
@@ -153,7 +183,7 @@ router.post('/init', uploadAudio.single('audio'), async (req: Request, res: Resp
  * Receives a batch of images. Multer handles saving them to the session directory.
  * Now also tracks frame counts and optional checksums.
  */
-router.post('/chunk', uploadFrames.array('frames'), (req: Request, res: Response) => {
+router.post('/chunk', exportChunkLimiter, uploadFrames.array('frames'), (req: Request, res: Response) => {
   const request = req as ExportRequest;
   if (!request.sessionId) {
     res.status(400).json({ success: false, error: 'Session ID required' });
@@ -199,7 +229,7 @@ router.post('/chunk', uploadFrames.array('frames'), (req: Request, res: Response
  * Queues the job for encoding and returns immediately.
  * Client should subscribe to SSE for progress.
  */
-router.post('/finalize', async (req: Request, res: Response) => {
+router.post('/finalize', exportInitLimiter, async (req: Request, res: Response) => {
   const { sessionId: rawSessionId, fps = 30, totalFrames, sync = false, width, height, quality } = req.body;
   const widthValue = parseOptionalNumber(width);
   const heightValue = parseOptionalNumber(height);
@@ -568,6 +598,8 @@ function getStatusMessage(job: RenderJob): string {
       return `Receiving frames (${job.frameManifest.receivedFrames}/${job.frameManifest.totalFrames || '?'})`;
     case 'queued':
       return 'Queued for encoding...';
+    case 'recovering':
+      return 'Recovering after server restart...';
     case 'encoding':
       return `Encoding frame ${job.currentFrame}/${job.frameManifest.totalFrames}`;
     case 'complete':

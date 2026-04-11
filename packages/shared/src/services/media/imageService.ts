@@ -9,7 +9,7 @@
  */
 
 import { ai, MODELS, withRetry } from '../shared/apiClient';
-import { refineImagePrompt, compressPromptForGeneration } from '../content/promptService';
+import { refineAndCompressPrompt, compressPromptForGeneration, countWords } from '../content/promptService';
 import {
   buildImageStyleGuide,
   serializeStyleGuideAsText,
@@ -342,14 +342,18 @@ export const generateImageFromPrompt = traceAsync(
 
       if (prebuiltGuide) {
         // Caller already built a guide — serialize directly (no refinement, no re-wrapping)
-        finalPrompt = serializeStyleGuideAsText(prebuiltGuide);
+        // and fall back to the legacy single-shot compress for dilution protection.
+        finalPrompt = await compressPromptForGeneration(serializeStyleGuideAsText(prebuiltGuide));
       } else {
         // Run a lightweight lint + (optional) AI refinement before image generation.
         // Skip if already refined upstream (e.g., during bulk generation with cross-scene context).
         let refinedPrompt = promptText;
+        let compressedPrompt = promptText;
 
         if (!skipRefine) {
-          const result = await refineImagePrompt({
+          // Single Gemini call returns BOTH a vivid 70–130 word rewrite AND a ≤80-word
+          // keyword form, replacing the old refine→compress two-hop chain.
+          const result = await refineAndCompressPrompt({
             promptText,
             style,
             globalSubject,
@@ -359,6 +363,7 @@ export const generateImageFromPrompt = traceAsync(
           });
 
           refinedPrompt = result.refinedPrompt;
+          compressedPrompt = result.compressedPrompt;
 
           if (result.issues.length > 0) {
             log.debug(
@@ -373,11 +378,12 @@ export const generateImageFromPrompt = traceAsync(
           style,
           globalSubject,
         });
-        finalPrompt = serializeStyleGuideAsText(guide);
-      }
+        const serialized = serializeStyleGuideAsText(guide);
 
-      // Compress long prompts to reduce instruction dilution (story-mode shots can exceed 200 words)
-      finalPrompt = await compressPromptForGeneration(finalPrompt);
+        // Use the compressed form when the serialized guide exceeds the dilution threshold
+        // (story-mode shots regularly exceed 200 words after style-guide wrapping).
+        finalPrompt = countWords(serialized) > 100 ? compressedPrompt : serialized;
+      }
 
       // Determine seed: use provided seed, or auto-generate from globalSubject for consistency
       let effectiveSeed = seed;

@@ -145,7 +145,10 @@ export async function cleanupOldJobs(maxAgeHours: number = 24): Promise<number> 
   let cleaned = 0;
 
   for (const job of jobs) {
-    // Only clean up completed or failed jobs older than cutoff
+    // Only clean up completed or failed jobs older than cutoff.
+    // Transient states (pending/uploading/queued/recovering/encoding) are
+    // explicitly excluded — in particular, `recovering` jobs must never be
+    // deleted because they are mid-rehydration after a server restart.
     if (
       (job.status === 'complete' || job.status === 'failed') &&
       job.createdAt < cutoff

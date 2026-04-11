@@ -14,10 +14,9 @@ import { generateContentPlan, ContentPlannerConfig } from "@/services/content/co
 import { initializeProductionSession } from "@/services/ai/production/store";
 import { VideoPurpose, LanguageCode } from "@/constants";
 import {
-    getProductionSessionSnapshot,
     hydrateProductionSessionSnapshot,
     startProductionRun,
-    subscribeToProductionRun,
+    waitForProductionCompletion,
     type ProductionEvent,
     type ProductionMode,
 } from "@/services/orchestration/productionApi";
@@ -175,41 +174,26 @@ export function useVideoProductionRefactored() {
                 mode,
             });
 
-            await new Promise<void>((resolve, reject) => {
-                let unsubscribe = () => {};
-
-                unsubscribe = subscribeToProductionRun(
-                    runId,
-                    (event) => {
-                        setProgress({
-                            stage: event.stage as any,
-                            progress: event.progress ?? (event.isComplete ? 100 : 0),
-                            message: event.message,
-                            currentScene: event.currentScene,
-                            totalScenes: event.totalScenes,
-                        });
-                        setAppState(mapProductionEventToAppState(event));
-
-                        if (!event.isComplete) {
-                            return;
-                        }
-
-                        unsubscribe();
-                        if (event.success === false) {
-                            reject(new Error(event.error || event.message));
-                            return;
-                        }
-
-                        resolve();
-                    },
-                    (streamError) => {
-                        unsubscribe();
-                        reject(streamError);
-                    }
-                );
-            });
-
-            const snapshot = await getProductionSessionSnapshot(sessionId);
+            const snapshot = await waitForProductionCompletion(
+                runId,
+                sessionId,
+                (event) => {
+                    setProgress({
+                        stage: event.stage as any,
+                        progress: event.progress ?? (event.isComplete ? 100 : 0),
+                        message: event.message,
+                        currentScene: event.currentScene,
+                        totalScenes: event.totalScenes,
+                    });
+                    setAppState(mapProductionEventToAppState(event));
+                },
+                (streamError) => {
+                    // Non-fatal SSE hiccup; waitForProductionCompletion will
+                    // fall back to snapshot polling. Surface the message so
+                    // operators can see the degradation in logs.
+                    log.warn("[useVideoProduction] SSE stream error, polling fallback:", streamError);
+                },
+            );
             const hydratedState = await hydrateProductionSessionSnapshot(snapshot);
 
             await initializeProductionSession(sessionId, hydratedState);

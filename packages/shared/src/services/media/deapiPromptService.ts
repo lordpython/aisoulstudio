@@ -105,7 +105,7 @@ export async function enhanceImagePrompt(prompt: string): Promise<string> {
  * Improves temporal language, motion descriptions, and camera movement cues.
  *
  * Use on the combined motion prompt string from `generateMotionPrompt()`
- * before passing it to `animateImageWithDeApi()` or `generateVideoFromText()`.
+ * before passing it to `animateImageWithDeApi()` or `generateVideoWithDeApi()`.
  *
  * @param prompt - Camera/motion prompt to enhance
  * @returns Enhanced prompt, or the original if DeAPI is unavailable

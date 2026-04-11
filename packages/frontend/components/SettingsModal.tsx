@@ -16,12 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalDescription,
+  ResponsiveModalTitle,
+} from "@/components/ui/responsive-modal";
 import { ART_STYLES, VIDEO_PURPOSES, type VideoPurpose } from "@/constants";
-// cn utility removed - not used in this component
 
 export interface SettingsModalProps {
   isOpen: boolean;
@@ -66,18 +66,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onVeoVideoCountChange,
 }) => {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl bg-background/80 backdrop-blur-2xl border-white/10 p-0 overflow-hidden gap-0 shadow-2xl shadow-black/50">
+    <ResponsiveModal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <ResponsiveModalContent className="sm:max-w-2xl bg-background/80 backdrop-blur-2xl border-white/10 p-0 overflow-hidden gap-0 shadow-2xl shadow-black/50">
         {/* Header */}
         <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-white/5">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
               <Settings size={16} className="text-primary" />
             </div>
-            <DialogTitle className="text-lg font-semibold tracking-tight">Studio Configuration</DialogTitle>
+            <ResponsiveModalTitle className="text-lg font-semibold tracking-tight">Studio Configuration</ResponsiveModalTitle>
+            <ResponsiveModalDescription className="sr-only">
+              Configure target audience, video purpose, rendering engine, and visual style for your project.
+            </ResponsiveModalDescription>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <X size={18} className="text-muted-foreground" />
+          <button
+            onClick={onClose}
+            aria-label="Close settings"
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X size={18} className="text-muted-foreground" aria-hidden="true" />
           </button>
         </div>
 
@@ -157,7 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Save Changes
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveModalContent>
+    </ResponsiveModal>
   );
 };

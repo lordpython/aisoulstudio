@@ -2,6 +2,7 @@ import { Router, Response, Request } from 'express';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger.js';
 import fs from 'fs';
 import multer from 'multer';
+import { safeUnlinkAsync } from './routeUtils.js';
 import { MAX_SINGLE_FILE } from '../utils/index.js';
 import {
     buildProxyUrl,
@@ -58,25 +59,35 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     const filePath = req.file.path;
     try {
         sunoLog.info(`Uploading file: ${req.file.originalname}`);
-        const fileBuffer = fs.readFileSync(filePath);
-        const blob = new Blob([fileBuffer], { type: req.file.mimetype });
 
-        const formData = new FormData();
-        formData.append('file', blob, req.file.originalname);
-        formData.append('uploadPath', 'custom_uploads');
+        // Use async read to avoid blocking the event loop for large audio files.
+        // NOTE: Previously this forwarded the API key to sunoapiorg.redpandaai.co
+        // (a third-party domain unrelated to sunoapi.org). This now routes exclusively
+        // through the official api.sunoapi.org domain using the base64 upload endpoint.
+        const fileBuffer = await fs.promises.readFile(filePath);
+        const base64Content = fileBuffer.toString('base64');
 
-        const response = await fetch('https://sunoapiorg.redpandaai.co/api/file-stream-upload', {
+        const response = await fetch('https://api.sunoapi.org/api/v1/upload/base64', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${SUNO_API_KEY}` },
-            body: formData,
+            headers: {
+                'Authorization': `Bearer ${SUNO_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                file: base64Content,
+                filename: req.file.originalname || 'upload',
+                content_type: req.file.mimetype || 'audio/mpeg',
+            }),
         });
 
         const data = await response.json();
-        fs.unlinkSync(filePath);
-        res.json(data);
-    } catch (error: any) {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        sendError(res, error.message || 'Upload failed', 500);
+        await safeUnlinkAsync(filePath);
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        await safeUnlinkAsync(filePath);
+        const err = error as Error;
+        sendError(res, err.message || 'Upload failed', 500);
     }
 });
 

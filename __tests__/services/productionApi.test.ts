@@ -116,31 +116,28 @@ describe('subscribeToProductionRun', () => {
   });
 
   it('reconnects with exponential back-off on error', () => {
+    // SSE_MAX_RECONNECT_ATTEMPTS = 5, so the sequence is:
+    //   error 1 → retry @ 1000ms  (instances: 2)
+    //   error 2 → retry @ 2000ms  (instances: 3)
+    //   error 3 → retry @ 4000ms  (instances: 4)
+    //   error 4 → retry @ 8000ms  (instances: 5)
+    //   error 5 → retry @ 16000ms (instances: 6)
+    //   error 6 → exhausted, onError fires, no new instance
     vi.useFakeTimers();
     const onError = vi.fn();
     subscribeToProductionRun('run_reconnect', vi.fn(), onError);
 
-    // First error → retry after 1 000 ms
-    mockES.instances[0].onerror?.();
-    expect(mockES.instances).toHaveLength(1);
+    const delays = [1000, 2000, 4000, 8000, 16000];
+    for (let i = 0; i < delays.length; i++) {
+      mockES.instances[i].onerror?.();
+      vi.advanceTimersByTime(delays[i]);
+      expect(mockES.instances).toHaveLength(i + 2);
+    }
 
-    vi.advanceTimersByTime(1000);
-    expect(mockES.instances).toHaveLength(2);
-
-    // Second error → retry after 2 000 ms
-    mockES.instances[1].onerror?.();
-    vi.advanceTimersByTime(2000);
-    expect(mockES.instances).toHaveLength(3);
-
-    // Third error → retry after 4 000 ms
-    mockES.instances[2].onerror?.();
-    vi.advanceTimersByTime(4000);
-    expect(mockES.instances).toHaveLength(4);
-
-    // Fourth error → exhausted; onError called, no new instance
-    mockES.instances[3].onerror?.();
+    // Final (exhausting) error → no new instance, onError fires
+    mockES.instances[delays.length].onerror?.();
     vi.runAllTimers();
-    expect(mockES.instances).toHaveLength(4);
+    expect(mockES.instances).toHaveLength(delays.length + 1);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('retries') }));
   });
 

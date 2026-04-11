@@ -89,8 +89,11 @@ export async function startProductionRun(
   return response.json();
 }
 
-const SSE_MAX_RECONNECT_ATTEMPTS = 3;
+const SSE_MAX_RECONNECT_ATTEMPTS = 5;
 const SSE_RECONNECT_BASE_MS = 1000;
+
+const SNAPSHOT_POLL_INTERVAL_MS = 10_000;
+const SNAPSHOT_POLL_MAX_ATTEMPTS = 30; // 5 minutes
 
 export function subscribeToProductionRun(
   runId: string,
@@ -148,6 +151,114 @@ export function subscribeToProductionRun(
   };
 }
 
+/**
+ * Poll the snapshot endpoint until the production run completes or the
+ * attempt budget is exhausted. Used as a fallback when the SSE stream fails.
+ */
+export async function pollSnapshotUntilComplete(
+  sessionId: string,
+  options: {
+    intervalMs?: number;
+    maxAttempts?: number;
+    onPoll?: (snapshot: ProductionSessionSnapshot, attempt: number) => void;
+  } = {},
+): Promise<ProductionSessionSnapshot> {
+  const intervalMs = options.intervalMs ?? SNAPSHOT_POLL_INTERVAL_MS;
+  const maxAttempts = options.maxAttempts ?? SNAPSHOT_POLL_MAX_ATTEMPTS;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const snapshot = await getProductionSessionSnapshot(sessionId);
+      options.onPoll?.(snapshot, attempt);
+      if (snapshot.isComplete) {
+        return snapshot;
+      }
+    } catch {
+      // Transient fetch errors are tolerated between polls; the loop
+      // will retry until the attempt budget is exhausted.
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  throw new Error(
+    `Production snapshot polling timed out after ${maxAttempts} attempts (${(maxAttempts * intervalMs) / 1000}s)`,
+  );
+}
+
+/**
+ * Wait for a production run to complete, preferring the SSE event stream but
+ * falling back to snapshot polling if the stream fails.
+ *
+ * Returns the final snapshot (always fetched from the snapshot endpoint so
+ * the caller has a consistent shape regardless of which code path completed).
+ *
+ * @param runId      The production run identifier from `startProductionRun`.
+ * @param sessionId  The session identifier from `startProductionRun`.
+ *                   Required because SSE may never emit an event that carries
+ *                   it, so polling fallback needs it up-front.
+ * @param onEvent    Called for every streamed SSE event (progress updates).
+ * @param onError    Called when a non-fatal error occurs (e.g. SSE parse failure).
+ */
+export async function waitForProductionCompletion(
+  runId: string,
+  sessionId: string,
+  onEvent?: (event: ProductionEvent) => void,
+  onError?: (error: Error) => void,
+): Promise<ProductionSessionSnapshot> {
+  let unsubscribe = () => {};
+
+  type SseResult =
+    | { ok: true; event: ProductionEvent }
+    | { ok: false; error: Error; isRunFailure: boolean };
+
+  const sseResult = await new Promise<SseResult>((resolve) => {
+    unsubscribe = subscribeToProductionRun(
+      runId,
+      (event) => {
+        onEvent?.(event);
+        if (event.isComplete) {
+          unsubscribe();
+          if (event.success === false) {
+            // The run itself failed — polling will not help
+            resolve({ ok: false, error: new Error(event.error || event.message), isRunFailure: true });
+          } else {
+            resolve({ ok: true, event });
+          }
+        }
+      },
+      (streamError) => {
+        // The SSE connection itself failed — the run may still be running
+        onError?.(streamError);
+        unsubscribe();
+        resolve({ ok: false, error: streamError, isRunFailure: false });
+      },
+    );
+  });
+
+  if (sseResult.ok) {
+    return getProductionSessionSnapshot(sessionId);
+  }
+
+  // Genuine run failure reported by the server — don't poll, surface the error immediately
+  if (sseResult.isRunFailure) {
+    throw sseResult.error;
+  }
+
+  // SSE connection failed (not a run failure). Probe the snapshot endpoint —
+  // the run may have completed while the stream was down.
+  try {
+    const snapshot = await pollSnapshotUntilComplete(sessionId);
+    return snapshot;
+  } catch (pollError) {
+    // Neither SSE nor polling succeeded; prefer surfacing the SSE error since
+    // it is usually the more actionable signal.
+    throw sseResult.error instanceof Error ? sseResult.error : pollError;
+  }
+}
+
 export async function getProductionSessionSnapshot(
   sessionId: string,
 ): Promise<ProductionSessionSnapshot> {
@@ -181,7 +292,9 @@ async function hydrateNarrationSegment(
   }
 
   if (segment.audioUrl) {
-    const response = await fetch(resolveServerAssetUrl(segment.audioUrl));
+    const response = await fetch(resolveServerAssetUrl(segment.audioUrl), {
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch narration for scene ${segment.sceneId}`);
     }
