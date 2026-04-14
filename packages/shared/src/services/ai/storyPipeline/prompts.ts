@@ -95,6 +95,7 @@ export function buildBreakdownPrompt(
         researchSummary,
         researchCitations,
         referenceContent,
+        targetDurationSeconds,
     } = options;
 
     // Auto-detect language from topic if not explicitly set
@@ -114,10 +115,19 @@ export function buildBreakdownPrompt(
         ? 'Write your response entirely in Arabic.'
         : 'Write your response in English.';
 
-    // Duration hints from format registry
+    // Duration: use user-selected target if provided, otherwise fall back to format registry
     const formatMeta = formatRegistry.getFormat(formatId);
-    const minDuration = formatMeta ? Math.round(formatMeta.durationRange.min / 60) : 3;
-    const maxDuration = formatMeta ? Math.round(formatMeta.durationRange.max / 60) : 10;
+    let minDuration: number;
+    let maxDuration: number;
+    if (targetDurationSeconds) {
+        // User picked an explicit duration — clamp to ±15 s so LLM understands range
+        const targetMins = targetDurationSeconds / 60;
+        minDuration = Math.max(0.25, Math.round((targetMins - 0.25) * 4) / 4);
+        maxDuration = Math.round((targetMins + 0.25) * 4) / 4;
+    } else {
+        minDuration = formatMeta ? Math.round(formatMeta.durationRange.min / 60) : 3;
+        maxDuration = formatMeta ? Math.round(formatMeta.durationRange.max / 60) : 10;
+    }
 
     const template = loadTemplate(formatId, 'breakdown');
 
@@ -153,6 +163,7 @@ export function buildScreenplayPrompt(
         researchSummary,
         researchCitations,
         referenceContent,
+        targetDurationSeconds,
     } = options;
 
     const breakdownSample = breakdownActs.map(a => a.title + ' ' + a.narrativeBeat).join(' ');
@@ -175,9 +186,18 @@ export function buildScreenplayPrompt(
         ? 'Write the screenplay in Arabic.'
         : 'Write the screenplay in English.';
 
+    // Build duration guidance so the LLM sizes the screenplay appropriately
+    let durationGuidance = '';
+    if (targetDurationSeconds) {
+        const targetMins = targetDurationSeconds / 60;
+        const minMins = Math.max(0.25, Math.round((targetMins - 0.25) * 4) / 4);
+        const maxMins = Math.round((targetMins + 0.25) * 4) / 4;
+        durationGuidance = `\nTarget duration: ${minMins}-${maxMins} minutes. Size each scene's action and dialogue to fit this total length.\n`;
+    }
+
     const template = loadTemplate(formatId, 'screenplay');
 
-    return substituteVariables(template, {
+    const base = substituteVariables(template, {
         idea: '',
         genre: genre || 'General',
         language_instruction: langInstruction,
@@ -186,4 +206,6 @@ export function buildScreenplayPrompt(
         breakdown: breakdownText,
         actCount: String(breakdownActs.length),
     });
+
+    return durationGuidance ? base + durationGuidance : base;
 }

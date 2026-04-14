@@ -38,6 +38,7 @@ export async function generateBreakdown(
         researchSummary: formatOptions?.researchSummary,
         researchCitations: formatOptions?.researchCitations,
         referenceContent: formatOptions?.referenceContent,
+        targetDurationSeconds: formatOptions?.targetDurationSeconds,
     };
 
     const model = new ChatGoogleGenerativeAI({
@@ -69,6 +70,7 @@ export async function generateScreenplay(
         researchSummary: formatOptions?.researchSummary,
         researchCitations: formatOptions?.researchCitations,
         referenceContent: formatOptions?.referenceContent,
+        targetDurationSeconds: formatOptions?.targetDurationSeconds,
     };
 
     const model = new ChatGoogleGenerativeAI({

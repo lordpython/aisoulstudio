@@ -111,7 +111,9 @@ import {
   buildBreakdownPrompt,
   buildScreenplayPrompt,
   generateVoiceoverScripts,
+  type StoryPipelineOptions,
 } from '../../packages/shared/src/services/ai/storyPipeline';
+import { generateBreakdown, generateScreenplay } from '../../packages/shared/src/services/ai/storyPipeline/stages';
 import type { ScreenplayScene, FormatMetadata } from '../../packages/shared/src/types';
 
 // ---------------------------------------------------------------------------
@@ -588,5 +590,167 @@ describe('generateVoiceoverScripts', () => {
 
     expect(result.has('scene_0')).toBe(true);
     expect(result.has('scene_1')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildBreakdownPrompt — targetDurationSeconds (Fix #3/#4)
+// ---------------------------------------------------------------------------
+
+describe('buildBreakdownPrompt — targetDurationSeconds', () => {
+  it('uses format-registry defaults when targetDurationSeconds is not provided', () => {
+    const result = buildBreakdownPrompt('A story');
+    // formatRegistry mock returns durationRange { min: 300, max: 1800 }
+    // → min = 300/60 = 5, max = 1800/60 = 30
+    expect(result).toContain('5');
+    expect(result).toContain('30');
+  });
+
+  it('computes custom min/max from targetDurationSeconds when provided', () => {
+    // 180s = 3 min → min = max(0.25, round((3 - 0.25)*4)/4) = 2.75
+    //                 max = round((3 + 0.25)*4)/4 = 3.25
+    const result = buildBreakdownPrompt('A story', { targetDurationSeconds: 180 });
+    expect(result).toContain('2.75');
+    expect(result).toContain('3.25');
+  });
+
+  it('clamps minimum to 0.25 for very short durations', () => {
+    // 10s = 0.167 min → min = max(0.25, round((0.167 - 0.25)*4)/4) → max(0.25, -0.25) = 0.25
+    const result = buildBreakdownPrompt('A story', { targetDurationSeconds: 10 });
+    expect(result).toContain('0.25');
+  });
+
+  it('passes targetDurationSeconds through to the template variables', () => {
+    const result = buildBreakdownPrompt('A story', { targetDurationSeconds: 600 });
+    // 600s = 10 min → min = 9.75, max = 10.25
+    expect(result).toContain('9.75');
+    expect(result).toContain('10.25');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildScreenplayPrompt — targetDurationSeconds (Fix #3)
+// ---------------------------------------------------------------------------
+
+describe('buildScreenplayPrompt — targetDurationSeconds', () => {
+  const sampleActs = [
+    { title: 'Act One', emotionalHook: 'Wonder', narrativeBeat: 'Hero discovers the truth' },
+  ];
+
+  it('does not append duration guidance when targetDurationSeconds is omitted', () => {
+    const result = buildScreenplayPrompt(sampleActs);
+    expect(result).not.toContain('Target duration:');
+  });
+
+  it('appends duration guidance when targetDurationSeconds is provided', () => {
+    const result = buildScreenplayPrompt(sampleActs, { targetDurationSeconds: 180 });
+    expect(result).toContain('Target duration:');
+    expect(result).toContain('2.75');
+    expect(result).toContain('3.25');
+    expect(result).toContain('minutes');
+  });
+
+  it('computes correct range for short durations (30s)', () => {
+    // 30s = 0.5 min → min = max(0.25, round((0.5-0.25)*4)/4) = 0.25
+    //                  max = round((0.5+0.25)*4)/4 = 0.75
+    const result = buildScreenplayPrompt(sampleActs, { targetDurationSeconds: 30 });
+    expect(result).toContain('0.25');
+    expect(result).toContain('0.75');
+  });
+
+  it('computes correct range for long durations (900s = 15 min)', () => {
+    // 900s = 15 min → min = 14.75, max = 15.25
+    const result = buildScreenplayPrompt(sampleActs, { targetDurationSeconds: 900 });
+    expect(result).toContain('14.75');
+    expect(result).toContain('15.25');
+  });
+
+  it('still includes act data alongside duration guidance', () => {
+    const result = buildScreenplayPrompt(sampleActs, { targetDurationSeconds: 180 });
+    expect(result).toContain('Act One');
+    expect(result).toContain('Target duration:');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateBreakdown — forwards targetDurationSeconds (Fix #4)
+// ---------------------------------------------------------------------------
+
+describe('generateBreakdown — targetDurationSeconds forwarding', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    mockWithStructuredOutput.mockReturnValue({ invoke: mockInvoke });
+  });
+
+  it('passes targetDurationSeconds into the prompt via buildBreakdownPrompt', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      acts: [{ title: 'Act 1', emotionalHook: 'Curiosity', narrativeBeat: 'The journey begins' }],
+    });
+
+    await generateBreakdown('A story about robots', {
+      formatId: 'movie-animation',
+      targetDurationSeconds: 300,
+    });
+
+    // The prompt passed to LLM should contain the duration-derived values
+    // 300s = 5 min → min = 4.75, max = 5.25
+    const promptArg: string = mockInvoke.mock.calls[0][0];
+    expect(promptArg).toContain('4.75');
+    expect(promptArg).toContain('5.25');
+  });
+
+  it('uses format-registry defaults when targetDurationSeconds is omitted', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      acts: [{ title: 'Act 1', emotionalHook: 'Curiosity', narrativeBeat: 'The journey begins' }],
+    });
+
+    await generateBreakdown('A story about robots', { formatId: 'movie-animation' });
+
+    // formatRegistry mock returns durationRange { min: 300, max: 1800 } → 5-30 min
+    const promptArg: string = mockInvoke.mock.calls[0][0];
+    expect(promptArg).toContain('5');
+    expect(promptArg).toContain('30');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateScreenplay — forwards targetDurationSeconds (Fix #4)
+// ---------------------------------------------------------------------------
+
+describe('generateScreenplay — targetDurationSeconds forwarding', () => {
+  const sampleActs = [
+    { title: 'Act One', emotionalHook: 'Wonder', narrativeBeat: 'Hero discovers the truth' },
+  ];
+
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    mockWithStructuredOutput.mockReturnValue({ invoke: mockInvoke });
+  });
+
+  it('appends duration guidance when targetDurationSeconds is provided', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      scenes: [{ id: 's1', sceneNumber: 1, heading: 'INT. LAB', action: 'A scientist works', dialogue: [], charactersPresent: [] }],
+    });
+
+    await generateScreenplay(sampleActs, {
+      formatId: 'movie-animation',
+      targetDurationSeconds: 180,
+    });
+
+    const promptArg: string = mockInvoke.mock.calls[0][0];
+    expect(promptArg).toContain('Target duration:');
+    expect(promptArg).toContain('2.75');
+    expect(promptArg).toContain('3.25');
+  });
+
+  it('does not include duration guidance when targetDurationSeconds is omitted', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      scenes: [{ id: 's1', sceneNumber: 1, heading: 'INT. LAB', action: 'A scientist works', dialogue: [], charactersPresent: [] }],
+    });
+
+    await generateScreenplay(sampleActs, { formatId: 'movie-animation' });
+
+    const promptArg: string = mockInvoke.mock.calls[0][0];
+    expect(promptArg).not.toContain('Target duration:');
   });
 });

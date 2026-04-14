@@ -38,6 +38,7 @@ export interface StoryPipelineOptions {
     researchSummary?: string;
     researchCitations?: string;
     referenceContent?: string;
+    targetDurationSeconds?: number;
 }
 
 export interface StoryPipelineResult {
@@ -70,11 +71,12 @@ export async function runStoryPipeline(
         researchSummary,
         researchCitations,
         referenceContent,
+        targetDurationSeconds,
     } = options;
 
     // Compose format-aware options to pass to internal pipeline steps
     const formatOptions: FormatAwareGenerationOptions | undefined = formatId
-        ? { formatId, genre, language, researchSummary, researchCitations, referenceContent }
+        ? { formatId, genre, language, researchSummary, researchCitations, referenceContent, targetDurationSeconds }
         : undefined;
 
     log.info(`Starting story pipeline for: ${topic.slice(0, 50)}...`);

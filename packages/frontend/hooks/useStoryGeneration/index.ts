@@ -71,6 +71,7 @@ import { getCharacterSeed } from '@/services/media/imageService';
 import { cleanForSubtitles } from '@/services/audio-processing/textSanitizer';
 import { generateVoiceoverScripts } from '@/services/ai/storyPipeline';
 import { detectLanguage } from '@/services/content/languageDetector';
+import { enhanceVideoPrompt } from '@/services/media/deapiPromptService';
 
 import {
     generateNegativePromptsForStyle,
@@ -302,7 +303,7 @@ export function useStoryGeneration(projectId?: string | null) {
         setProgress({ message: 'Generating story breakdown...', percent: 20 });
 
         try {
-            const result = await invokeGenerateBreakdown(inputTopic);
+            const result = await invokeGenerateBreakdown(inputTopic, undefined, state.targetDurationSeconds);
 
             if (!result.success) {
                 setError(result.error || 'Breakdown generation failed');
@@ -857,6 +858,9 @@ export function useStoryGeneration(projectId?: string | null) {
                     });
                 },
                 sessionId || undefined,
+                undefined, // emotionalContexts
+                undefined, // characters
+                state.targetDurationSeconds,
             );
 
             // Convert Shot[] to StoryShot[]
@@ -910,6 +914,7 @@ export function useStoryGeneration(projectId?: string | null) {
         updateStyleConsistency,
         updateBgRemoval,
         updateTtsSettings,
+        updateTargetDuration,
     } = useStorySettings(setState);
 
     /**
@@ -1686,8 +1691,15 @@ export function useStoryGeneration(projectId?: string | null) {
                     const motionStrength = selectMotionStrength(shotType, movement);
                     const motionConfig = MOTION_CONFIGS[motionStrength];
 
-                    // Build camera-focused animation prompt (Issue 4)
-                    const animationPrompt = buildAnimationPrompt(movement, shot.description);
+                    // Build camera-focused animation prompt, then enhance via DeAPI /prompt/video
+                    const rawAnimationPrompt = buildAnimationPrompt(movement, shot.description);
+                    let animationPrompt: string;
+                    try {
+                        animationPrompt = await enhanceVideoPrompt(rawAnimationPrompt);
+                    } catch (enhanceErr) {
+                        log.warn(`[useStoryGeneration] enhanceVideoPrompt failed, falling back to raw prompt:`, enhanceErr);
+                        animationPrompt = rawAnimationPrompt;
+                    }
 
                     if (useDeApi && shot.imageUrl) {
                         // img2video requires a data: URL — convert remote URLs
@@ -1732,16 +1744,21 @@ export function useStoryGeneration(projectId?: string | null) {
                                 i,
                                 {
                                     motionStrength,
+                                    targetDurationSeconds: shotTargetDurations.get(shot.id),
                                     removeBackground: state.animateWithBgRemoval,
                                     onProgress: updateShotProgress,
                                 },
                             );
                         } else {
                             // Fallback to txt2video only if image conversion failed
+                            const targetDur = shotTargetDurations.get(shot.id);
+                            const txt2vidFrames = targetDur
+                                ? Math.round(targetDur * 24)
+                                : motionConfig.frames;
                             videoUrl = await generateVideoWithDeApi(
                                 {
                                     prompt: animationPrompt,
-                                    frames: motionConfig.frames,
+                                    frames: txt2vidFrames,
                                 },
                                 deapiAspectRatio,
                                 sessionId || undefined,
@@ -1773,7 +1790,7 @@ export function useStoryGeneration(projectId?: string | null) {
                     }
 
                     // Store with target duration from narration (Issue 6)
-                    const targetDuration = shotTargetDurations.get(shot.id) || motionConfig.frames / 30;
+                    const targetDuration = shotTargetDurations.get(shot.id) ?? motionConfig.frames / 30;
                     const animatedShot = {
                         shotId: shot.id,
                         videoUrl,
@@ -2214,6 +2231,7 @@ export function useStoryGeneration(projectId?: string | null) {
         updateStyleConsistency,
         updateBgRemoval,
         updateTtsSettings,
+        updateTargetDuration,
         generateShots,
         generateVisuals,
         regenerateShotVisual,
