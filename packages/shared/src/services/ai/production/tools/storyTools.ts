@@ -145,9 +145,9 @@ function scoreStoryQuality(state: StoryModeState): { score: number; suggestions:
 // ---------------------------------------------------------------------------
 
 export const generateBreakdownTool = tool(
-    async ({ topic, sessionId }) => {
+    async ({ topic, sessionId, targetDuration }) => {
         const id = sessionId || `story_${Date.now()}`;
-        log.info(` Generating story breakdown for: ${topic}`);
+        log.info(` Generating story breakdown for: ${topic}${targetDuration ? ` (target: ${targetDuration}s)` : ''}`);
 
         if (!GEMINI_API_KEY) {
             return JSON.stringify({
@@ -171,6 +171,7 @@ export const generateBreakdownTool = tool(
             formatId: 'movie-animation',
             genre,
             language: detectedLang,
+            targetDurationSeconds: targetDuration,
         });
 
         let breakdown: string;

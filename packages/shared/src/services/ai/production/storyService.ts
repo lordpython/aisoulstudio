@@ -41,10 +41,11 @@ function parseToolResult(json: string): StoryToolResult {
 export async function invokeGenerateBreakdown(
     topic: string,
     sessionId?: string,
+    targetDurationSeconds?: number,
 ): Promise<StoryToolResult> {
-    log.info(`Direct: generate_breakdown for "${topic.slice(0, 50)}..."`);
+    log.info(`Direct: generate_breakdown for "${topic.slice(0, 50)}..."${targetDurationSeconds ? ` target=${targetDurationSeconds}s` : ''}`);
     const { generateBreakdownTool } = await import('./tools/storyTools');
-    const result = await generateBreakdownTool.invoke({ topic, sessionId });
+    const result = await generateBreakdownTool.invoke({ topic, sessionId, targetDuration: targetDurationSeconds });
     return parseToolResult(result);
 }
 

@@ -138,7 +138,7 @@ Output as JSON array with exactly this format:
 \`\`\`
 
 IMPORTANT:
-- Generate 4-6 shots only
+- {shotCountGuidance}
 - Each shot must drive the narrative forward, not just establish a location
 - Vary shot types and camera movements for dynamic visual rhythm
 - Maintain 180-degree rule for dialogue scenes
@@ -225,6 +225,7 @@ export async function breakSceneIntoShots(
     sessionId?: string,
     emotionalContext?: string,
     characters?: CharacterInput[],
+    targetDurationSeconds?: number,
 ): Promise<Shot[]> {
     const model = geminiModel || getGeminiModel();
 
@@ -240,6 +241,21 @@ export async function breakSceneIntoShots(
           ).join('\n')
         : '  No specific character descriptions provided.';
 
+    // Derive per-scene shot count guidance from target duration
+    // Rule of thumb: ~4s average per shot. Shorter video = fewer shots per scene.
+    let shotCountGuidance: string;
+    if (targetDurationSeconds) {
+        const avgShotSec = 4;
+        // Allocate roughly equal time per scene across the full video
+        // (caller passes per-scene share if available, otherwise use global target)
+        const shotsTarget = Math.round(targetDurationSeconds / avgShotSec);
+        const min = Math.max(2, Math.floor(shotsTarget * 0.6));
+        const max = Math.min(12, Math.ceil(shotsTarget * 1.4));
+        shotCountGuidance = `Generate ${min}-${max} shots to match a ~${targetDurationSeconds}s video`;
+    } else {
+        shotCountGuidance = 'Generate 4-6 shots only';
+    }
+
     // Build prompt with emotional context
     const mood = emotionalContext || 'Cinematic';
     const sceneNarration = scene.action || 'No narration text available';
@@ -252,7 +268,8 @@ export async function breakSceneIntoShots(
         .replace('{characterAnchors}', characterAnchors)
         .replace('{dialogue}', dialogueStr)
         .replace('{mood}', mood)
-        .replace('{genre}', genre); // Second occurrence
+        .replace('{genre}', genre) // Second occurrence
+        .replace('{shotCountGuidance}', shotCountGuidance);
 
     log.info(`Breaking down scene ${scene.sceneNumber} into shots...`);
 
@@ -293,10 +310,16 @@ export async function breakAllScenesIntoShots(
     sessionId?: string,
     emotionalContexts?: string[],
     characters?: CharacterInput[],
+    targetDurationSeconds?: number,
 ): Promise<ShotBreakdownResult> {
     const model = getGeminiModel();
     const allShots: Shot[] = [];
     const failedSceneIds: string[] = [];
+
+    // Per-scene duration share: divide total target by number of scenes
+    const perSceneDuration = targetDurationSeconds && scenes.length > 0
+        ? Math.round(targetDurationSeconds / scenes.length)
+        : undefined;
 
     for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
@@ -309,7 +332,7 @@ export async function breakAllScenesIntoShots(
 
         try {
             const emotionalContext = emotionalContexts?.[i];
-            const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext, characters);
+            const shots = await breakSceneIntoShots(scene, genre, model, sessionId, emotionalContext, characters, perSceneDuration);
             if (shots.length === 0) {
                 failedSceneIds.push(scene.id);
                 continue;

@@ -13,6 +13,10 @@ import {
   getDeApiDimensions,
   pollRequest,
   Semaphore,
+  withExponentialBackoff,
+  deapiGlobalLimiter,
+  DeApiPayloadError,
+  DeApiRateLimitError,
 } from './config';
 import { isDeApiConfigured } from './apiConfig';
 import { removeImageBackground } from './styleProcessing';
@@ -37,7 +41,7 @@ export const generateVideoWithDeApi = async (
       "DeAPI API key is not configured on the server.\n\n" +
       "To use DeAPI text-to-video:\n" +
       "1. Get an API key from https://deapi.ai\n" +
-      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "2. Add DEAPI_API_KEY=your_key to your .env.local file\n" +
       "3. Restart the development server (npm run dev:all)"
     );
   }
@@ -56,6 +60,8 @@ export const generateVideoWithDeApi = async (
   } = params;
 
   log.info(`Generating video from text: ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+
+  await deapiGlobalLimiter.waitForSlot();
 
   let response: Response;
 
@@ -119,6 +125,8 @@ export const generateVideoWithDeApi = async (
       if (errText) errorMessage = `DeAPI txt2video: ${errText.substring(0, 200)}`;
     }
 
+    if (response.status === 422) throw new DeApiPayloadError(errorMessage);
+    if (response.status === 429) throw new DeApiRateLimitError(errorMessage);
     throw new Error(errorMessage);
   }
 
@@ -142,13 +150,13 @@ export const generateVideoWithDeApi = async (
   }
 
   log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
-  const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
-
-  if (!vidResp.ok) {
-    throw new Error(`Failed to download generated video: ${vidResp.status}`);
-  }
-
-  const vidBlob = await vidResp.blob();
+  const vidBlob = await withExponentialBackoff(async () => {
+    const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
+    if (!vidResp.ok) {
+      throw new Error(`Failed to download generated video: ${vidResp.status}`);
+    }
+    return vidResp.blob();
+  }, { maxRetries: 3, initialDelayMs: 1000 });
   log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   if (sessionId && sceneIndex !== undefined) {
@@ -194,7 +202,7 @@ export const animateImageWithDeApi = async (
       "DeAPI is an optional video animation provider that converts still images to video loops.\n\n" +
       "To use DeAPI:\n" +
       "1. Get an API key from https://deapi.ai ($20 free credits for new accounts)\n" +
-      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "2. Add DEAPI_API_KEY=your_key to your .env.local file\n" +
       "3. Restart the development server (npm run dev:all)\n\n" +
       "Alternatives:\n" +
       "• Switch to 'Google Veo' as your video provider (requires paid Gemini API plan)\n" +
@@ -207,7 +215,8 @@ export const animateImageWithDeApi = async (
       log.warn('Received raw base64 without data URL prefix, adding image/png prefix');
       base64Image = `data:image/png;base64,${base64Image}`;
     } else {
-      throw new Error(
+      // Local payload validation — fail fast without burning a request.
+      throw new DeApiPayloadError(
         `DeAPI img2video requires a valid image data URL. ` +
         `Received: ${base64Image ? base64Image.substring(0, 50) + '...' : 'empty/null'}`
       );
@@ -269,6 +278,8 @@ export const animateImageWithDeApi = async (
 
   log.info(`Submitting img2video request: ${safeWidth}x${safeHeight}, prompt: ${prompt.substring(0, 50)}...`);
 
+  await deapiGlobalLimiter.waitForSlot();
+
   let response: Response;
 
   if (isBrowser) {
@@ -314,6 +325,8 @@ export const animateImageWithDeApi = async (
       if (errText) errorMessage = `DeAPI img2video failed: API error: ${errText.substring(0, 200)}...`;
     }
 
+    if (response.status === 422) throw new DeApiPayloadError(errorMessage);
+    if (response.status === 429) throw new DeApiRateLimitError(errorMessage);
     throw new Error(errorMessage);
   }
 
@@ -347,13 +360,13 @@ export const animateImageWithDeApi = async (
   }
 
   log.info(`Downloading video from: ${videoUrl.substring(0, 80)}...`);
-  const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
-
-  if (!vidResp.ok) {
-    throw new Error(`Failed to download generated video: ${vidResp.status}`);
-  }
-
-  const vidBlob = await vidResp.blob();
+  const vidBlob = await withExponentialBackoff(async () => {
+    const vidResp = await fetch(videoUrl, { signal: AbortSignal.timeout(120_000) });
+    if (!vidResp.ok) {
+      throw new Error(`Failed to download generated video: ${vidResp.status}`);
+    }
+    return vidResp.blob();
+  }, { maxRetries: 3, initialDelayMs: 1000 });
   log.info(`Video downloaded: ${(vidBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
   if (sessionId && sceneIndex !== undefined) {
@@ -396,7 +409,8 @@ export const animateImageBatch = async (
     return [];
   }
 
-  const effectiveConcurrency = Math.max(1, Math.min(concurrencyLimit, 4));
+  // Cap at 2 — img2video is heavier on the provider; the global limiter still spaces requests.
+  const effectiveConcurrency = Math.max(1, Math.min(concurrencyLimit, 2));
 
   const sortedItems = [...items].sort((a, b) => {
     const parseId = (id: string) => {

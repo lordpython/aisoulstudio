@@ -15,9 +15,9 @@
  * Server routes: /api/deapi/prompt/:type (added in deapi.ts)
  */
 
-// @ts-ignore — Vite injects import.meta.env at build time
-const VITE_API_KEY: string = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_DEAPI_API_KEY) || '';
-const API_KEY: string = VITE_API_KEY || (typeof process !== 'undefined' ? (process.env?.DEAPI_API_KEY ?? '') : '');
+// API key is server-only — not read from VITE_ env vars to avoid inlining into the browser bundle.
+// Browser requests are proxied through /api/deapi/prompt/:type which uses the server-side key.
+const API_KEY: string = (typeof process !== 'undefined' ? (process.env?.DEAPI_API_KEY ?? '') : '');
 
 const DEAPI_DIRECT_BASE = 'https://api.deapi.ai/api/v1/client';
 const isBrowser = typeof window !== 'undefined';
@@ -107,12 +107,64 @@ export async function enhanceImagePrompt(prompt: string): Promise<string> {
  * Use on the combined motion prompt string from `generateMotionPrompt()`
  * before passing it to `animateImageWithDeApi()` or `generateVideoWithDeApi()`.
  *
+ * DeAPI's `/prompt/video` endpoint requires a reference `image` field in the
+ * multipart body — calls without an image return 422. When no image is
+ * available (e.g. txt2video fallback), this function returns the original
+ * prompt unchanged rather than burning a doomed request.
+ *
  * @param prompt - Camera/motion prompt to enhance
- * @returns Enhanced prompt, or the original if DeAPI is unavailable
+ * @param imageDataUrl - Reference image as a `data:image/...;base64,...` URL
+ * @returns Enhanced prompt, or the original if DeAPI is unavailable / no image
  */
-export async function enhanceVideoPrompt(prompt: string): Promise<string> {
+export async function enhanceVideoPrompt(
+  prompt: string,
+  imageDataUrl?: string,
+): Promise<string> {
   if (!isConfigured() || !prompt.trim()) return prompt;
-  return (await callPromptEndpoint('video', prompt)) ?? prompt;
+  if (!imageDataUrl?.startsWith('data:')) return prompt;
+  return (await callVideoPromptEndpoint(prompt, imageDataUrl)) ?? prompt;
+}
+
+async function callVideoPromptEndpoint(
+  prompt: string,
+  imageDataUrl: string,
+): Promise<string | null> {
+  try {
+    const imageBlob = await (await fetch(imageDataUrl)).blob();
+    const form = new FormData();
+    form.append('prompt', prompt);
+    form.append('negative_prompt', 'blurry, low quality, distorted, artifacts');
+    form.append('image', imageBlob, 'frame.png');
+
+    const url = isBrowser
+      ? '/api/deapi/prompt/video'
+      : `${DEAPI_DIRECT_BASE}/prompt/video`;
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (!isBrowser) {
+      headers['Authorization'] = `Bearer ${API_KEY}`;
+      headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0';
+    }
+
+    const response = await fetch(url, { method: 'POST', headers, body: form });
+
+    if (!response.ok) {
+      log.warn(`/prompt/video returned ${response.status}`);
+      return null;
+    }
+
+    const rawData = await response.json();
+    const data = rawData.data ?? rawData;
+    const enhanced: string | undefined = data.prompt ?? data.enhanced_prompt;
+
+    if (!enhanced?.trim()) return null;
+
+    log.info(`/prompt/video enhanced (${prompt.length} -> ${enhanced.length} chars)`);
+    return enhanced.trim();
+  } catch (err) {
+    log.warn('/prompt/video failed (non-fatal)', err);
+    return null;
+  }
 }
 
 /**

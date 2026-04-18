@@ -543,6 +543,65 @@ router.post('/batch', deprecatedBatchRoute, async (req: Request, res: Response):
 });
 
 // ============================================================
+// /prompt/video — dedicated multipart route (DeAPI requires `image`)
+// Must be declared BEFORE the generic /prompt/:type handler so Express
+// matches it first.
+// ============================================================
+router.post('/prompt/video', upload.single('image'), async (req: Request, res: Response): Promise<void> => {
+    if (!DEAPI_API_KEY) {
+        res.status(500).json({ error: 'DeAPI API key not configured' });
+        return;
+    }
+
+    const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt : '';
+    const negativePrompt =
+        typeof req.body?.negative_prompt === 'string' && req.body.negative_prompt.trim()
+            ? req.body.negative_prompt
+            : 'blurry, low quality, distorted, artifacts';
+
+    if (!prompt.trim()) {
+        res.status(400).json({ error: 'prompt is required' });
+        return;
+    }
+
+    if (!req.file) {
+        res.status(400).json({ error: 'image file is required for /prompt/video' });
+        return;
+    }
+
+    try {
+        const { readFile, unlink } = await import('fs/promises');
+        const buffer = await readFile(req.file.path);
+        await unlink(req.file.path).catch(() => {});
+
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        formData.append('negative_prompt', negativePrompt);
+        formData.append(
+            'image',
+            new Blob([buffer], { type: req.file.mimetype || 'image/png' }),
+            req.file.originalname || 'frame.png',
+        );
+
+        const response = await fetch('https://api.deapi.ai/api/v1/client/prompt/video', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${DEAPI_API_KEY}`,
+                Accept: 'application/json',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error: unknown) {
+        const err = error as Error;
+        deapiLog.error('Prompt enhancement (video) error:', err);
+        res.status(500).json({ error: err.message || 'Prompt enhancement failed' });
+    }
+});
+
+// ============================================================
 // Prompt enhancement endpoints: /prompt/image, /prompt/video,
 // /prompt/image2image, /prompt/speech
 // ============================================================

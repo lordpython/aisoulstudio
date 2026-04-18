@@ -85,4 +85,6 @@ export interface FormatAwareGenerationOptions {
     researchCitations?: string;
     /** Raw reference document content to treat as primary source material */
     referenceContent?: string;
+    /** User-selected target video duration in seconds — overrides format-registry defaults */
+    targetDurationSeconds?: number;
 }

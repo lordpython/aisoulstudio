@@ -19,7 +19,7 @@ export const MAX_FILES = 10000;
 // Note: These are evaluated at import time, so dotenv must be loaded first
 // via the preload module (server/preload.ts)
 export const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
-export const DEAPI_API_KEY = process.env.VITE_DEAPI_API_KEY;
+export const DEAPI_API_KEY = process.env.DEAPI_API_KEY || process.env.VITE_DEAPI_API_KEY;
 
 /**
  * Sanitize session ID to prevent path traversal

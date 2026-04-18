@@ -47,5 +47,5 @@
     "scripts/**/*.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["node_modules", "packages/frontend/dist"]
+  "exclude": ["node_modules", "**/node_modules", "**/.pnpm", "packages/frontend/dist"]
 }

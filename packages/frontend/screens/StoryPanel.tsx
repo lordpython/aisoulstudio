@@ -409,6 +409,7 @@ export function StoryPanel({
         onUpdateDeapiImageModel={storyHook.updateDeapiImageModel}
         onUpdateStyleConsistency={storyHook.updateStyleConsistency}
         onUpdateBgRemoval={storyHook.updateBgRemoval}
+        onUpdateTargetDuration={storyHook.updateTargetDuration}
         onUpdateTtsSettings={storyHook.updateTtsSettings}
         error={storyHook.error}
         onClearError={storyHook.clearError}

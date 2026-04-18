@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Pencil, Check } from 'lucide-react';
 import { CheckpointApproval } from './CheckpointApproval';
@@ -380,7 +381,9 @@ export function CheckpointOverlay({ checkpoint, onApprove, onReject }: Checkpoin
   const previewContent = buildPreviewContent(editedData, checkpoint.phase, handleEditScene);
   const outputPreview = buildOutputPreview(editedData, checkpoint.phase, activeTimelineIndex, setActiveTimelineIndex);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -412,7 +415,8 @@ export function CheckpointOverlay({ checkpoint, onApprove, onReject }: Checkpoin
           />
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 

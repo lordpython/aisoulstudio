@@ -2,10 +2,22 @@
  * DeAPI image generation (txt2img and batch)
  */
 
-import { API_BASE, isBrowser, API_KEY, getDeApiDimensions, pollRequest, Semaphore } from './config';
+import {
+  API_BASE,
+  isBrowser,
+  API_KEY,
+  getDeApiDimensions,
+  pollRequest,
+  Semaphore,
+  withExponentialBackoff,
+  deapiGlobalLimiter,
+  DeApiPayloadError,
+  DeApiRateLimitError,
+} from './config';
 import { isDeApiConfigured } from './apiConfig';
-import { DEAPI_DEFAULTS } from './models';
+import { DEAPI_DEFAULTS, IMAGE_MODEL_META } from './models';
 import { mediaLogger } from '../../infrastructure/logger';
+import { enhanceImagePrompt } from '../deapiPromptService';
 
 import type {
   Txt2ImgParams,
@@ -26,7 +38,7 @@ export const generateImageWithDeApi = async (
       "DeAPI API key is not configured on the server.\n\n" +
       "To use DeAPI text-to-image:\n" +
       "1. Get an API key from https://deapi.ai\n" +
-      "2. Add VITE_DEAPI_API_KEY=your_key to your .env.local file\n" +
+      "2. Add DEAPI_API_KEY=your_key to your .env.local file\n" +
       "3. Restart the development server (npm run dev:all)"
     );
   }
@@ -36,7 +48,7 @@ export const generateImageWithDeApi = async (
     model = DEAPI_DEFAULTS.IMAGE_MODEL,
     width = 768,
     height = 768,
-    guidance = 7.5,
+    guidance,
     steps = 4,
     seed = -1,
     negative_prompt = "blur, darkness, noise, low quality, watermark, text overlay, UI elements, blurry, low resolution",
@@ -44,7 +56,23 @@ export const generateImageWithDeApi = async (
     webhook_url,
   } = params;
 
-  log.info(`Generating image: ${model}, ${width}x${height}, prompt: ${prompt.substring(0, 50)}...`);
+  const modelMeta = IMAGE_MODEL_META[model as DeApiImageModel];
+  const effectiveGuidance = guidance ?? (modelMeta?.supportsGuidance === false ? 1 : 7.5);
+
+  // Model-aware prompt shaping:
+  // Schnell/turbo models degrade with long descriptive prompts — compress to keyword form.
+  // Guidance-capable models (Klein, ZImageTurbo) benefit from fuller descriptive prompts.
+  const words = prompt.trim().split(/\s+/);
+  const promptWordLimit = modelMeta?.supportsGuidance === false ? 50 : 150;
+  const shapedPrompt = words.length > promptWordLimit
+    ? words.slice(0, promptWordLimit).join(' ')
+    : prompt;
+
+  // Enhance prompt via DeAPI's own /prompt/image model — browser only.
+  // Skipped server-side to avoid an extra outbound hop before the main txt2img call.
+  const finalPrompt = isBrowser ? await enhanceImagePrompt(shapedPrompt) : shapedPrompt;
+
+  log.info(`Generating image: ${model}, ${width}x${height}, prompt: ${finalPrompt.substring(0, 50)}...`);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -53,39 +81,44 @@ export const generateImageWithDeApi = async (
 
   if (!isBrowser) {
     headers.Authorization = `Bearer ${API_KEY}`;
-    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LyricLens/1.0";
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0";
   }
 
   const requestBody: Record<string, unknown> = {
-    prompt, model, width, height, guidance, steps, seed, negative_prompt,
+    prompt: finalPrompt, model, width, height, guidance: effectiveGuidance, steps, seed, negative_prompt,
   };
 
   if (loras) requestBody.loras = loras;
   if (webhook_url) requestBody.webhook_url = webhook_url;
 
-  const response = await fetch(`${API_BASE}/txt2img`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(30_000),
-  });
+  const rawData = await withExponentialBackoff(async () => {
+    await deapiGlobalLimiter.waitForSlot();
+    const response = await fetch(`${API_BASE}/txt2img`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30_000),
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    let errorMessage = `DeAPI txt2img request failed (${response.status})`;
+    if (!response.ok) {
+      const errText = await response.text();
+      let errorMessage = `DeAPI txt2img request failed (${response.status})`;
 
-    try {
-      const errJson = JSON.parse(errText);
-      if (errJson.message) errorMessage = `DeAPI: ${errJson.message}`;
-      else if (errJson.error) errorMessage = `DeAPI: ${errJson.error}`;
-    } catch {
-      if (errText) errorMessage = `DeAPI: ${errText}`;
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.message) errorMessage = `DeAPI: ${errJson.message}`;
+        else if (errJson.error) errorMessage = `DeAPI: ${errJson.error}`;
+      } catch {
+        if (errText) errorMessage = `DeAPI: ${errText}`;
+      }
+
+      if (response.status === 422) throw new DeApiPayloadError(errorMessage);
+      if (response.status === 429) throw new DeApiRateLimitError(errorMessage);
+      throw new Error(errorMessage);
     }
 
-    throw new Error(errorMessage);
-  }
-
-  const rawData = await response.json();
+    return response.json();
+  }, { maxRetries: 3, initialDelayMs: 1000 });
   log.debug(`txt2img raw response: ${JSON.stringify(rawData, null, 2)}`);
 
   const data: DeApiResponse = rawData.data || rawData;
@@ -107,13 +140,13 @@ export const generateImageWithDeApi = async (
   }
 
   log.debug(`Downloading image from: ${imageUrl.substring(0, 80)}...`);
-  const imgResp = await fetch(imageUrl);
-
-  if (!imgResp.ok) {
-    throw new Error(`Failed to download generated image: ${imgResp.status}`);
-  }
-
-  const imgBlob = await imgResp.blob();
+  const imgBlob = await withExponentialBackoff(async () => {
+    const imgResp = await fetch(imageUrl);
+    if (!imgResp.ok) {
+      throw new Error(`Failed to download generated image: ${imgResp.status}`);
+    }
+    return imgResp.blob();
+  }, { maxRetries: 3, initialDelayMs: 1000 });
   log.info(`Image downloaded: ${(imgBlob.size / 1024).toFixed(2)} KB`);
 
   return new Promise((resolve, reject) => {
@@ -154,7 +187,8 @@ export const generateImageBatch = async (
     return [];
   }
 
-  const effectiveConcurrency = Math.max(1, Math.min(concurrencyLimit, 10));
+  // Cap at 5 (matches premium-tier `getRecommendedConcurrency`); the global limiter still gates per-request spacing.
+  const effectiveConcurrency = Math.max(1, Math.min(concurrencyLimit, 5));
   const semaphore = new Semaphore(effectiveConcurrency);
   const results: BatchGenerationResult[] = [];
   let completed = 0;

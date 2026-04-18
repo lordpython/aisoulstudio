@@ -67,6 +67,7 @@ interface StoryWorkspaceProps {
     onUpdateDeapiImageModel?: (model: string) => void;
     onUpdateStyleConsistency?: (enabled: boolean) => void;
     onUpdateBgRemoval?: (enabled: boolean) => void;
+    onUpdateTargetDuration?: (seconds: number) => void;
     onGenerateShots?: (sceneIndex?: number) => void;
     onGenerateVisuals?: (sceneIndex?: number) => void;
     stageProgress?: StageProgress;
@@ -154,6 +155,7 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
     onUpdateDeapiImageModel,
     onUpdateStyleConsistency,
     onUpdateBgRemoval,
+    onUpdateTargetDuration,
     onGenerateShots,
     onGenerateVisuals,
     stageProgress,
@@ -939,6 +941,8 @@ export const StoryWorkspace: React.FC<StoryWorkspaceProps> = ({
                                         onToggleStyleConsistency={onUpdateStyleConsistency}
                                         animateWithBgRemoval={storyState.animateWithBgRemoval}
                                         onToggleBgRemoval={onUpdateBgRemoval}
+                                        targetDurationSeconds={storyState.targetDurationSeconds ?? 60}
+                                        onSelectTargetDuration={onUpdateTargetDuration}
                                     />
                                 </motion.div>
                             )}

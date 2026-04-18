@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, RectangleHorizontal, Cpu, Layers, Eraser } from 'lucide-react';
+import { Check, RectangleHorizontal, Cpu, Layers, Eraser, Timer } from 'lucide-react';
 import {
     VISUAL_STYLES,
     ASPECT_RATIOS,
@@ -33,6 +33,8 @@ interface StyleSelectorProps {
     onToggleStyleConsistency?: (enabled: boolean) => void;
     animateWithBgRemoval?: boolean;
     onToggleBgRemoval?: (enabled: boolean) => void;
+    targetDurationSeconds?: number;
+    onSelectTargetDuration?: (seconds: number) => void;
 }
 
 export const StyleSelector: React.FC<StyleSelectorProps> = ({
@@ -48,7 +50,17 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
     onToggleStyleConsistency,
     animateWithBgRemoval = false,
     onToggleBgRemoval,
+    targetDurationSeconds = 60,
+    onSelectTargetDuration,
 }) => {
+    const DURATION_PRESETS = [
+        { seconds: 30,  label: '0:30',  desc: 'Short clip' },
+        { seconds: 60,  label: '1:00',  desc: 'Standard' },
+        { seconds: 90,  label: '1:30',  desc: 'Extended' },
+        { seconds: 120, label: '2:00',  desc: 'Mini-film' },
+        { seconds: 180, label: '3:00',  desc: 'Short film' },
+        { seconds: 300, label: '5:00',  desc: 'Film reel' },
+    ];
     const { imageModels: discoveredImageModels } = useDeApiModels();
     const styles = Object.values(VISUAL_STYLES);
 
@@ -112,6 +124,46 @@ export const StyleSelector: React.FC<StyleSelectorProps> = ({
                     })}
                 </div>
             </div>
+
+            {/* Target Duration Selector */}
+            {onSelectTargetDuration && (
+                <div className="mb-12">
+                    <div className="flex items-center gap-3 mb-4">
+                        <Timer className="w-4 h-4 text-zinc-600" />
+                        <span className="font-mono text-xs text-zinc-600 uppercase tracking-widest">
+                            Target Duration
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {DURATION_PRESETS.map((preset) => {
+                            const isSelected = targetDurationSeconds === preset.seconds;
+                            return (
+                                <button
+                                    key={preset.seconds}
+                                    onClick={() => onSelectTargetDuration(preset.seconds)}
+                                    className={`
+                                        px-5 py-3 rounded-sm transition-colors duration-200
+                                        ${isSelected
+                                            ? 'bg-blue-500/10 border border-blue-500/50 text-blue-400'
+                                            : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-zinc-600'
+                                        }
+                                    `}
+                                >
+                                    <span className="font-sans text-sm font-medium font-mono">
+                                        {preset.label}
+                                    </span>
+                                    <span className={`ml-2 text-xs ${isSelected ? 'text-blue-400/70' : 'text-zinc-600'}`}>
+                                        {preset.desc}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="mt-3 text-xs text-zinc-600">
+                        Controls scene count, shot pacing, and narration length.
+                    </p>
+                </div>
+            )}
 
             {/* Image Engine Selector */}
             {onSelectImageProvider && (

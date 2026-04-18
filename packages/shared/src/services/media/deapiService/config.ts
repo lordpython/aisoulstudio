@@ -14,10 +14,45 @@ export const DEFAULT_VIDEO_MODEL = 'Ltx2_3_22B_Dist_INT8';
 export const DEFAULT_IMAGE_MODEL = 'Flux1schnell';
 
 const RATE_LIMIT_MS = 60 * 1000;
+const GLOBAL_THROTTLE_MS = 3500;
+const HOURLY_BUDGET_DEFAULT = 18;
+const HOUR_MS = 60 * 60 * 1000;
 
-// @ts-ignore - Vite injects import.meta.env at build time
-const VITE_API_KEY = import.meta.env?.VITE_DEAPI_API_KEY || "";
-export const API_KEY = VITE_API_KEY || (typeof process !== 'undefined' && process.env?.DEAPI_API_KEY) || "";
+const readEnvInt = (name: string, fallback: number): number => {
+  const raw = typeof process !== 'undefined' ? process.env?.[name] : undefined;
+  if (!raw) return fallback;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+// --- Typed Errors ---
+
+export class DeApiRateLimitError extends Error {
+  readonly status = 429;
+  constructor(message = 'DeAPI rate limit (429)') {
+    super(message);
+    this.name = 'DeApiRateLimitError';
+  }
+}
+
+export class DeApiPayloadError extends Error {
+  readonly status = 422;
+  constructor(message = 'DeAPI payload rejected (422)') {
+    super(message);
+    this.name = 'DeApiPayloadError';
+  }
+}
+
+export class RateBudgetExceededError extends Error {
+  constructor(public readonly resetMs: number, message = 'DeAPI hourly request budget exhausted') {
+    super(message);
+    this.name = 'RateBudgetExceededError';
+  }
+}
+
+// API key is server-only — never read from VITE_ env vars so it isn't inlined
+// into the browser bundle. Browser requests are proxied through /api/deapi/proxy.
+export const API_KEY = (typeof process !== 'undefined' && process.env?.DEAPI_API_KEY) || "";
 
 export const isBrowser = typeof window !== 'undefined';
 export const API_BASE = isBrowser ? PROXY_BASE : DEAPI_DIRECT_BASE;
@@ -28,8 +63,29 @@ class RateLimiter {
   private lastRequestTime: number = 0;
   private queue: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
   private isProcessing: boolean = false;
+  private readonly minSpacingMs: number;
+  private readonly hourlyBudget: number;
+  private requestTimestamps: number[] = [];
+
+  constructor(minSpacingMs: number, hourlyBudget: number = 0) {
+    this.minSpacingMs = minSpacingMs;
+    this.hourlyBudget = hourlyBudget;
+  }
 
   async waitForSlot(): Promise<void> {
+    if (this.hourlyBudget > 0) {
+      const now = Date.now();
+      this.requestTimestamps = this.requestTimestamps.filter(t => now - t < HOUR_MS);
+      if (this.requestTimestamps.length >= this.hourlyBudget) {
+        const oldest = this.requestTimestamps[0] ?? now;
+        const resetMs = HOUR_MS - (now - oldest);
+        throw new RateBudgetExceededError(
+          resetMs,
+          `DeAPI hourly request budget exhausted (${this.hourlyBudget}/hr). Resets in ${Math.ceil(resetMs / 60000)} min.`
+        );
+      }
+    }
+
     return new Promise((resolve, reject) => {
       this.queue.push({ resolve, reject });
       this.processQueue();
@@ -43,16 +99,20 @@ class RateLimiter {
     while (this.queue.length > 0) {
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
-      const waitTime = RATE_LIMIT_MS - timeSinceLastRequest;
+      const waitTime = this.minSpacingMs - timeSinceLastRequest;
 
       if (waitTime > 0 && this.lastRequestTime > 0) {
-        log.info(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s before next request (${this.queue.length} in queue)`);
+        if (waitTime >= 1000) {
+          log.info(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s before next request (${this.queue.length} in queue)`);
+        }
         await new Promise(r => setTimeout(r, waitTime));
       }
 
       const item = this.queue.shift();
       if (item) {
-        this.lastRequestTime = Date.now();
+        const ts = Date.now();
+        this.lastRequestTime = ts;
+        if (this.hourlyBudget > 0) this.requestTimestamps.push(ts);
         item.resolve();
       }
     }
@@ -67,13 +127,27 @@ class RateLimiter {
   getEstimatedWaitTime(): number {
     if (this.lastRequestTime === 0) return 0;
     const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-    const waitTime = RATE_LIMIT_MS - timeSinceLastRequest;
-    const queueWait = this.queue.length * RATE_LIMIT_MS;
+    const waitTime = this.minSpacingMs - timeSinceLastRequest;
+    const queueWait = this.queue.length * this.minSpacingMs;
     return Math.max(0, Math.ceil((waitTime + queueWait) / 1000));
+  }
+
+  getRemainingBudget(): number {
+    if (this.hourlyBudget <= 0) return Infinity;
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter(t => now - t < HOUR_MS);
+    return Math.max(0, this.hourlyBudget - this.requestTimestamps.length);
   }
 }
 
-export const img2videoRateLimiter = new RateLimiter();
+export const img2videoRateLimiter = new RateLimiter(RATE_LIMIT_MS);
+
+// Shared global throttle covering txt2img / img2img / img2video, with an hourly budget
+// to prevent overshooting basic-tier quotas (~20 req/hr).
+export const deapiGlobalLimiter = new RateLimiter(
+  GLOBAL_THROTTLE_MS,
+  readEnvInt('DEAPI_HOURLY_BUDGET', HOURLY_BUDGET_DEFAULT)
+);
 
 // --- Tier Detection ---
 
@@ -130,7 +204,15 @@ export const withExponentialBackoff = async <T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      const isRateLimit = lastError.message.includes('429') ||
+      // Never retry payload-rejection or budget-exhaustion errors
+      if (lastError instanceof DeApiPayloadError ||
+          lastError instanceof RateBudgetExceededError ||
+          lastError.message.includes('422')) {
+        throw lastError;
+      }
+
+      const isRateLimit = lastError instanceof DeApiRateLimitError ||
+                          lastError.message.includes('429') ||
                           lastError.message.toLowerCase().includes('rate limit');
 
       if (isRateLimit) {
@@ -140,7 +222,10 @@ export const withExponentialBackoff = async <T>(
       const isRetryable = isRateLimit ||
                           lastError.message.includes('503') ||
                           lastError.message.includes('502') ||
-                          lastError.message.toLowerCase().includes('timeout');
+                          lastError.message.toLowerCase().includes('timeout') ||
+                          lastError.message.toLowerCase().includes('failed to fetch') ||
+                          lastError.message.toLowerCase().includes('connection reset') ||
+                          lastError.message.toLowerCase().includes('network error');
 
       if (!isRetryable || attempt === maxRetries) {
         throw lastError;

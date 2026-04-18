@@ -25,6 +25,7 @@ export interface StorySettings {
   updateStyleConsistency: (enabled: boolean) => void;
   updateBgRemoval: (enabled: boolean) => void;
   updateTtsSettings: (provider: TTSProvider, model?: DeApiTtsModel) => void;
+  updateTargetDuration: (seconds: number) => void;
 }
 
 export function useStorySettings(setState: SetState): StorySettings {
@@ -80,6 +81,12 @@ export function useStorySettings(setState: SetState): StorySettings {
     [setState],
   );
 
+  const updateTargetDuration = useCallback(
+    (seconds: number) =>
+      setState((prev) => ({ ...prev, targetDurationSeconds: seconds })),
+    [setState],
+  );
+
   return {
     updateVisualStyle,
     updateAspectRatio,
@@ -89,5 +96,6 @@ export function useStorySettings(setState: SetState): StorySettings {
     updateStyleConsistency,
     updateBgRemoval,
     updateTtsSettings,
+    updateTargetDuration,
   };
 }

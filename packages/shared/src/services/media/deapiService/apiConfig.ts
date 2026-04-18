@@ -29,9 +29,9 @@ export const detectTier = (wasRateLimited: boolean): DeApiTier => {
 export const getRecommendedConcurrency = (): number => {
   const tier = getDetectedTier();
   switch (tier) {
-    case "premium": return 10;
-    case "basic": return 2;
-    default: return 5;
+    case "premium": return 5;
+    case "basic": return 1;
+    default: return 2;
   }
 };
 

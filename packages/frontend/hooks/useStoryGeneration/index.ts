@@ -41,7 +41,7 @@ import {
     type DeApiTtsModel,
 } from '@/services/media/narratorService';
 import { generateVideoFromPrompt } from '@/services/media/videoService';
-import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency, type DeApiImageModel } from '@/services/media/deapiService';
+import { animateImageWithDeApi, generateVideoWithDeApi, isDeApiConfigured, generateImageWithAspectRatio, generateImageBatch, applyStyleConsistency, DeApiPayloadError, DeApiRateLimitError, RateBudgetExceededError, type DeApiImageModel } from '@/services/media/deapiService';
 import { DEAPI_DEFAULTS } from '@/services/media/deapiService/models';
 import { exportVideoWithFFmpeg } from '@/services/ffmpeg/exporters';
 import { generateCharacterReference, enrichCharactersWithCoreAnchors } from '@/services/media/characterService';
@@ -1691,15 +1691,11 @@ export function useStoryGeneration(projectId?: string | null) {
                     const motionStrength = selectMotionStrength(shotType, movement);
                     const motionConfig = MOTION_CONFIGS[motionStrength];
 
-                    // Build camera-focused animation prompt, then enhance via DeAPI /prompt/video
+                    // Build camera-focused animation prompt. Enhancement via DeAPI
+                    // /prompt/video is deferred until after the reference image is
+                    // resolved — DeAPI requires the `image` field and 422s without it.
                     const rawAnimationPrompt = buildAnimationPrompt(movement, shot.description);
-                    let animationPrompt: string;
-                    try {
-                        animationPrompt = await enhanceVideoPrompt(rawAnimationPrompt);
-                    } catch (enhanceErr) {
-                        log.warn(`[useStoryGeneration] enhanceVideoPrompt failed, falling back to raw prompt:`, enhanceErr);
-                        animationPrompt = rawAnimationPrompt;
-                    }
+                    let animationPrompt: string = rawAnimationPrompt;
 
                     if (useDeApi && shot.imageUrl) {
                         // img2video requires a data: URL — convert remote URLs
@@ -1721,6 +1717,12 @@ export function useStoryGeneration(projectId?: string | null) {
                         }
 
                         if (imageDataUrl.startsWith('data:')) {
+                            try {
+                                animationPrompt = await enhanceVideoPrompt(rawAnimationPrompt, imageDataUrl);
+                            } catch (enhanceErr) {
+                                log.warn(`[useStoryGeneration] enhanceVideoPrompt failed, falling back to raw prompt:`, enhanceErr);
+                                animationPrompt = rawAnimationPrompt;
+                            }
                             // Optional: Apply style consistency pass (img2img) before animation
                             if (state.applyStyleConsistency) {
                                 try {
@@ -1732,6 +1734,15 @@ export function useStoryGeneration(projectId?: string | null) {
                                     );
                                     log.debug(`Style consistency pass complete for shot ${shot.id}`);
                                 } catch (styleErr) {
+                                    // Fail-fast: rate-limit / budget / payload errors mean the next img2video call
+                                    // would also fail. Re-throw so the outer catch trips the circuit breaker.
+                                    if (
+                                        styleErr instanceof RateBudgetExceededError ||
+                                        styleErr instanceof DeApiRateLimitError ||
+                                        styleErr instanceof DeApiPayloadError
+                                    ) {
+                                        throw styleErr;
+                                    }
                                     log.warn(`[useStoryGeneration] Style consistency pass failed (non-fatal), using original image:`, styleErr);
                                 }
                             }
@@ -1806,6 +1817,14 @@ export function useStoryGeneration(projectId?: string | null) {
                     log.error(`Failed to animate shot ${shot.id}:`, err);
                     // Accumulate failed shot ID for batch cleanup (Fix #4)
                     completedShotIds.add(shot.id);
+
+                    // Trip the circuit breaker immediately on budget exhaustion — further
+                    // requests would only burn time queueing for the same hourly slot.
+                    if (err instanceof RateBudgetExceededError) {
+                        log.error('DeAPI hourly budget exhausted, aborting animation batch');
+                        break;
+                    }
+
                     consecutiveFailures++;
                     if (consecutiveFailures >= ANIMATION_CIRCUIT_BREAKER_THRESHOLD) {
                         log.error('Circuit breaker triggered, aborting animation batch');

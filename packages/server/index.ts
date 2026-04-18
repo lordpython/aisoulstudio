@@ -100,7 +100,7 @@ app.use('/api/export', apiLimiter, exportRoutes);
 app.use('/api/import', apiLimiter, importRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/gemini', apiLimiter, geminiLimiter, geminiRoutes);
-app.use('/api/deapi', apiLimiter, deapiLimiter, deapiRoutes);
+app.use('/api/deapi', apiLimiter, deapiRoutes);
 app.use('/api/suno', apiLimiter, sunoRoutes);
 app.use('/api/cloud', apiLimiter, cloudRoutes);
 app.use('/api/director', apiLimiter, directorRoutes);

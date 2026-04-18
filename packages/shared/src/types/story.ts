@@ -124,6 +124,8 @@ export interface StoryState {
   animateWithBgRemoval?: boolean;   // DeAPI: remove background before animation
   ttsProvider?: 'gemini' | 'deapi_qwen';
   ttsModel?: string;
+  /** Target output video duration in seconds (e.g. 30, 60, 90, 120, 180, 300). Controls scene/shot count and narration pacing. */
+  targetDurationSeconds?: number;
 
   // Per-scene generation progress tracking
   scenesWithShots?: string[]; // scene IDs that have shots generated

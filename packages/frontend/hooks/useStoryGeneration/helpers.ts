@@ -84,7 +84,10 @@ export const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
  * Number of consecutive animation failures that triggers the circuit breaker
  * and aborts the remaining batch.
  */
-export const ANIMATION_CIRCUIT_BREAKER_THRESHOLD = 3;
+export const ANIMATION_CIRCUIT_BREAKER_THRESHOLD =
+  typeof window !== 'undefined' && (window as any).__E2E_OVERRIDE_CIRCUIT_BREAKER__
+    ? (window as any).__E2E_OVERRIDE_CIRCUIT_BREAKER__
+    : 3;
 
 /**
  * Strip markdown and metadata artifacts from narration text.

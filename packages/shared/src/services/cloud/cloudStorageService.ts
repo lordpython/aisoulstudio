@@ -156,11 +156,19 @@ const autosaveState: AutosaveState = {
  * Handles instant incremental backups of assets via server proxy.
  * Works in both browser and Node.js environments.
  */
+const CLOUD_UPLOAD_DISABLED =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CLOUD_UPLOAD_DISABLED === 'true') ||
+  (typeof process !== 'undefined' && process.env?.VITE_CLOUD_UPLOAD_DISABLED === 'true');
+
 export const cloudAutosave = {
   /**
    * Check if cloud storage is available
    */
   async checkAvailability(): Promise<{ available: boolean; message: string }> {
+    if (CLOUD_UPLOAD_DISABLED) {
+      log.info('Cloud uploads disabled (VITE_CLOUD_UPLOAD_DISABLED=true)');
+      return { available: false, message: 'Cloud uploads disabled' };
+    }
     try {
       const response = await fetch(`${CLOUD_API_BASE}/api/cloud/status`);
       if (!response.ok) {
@@ -180,6 +188,10 @@ export const cloudAutosave = {
    * @param userId - Optional user ID for user-specific storage paths
    */
   async initSession(sessionId: string, userId?: string): Promise<boolean> {
+    if (CLOUD_UPLOAD_DISABLED) {
+      log.info('Cloud uploads disabled, skipping session init');
+      return false;
+    }
     if (!sessionId) {
       log.warn('No sessionId provided, skipping cloud init');
       return false;
@@ -236,6 +248,10 @@ export const cloudAutosave = {
     waitForUpload: boolean = false,
     makePublic: boolean = false
   ): Promise<{ success: boolean; path?: string; publicUrl?: string; error?: string }> {
+    if (CLOUD_UPLOAD_DISABLED) {
+      log.info('Cloud uploads disabled, skipping asset save');
+      return { success: false, error: 'Cloud uploads disabled' };
+    }
     if (!sessionId) {
       return { success: false, error: 'No sessionId' };
     }
