@@ -177,7 +177,53 @@ async function callVideoPromptEndpoint(
  * @param prompt - Scene/transformation description to enhance
  * @returns Enhanced prompt, or the original if DeAPI is unavailable
  */
-export async function enhanceImg2ImgPrompt(prompt: string): Promise<string> {
+export async function enhanceImg2ImgPrompt(
+  prompt: string,
+  imageDataUrl?: string,
+): Promise<string> {
   if (!isConfigured() || !prompt.trim()) return prompt;
-  return (await callPromptEndpoint('image2image', prompt)) ?? prompt;
+  if (!imageDataUrl?.startsWith('data:')) return prompt;
+  return (await callImageToImagePromptEndpoint(prompt, imageDataUrl)) ?? prompt;
+}
+
+async function callImageToImagePromptEndpoint(
+  prompt: string,
+  imageDataUrl: string,
+): Promise<string | null> {
+  try {
+    const imageBlob = await (await fetch(imageDataUrl)).blob();
+    const form = new FormData();
+    form.append('prompt', prompt);
+    form.append('negative_prompt', 'blurry, low quality, distorted, artifacts');
+    form.append('image', imageBlob, 'reference.png');
+
+    const url = isBrowser
+      ? '/api/deapi/prompt/image2image'
+      : `${DEAPI_DIRECT_BASE}/prompt/image2image`;
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (!isBrowser) {
+      headers['Authorization'] = `Bearer ${API_KEY}`;
+      headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AISoulStudio/1.0';
+    }
+
+    const response = await fetch(url, { method: 'POST', headers, body: form });
+
+    if (!response.ok) {
+      log.warn(`/prompt/image2image returned ${response.status}`);
+      return null;
+    }
+
+    const rawData = await response.json();
+    const data = rawData.data ?? rawData;
+    const enhanced: string | undefined = data.prompt ?? data.enhanced_prompt;
+
+    if (!enhanced?.trim()) return null;
+
+    log.info(`/prompt/image2image enhanced (${prompt.length} -> ${enhanced.length} chars)`);
+    return enhanced.trim();
+  } catch (err) {
+    log.warn('/prompt/image2image failed (non-fatal)', err);
+    return null;
+  }
 }

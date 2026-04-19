@@ -246,9 +246,14 @@ export const animateImageWithDeApi = async (
     dynamic: 241,
   } as const;
   const motionStrength = options?.motionStrength || 'moderate';
-  const frames = options?.targetDurationSeconds
+  const rawFrames = options?.targetDurationSeconds
     ? Math.round(options.targetDurationSeconds * 24)
     : (motionFrameMap[motionStrength] || 121);
+  // DeAPI LTX-2 limits: 49-241 frames at 24 fps (~2-10s). Clamp at source.
+  const frames = Math.max(49, Math.min(241, rawFrames));
+  if (frames !== rawFrames) {
+    log.warn(`Frame count clamped: ${rawFrames} → ${frames} (DeAPI limit 49-241)`);
+  }
 
   const safeWidth = Math.max(width, 512);
   const safeHeight = Math.max(height, 512);

@@ -112,7 +112,7 @@ export const applyStyleConsistency = async (
 
   const { width, height } = getDeApiDimensions(aspectRatio);
 
-  const enhancedPrompt = await enhanceImg2ImgPrompt(prompt);
+  const enhancedPrompt = await enhanceImg2ImgPrompt(prompt, referenceImageBase64);
 
   const imageBlob = await base64ToBlob(referenceImageBase64);
   const formData = new FormData();

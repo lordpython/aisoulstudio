@@ -137,7 +137,8 @@ export async function validateSessionFrames(
   sessionDir: string,
   expectedTotalFrames: number
 ): Promise<SequenceValidationResult> {
-  const framePattern = /^frame(\d{6})\.jpg$/;
+  // Client may upload PNG (default) or JPG frames — accept both.
+  const framePattern = /^frame(\d{6})\.(jpg|png)$/;
   const receivedIndices: number[] = [];
 
   try {
@@ -186,7 +187,7 @@ export async function validateFrameSizes(
 
   try {
     const files = await fs.promises.readdir(sessionDir);
-    const framePattern = /^frame\d{6}\.jpg$/;
+    const framePattern = /^frame\d{6}\.(jpg|png)$/;
 
     for (const file of files) {
       if (!framePattern.test(file)) continue;
