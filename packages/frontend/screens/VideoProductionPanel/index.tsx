@@ -29,7 +29,6 @@ import { VideoPreviewCard } from '@/components/video-production/VideoPreviewCard
 import QualityDashboard from '@/components/video-production/QualityDashboard';
 import SceneEditor from '@/components/video-production/SceneEditor';
 import MusicGeneratorModal from '@/components/music/MusicGeneratorModal';
-import { SettingsModal } from '@/components/SettingsModal';
 import { GraphiteTimeline } from '@/components/TimelineEditor';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import type { ExportQualityPreset } from '@/services/ffmpeg/exportConfig';
@@ -161,8 +160,6 @@ export interface VideoProductionPanelProps {
   setShowTimeline: (v: boolean) => void;
 
   // Local shell state
-  showSettings: boolean;
-  setShowSettings: (v: boolean) => void;
   musicModalMode: 'generate' | 'remix';
   setMusicModalMode: (mode: 'generate' | 'remix') => void;
 
@@ -213,8 +210,6 @@ export function VideoProductionPanel({
   setShowMusic,
   showTimeline,
   setShowTimeline,
-  showSettings,
-  setShowSettings,
   musicModalMode,
   setMusicModalMode,
   setStudioMode: _setStudioMode,
@@ -1390,18 +1385,6 @@ const handleTimelinePlayPause = useCallback(() => {
         duration={totalDuration}
       />
 
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        videoPurpose={videoPurpose}
-        onVideoPurposeChange={setVideoPurpose}
-        targetAudience={targetAudience}
-        onTargetAudienceChange={setTargetAudience}
-        veoVideoCount={veoVideoCount}
-        onVeoVideoCountChange={setVeoVideoCount}
-        selectedStyle={visualStyle || paramsStyle || 'Cinematic'}
-        onStyleChange={setVisualStyle}
-      />
     </>
   );
 }

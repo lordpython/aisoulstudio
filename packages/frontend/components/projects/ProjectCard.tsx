@@ -57,10 +57,10 @@ const TYPE_GRADIENTS: Record<ProjectType, { from: string; glow: string; accent: 
   },
 };
 
-const TYPE_ROUTES: Record<ProjectType, string> = {
-  production: '/studio?mode=video',
-  story: '/studio?mode=story',
-  visualizer: '/visualizer',
+const TYPE_SUBPATH: Record<ProjectType, 'video' | 'story' | 'music'> = {
+  production: 'video',
+  story: 'story',
+  visualizer: 'music',
 };
 
 function formatDate(date: Date): string {
@@ -94,9 +94,7 @@ export function ProjectCard({ project, onDelete, onToggleFavorite, onExport }: P
   const style = TYPE_GRADIENTS[project.type];
 
   const handleOpen = () => {
-    const route = TYPE_ROUTES[project.type];
-    const separator = route.includes('?') ? '&' : '?';
-    navigate(`${route}${separator}projectId=${project.id}`);
+    navigate(`/projects/${project.id}/${TYPE_SUBPATH[project.type]}`);
   };
 
   const handleDelete = (e: React.MouseEvent) => {

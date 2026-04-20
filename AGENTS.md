@@ -79,7 +79,7 @@ The `MODELS` constant defines which models are used:
 - `TEXT`: `gemini-3-flash-preview`
 - `IMAGE`: `imagen-4.0-fast-generate-001`
 - `VIDEO`: `veo-3.1-fast-generate-preview`
-- `TTS`: `gemini-2.5-flash-preview-tts`
+- `TTS`: `gemini-3.1-flash-tts-preview`
 
 Server uses **Vertex AI** (`GOOGLE_CLOUD_PROJECT`) with ADC auth. Falls back to `VITE_GEMINI_API_KEY` for direct API key auth.
 

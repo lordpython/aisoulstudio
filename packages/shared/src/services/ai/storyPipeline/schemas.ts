@@ -87,4 +87,10 @@ export interface FormatAwareGenerationOptions {
     referenceContent?: string;
     /** User-selected target video duration in seconds — overrides format-registry defaults */
     targetDurationSeconds?: number;
+    /** Target audience (AI-inferred or user-provided) — reshapes tone/vocabulary */
+    audience?: string;
+    /** Overall tonal register (AI-inferred or user-provided) */
+    tone?: string;
+    /** JSON-serialized brief.narrative — threaded so LLM sees character + arc context */
+    narrativeContext?: string;
 }

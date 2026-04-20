@@ -136,10 +136,10 @@ export default function NewProjectScreen() {
 
       if (project) {
         if (mode.type === 'visualizer') {
-          navigate(`/visualizer?projectId=${project.id}`);
+          navigate(`/projects/${project.id}/music`);
         } else {
           const studioMode = mode.studioMode ?? 'video';
-          navigate(`/studio?mode=${studioMode}&projectId=${project.id}`);
+          navigate(`/projects/${project.id}/${studioMode}`);
         }
       }
     } catch (err) {

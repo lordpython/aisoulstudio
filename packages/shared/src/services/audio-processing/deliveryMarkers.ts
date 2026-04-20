@@ -177,6 +177,64 @@ function processBreathMarkers(text: string): MarkerMatch[] {
 }
 
 /**
+ * Gemini TTS natively supports a small set of inline tags. For markers that
+ * map to native tags, keep them inline to preserve position. For markers with
+ * no native equivalent, extract to prose instructions (legacy behavior).
+ *
+ * Native Gemini TTS inline tags (per Google docs):
+ * - [short pause], [long pause]
+ * - [breath]
+ * - [whisper]   (scope = following phrase)
+ * - [laughs], [yawn]   (instantaneous)
+ *
+ * Markers kept as prose (no native equivalent):
+ * - [emphasis], [low-tone], [rising-tension], [slow]
+ */
+export interface GeminiMarkerResult {
+  /** Text with Google-native tags inline, non-native wrappers stripped to content. */
+  inlineText: string;
+  /** Prose instructions for markers with no native equivalent. */
+  proseInstructions: string;
+}
+
+export function convertMarkersForGemini(script: string): GeminiMarkerResult {
+  if (!script) return { inlineText: "", proseInstructions: "" };
+
+  let text = script;
+  const proseParts: string[] = [];
+
+  // Native inline mappings — keep position, replace our syntax with Google's.
+  text = text.replace(/\[pause:\s*long\]/gi, "[long pause]");
+  text = text.replace(/\[pause:\s*(short|medium|beat)\]/gi, "[short pause]");
+  // [breath] is already native.
+
+  // [whisper]...[/whisper] — Google's [whisper] is a leading directive.
+  // Emit `[whisper] <content>` and hope the model scopes to the phrase.
+  text = text.replace(/\[whisper\]([\s\S]*?)\[\/whisper\]/gi, (_m, content) => {
+    return `[whisper] ${String(content).trim()}`;
+  });
+
+  // Non-native wrapped markers — strip tags, record prose.
+  const proseWrappers: { re: RegExp; label: string }[] = [
+    { re: /\[emphasis\]([\s\S]*?)\[\/emphasis\]/gi, label: "Emphasize" },
+    { re: /\[low-tone\]([\s\S]*?)\[\/low-tone\]/gi, label: "Drop to a lower register for" },
+    { re: /\[rising-tension\]([\s\S]*?)\[\/rising-tension\]/gi, label: "Build rising tension through" },
+    { re: /\[slow\]([\s\S]*?)\[\/slow\]/gi, label: "Slow down delivery for" },
+  ];
+  for (const { re, label } of proseWrappers) {
+    text = text.replace(re, (_m, content) => {
+      const inner = String(content).trim();
+      if (inner) proseParts.push(`${label} "${inner}"`);
+      return inner;
+    });
+  }
+
+  const cleaned = text.replace(/\s{2,}/g, " ").trim();
+  const proseInstructions = proseParts.length > 0 ? proseParts.join(". ") + "." : "";
+  return { inlineText: cleaned, proseInstructions };
+}
+
+/**
  * Convert all delivery markers in a script into Director's Note instructions
  * and return the cleaned text.
  */

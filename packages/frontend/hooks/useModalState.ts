@@ -12,7 +12,6 @@ export type ModalType =
   | 'quality'
   | 'sceneEditor'
   | 'music'
-  | 'settings'
   | 'timeline'
   | null;
 
@@ -49,7 +48,6 @@ export interface UseModalStateReturn {
   showQuality: boolean;
   showSceneEditor: boolean;
   showMusic: boolean;
-  showSettings: boolean;
   showTimeline: boolean;
 
   // Convenience setters for backwards compatibility
@@ -57,7 +55,6 @@ export interface UseModalStateReturn {
   setShowQuality: (show: boolean) => void;
   setShowSceneEditor: (show: boolean) => void;
   setShowMusic: (show: boolean) => void;
-  setShowSettings: (show: boolean) => void;
   setShowTimeline: (show: boolean) => void;
 }
 
@@ -143,7 +140,6 @@ export function useModalState(initialModal: ModalType = null): UseModalStateRetu
   const showQuality = state.activeModal === 'quality';
   const showSceneEditor = state.activeModal === 'sceneEditor';
   const showMusic = state.activeModal === 'music';
-  const showSettings = state.activeModal === 'settings';
   const showTimeline = state.activeModal === 'timeline';
 
   // Convenience setters for backwards compatibility
@@ -167,11 +163,6 @@ export function useModalState(initialModal: ModalType = null): UseModalStateRetu
     else if (state.activeModal === 'music') closeModal();
   }, [openModal, closeModal, state.activeModal]);
 
-  const setShowSettings = useCallback((show: boolean) => {
-    if (show) openModal('settings');
-    else if (state.activeModal === 'settings') closeModal();
-  }, [openModal, closeModal, state.activeModal]);
-
   const setShowTimeline = useCallback((show: boolean) => {
     if (show) openModal('timeline');
     else if (state.activeModal === 'timeline') closeModal();
@@ -189,13 +180,11 @@ export function useModalState(initialModal: ModalType = null): UseModalStateRetu
     showQuality,
     showSceneEditor,
     showMusic,
-    showSettings,
     showTimeline,
     setShowExport,
     setShowQuality,
     setShowSceneEditor,
     setShowMusic,
-    setShowSettings,
     setShowTimeline,
   }), [
     state,
@@ -208,13 +197,11 @@ export function useModalState(initialModal: ModalType = null): UseModalStateRetu
     showQuality,
     showSceneEditor,
     showMusic,
-    showSettings,
     showTimeline,
     setShowExport,
     setShowQuality,
     setShowSceneEditor,
     setShowMusic,
-    setShowSettings,
     setShowTimeline,
   ]);
 }

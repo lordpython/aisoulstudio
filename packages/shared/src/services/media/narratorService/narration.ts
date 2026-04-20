@@ -11,9 +11,10 @@ import { traceAsync } from "../../tracing";
 import { cloudAutosave } from "../../cloud/cloudStorageService";
 import { logAICall } from "../../infrastructure/aiLogService";
 import { getEffectiveLegacyTone } from "../../content/tripletUtils";
-import { TONE_VOICE_MAP, LANGUAGE_VOICE_MAP, ExtendedVoiceConfig, StylePrompt, TTSVoice } from "./voiceConfig";
-import { NarratorConfig, DEFAULT_NARRATOR_CONFIG, NarratorError, synthesizeSpeech, calculateAudioDuration, buildDirectorNote, buildTripletDirectorNote } from "./ttsCore";
+import { TONE_VOICE_MAP, LANGUAGE_VOICE_MAP, CHARACTER_VOICE_MAP, ExtendedVoiceConfig, StylePrompt, TTSVoice } from "./voiceConfig";
+import { NarratorConfig, DEFAULT_NARRATOR_CONFIG, NarratorError, synthesizeSpeech, synthesizeMultiSpeaker, SpeakerConfig, calculateAudioDuration, buildDirectorNote, buildTripletDirectorNote } from "./ttsCore";
 import { getAutoStylePrompt } from "./voiceConfig";
+import { detectDialogue, hasDialogue, DialogueSegment } from "./dialogueDetection";
 
 const log = mediaLogger.child('Narrator');
 
@@ -54,7 +55,19 @@ export async function narrateScene(
     const ttsStart = Date.now();
     let audioBlob: Blob;
     try {
-        audioBlob = await synthesizeSpeech(scene.narrationScript, enhancedVoiceConfig, config);
+        const dialoguePlan = config?.multiSpeaker
+            ? planDialogueSpeakers(scene.narrationScript, enhancedVoiceConfig.voiceName)
+            : null;
+
+        if (dialoguePlan) {
+            log.info(`Scene "${scene.name}" routed to multi-speaker (${dialoguePlan.speakers.length} speakers)`);
+            audioBlob = await synthesizeMultiSpeaker(dialoguePlan.transcript, dialoguePlan.speakers, {
+                model: config?.model,
+                directorNote: buildDirectorNote(stylePrompt),
+            });
+        } else {
+            audioBlob = await synthesizeSpeech(scene.narrationScript, enhancedVoiceConfig, config);
+        }
     } catch (err) {
         if (sessionId) {
             logAICall({
@@ -234,6 +247,53 @@ export function createAudioUrl(segment: NarrationSegment): string {
 
 export function revokeAudioUrl(url: string): void {
     URL.revokeObjectURL(url);
+}
+
+interface DialoguePlan {
+    transcript: string;
+    speakers: SpeakerConfig[];
+}
+
+/**
+ * Analyzes a script for dialogue and returns a multi-speaker plan when Gemini's
+ * 2-speaker cap can be satisfied. Returns null to signal single-speaker fallback.
+ *
+ * Speaker label mapping: dialogue detection's generic roles ('narrator', 'male',
+ * 'female', etc.) are given human first names Gemini handles more naturally.
+ */
+function planDialogueSpeakers(script: string, narratorVoice: TTSVoice): DialoguePlan | null {
+    if (!hasDialogue(script)) return null;
+
+    const segments = detectDialogue(script);
+    const uniqueRoles = Array.from(new Set(segments.map(s => s.speaker)));
+
+    if (uniqueRoles.length < 2 || uniqueRoles.length > 2) return null;
+
+    const roleToName: Record<DialogueSegment['speaker'], string> = {
+        narrator: 'Narrator',
+        male: 'Alex',
+        female: 'Maya',
+        elder: 'Victor',
+        youth: 'Riley',
+        mysterious: 'Shadow',
+    };
+
+    const roleToVoice = (role: DialogueSegment['speaker']): TTSVoice =>
+        role === 'narrator' ? narratorVoice : CHARACTER_VOICE_MAP[role];
+
+    const speakers: SpeakerConfig[] = uniqueRoles.map(role => ({
+        name: roleToName[role],
+        voiceName: roleToVoice(role),
+    }));
+
+    const transcript = segments
+        .map(seg => `${roleToName[seg.speaker]}: ${seg.text.trim()}`)
+        .filter(line => line.split(': ')[1]?.length)
+        .join('\n');
+
+    if (!transcript.trim()) return null;
+
+    return { transcript, speakers };
 }
 
 export function createCustomVoice(config: {

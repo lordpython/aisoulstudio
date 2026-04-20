@@ -10,6 +10,7 @@
     "dev:all": "concurrently \"pnpm run dev\" \"pnpm run server\"",
     "dev:all:host": "concurrently \"pnpm run dev:host\" \"pnpm run server\"",
     "build": "pnpm --filter @studio/frontend build",
+    "build:all": "pnpm -r build",
     "preview": "pnpm --filter @studio/frontend preview",
     "test": "pnpm --filter @studio/frontend test",
     "test:ui": "pnpm --filter @studio/frontend exec vitest --ui",

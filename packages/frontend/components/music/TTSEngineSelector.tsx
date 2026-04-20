@@ -54,7 +54,7 @@ export function TTSEngineSelector({
           onChange={handleProviderChange}
           className="p-2 bg-gray-900 border border-gray-700 rounded text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
-          <option value="gemini">Gemini 2.5 Flash (Standard)</option>
+          <option value="gemini">Gemini 3.1 Flash TTS (Standard)</option>
           <option value="deapi_qwen">Qwen3 VoiceDesign (Alternative)</option>
         </select>
         <p className="text-xs text-gray-400">

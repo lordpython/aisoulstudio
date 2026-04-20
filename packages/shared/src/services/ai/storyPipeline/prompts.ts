@@ -96,6 +96,9 @@ export function buildBreakdownPrompt(
         researchCitations,
         referenceContent,
         targetDurationSeconds,
+        audience,
+        tone,
+        narrativeContext,
     } = options;
 
     // Auto-detect language from topic if not explicitly set
@@ -109,6 +112,14 @@ export function buildBreakdownPrompt(
 
     const referenceBlock = referenceContent
         ? `\nREFERENCE MATERIAL (treat as primary source):\n${referenceContent}\n\n`
+        : '';
+
+    const briefBlock = (audience || tone || narrativeContext)
+        ? '\nPRODUCTION BRIEF:\n' +
+          (audience ? `- Target audience: ${audience}\n` : '') +
+          (tone ? `- Tonal register: ${tone}\n` : '') +
+          (narrativeContext ? `- Narrative scaffold: ${narrativeContext}\n` : '') +
+          '\n'
         : '';
 
     const langInstruction = detectedLang === 'ar'
@@ -137,6 +148,7 @@ export function buildBreakdownPrompt(
         language_instruction: langInstruction,
         research: researchBlock,
         references: referenceBlock,
+        brief: briefBlock,
         minDuration: String(minDuration),
         maxDuration: String(maxDuration),
     });
@@ -164,10 +176,21 @@ export function buildScreenplayPrompt(
         researchCitations,
         referenceContent,
         targetDurationSeconds,
+        audience,
+        tone,
+        narrativeContext,
     } = options;
 
     const breakdownSample = breakdownActs.map(a => a.title + ' ' + a.narrativeBeat).join(' ');
     const detectedLang: 'ar' | 'en' = language ?? detectLanguage(breakdownSample);
+
+    const briefBlock = (audience || tone || narrativeContext)
+        ? '\nPRODUCTION BRIEF:\n' +
+          (audience ? `- Target audience: ${audience}\n` : '') +
+          (tone ? `- Tonal register: ${tone}\n` : '') +
+          (narrativeContext ? `- Narrative scaffold: ${narrativeContext}\n` : '') +
+          '\n'
+        : '';
 
     const breakdownText = breakdownActs.map((act, i) =>
         `Act ${i + 1}: ${act.title}\n- Hook: ${act.emotionalHook}\n- Beat: ${act.narrativeBeat}`
@@ -203,6 +226,7 @@ export function buildScreenplayPrompt(
         language_instruction: langInstruction,
         research: researchBlock,
         references: referenceBlock,
+        brief: briefBlock,
         breakdown: breakdownText,
         actCount: String(breakdownActs.length),
     });

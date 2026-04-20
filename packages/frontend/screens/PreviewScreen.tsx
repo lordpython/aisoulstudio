@@ -94,9 +94,9 @@ export default function PreviewScreen() {
 
   const handleExport = useCallback(() => {
     if (projectId) {
-      navigate(`/studio?projectId=${projectId}&mode=video`);
+      navigate(`/projects/${projectId}/video`);
     } else {
-      navigate('/studio?mode=video');
+      navigate('/studio');
     }
   }, [navigate, projectId]);
 

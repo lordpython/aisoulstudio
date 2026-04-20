@@ -114,11 +114,120 @@ function EditableSceneItem({
   );
 }
 
+interface BriefCharacterPreview {
+  role: string;
+  displayName: string;
+  visualDesc: string;
+}
+
+interface BriefArcPreview {
+  actIndex: number;
+  emotionalTone: string;
+  keyInfo?: string;
+}
+
+function BriefPreview({
+  idea,
+  audience,
+  tone,
+  characters,
+  arc,
+}: {
+  idea?: string;
+  audience?: string;
+  tone?: string;
+  characters: BriefCharacterPreview[];
+  arc: BriefArcPreview[];
+}) {
+  return (
+    <div className="space-y-4">
+      {idea && (
+        <div>
+          <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-1">
+            Idea
+          </span>
+          <p className="text-[13px] text-zinc-200">{idea}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        {audience && (
+          <div>
+            <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-1">
+              Audience
+            </span>
+            <p className="text-[13px] text-zinc-300">{audience}</p>
+          </div>
+        )}
+        {tone && (
+          <div>
+            <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-1">
+              Tone
+            </span>
+            <p className="text-[13px] text-zinc-300">{tone}</p>
+          </div>
+        )}
+      </div>
+      {characters.length > 0 && (
+        <div>
+          <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-2">
+            Characters ({characters.length})
+          </span>
+          <ul className="space-y-2">
+            {characters.map((c, i) => (
+              <li key={i} className="px-3 py-2 rounded-sm border border-zinc-800 bg-zinc-950/60">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-blue-400">
+                    {c.role}
+                  </span>
+                  <span className="text-[13px] text-zinc-200 font-medium">{c.displayName}</span>
+                </div>
+                <p className="text-xs text-zinc-400">{c.visualDesc}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {arc.length > 0 && (
+        <div>
+          <span className="font-mono text-[10px] font-medium tracking-[0.15em] uppercase text-zinc-500 block mb-2">
+            Arc ({arc.length} beats)
+          </span>
+          <ol className="space-y-1.5">
+            {arc.map((b, i) => (
+              <li key={i} className="flex gap-3 items-start text-[12px]">
+                <span className="font-mono text-[10px] text-blue-400 shrink-0 mt-0.5">
+                  {String(b.actIndex + 1).padStart(2, '0')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-zinc-300">{b.emotionalTone}</span>
+                  {b.keyInfo && <span className="text-zinc-500"> — {b.keyInfo}</span>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function buildPreviewContent(
   d: Record<string, unknown>,
   phase: string,
   onEditScene?: (index: number, field: 'heading' | 'action', value: string) => void,
 ): React.ReactNode {
+  if (phase === 'brief-approval') {
+    return (
+      <BriefPreview
+        idea={d.idea as string | undefined}
+        audience={d.audience as string | undefined}
+        tone={d.tone as string | undefined}
+        characters={(d.characters as BriefCharacterPreview[] | undefined) ?? []}
+        arc={(d.arc as BriefArcPreview[] | undefined) ?? []}
+      />
+    );
+  }
+
   const scenes = d.scenes as { heading: string; action: string }[] | undefined;
   const visuals = d.visuals as { sceneId: string; imageUrl: string }[] | undefined;
 

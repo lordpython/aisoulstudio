@@ -488,7 +488,7 @@ graph LR
 | `TEXT` | `gemini-3-flash-preview` | Text generation |
 | `IMAGE` | `imagen-4.0-fast-generate-001` | Image generation |
 | `VIDEO` | `veo-3.1-fast-generate-preview` | Video generation |
-| `TTS` | `gemini-2.5-flash-preview-tts` | Text-to-speech |
+| `TTS` | `gemini-3.1-flash-tts-preview` | Text-to-speech |
 | `TEXT_GROUNDED` | `gemini-3-flash-preview` | Grounded text generation |
 | `TEXT_EXP` | `gemini-3.1-pro-preview` | Advanced reasoning |
 

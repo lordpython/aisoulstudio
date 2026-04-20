@@ -38,7 +38,9 @@
       "Bash(npx playwright:*)",
       "Bash(wmic process:*)",
       "Bash(1 curl:*)",
-      "mcp__plugin_ecc_context7__resolve-library-id"
+      "mcp__plugin_ecc_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ],
     "additionalDirectories": [
       "c:\\Users\\noone\\Documents\\Projects\\lyriclens-clean"

@@ -33,28 +33,35 @@ export const routes: RouteConfig[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/projects/:projectId/story',
+    title: 'nav.story',
+    meta: { requiresAuth: true, preserveState: true },
+  },
+  {
+    path: '/projects/:projectId/video',
+    title: 'nav.studio',
+    meta: { requiresAuth: true, preserveState: true },
+  },
+  {
+    path: '/projects/:projectId/music',
+    title: 'nav.visualizer',
+    meta: { requiresAuth: true, preserveState: true },
+  },
+  {
+    path: '/projects/:projectId/preview',
+    title: 'nav.preview',
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/projects/:projectId/settings',
     title: 'nav.projectSettings',
     meta: { requiresAuth: true },
   },
-  {
-    path: '/story/:projectId',
-    title: 'nav.story',
-  },
-  {
-    path: '/studio',
-    title: 'nav.studio',
-    meta: { preserveState: true },
-  },
-  {
-    path: '/visualizer',
-    title: 'nav.visualizer',
-    meta: { preserveState: true },
-  },
-  {
-    path: '/preview/:projectId',
-    title: 'nav.preview',
-  },
+  // Legacy — kept as redirect targets
+  { path: '/story/:projectId', title: 'nav.story' },
+  { path: '/studio', title: 'nav.studio', meta: { preserveState: true } },
+  { path: '/visualizer', title: 'nav.visualizer', meta: { preserveState: true } },
+  { path: '/preview/:projectId', title: 'nav.preview' },
   {
     path: '/templates',
     title: 'nav.templates',

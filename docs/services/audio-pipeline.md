@@ -35,8 +35,8 @@ Phase 4 (audio) and Phase 5 (assembly). The export flow in `exportConfig.ts` /
 
 **File:** `packages/shared/src/services/narratorService.ts`
 
-Converts scene narration scripts to speech audio using the Gemini 2.5 Flash TTS
-model (`gemini-2.5-flash-preview-tts`) or the DeAPI Qwen3 TTS model as an
+Converts scene narration scripts to speech audio using the Gemini 3.1 Flash TTS
+model (`gemini-3.1-flash-tts-preview`) or the DeAPI Qwen3 TTS model as an
 alternative provider.
 
 ### TTS Rate-Limit Gate (Slot / Mutex)
@@ -80,7 +80,7 @@ simultaneously and collide. This gate prevents that race condition.
 
 ```typescript
 export interface NarratorConfig {
-    model?: string;           // Default: MODELS.TTS (gemini-2.5-flash-preview-tts)
+    model?: string;           // Default: MODELS.TTS (gemini-3.1-flash-tts-preview)
     defaultVoice?: TTSVoice;  // Default: "Kore"
     videoPurpose?: VideoPurpose; // Drives auto-style selection
     styleOverride?: StylePrompt; // Takes precedence over auto-selected style

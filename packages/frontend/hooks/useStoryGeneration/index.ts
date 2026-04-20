@@ -167,6 +167,11 @@ export function useStoryGeneration(projectId?: string | null) {
 
     // Load state from localStorage on mount / project change (with ownership validation)
     useEffect(() => {
+        // No project in scope (e.g. bare /studio) → always show a blank slate.
+        // Restoring a prior project's session here would make the route feel "sticky"
+        // even though the URL has no projectId. Users can reopen via /projects/:id/story.
+        if (!projectId) return;
+
         const savedState = localStorage.getItem(STORAGE_KEY);
         const savedSession = localStorage.getItem(SESSION_KEY);
         const savedUserId = localStorage.getItem(USER_ID_KEY);
@@ -243,6 +248,9 @@ export function useStoryGeneration(projectId?: string | null) {
 
     // Save state to localStorage and Firestore on change
     useEffect(() => {
+        // Bare /studio (no projectId) is ephemeral — don't persist; otherwise it
+        // would get auto-restored next visit, defeating the gate in the load effect.
+        if (!projectId) return;
         if (state.currentStep !== 'idea') {
             try {
                 const stateForStorage = stripImageDataForStorage(state);

@@ -1,8 +1,15 @@
 /**
- * Router configuration for LyricLens
- * Requirements: 2.1 - Use React Router for all navigation
- * Requirements: 2.2 - Support routes: / (Home), /studio (Studio), /visualizer (Visualizer)
- * Requirements: 5.1 - Show NotFound page for invalid routes
+ * Router configuration — canonical nested routes per project.
+ *
+ * Canonical project URLs:
+ *   /projects/:id/story
+ *   /projects/:id/video
+ *   /projects/:id/music
+ *   /projects/:id/preview
+ *   /projects/:id/settings
+ *
+ * Legacy paths (/story/:id, /preview/:id, /projects/:id, /visualizer,
+ * /studio?projectId=…&mode=…) remain as redirects so existing links don't break.
  */
 
 import { Suspense, lazy } from 'react';
@@ -12,10 +19,10 @@ import {
   Route,
   Navigate,
   useParams,
+  useSearchParams,
 } from 'react-router-dom';
 import { RouteLayout } from './RouteLayout';
 
-// Lazy load screen components for code splitting
 const HomeScreen = lazy(() => import('../screens/HomeScreen'));
 const StudioScreen = lazy(() => import('../screens/StudioScreen'));
 const VisualizerScreen = lazy(() => import('../screens/VisualizerScreen'));
@@ -31,17 +38,44 @@ const SignInScreen = lazy(() => import('../screens/SignInScreen'));
 const HelpScreen = lazy(() => import('../screens/HelpScreen'));
 const NotFoundScreen = lazy(() => import('../screens/NotFoundScreen'));
 
-function ProjectRoute() {
+/** Default a bare /projects/:id to the story workspace. */
+function ProjectDefaultRedirect() {
   const { projectId } = useParams<{ projectId: string }>();
-  return <Navigate to={`/studio?projectId=${projectId}`} replace />;
+  return <Navigate to={`/projects/${projectId}/story`} replace />;
 }
 
-function StoryRoute() {
+/** Legacy /story/:id → /projects/:id/story */
+function LegacyStoryRedirect() {
   const { projectId } = useParams<{ projectId: string }>();
-  return <Navigate to={`/studio?projectId=${projectId}&mode=story`} replace />;
+  return <Navigate to={`/projects/${projectId}/story`} replace />;
 }
 
-// Loading fallback component
+/** Legacy /preview/:id → /projects/:id/preview */
+function LegacyPreviewRedirect() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/projects/${projectId}/preview`} replace />;
+}
+
+/**
+ * Legacy /studio?projectId=…&mode=… → /projects/:id/:mode
+ * Falls through to /studio (no project) when no projectId present.
+ */
+function LegacyStudioRedirect() {
+  const [params] = useSearchParams();
+  const projectId = params.get('projectId');
+  const modeRaw = params.get('mode');
+  const mode = modeRaw === 'video' || modeRaw === 'music' || modeRaw === 'story' ? modeRaw : 'story';
+  if (projectId) {
+    return <Navigate to={`/projects/${projectId}/${mode}`} replace />;
+  }
+  return <StudioScreen />;
+}
+
+/** Legacy /visualizer → /studio (music mode entry handled inside Studio) */
+function LegacyVisualizerRedirect() {
+  return <VisualizerScreen />;
+}
+
 function LoadingFallback() {
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -50,61 +84,38 @@ function LoadingFallback() {
   );
 }
 
-/**
- * Main router component with all route definitions
- */
 export function AppRouter() {
   return (
     <BrowserRouter>
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route element={<RouteLayout />}>
-            {/* Home route - default landing page */}
             <Route path="/" element={<HomeScreen />} />
 
-            {/* Projects route - user's project dashboard */}
             <Route path="/projects" element={<ProjectsScreen />} />
-
-            {/* New Project wizard */}
             <Route path="/projects/new" element={<NewProjectScreen />} />
 
-            {/* Direct project access — redirects to /studio?projectId=... */}
-            <Route path="/projects/:projectId" element={<ProjectRoute />} />
-
-            {/* Story mode direct access — redirects to /studio?projectId=...&mode=story */}
-            <Route path="/story/:projectId" element={<StoryRoute />} />
-
-            {/* Studio route - unified creation workspace */}
-            <Route path="/studio" element={<StudioScreen />} />
-
-            {/* Visualizer route - audio-first lyric videos */}
-            <Route path="/visualizer" element={<VisualizerScreen />} />
-
-            {/* Video preview route */}
-            <Route path="/preview/:projectId" element={<PreviewScreen />} />
-
-            {/* Project settings route */}
+            {/* Canonical nested project routes */}
+            <Route path="/projects/:projectId" element={<ProjectDefaultRedirect />} />
+            <Route path="/projects/:projectId/story" element={<StudioScreen />} />
+            <Route path="/projects/:projectId/video" element={<StudioScreen />} />
+            <Route path="/projects/:projectId/music" element={<StudioScreen />} />
+            <Route path="/projects/:projectId/preview" element={<PreviewScreen />} />
             <Route path="/projects/:projectId/settings" element={<ProjectSettingsScreen />} />
 
-            {/* Template gallery route */}
+            {/* Legacy redirects — kept for bookmarks, external links, and in-app history */}
+            <Route path="/story/:projectId" element={<LegacyStoryRedirect />} />
+            <Route path="/preview/:projectId" element={<LegacyPreviewRedirect />} />
+            <Route path="/studio" element={<LegacyStudioRedirect />} />
+            <Route path="/visualizer" element={<LegacyVisualizerRedirect />} />
+
             <Route path="/templates" element={<TemplatesScreen />} />
-
-            {/* Account / profile route */}
             <Route path="/account" element={<AccountScreen />} />
-
-            {/* Export history route */}
             <Route path="/exports" element={<ExportsScreen />} />
-
-            {/* Analytics dashboard route */}
             <Route path="/analytics" element={<AnalyticsScreen />} />
-
-            {/* Help route - keyboard shortcuts & documentation */}
             <Route path="/help" element={<HelpScreen />} />
-
-            {/* Sign-in route - authentication page */}
             <Route path="/signin" element={<SignInScreen />} />
 
-            {/* Catch-all: show 404 page for invalid routes (Requirement 5.1) */}
             <Route path="*" element={<NotFoundScreen />} />
           </Route>
         </Routes>

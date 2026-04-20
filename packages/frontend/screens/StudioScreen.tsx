@@ -16,7 +16,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import {
   Video,
   Music as MusicIcon,
@@ -26,7 +26,6 @@ import {
   BarChart3,
   Edit3,
   Layers,
-  Settings,
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -106,7 +105,16 @@ export default function StudioScreen() {
   const { t, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const params = parseStudioParams(searchParams);
+  const routeParams = useParams<{ projectId?: string }>();
+  // Route params (canonical) take priority; query string is legacy fallback.
+  const pathSegments = typeof window !== 'undefined' ? window.location.pathname.split('/') : [];
+  const pathMode = pathSegments.find((s) => s === 'story' || s === 'video' || s === 'music');
+  const paramsFromQuery = parseStudioParams(searchParams);
+  const params: StudioParams = {
+    ...paramsFromQuery,
+    mode: (pathMode as StudioParams['mode']) ?? paramsFromQuery.mode,
+    projectId: routeParams.projectId ?? paramsFromQuery.projectId,
+  };
 
   // Project session management
   const {
@@ -134,11 +142,19 @@ export default function StudioScreen() {
     params.mode === 'story' ? 'story' : 'chat'
   );
 
+  // Navigate helper: changing mode updates the URL so it stays the source of truth.
+  const setMode = useCallback((next: 'chat' | 'story' | 'editor') => {
+    setStudioMode(next);
+    if (next === 'editor') return; // editor is a sub-view, doesn't map to URL mode
+    const urlMode = next === 'story' ? 'story' : 'video';
+    if (params.projectId) {
+      navigate(`/projects/${params.projectId}/${urlMode}`, { replace: true });
+    }
+  }, [navigate, params.projectId]);
+
   // Story initial topic (shared between shell and StoryPanel)
   const [storyInitialTopic, setStoryInitialTopic] = useState(params.mode === 'story' ? (params.topic || '') : '');
 
-  // Settings modal
-  const [showSettings, setShowSettings] = useState(false);
   const [musicModalMode, setMusicModalMode] = useState<'generate' | 'remix'>('generate');
 
   // Chat input state (shared with VideoProductionPanel)
@@ -166,10 +182,12 @@ export default function StudioScreen() {
   const panelOpenInEditorRef = useRef<(() => void) | null>(null);
 
   // ── Sync studioMode from URL params ──
+  // URL is the source of truth: /story → story mode, /video or /music → chat mode.
+  // Editor is a transient sub-view, we don't yank out of it.
   useEffect(() => {
-    if (params.mode === 'story' && studioMode !== 'story') {
-      setStudioMode('story');
-    }
+    if (!params.mode || studioMode === 'editor') return;
+    const desired: 'chat' | 'story' = params.mode === 'story' ? 'story' : 'chat';
+    if (studioMode !== desired) setStudioMode(desired);
   }, [params.mode]);
 
   // ── Stable callbacks passed to panels ──
@@ -216,7 +234,7 @@ export default function StudioScreen() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setStudioMode('chat')}
+          onClick={() => setMode('chat')}
           className={cn(
             "h-9 px-3 text-xs uppercase font-bold transition-all",
             studioMode === 'chat' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
@@ -228,7 +246,7 @@ export default function StudioScreen() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setStudioMode('story')}
+          onClick={() => setMode('story')}
           className={cn(
             "h-9 px-3 text-xs uppercase font-bold transition-all",
             studioMode === 'story' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
@@ -282,16 +300,6 @@ export default function StudioScreen() {
           {t('studio.advancedMode')}
         </button>
       </div>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setShowSettings(true)}
-        className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-      >
-        <Settings className="w-4 h-4 me-2" />
-        {t('studio.settings')}
-      </Button>
 
       {/* Action buttons */}
       {(storeMessages.length > 1 || contentPlan) && (
@@ -490,8 +498,6 @@ export default function StudioScreen() {
             setShowMusic={setShowMusic}
             showTimeline={showTimeline}
             setShowTimeline={setShowTimeline}
-            showSettings={showSettings}
-            setShowSettings={setShowSettings}
             musicModalMode={musicModalMode}
             setMusicModalMode={setMusicModalMode}
             setStudioMode={setStudioMode}

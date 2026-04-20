@@ -156,7 +156,7 @@ sequenceDiagram
 
     par Parallel TTS narration
         FE->>S: POST /api/gemini/tts
-        S->>AI: TTS model (gemini-2.5-flash-preview-tts)
+        S->>AI: TTS model (gemini-3.1-flash-tts-preview)
         AI-->>S: Audio buffers
         S-->>FE: Audio
     end
@@ -186,7 +186,7 @@ export const MODELS = {
   TEXT:          "gemini-3-flash-preview",         // All LLM text tasks
   IMAGE:         "imagen-4.0-fast-generate-001",   // Scene visuals
   VIDEO:         "veo-3.1-fast-generate-preview",  // Video clip generation
-  TTS:           "gemini-2.5-flash-preview-tts",   // Narration (AUDIO modality)
+  TTS:           "gemini-3.1-flash-tts-preview",   // Narration (AUDIO modality)
   TEXT_GROUNDED: "gemini-3-flash-preview",         // Research with Google Search grounding
   TEXT_EXP:      "gemini-3.1-pro-preview",           // Deep reasoning tasks
 }

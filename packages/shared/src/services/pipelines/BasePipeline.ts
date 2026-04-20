@@ -33,6 +33,8 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
 import type { z } from 'zod';
 import { agentLogger } from '../infrastructure/logger';
+import { enrichBrief } from '../ai/briefEnrichment';
+import type { ProductionBrief, UserIntent } from '../ai/productionBrief';
 
 // ============================================================================
 // FormatConfig — captures data-driven differences between formats
@@ -77,6 +79,8 @@ export interface PipelineContext {
   readonly metadata: FormatMetadata;
   readonly request: PipelineRequest;
   readonly checkpoints: CheckpointSystem;
+  /** Enriched brief — populated before beforePipeline runs. Downstream hooks consume this. */
+  brief: ProductionBrief;
   cancelled: boolean;
 }
 
@@ -141,26 +145,80 @@ export abstract class BasePipeline implements FormatPipeline {
     const metadata = this.getMetadata();
 
     let cancelled = false;
+    // +1 for brief-approval checkpoint (runs before all format-declared checkpoints)
     const checkpoints = new CheckpointSystem({
-      maxCheckpoints: metadata.checkpointCount,
+      maxCheckpoints: metadata.checkpointCount + 1,
       onCheckpointCreated: callbacks?.onCheckpointCreated,
     });
     callbacks?.onCheckpointSystemCreated?.(checkpoints);
     callbacks?.onCancelRequested?.(() => { cancelled = true; checkpoints.dispose(); });
 
-    const ctx: PipelineContext = { sessionId, language, metadata, request, checkpoints, cancelled };
-
     this.log.info(`Starting ${this.config.loggerName}: "${request.idea.slice(0, 60)}..." [${language}]`);
 
+    // === Brief enrichment + approval (runs BEFORE any expensive phase) ===
+    const intent: UserIntent = {
+      idea: request.idea,
+      formatId: this.config.formatId,
+      language: language as UserIntent['language'],
+      ...(request.genre && { genre: request.genre }),
+      ...(request.referenceDocuments?.length && {
+        references: { documents: request.referenceDocuments },
+      }),
+    };
+
+    const brief: ProductionBrief = await enrichBrief(
+      intent,
+      { sessionId, userId: request.userId, projectId: request.projectId },
+      this.config,
+    );
+
+    const ctx: PipelineContext = {
+      sessionId, language, metadata, request, checkpoints, brief, cancelled,
+    };
+
     try {
+      // === Brief-approval checkpoint — fast, cheap, fixes direction before expensive work ===
+      await this.requireApproval(
+        checkpoints,
+        'brief-approval',
+        {
+          idea: intent.idea,
+          audience: brief.inferred?.audience,
+          tone: brief.inferred?.tone,
+          characters: brief.narrative?.characters.map(c => ({
+            role: c.role, displayName: c.displayName, visualDesc: c.visualDesc,
+          })) ?? [],
+          arc: brief.narrative?.arc.map(a => ({
+            actIndex: a.actIndex, emotionalTone: a.emotionalTone, keyInfo: a.keyInfo,
+          })) ?? [],
+        },
+        { brief },
+      );
+
       // === Hook: Pre-pipeline (research, lyrics analysis, etc.) ===
       const hookData = await this.beforePipeline(ctx);
 
       // === Script generation ===
+      // Brief-derived context auto-flows into every pipeline's prompts.
+      // Subclass getFormatOptions() can still override any field.
+      const briefOptions: Partial<FormatAwareGenerationOptions> = {
+        ...(ctx.brief.inferred?.audience && { audience: ctx.brief.inferred.audience }),
+        ...(ctx.brief.inferred?.tone && { tone: ctx.brief.inferred.tone }),
+        ...(ctx.brief.narrative && {
+          narrativeContext: JSON.stringify({
+            characters: ctx.brief.narrative.characters.map(c => ({
+              role: c.role, name: c.displayName, look: c.visualDesc, personality: c.personality,
+            })),
+            arc: ctx.brief.narrative.arc,
+          }),
+        }),
+      };
+
       const formatOptions: FormatAwareGenerationOptions = {
         formatId: this.config.formatId,
         genre: request.genre,
         language,
+        ...briefOptions,
         ...this.getFormatOptions(ctx, hookData),
       };
 

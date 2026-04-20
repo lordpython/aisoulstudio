@@ -9,7 +9,7 @@ import { traceAsync } from "../../tracing";
 import { logAICall } from "../../infrastructure/aiLogService";
 import { getEffectiveLegacyTone } from "../../content/tripletUtils";
 import { tripletToPromptFragments } from "../../prompt/vibeLibrary";
-import { convertMarkersToDirectorNote } from "../../tts/deliveryMarkers";
+import { convertMarkersForGemini } from "../../tts/deliveryMarkers";
 import { generateDeapiQwenTTS, mapLanguageToDeApiFormat, DEAPI_TTS_MODELS, type DeApiTtsModel } from "../deapiService";
 import {
     TTSProvider,
@@ -47,13 +47,16 @@ export interface NarratorConfig {
     language?: LanguageCode;
     provider?: TTSProvider;
     deapiModel?: DeApiTtsModel;
+    /** Auto-route dialogue-heavy scenes to multi-speaker TTS when ≤2 speakers detected */
+    multiSpeaker?: boolean;
 }
 
-export const DEFAULT_NARRATOR_CONFIG: Required<Omit<NarratorConfig, 'styleOverride' | 'language' | 'provider' | 'deapiModel'>> & {
+export const DEFAULT_NARRATOR_CONFIG: Required<Omit<NarratorConfig, 'styleOverride' | 'language' | 'provider' | 'deapiModel' | 'multiSpeaker'>> & {
     styleOverride?: StylePrompt;
     language?: LanguageCode;
     provider?: TTSProvider;
     deapiModel?: DeApiTtsModel;
+    multiSpeaker?: boolean;
 } = {
     model: MODELS.TTS,
     defaultVoice: TTS_VOICES.KORE,
@@ -77,16 +80,25 @@ export class NarratorError extends Error {
 
 // --- Director Note Helpers ---
 
+function sanitizeStyleFragment(s: string): string {
+    return s.replace(/\s+/g, " ").replace(/[.,;:!?\s]+$/g, "").trim();
+}
+
+function lowerFirst(s: string): string {
+    const clean = sanitizeStyleFragment(s);
+    return clean.length > 0 ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean;
+}
+
 export function buildDirectorNote(stylePrompt?: StylePrompt): string {
     if (!stylePrompt) return "";
     if (stylePrompt.customDirectorNote) return stylePrompt.customDirectorNote;
 
     const parts: string[] = [];
-    if (stylePrompt.persona) parts.push(`Speak as ${stylePrompt.persona}`);
-    if (stylePrompt.emotion) parts.push(`with a ${stylePrompt.emotion} tone`);
-    if (stylePrompt.pacing) parts.push(`at a ${stylePrompt.pacing} pace`);
-    if (stylePrompt.accent) parts.push(`in a ${stylePrompt.accent} style`);
-    return parts.join(", ");
+    if (stylePrompt.persona) parts.push(`Speak as ${lowerFirst(stylePrompt.persona)}`);
+    if (stylePrompt.emotion) parts.push(`Tone: ${lowerFirst(stylePrompt.emotion)}`);
+    if (stylePrompt.pacing) parts.push(`Pace: ${lowerFirst(stylePrompt.pacing)}`);
+    if (stylePrompt.accent) parts.push(`Accent: ${lowerFirst(stylePrompt.accent)}`);
+    return parts.join(". ");
 }
 
 export function buildTripletDirectorNote(triplet: InstructionTriplet): string {
@@ -133,10 +145,10 @@ function pcmToWav(pcmData: Uint8Array): Blob {
 }
 
 function formatTextWithStyle(text: string, stylePrompt?: StylePrompt): string {
-    const { directorInstructions: markerInstructions, cleanText } = convertMarkersToDirectorNote(text);
+    const { inlineText, proseInstructions } = convertMarkersForGemini(text);
     const baseNote = buildDirectorNote(stylePrompt);
-    const combinedNote = [baseNote, markerInstructions].filter(Boolean).join(". ");
-    return combinedNote ? `${combinedNote}: "${cleanText}"` : cleanText;
+    const combinedNote = [baseNote, proseInstructions].filter(Boolean).join(". ");
+    return combinedNote ? `${combinedNote}:\n${inlineText}` : inlineText;
 }
 
 // --- Core TTS ---
@@ -222,6 +234,101 @@ export const synthesizeSpeech = traceAsync(
     },
     "synthesizeSpeech",
     { runType: "tool", metadata: { service: "narrator", operation: "tts" }, tags: ["tts", "gemini", "audio"] }
+);
+
+// --- Multi-Speaker TTS ---
+
+export interface SpeakerConfig {
+    name: string;
+    voiceName: TTSVoice;
+}
+
+export interface MultiSpeakerOptions {
+    model?: string;
+    directorNote?: string;
+}
+
+export const synthesizeMultiSpeaker = traceAsync(
+    async function synthesizeMultiSpeakerImpl(
+        dialogueTranscript: string,
+        speakers: SpeakerConfig[],
+        options?: MultiSpeakerOptions
+    ): Promise<Blob> {
+        if (!API_KEY) {
+            throw new NarratorError("Gemini API key is not configured", "NOT_CONFIGURED");
+        }
+        if (!dialogueTranscript?.trim()) {
+            throw new NarratorError("Dialogue transcript is required", "INVALID_INPUT");
+        }
+        if (speakers.length < 1 || speakers.length > 2) {
+            throw new NarratorError(
+                "Multi-speaker TTS requires 1-2 speakers (Gemini 3.1 max is 2)",
+                "INVALID_INPUT"
+            );
+        }
+
+        const uniqueNames = new Set(speakers.map(s => s.name));
+        if (uniqueNames.size !== speakers.length) {
+            throw new NarratorError("Speaker names must be unique", "INVALID_INPUT");
+        }
+
+        const model = options?.model ?? MODELS.TTS;
+        const preamble = options?.directorNote
+            ? `${options.directorNote}. TTS the following conversation:`
+            : "TTS the following conversation:";
+        const prompt = `${preamble}\n${dialogueTranscript.trim()}`;
+
+        log.info(
+            `Multi-speaker TTS: ${speakers.length} speakers (${speakers.map(s => `${s.name}→${s.voiceName}`).join(", ")})`
+        );
+
+        const releaseSlot = await acquireTtsSlot();
+
+        try {
+            return await withRetry(async () => {
+                const response = await ai.models.generateContent({
+                    model,
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    config: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            multiSpeakerVoiceConfig: {
+                                speakerVoiceConfigs: speakers.map(s => ({
+                                    speaker: s.name,
+                                    voiceConfig: { prebuiltVoiceConfig: { voiceName: s.voiceName } },
+                                })),
+                            },
+                        },
+                    },
+                });
+
+                const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+                if (!audioData?.data || !audioData?.mimeType) {
+                    throw new NarratorError("No audio data in response", "API_FAILURE");
+                }
+
+                const binaryString = atob(audioData.data);
+                const pcmData = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    pcmData[i] = binaryString.charCodeAt(i);
+                }
+
+                log.debug(`Multi-speaker received ${pcmData.length} bytes of PCM, converting to WAV`);
+                return pcmToWav(pcmData);
+            }, 5, 2000, 2);
+        } catch (error) {
+            log.error('Multi-speaker TTS failed', error);
+            throw new NarratorError(
+                `Multi-speaker synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
+                "API_FAILURE",
+                error instanceof Error ? error : undefined
+            );
+        } finally {
+            releaseSlot();
+        }
+    },
+    "synthesizeMultiSpeaker",
+    { runType: "tool", metadata: { service: "narrator", operation: "tts_multi" }, tags: ["tts", "gemini", "audio", "multi-speaker"] }
 );
 
 export function calculateAudioDuration(audioBlob: Blob): number {

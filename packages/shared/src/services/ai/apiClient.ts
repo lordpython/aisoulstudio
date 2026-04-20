@@ -55,7 +55,7 @@ export const MODELS = {
   VIDEO: "veo-3.1-fast-generate-preview",
   TRANSCRIPTION: "gemini-3-flash-preview",
   TRANSLATION: "gemini-3-flash-preview",
-  TTS: "gemini-2.5-flash-preview-tts", // Supports AUDIO output modality
+  TTS: "gemini-3.1-flash-tts-preview", // Supports AUDIO output modality
 
   // Grounded research model (Google Search grounding enabled in researchService)
   TEXT_GROUNDED: "gemini-3-flash-preview",

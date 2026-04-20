@@ -66,6 +66,17 @@ export class DocumentaryPipeline extends BasePipeline {
 
     this.log.info(`Research complete: ${researchResult.sources.length} sources, confidence=${researchResult.confidence.toFixed(2)}`);
 
+    // Persist structured research into the brief so downstream consumers
+    // (imageService, narratorService, future scene generators) can read it
+    // without threading hookData through every call site.
+    ctx.brief.research = {
+      summary: researchResult.summary,
+      citations: researchResult.citations.map(c => ({
+        title: c.text.slice(0, 80),
+        url: (c as unknown as { url?: string }).url ?? '',
+      })),
+    };
+
     await this.requireApproval(ctx.checkpoints, 'research-summary', {
       sourceCount: researchResult.sources.length,
       confidence: researchResult.confidence,

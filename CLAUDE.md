@@ -67,7 +67,7 @@ The `MODELS` constant defines which models are used:
 - `TEXT`: `gemini-3-flash-preview` (primary LLM for all text tasks)
 - `IMAGE`: `imagen-4.0-fast-generate-001`
 - `VIDEO`: `veo-3.1-fast-generate-preview`
-- `TTS`: `gemini-2.5-flash-preview-tts` (audio output modality)
+- `TTS`: `gemini-3.1-flash-tts-preview` (audio output modality)
 
 Server-side uses **Vertex AI** (`GOOGLE_CLOUD_PROJECT`). Browser-side proxies all calls through the Express server.
 

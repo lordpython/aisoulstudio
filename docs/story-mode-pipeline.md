@@ -194,7 +194,7 @@ The `StoryboardProgress` component shows three sub-stages: *Generating Shot List
 **Trigger:** Click **Generate Narration** on the Storyboard or Narration tab
 **Hook action:** `storyHook.generateNarration()`
 **Service:** `storyPipeline.ts` → `generateVoiceoverScripts()` → `narratorService.ts` → `narrateScene()`
-**Models:** `gemini-2.5-flash-preview` (voiceover scripts), `gemini-2.5-flash-preview-tts` (audio)
+**Models:** `gemini-2.5-flash-preview` (voiceover scripts), `gemini-3.1-flash-tts-preview` (audio)
 
 ### What happens
 
@@ -316,7 +316,7 @@ The **Open in Editor** button in `StudioScreen` populates the `VideoEditor` Zust
 |------|-------|---------|
 | Breakdown, Screenplay, Characters, Voiceover, Shots | `gemini-2.5-flash-preview` | All text generation |
 | Storyboard images | `imagen-4.0-fast-generate-001` | Still image generation |
-| Narration audio | `gemini-2.5-flash-preview-tts` | Text-to-speech |
+| Narration audio | `gemini-3.1-flash-tts-preview` | Text-to-speech |
 | Animation | DeAPI or `veo-3.1-fast-generate-preview` | Image-to-video / text-to-video |
 | Export rendering | FFmpeg (server-side) | Video assembly |
 
