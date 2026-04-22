@@ -68,6 +68,36 @@ describe('convertMarkersForGemini', () => {
   });
 });
 
+describe('convertMarkersForGemini - native cookbook tags', () => {
+  it('preserves [excitedly] inline as-is', () => {
+    const r = convertMarkersForGemini('[excitedly] Yes! Massive vibes in the studio!');
+    expect(r.inlineText).toBe('[excitedly] Yes! Massive vibes in the studio!');
+    expect(r.proseInstructions).toBe('');
+  });
+
+  it('preserves [shouting] and [gasp] inline', () => {
+    const r = convertMarkersForGemini('[shouting] Run! [gasp] It\'s coming.');
+    expect(r.inlineText).toBe("[shouting] Run! [gasp] It's coming.");
+    expect(r.proseInstructions).toBe('');
+  });
+
+  it('normalizes wrapped [excitedly]X[/excitedly] to native [excitedly] X', () => {
+    const r = convertMarkersForGemini('[excitedly]Yes![/excitedly] Let\'s go.');
+    expect(r.inlineText).toBe("[excitedly] Yes! Let's go.");
+    expect(r.proseInstructions).toBe('');
+  });
+
+  it('normalizes wrapped [sarcastic]X[/sarcastic] to native form', () => {
+    const r = convertMarkersForGemini('[sarcastic]oh great[/sarcastic], another meeting.');
+    expect(r.inlineText).toBe('[sarcastic] oh great, another meeting.');
+  });
+
+  it('is case-insensitive for wrapped native-tag normalization and emits lowercase tag', () => {
+    const r = convertMarkersForGemini('[SHOUTING]hey[/SHOUTING] over there');
+    expect(r.inlineText).toBe('[shouting] hey over there');
+  });
+});
+
 describe('convertMarkersToDirectorNote (legacy)', () => {
   it('still extracts all markers to prose for backward compat', () => {
     const r = convertMarkersToDirectorNote('[breath] Hello [whisper]quiet[/whisper].');

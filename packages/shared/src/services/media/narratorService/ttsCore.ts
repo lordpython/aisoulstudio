@@ -9,7 +9,7 @@ import { traceAsync } from "../../tracing";
 import { logAICall } from "../../infrastructure/aiLogService";
 import { getEffectiveLegacyTone } from "../../content/tripletUtils";
 import { tripletToPromptFragments } from "../../prompt/vibeLibrary";
-import { convertMarkersForGemini } from "../../tts/deliveryMarkers";
+import { convertMarkersForGemini } from "../../audio-processing/deliveryMarkers";
 import { generateDeapiQwenTTS, mapLanguageToDeApiFormat, DEAPI_TTS_MODELS, type DeApiTtsModel } from "../deapiService";
 import {
     TTSProvider,
@@ -93,12 +93,32 @@ export function buildDirectorNote(stylePrompt?: StylePrompt): string {
     if (!stylePrompt) return "";
     if (stylePrompt.customDirectorNote) return stylePrompt.customDirectorNote;
 
-    const parts: string[] = [];
-    if (stylePrompt.persona) parts.push(`Speak as ${lowerFirst(stylePrompt.persona)}`);
-    if (stylePrompt.emotion) parts.push(`Tone: ${lowerFirst(stylePrompt.emotion)}`);
-    if (stylePrompt.pacing) parts.push(`Pace: ${lowerFirst(stylePrompt.pacing)}`);
-    if (stylePrompt.accent) parts.push(`Accent: ${lowerFirst(stylePrompt.accent)}`);
-    return parts.join(". ");
+    const persona = stylePrompt.persona ? sanitizeStyleFragment(stylePrompt.persona) : "";
+    const emotion = stylePrompt.emotion ? sanitizeStyleFragment(stylePrompt.emotion) : "";
+    const pacing = stylePrompt.pacing ? sanitizeStyleFragment(stylePrompt.pacing) : "";
+    const accent = stylePrompt.accent ? sanitizeStyleFragment(stylePrompt.accent) : "";
+
+    const filledCount = [persona, emotion, pacing, accent].filter(Boolean).length;
+    if (filledCount === 0) return "";
+
+    // For 1-2 fragments: keep the lightweight inline form (don't overspecify).
+    if (filledCount <= 2) {
+        const parts: string[] = [];
+        if (persona) parts.push(`Speak as ${lowerFirst(persona)}`);
+        if (emotion) parts.push(`Tone: ${lowerFirst(emotion)}`);
+        if (pacing) parts.push(`Pace: ${lowerFirst(pacing)}`);
+        if (accent) parts.push(`Accent: ${lowerFirst(accent)}`);
+        return parts.join(". ");
+    }
+
+    // For 3+ fragments: use the cookbook's structured "Director's Notes" block.
+    // Google's Gemini TTS guide shows this format improves expressiveness.
+    const lines: string[] = ["Director's Notes:"];
+    if (persona) lines.push(`- Voice: ${persona}`);
+    if (emotion) lines.push(`- Style: ${emotion}`);
+    if (pacing) lines.push(`- Pace: ${pacing}`);
+    if (accent) lines.push(`- Accent: ${accent}`);
+    return lines.join("\n");
 }
 
 export function buildTripletDirectorNote(triplet: InstructionTriplet): string {

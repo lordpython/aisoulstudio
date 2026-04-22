@@ -181,15 +181,28 @@ function processBreathMarkers(text: string): MarkerMatch[] {
  * map to native tags, keep them inline to preserve position. For markers with
  * no native equivalent, extract to prose instructions (legacy behavior).
  *
- * Native Gemini TTS inline tags (per Google docs):
+ * Native Gemini TTS inline tags (per Google docs + cookbook):
  * - [short pause], [long pause]
  * - [breath]
  * - [whisper]   (scope = following phrase)
- * - [laughs], [yawn]   (instantaneous)
+ * - [laughs], [yawn], [gasp], [sighs], [chuckles], [sobs], [coughs]  (instantaneous)
+ * - [excitedly], [shouting], [sarcastic], [tired], [bored]  (style directives, mid-sentence)
  *
  * Markers kept as prose (no native equivalent):
  * - [emphasis], [low-tone], [rising-tension], [slow]
  */
+
+// Instantaneous/one-shot tags — emit as-is, no scope.
+const NATIVE_INSTANT_TAGS = [
+    "breath", "laughs", "laugh", "yawn", "gasp", "sighs", "sigh",
+    "chuckles", "chuckle", "sobs", "sob", "coughs", "cough",
+];
+
+// Style directive tags — also emit as-is; the model scopes to following content.
+const NATIVE_STYLE_TAGS = [
+    "excitedly", "shouting", "shouts", "sarcastic", "sarcastically",
+    "tired", "bored", "angry", "sad", "happily",
+];
 export interface GeminiMarkerResult {
   /** Text with Google-native tags inline, non-native wrappers stripped to content. */
   inlineText: string;
@@ -207,6 +220,19 @@ export function convertMarkersForGemini(script: string): GeminiMarkerResult {
   text = text.replace(/\[pause:\s*long\]/gi, "[long pause]");
   text = text.replace(/\[pause:\s*(short|medium|beat)\]/gi, "[short pause]");
   // [breath] is already native.
+
+  // Normalize any wrapped form of native instant/style tags to the native
+  // directive form: [TAG]X[/TAG]  →  [TAG] X
+  // This keeps cookbook-style inline tags (e.g. [excitedly], [shouting], [gasp])
+  // working even if upstream generators accidentally emitted the wrapped variant.
+  const nativePassthrough = [...NATIVE_INSTANT_TAGS, ...NATIVE_STYLE_TAGS];
+  for (const tag of nativePassthrough) {
+    const wrappedRe = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[/${tag}\\]`, "gi");
+    text = text.replace(wrappedRe, (_m, content) => {
+      const inner = String(content).trim();
+      return inner ? `[${tag}] ${inner}` : `[${tag}]`;
+    });
+  }
 
   // [whisper]...[/whisper] — Google's [whisper] is a leading directive.
   // Emit `[whisper] <content>` and hope the model scopes to the phrase.
