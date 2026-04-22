@@ -48,7 +48,7 @@ const BASE_ENHANCEMENT_EXPORT_PROMPT = `You are the Enhancement/Export Subagent.
 You will receive a sessionId in your instructions. You MUST use this EXACT sessionId as the contentPlanId parameter for ALL tool calls.
 
 NEVER use placeholder values like "plan_123", "cp_01", "session_123", "current_production", or "content_plan_YYYYMMDD_HHMMSS".
-ALWAYS use the ACTUAL sessionId provided in your instructions (format: prod_TIMESTAMP_HASH, e.g., prod_1768266562924_r3zdsyfgc).
+ALWAYS use the ACTUAL sessionId provided in your instructions (format: prod_TIMESTAMP_HASH).
 
 CONTEXT:
 You receive all assets from prior subagents (visuals, narration, music, SFX). Your output
@@ -157,18 +157,18 @@ const BROWSER_WORKFLOW_SECTION = `
 
 ## EXAMPLES:
 
-**Example 1**: Basic export with subtitles (sessionId="prod_1768266562924_r3zdsyfgc")
+**Example 1**: Basic export with subtitles (sessionId="<SESSION_ID>")
 \`\`\`
-1. mix_audio_tracks({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-2. generate_subtitles({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-3. export_final_video({ contentPlanId: "prod_1768266562924_r3zdsyfgc", format: "mp4" })
+1. mix_audio_tracks({ contentPlanId: "<SESSION_ID>" })
+2. generate_subtitles({ contentPlanId: "<SESSION_ID>" })
+3. export_final_video({ contentPlanId: "<SESSION_ID>", format: "mp4" })
 4. Report: "Export complete. Format: mp4. Size: X MB. Duration: Y s. Video available locally."
 \`\`\`
 
-**Example 2**: Export with custom aspect ratio (sessionId="prod_1768266562924_r3zdsyfgc")
+**Example 2**: Export with custom aspect ratio (sessionId="<SESSION_ID>")
 \`\`\`
-1. mix_audio_tracks({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-2. export_final_video({ contentPlanId: "prod_1768266562924_r3zdsyfgc", format: "mp4", aspectRatio: "9:16" })
+1. mix_audio_tracks({ contentPlanId: "<SESSION_ID>" })
+2. export_final_video({ contentPlanId: "<SESSION_ID>", format: "mp4", aspectRatio: "9:16" })
 3. Report: "Export complete. Format: mp4. Size: X MB. Duration: Y s. Video available locally."
 \`\`\`
 `;
@@ -195,18 +195,18 @@ const NODE_WORKFLOW_SECTION = `
 
 ## EXAMPLES:
 
-**Example 1**: Basic export with subtitles (sessionId="prod_1768266562924_r3zdsyfgc")
+**Example 1**: Basic export with subtitles (sessionId="<SESSION_ID>")
 \`\`\`
-1. mix_audio_tracks({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-2. generate_subtitles({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-3. export_final_video({ contentPlanId: "prod_1768266562924_r3zdsyfgc", format: "mp4" })
+1. mix_audio_tracks({ contentPlanId: "<SESSION_ID>" })
+2. generate_subtitles({ contentPlanId: "<SESSION_ID>" })
+3. export_final_video({ contentPlanId: "<SESSION_ID>", format: "mp4" })
 \`\`\`
 
-**Example 2**: Export with custom aspect ratio and cloud upload (sessionId="prod_1768266562924_r3zdsyfgc")
+**Example 2**: Export with custom aspect ratio and cloud upload (sessionId="<SESSION_ID>")
 \`\`\`
-1. mix_audio_tracks({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-2. export_final_video({ contentPlanId: "prod_1768266562924_r3zdsyfgc", format: "mp4", aspectRatio: "9:16" })
-3. upload_production_to_cloud({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+1. mix_audio_tracks({ contentPlanId: "<SESSION_ID>" })
+2. export_final_video({ contentPlanId: "<SESSION_ID>", format: "mp4", aspectRatio: "9:16" })
+3. upload_production_to_cloud({ contentPlanId: "<SESSION_ID>" })
 \`\`\`
 `;
 
@@ -219,8 +219,9 @@ const QUALITY_AND_ERROR_SECTION = `
 Before export:
 - ✓ All scenes have visuals (check session state)
 - ✓ Narration audio exists and matches scene count
-- ✓ If using music: Music URL is valid
 - ✓ Total duration matches ContentPlan.totalDuration
+
+Note: Background music generation is not available in video production mode — do not check for music URL.
 
 After export:
 - ✓ Video file size reasonable (not 0 bytes)
@@ -351,11 +352,17 @@ export function createEnhancementExportSubagent(apiKey: string): Subagent {
         ? "upload_production_to_cloud is available if you want to upload to cloud."
         : "NOTE: Cloud upload is NOT available in browser. After export_final_video, you are DONE.";
 
+      const language = context.userPreferences?.language;
+      const languageReminder = language
+        ? `Language for subtitles: "${language}". Pass this as the "language" parameter to generate_subtitles.`
+        : "";
+
       const enhancedInstruction = `IMPORTANT: Your sessionId is "${context.sessionId}". Use this EXACT value as contentPlanId for ALL tool calls.
 
 ${context.instruction}
 
 REMINDER: contentPlanId = "${context.sessionId}" for all tools.
+${languageReminder}
 ${cloudUploadReminder}`;
 
       // Initialize messages
@@ -401,7 +408,7 @@ ${cloudUploadReminder}`;
 
             return {
               success: true,
-              sessionId: context.sessionId || "unknown",
+              sessionId: context.sessionId || "",
               completedStage: SubagentName.ENHANCEMENT_EXPORT,
               duration,
               message: content,

@@ -48,7 +48,7 @@ import { AI_CONFIG } from "../config";
 const CONTENT_SUBAGENT_PROMPT = `You are the Content Subagent. Your role is to create a comprehensive content plan with narration.
 
 ## CRITICAL: SESSION ID HANDLING
-When you call plan_video, it returns a sessionId (format: prod_TIMESTAMP_HASH, e.g., prod_1768266562924_r3zdsyfgc).
+When you call plan_video, it returns a sessionId (format: prod_TIMESTAMP_HASH).
 You MUST use this EXACT sessionId as the contentPlanId parameter for ALL subsequent tool calls:
 - narrate_scenes: contentPlanId = sessionId from plan_video
 - validate_plan: contentPlanId = sessionId from plan_video
@@ -56,6 +56,13 @@ You MUST use this EXACT sessionId as the contentPlanId parameter for ALL subsequ
 
 NEVER use placeholder values like "plan_123", "cp_01", or "session_12345".
 ALWAYS use the ACTUAL sessionId returned by plan_video.
+
+## CRITICAL: LANGUAGE CONSISTENCY
+Your instruction will include a "Language: XX" hint (ISO 639-1 code, or "auto").
+- Pass the SAME \`language\` value to plan_video AND to narrate_scenes. They must agree.
+- If the value is "auto", pass \`language: "auto"\` — the tools will detect from topic/script text.
+- Default if missing: "en".
+- If user wrote the topic in a non-English language, trust that as a strong signal even when "Language: auto".
 
 CONTEXT:
 You receive a topic/transcript and target duration. Your output (ContentPlan + narration audio)
@@ -264,7 +271,7 @@ export function createContentSubagent(apiKey: string): Subagent {
 
             return {
               success: true,
-              sessionId: currentSessionId || "unknown",
+              sessionId: currentSessionId || "",
               completedStage: SubagentName.CONTENT,
               duration,
               message: content,

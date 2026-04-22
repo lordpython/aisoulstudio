@@ -65,6 +65,8 @@ export interface UserPreferences {
   uploadToCloud?: boolean;
   /** Make cloud files public */
   makePublic?: boolean;
+  /** ISO 639-1 language code (e.g. 'en', 'ar', 'he'). Propagated to content narration and subtitles. 'auto' = detect. */
+  language?: string;
 }
 
 /**

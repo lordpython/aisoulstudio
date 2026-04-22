@@ -49,7 +49,7 @@ const MEDIA_SUBAGENT_PROMPT = `You are the Media Subagent. Your role is to gener
 You will receive a sessionId in your instructions. You MUST use this EXACT sessionId as the contentPlanId parameter for ALL tool calls.
 
 NEVER use placeholder values like "plan_123", "cp_01", "session_123", "prod_video_plan", or "content_plan_YYYYMMDD_HHMMSS".
-ALWAYS use the ACTUAL sessionId provided in your instructions (format: prod_TIMESTAMP_HASH, e.g., prod_1768266562924_r3zdsyfgc).
+ALWAYS use the ACTUAL sessionId provided in your instructions (format: prod_TIMESTAMP_HASH).
 
 CONTEXT:
 You receive a ContentPlan from the Content Subagent. Your output (images/videos + SFX)
@@ -80,15 +80,18 @@ Music generation is only available in the dedicated "Generate Music" mode.
 - **DISABLED**: Animation (image-to-video) is currently SUSPENDED.
 - **VEO VIDEO**: You can still generate *native* videos using generate_visuals if configured, but do not animate static images.
 
-#### SFX Detection:
-- **EXPLICIT YES**: User says "sound effects", "ambient sounds", "sfx", "audio atmosphere"
-- **EXPLICIT NO**: User says "no sfx", "silent", "music only"
-- **SMART DEFAULT**: ALWAYS include SFX for immersive styles:
-  - "Cinematic", "Documentary" → Environmental ambience
-  - "Horror", "Mystery" → Atmospheric tension sounds
-  - "Nature", "Travel" → Natural environment sounds
-  - "Commercial", "Ad" → Clean, professional ambience
-- Only skip SFX if explicitly disabled or for minimalist/tutorial content
+#### SFX Detection (supervisor's explicit value wins):
+- The supervisor passes an explicit "sfx" boolean in your instructions.
+- **If sfx=false**: SKIP plan_sfx. Do not override. The user or supervisor has decided.
+- **If sfx=true**: CALL plan_sfx.
+- **If sfx is missing/unspecified**: Use SMART DEFAULTS below.
+
+**Smart defaults (only when supervisor did not specify)**:
+  - "Cinematic", "Documentary" → Environmental ambience (ON)
+  - "Horror", "Mystery" → Atmospheric tension sounds (ON)
+  - "Nature", "Travel" → Natural environment sounds (ON)
+  - "Commercial", "Ad" → Clean, professional ambience (ON)
+  - Tutorial/minimalist → OFF
 
 ### Step 2: Execute Required Tools
 Always execute:
@@ -103,17 +106,17 @@ SFX (smart default ON for immersive styles):
 
 ## EXAMPLES:
 
-**Example 1**: "Create a cinematic video about space exploration" with sessionId="prod_1768266562924_r3zdsyfgc"
+**Example 1**: "Create a cinematic video about space exploration" with sessionId=<SESSION_ID>
 - Animation: DISABLED
 - SFX: "Cinematic" + "space" → SMART DEFAULT: YES, atmospheric ambience
 - Workflow:
-  1. generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
-  2. plan_sfx({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+  1. generate_visuals({ contentPlanId: "<SESSION_ID>" })
+  2. plan_sfx({ contentPlanId: "<SESSION_ID>" })
 
-**Example 2**: "Make a static slideshow tutorial" with sessionId="prod_1768266562924_r3zdsyfgc"
+**Example 2**: "Make a static slideshow tutorial" with sessionId=<SESSION_ID>
 - Animation: DISABLED
 - SFX: Tutorial style → Optional, skip unless requested
-- Workflow: generate_visuals({ contentPlanId: "prod_1768266562924_r3zdsyfgc" })
+- Workflow: generate_visuals({ contentPlanId: "<SESSION_ID>" })
 
 ## CONSTRAINTS:
 
@@ -125,7 +128,7 @@ SFX (smart default ON for immersive styles):
 - Visual consistency: Ensure all scenes follow same style/theme
 - SFX balance: Ambient sounds should complement, not overpower
 
-When done, report: "Media complete. Visuals: N scenes. Animation: Suspended (static images only)."
+When done, report: "Media complete. Visuals: N scenes." (append "SFX: planned." if plan_sfx was called.)
 `;
 
 /**
@@ -245,7 +248,7 @@ REMINDER: contentPlanId = "${context.sessionId}" for all tools (generate_visuals
 
             return {
               success: true,
-              sessionId: context.sessionId || "unknown",
+              sessionId: context.sessionId || "",
               completedStage: SubagentName.MEDIA,
               duration,
               message: content,

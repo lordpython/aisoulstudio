@@ -96,7 +96,7 @@ export const planVideoTool = tool(
             const config: ContentPlannerConfig = {
                 videoPurpose: (videoPurpose || "documentary") as VideoPurpose,
                 visualStyle: style || "Cinematic",
-                language: language || "ar",
+                language: language || "en",
             };
 
             const contentPlan = await generateContentPlan(topic, {

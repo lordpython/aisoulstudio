@@ -55,9 +55,6 @@ export {
     createStepIdentifier,
 } from "./utils";
 
-// --- Prompts ---
-export { PRODUCTION_AGENT_PROMPT } from "./prompts";
-
 // --- Tools ---
 export {
     // Content Tools

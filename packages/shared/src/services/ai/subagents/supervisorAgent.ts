@@ -54,16 +54,21 @@ const SUPERVISOR_AGENT_PROMPT = `You are the Production Supervisor Agent. Your r
 The sessionId is the KEY to the entire production. It links all stages together.
 
 **How it works:**
-1. delegate_to_content_subagent creates a sessionId (format: prod_TIMESTAMP_HASH, e.g., prod_1768266562924_r3zdsyfgc)
-2. You MUST pass this EXACT sessionId to delegate_to_media_subagent
-3. You MUST pass this EXACT sessionId to delegate_to_enhancement_export_subagent
+1. delegate_to_content_subagent creates a sessionId (format: prod_TIMESTAMP_HASH).
+2. You MUST pass this EXACT sessionId to delegate_to_media_subagent.
+3. You MUST pass this EXACT sessionId to delegate_to_enhancement_export_subagent.
 
-**NEVER use placeholder values like:**
-- "plan_123", "cp_01", "session_123"
-- "prod_video_plan", "content_plan_20250124_123456"
-- "current_production", "video_session"
+**NEVER** invent placeholder values like "plan_123", "cp_01", "session_123", "prod_video_plan", "content_plan_20250124_123456", "current_production", or "video_session".
+**ALWAYS** use the ACTUAL sessionId returned by delegate_to_content_subagent (or by delegate_to_import_subagent, if import runs first). In examples below, \`<SESSION_ID>\` is a placeholder — substitute the real value at runtime.
 
-**ALWAYS use the ACTUAL sessionId returned by delegate_to_content_subagent.**
+## CRITICAL: LANGUAGE PROPAGATION
+
+The user request contains a "Language: XX" hint (ISO 639-1 code, e.g. "en", "ar", "he", "ja", or "auto").
+- Extract that language code from the user request.
+- Pass it to delegate_to_content_subagent as \`language\`.
+- Pass the SAME language to delegate_to_enhancement_export_subagent as \`language\` (drives subtitle language; RTL languages like "ar"/"he" are supported).
+- If the user request says "Language: auto", pass \`language: "auto"\` — downstream will detect from topic text.
+- Never silently switch languages mid-pipeline. If content narration is in language X, subtitles must also be in X.
 
 CONTEXT:
 You coordinate specialized subagents that handle different stages of production. You maintain
@@ -103,11 +108,13 @@ You have access to these subagent delegation tools:
 
 Detect from user request:
 - **Import Source**: YouTube URL? Audio file? Topic only?
-- **Animation**: Keywords like "animated", "motion", "video", "moving"
 - **Style**: Keywords like "cinematic", "anime", "watercolor", "documentary"
+- **SFX**: Keywords like "sound effects", "ambient sounds", "sfx"; or "no sfx", "silent", "music only"
 - **Subtitles**: Keywords like "subtitles", "captions", "accessibility"
 - **Aspect Ratio**: Keywords like "portrait", "vertical", "square", "TikTok", "Instagram"
-- NOTE: Music generation is not available in video production mode
+- **Language**: Look for "Language: XX" hint in the user request; propagate to subagents (see LANGUAGE PROPAGATION above).
+- NOTE: Animation (image-to-video) is currently unavailable in video production mode. Ignore "animated"/"motion"/"moving" keywords — do NOT promise motion.
+- NOTE: Music generation is not available in video production mode.
 
 ### Step 2: Route to Subagents Sequentially
 
@@ -125,7 +132,7 @@ STAGE 2: CONTENT (Required)
 
 STAGE 3: MEDIA (Required)
 → delegate_to_media_subagent
-  Pass: animation=true/false, sfx=true/false
+  Pass: sfx=true/false (based on user intent; default false unless user asked for SFX or style is "Cinematic"/"Documentary"/"Horror"/"Nature")
 → Wait for completion → Verify visuals
 
 STAGE 4: ENHANCEMENT/EXPORT (Required)
@@ -179,95 +186,100 @@ Report progress at these key points:
 
 ## EXAMPLES:
 
+In the examples below, \`<SESSION_ID>\` is a placeholder — substitute the real sessionId returned by the previous step.
+
 **Example 1**: Simple topic-based video
-User: "Create a 60-second video about coffee history"
+User: "Create a 60-second video about coffee history. Language: en."
 
 Intent Analysis:
 - No import needed (topic provided)
-- No animation keywords
-- Style: Default (cinematic)
+- Style: Default (Cinematic)
+- Language: en
 
 Workflow:
 1. delegate_to_content_subagent({
      sessionId: null,  // Will create new
      topic: "coffee history",
      targetDuration: 60,
-     style: "Cinematic"
+     style: "Cinematic",
+     language: "en"
    })
-   // Returns: { "sessionId": "prod_xxx", "success": true, ... }
+   // Returns: { "sessionId": "<SESSION_ID>", "success": true, ... }
 
 2. delegate_to_media_subagent({
-     sessionId: "prod_xxx",  // USE THE SAME sessionId from step 1
-     animation: false,
-     sfx: false
+     sessionId: "<SESSION_ID>",
+     sfx: true  // Cinematic style → ambient SFX recommended
    })
 
 3. delegate_to_enhancement_export_subagent({
-     sessionId: "prod_xxx",  // USE THE SAME sessionId from step 1
+     sessionId: "<SESSION_ID>",
      format: "mp4",
-     aspectRatio: "16:9"
+     aspectRatio: "16:9",
+     language: "en"
    })
 
-**Example 2**: YouTube import with animation
-User: "Import this YouTube video and create an animated version: https://youtube.com/watch?v=abc123"
+**Example 2**: YouTube import
+User: "Import this YouTube video and summarize it: https://youtube.com/watch?v=abc123. Language: auto."
 
 Intent Analysis:
 - Import needed (YouTube URL detected)
-- Animation: "animated" keyword found
-- Style: Default
+- Language: auto (detect from transcript)
 
 Workflow:
 1. delegate_to_import_subagent({
      url: "https://youtube.com/watch?v=abc123"
    })
-   // Returns: { "sessionId": "prod_yyy", "success": true, ... }
+   // Returns: { "sessionId": "<SESSION_ID>", "success": true, ... }
 
 2. delegate_to_content_subagent({
-     sessionId: "prod_yyy",  // REUSE import sessionId
-     topic: [transcript from import],
-     targetDuration: [video duration from import]
+     sessionId: "<SESSION_ID>",  // REUSE import sessionId
+     topic: "[transcript from import]",
+     targetDuration: 60,
+     language: "auto"
    })
 
 3. delegate_to_media_subagent({
-     sessionId: "prod_yyy",  // USE THE SAME sessionId
-     animation: true,
+     sessionId: "<SESSION_ID>",
      sfx: false
    })
 
 4. delegate_to_enhancement_export_subagent({
-     sessionId: "prod_yyy",  // USE THE SAME sessionId
-     format: "mp4"
+     sessionId: "<SESSION_ID>",
+     format: "mp4",
+     language: "auto"
    })
 
-**Example 3**: Vertical video with subtitles and cloud upload
-User: "Create a 90-second vertical video about Ancient Egypt with subtitles, upload to cloud"
+**Example 3**: Vertical video in Arabic with subtitles and cloud upload
+User: "Create a 90-second vertical video about Ancient Egypt with subtitles. Language: ar. Upload to cloud."
 
 Intent Analysis:
 - No import needed
-- Vertical: aspectRatio = "9:16"
-- Subtitles: generate_subtitles = true
-- Cloud upload: upload_production_to_cloud = true
+- aspectRatio = "9:16"
+- Subtitles: true (RTL — Arabic)
+- Language: ar (propagate to content AND subtitles)
+- Cloud upload: true
 
 Workflow:
 1. delegate_to_content_subagent({
      sessionId: null,
      topic: "Ancient Egypt",
-     targetDuration: 90
+     targetDuration: 90,
+     language: "ar"
    })
-   // Returns: { "sessionId": "prod_zzz", "success": true, ... }
+   // Returns: { "sessionId": "<SESSION_ID>", ... }
 
 2. delegate_to_media_subagent({
-     sessionId: "prod_zzz",  // USE THE SAME sessionId from step 1
-     animation: false,
-     sfx: false
+     sessionId: "<SESSION_ID>",
+     sfx: true  // Documentary tone
    })
 
 3. delegate_to_enhancement_export_subagent({
-     sessionId: "prod_zzz",  // USE THE SAME sessionId from step 1
+     sessionId: "<SESSION_ID>",
      format: "mp4",
      aspectRatio: "9:16",
      generateSubtitles: true,
-     uploadToCloud: true
+     uploadToCloud: true,
+     language: "ar"
    })
 
 ## CONSTRAINTS:
@@ -355,79 +367,77 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
   );
 
   const delegateToContentTool = tool(
-    async ({ sessionId, topic, targetDuration, style }) => {
-      const instruction = `Create content plan for "${topic}" (${targetDuration}s duration, ${style || "Cinematic"} style)`;
+    async ({ sessionId, topic, targetDuration, style, language }) => {
+      const langPart = language ? ` Language: ${language}.` : "";
+      const instruction = `Create content plan for "${topic}" (${targetDuration}s duration, ${style || "Cinematic"} style).${langPart}`;
       const result = await executeSubagent(contentSubagent, {
         sessionId: sessionId || initialSessionId,
         instruction,
         priorStages: [],
-        userPreferences: { style },
+        userPreferences: { style, language },
         onProgress,
       });
       return JSON.stringify(result);
     },
     {
       name: "delegate_to_content_subagent",
-      description: "Delegate content planning and narration to Content Subagent. Creates ContentPlan with optimal scene count.",
+      description: "Delegate content planning and narration to Content Subagent. Creates ContentPlan with optimal scene count. Pass language to control narration language.",
       schema: z.object({
         sessionId: z.string().nullable().describe("Session ID from import stage, or null to create new"),
         topic: z.string().describe("Topic or transcript for the video"),
         targetDuration: z.number().describe("Target duration in seconds"),
         style: z.string().optional().describe("Visual style (cinematic, anime, documentary, etc.)"),
+        language: z.string().optional().describe("ISO 639-1 language code for narration (e.g. 'en', 'ar', 'he', 'ja'), or 'auto' to detect from topic. Defaults to 'en'."),
       }),
     }
   );
 
   const delegateToMediaTool = tool(
-    async ({ sessionId, animation, sfx }) => {
-      const features = [];
-      if (animation) features.push("animation");
-      if (sfx) features.push("sound effects");
-
-      const instruction = features.length > 0
-        ? `Generate visual assets with ${features.join(", ")}`
-        : `Generate visual assets (no animation or SFX)`;
+    async ({ sessionId, sfx }) => {
+      const instruction = sfx
+        ? `Generate visual assets with sound effects`
+        : `Generate visual assets (no SFX)`;
 
       const result = await executeSubagent(mediaSubagent, {
         sessionId,
         instruction,
         priorStages: [],
-        userPreferences: { animation, sfx },
+        userPreferences: { sfx },
         onProgress,
       });
       return JSON.stringify(result);
     },
     {
       name: "delegate_to_media_subagent",
-      description: "Delegate media generation to Media Subagent. Generates visuals, optionally animates, adds SFX. NOTE: Music generation is NOT available in video production mode. REQUIRED: Pass the sessionId from content stage.",
+      description: "Delegate media generation to Media Subagent. Generates static visuals and optionally SFX. NOTE: Animation (image-to-video) and music generation are NOT available in video production mode. REQUIRED: Pass the sessionId from content stage.",
       schema: z.object({
         sessionId: z.string().describe("REQUIRED: Session ID from content stage (use the sessionId returned by delegate_to_content_subagent)"),
-        animation: z.boolean().optional().default(false).describe("Whether to animate images to video"),
-        sfx: z.boolean().optional().default(false).describe("Whether to create sound effects plan"),
+        sfx: z.boolean().optional().default(false).describe("Whether to create an ambient sound-effects plan. Default false unless user explicitly asked for SFX."),
       }),
     }
   );
 
   const delegateToEnhancementExportTool = tool(
-    async ({ sessionId, format, aspectRatio, generateSubtitles, uploadToCloud, makePublic }) => {
+    async ({ sessionId, format, aspectRatio, generateSubtitles, uploadToCloud, makePublic, language }) => {
       const features = [];
       if (generateSubtitles) features.push("subtitles");
       if (uploadToCloud) features.push("cloud upload");
 
-      const instruction = `Export final video (${format || "mp4"}, ${aspectRatio || "16:9"})${features.length > 0 ? ` with ${features.join(", ")}` : ""}`;
+      const langPart = language ? ` Language: ${language}.` : "";
+      const instruction = `Export final video (${format || "mp4"}, ${aspectRatio || "16:9"})${features.length > 0 ? ` with ${features.join(", ")}` : ""}.${langPart}`;
 
       const result = await executeSubagent(enhancementExportSubagent, {
         sessionId,
         instruction,
         priorStages: [],
-        userPreferences: { format, aspectRatio, subtitles: generateSubtitles, uploadToCloud, makePublic },
+        userPreferences: { format, aspectRatio, subtitles: generateSubtitles, uploadToCloud, makePublic, language },
         onProgress,
       });
       return JSON.stringify(result);
     },
     {
       name: "delegate_to_enhancement_export_subagent",
-      description: "Delegate enhancement and export to Enhancement/Export Subagent. Mixes audio, generates subtitles, exports video. REQUIRED: Pass the same sessionId used in previous stages.",
+      description: "Delegate enhancement and export to Enhancement/Export Subagent. Mixes audio, generates subtitles, exports video. REQUIRED: Pass the same sessionId used in previous stages. Pass language to keep subtitle language consistent with narration.",
       schema: z.object({
         sessionId: z.string().describe("REQUIRED: Session ID from previous stages (use the SAME sessionId from content and media stages)"),
         format: z.string().optional().default("mp4").describe("Video format (mp4 or webm)"),
@@ -435,6 +445,7 @@ export async function runSupervisorAgent(options: SupervisorOptions): Promise<Su
         generateSubtitles: z.boolean().optional().default(false).describe("Whether to generate subtitles"),
         uploadToCloud: z.boolean().optional().default(false).describe("Whether to upload to cloud storage"),
         makePublic: z.boolean().optional().default(false).describe("Whether to make cloud files public"),
+        language: z.string().optional().describe("ISO 639-1 language code for subtitles (e.g. 'en', 'ar', 'he'); must match content narration language. Use 'auto' to inherit from content."),
       }),
     }
   );

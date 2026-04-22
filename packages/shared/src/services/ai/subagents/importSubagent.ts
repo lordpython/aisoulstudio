@@ -141,7 +141,7 @@ export function createImportSubagent(apiKey: string): Subagent {
 
             return {
               success: true,
-              sessionId: context.sessionId || "unknown",
+              sessionId: context.sessionId || "",
               completedStage: SubagentName.IMPORT,
               duration,
               message: content,
