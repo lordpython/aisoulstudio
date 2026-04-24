@@ -62,7 +62,6 @@ import {
     type ExtractedStyleOverride,
 } from '@/services/prompt/imageStyleGuide';
 import { getSystemPersona } from '@/services/prompt/personaData';
-import type { VideoPurpose } from '@/constants';
 import {
     extractVisualStyle,
     type VisualStyle,
@@ -83,6 +82,8 @@ import {
     SESSION_KEY,
     USER_ID_KEY,
     PROJECT_ID_KEY,
+    resolveStoryPurpose,
+    clearStoryLocalStorage,
     ANIMATION_CIRCUIT_BREAKER_THRESHOLD,
     cleanNarrationText,
     inferSceneEmotion,
@@ -124,6 +125,16 @@ export function useStoryGeneration(projectId?: string | null) {
     // History for Undo/Redo
     const [past, setPast] = useState<StoryState[]>([]);
     const [future, setFuture] = useState<StoryState[]>([]);
+
+    /**
+     * Mark an async step as started: flip processing flag, clear prior error,
+     * and seed the progress bar with the first milestone.
+     */
+    const startAsyncWork = useCallback((message: string, percent: number) => {
+        setIsProcessing(true);
+        setError(null);
+        setProgress({ message, percent });
+    }, []);
 
     /**
      * Helper to push a new state to history
@@ -183,10 +194,7 @@ export function useStoryGeneration(projectId?: string | null) {
         // Clear stale session if user mismatch (prevents Firebase permission errors)
         if (savedUserId && currentUser && savedUserId !== currentUser.uid) {
             log.debug('Session belongs to different user, clearing');
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(SESSION_KEY);
-            localStorage.removeItem(USER_ID_KEY);
-            localStorage.removeItem(PROJECT_ID_KEY);
+            clearStoryLocalStorage();
             return;
         }
 
@@ -202,9 +210,7 @@ export function useStoryGeneration(projectId?: string | null) {
             setTopic(null);
             setPast([]);
             setFuture([]);
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(SESSION_KEY);
-            // Update the stored projectId to the new one
+            clearStoryLocalStorage({ keepProjectId: true, keepUserId: true });
             localStorage.setItem(PROJECT_ID_KEY, projectId);
             return;
         }
@@ -305,10 +311,8 @@ export function useStoryGeneration(projectId?: string | null) {
      * Step 1: Generate Breakdown
      */
     const generateBreakdown = useCallback(async (inputTopic: string, genre: string) => {
-        setIsProcessing(true);
-        setError(null);
+        startAsyncWork('Generating story breakdown...', 20);
         setTopic(inputTopic);
-        setProgress({ message: 'Generating story breakdown...', percent: 20 });
 
         try {
             const result = await invokeGenerateBreakdown(inputTopic, undefined, state.targetDurationSeconds);
@@ -391,9 +395,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const regenerateScene = useCallback(async (sceneNumber: number, feedback: string) => {
         if (!sessionId) return;
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: `Regenerating scene ${sceneNumber}...`, percent: 30 });
+        startAsyncWork(`Regenerating scene ${sceneNumber}...`, 30);
 
         try {
             setProgress({ message: `Regenerating scene ${sceneNumber}...`, percent: 40 });
@@ -424,9 +426,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const generateScreenplay = useCallback(async () => {
         if (!sessionId) return;
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: 'Expanding breakdown into full screenplay...', percent: 40 });
+        startAsyncWork('Expanding breakdown into full screenplay...', 40);
 
         try {
             setProgress({ message: 'Creating screenplay...', percent: 45 });
@@ -500,9 +500,7 @@ export function useStoryGeneration(projectId?: string | null) {
             setError('Please select a visual style before generating characters');
             return;
         }
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: 'Extracting and visualizing characters...', percent: 60 });
+        startAsyncWork('Extracting and visualizing characters...', 60);
 
         try {
             setProgress({ message: 'Extracting characters...', percent: 65 });
@@ -556,9 +554,7 @@ export function useStoryGeneration(projectId?: string | null) {
             return;
         }
 
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: `Generating portrait for ${char.name}...`, percent: 50 });
+        startAsyncWork(`Generating portrait for ${char.name}...`, 50);
 
         try {
             const referenceUrl = await generateCharacterReference(
@@ -590,9 +586,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const generateShotlist = useCallback(async () => {
         if (!sessionId) return;
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: 'Creating technical shotlist/storyboard...', percent: 80 });
+        startAsyncWork('Creating technical shotlist/storyboard...', 80);
 
         try {
             setProgress({ message: 'Generating shotlist...', percent: 82 });
@@ -679,9 +673,7 @@ export function useStoryGeneration(projectId?: string | null) {
         setTopic(null);
         setPast([]);
         setFuture([]);
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(SESSION_KEY);
-        localStorage.removeItem(PROJECT_ID_KEY);
+        clearStoryLocalStorage({ keepUserId: true });
     }, []);
 
     const exportScreenplay = useCallback((format: 'txt' | 'pdf' = 'txt') => {
@@ -773,9 +765,7 @@ export function useStoryGeneration(projectId?: string | null) {
      */
     const verifyConsistency = useCallback(async (characterName: string) => {
         if (!sessionId) return;
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: `Verifying consistency for ${characterName}...`, percent: 90 });
+        startAsyncWork(`Verifying consistency for ${characterName}...`, 90);
 
         try {
             setProgress({ message: `Verifying consistency for ${characterName}...`, percent: 92 });
@@ -979,18 +969,7 @@ export function useStoryGeneration(projectId?: string | null) {
             let extractedStyleOverride: ExtractedStyleOverride | undefined;
 
             // Resolve persona from story genre for persona-aware negative injection
-            const genreToPurpose: Record<string, VideoPurpose> = {
-                'Drama': 'story_drama',
-                'Comedy': 'story_comedy',
-                'Thriller': 'story_thriller',
-                'Sci-Fi': 'story_scifi',
-                'Action': 'story_action',
-                'Fantasy': 'story_fantasy',
-                'Romance': 'story_romance',
-                'Historical': 'story_historical',
-                'Animation': 'story_animation',
-            };
-            const storyPurpose: VideoPurpose = genreToPurpose[state.genre || ''] ?? 'storytelling';
+            const storyPurpose = resolveStoryPurpose(state.genre);
             const storyPersona = getSystemPersona(storyPurpose);
 
             // Helper: build structured prompt for a shot (Issues 1, 2, 3)
@@ -1278,9 +1257,7 @@ export function useStoryGeneration(projectId?: string | null) {
             return;
         }
 
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: `Regenerating shot...`, percent: 20 });
+        startAsyncWork('Regenerating shot...', 20);
 
         try {
             const { generateImageFromPrompt } = await import('@/services/media/imageService');
@@ -1297,19 +1274,7 @@ export function useStoryGeneration(projectId?: string | null) {
 
             // Build a structured style guide for consistent prompts across providers
             const { buildImageStyleGuide, serializeStyleGuideAsText } = await import('@/services/prompt/imageStyleGuide');
-            const regenGenreToPurpose: Record<string, VideoPurpose> = {
-                'Drama': 'story_drama',
-                'Comedy': 'story_comedy',
-                'Thriller': 'story_thriller',
-                'Sci-Fi': 'story_scifi',
-                'Action': 'story_action',
-                'Fantasy': 'story_fantasy',
-                'Romance': 'story_romance',
-                'Historical': 'story_historical',
-                'Animation': 'story_animation',
-            };
-            const regenPurpose: VideoPurpose = regenGenreToPurpose[state.genre || ''] ?? 'storytelling';
-            const regenPersona = getSystemPersona(regenPurpose);
+            const regenPersona = getSystemPersona(resolveStoryPurpose(state.genre));
             const guide = buildImageStyleGuide({
                 scene: customPrompt || baseDescription,
                 style,
@@ -1421,9 +1386,7 @@ export function useStoryGeneration(projectId?: string | null) {
             return;
         }
 
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: 'Rewriting scripts for voiceover...', percent: 5 });
+        startAsyncWork('Rewriting scripts for voiceover...', 5);
 
         try {
             const screenplayScenes = state.script?.scenes || [];
@@ -1501,6 +1464,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 sessionId || undefined,
                 state.narrationStatus,
                 existingNarrations,
+                voiceoverMap,
             );
 
             setProgress({ message: 'Uploading audio...', percent: 88 });
@@ -1894,9 +1858,7 @@ export function useStoryGeneration(projectId?: string | null) {
             log.warn('No animations, will use static images for export');
         }
 
-        setIsProcessing(true);
-        setError(null);
-        setProgress({ message: 'Preparing video export...', percent: 5 });
+        startAsyncWork('Preparing video export...', 5);
 
         try {
             // Build SongData structure for FFmpeg exporter

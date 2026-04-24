@@ -4,6 +4,7 @@
 
 import type { StoryStep, StoryState, ScreenplayScene, CharacterProfile, ShotlistEntry, ConsistencyReport } from '@/types';
 import type { StoryModeState } from '@/services/ai/production/types';
+import type { VideoPurpose } from '@/constants';
 import { cleanForTTS } from '@/services/audio-processing/textSanitizer';
 import { storyLogger } from '@/services/infrastructure/logger';
 
@@ -79,6 +80,29 @@ export const STORAGE_KEY = 'ai_soul_studio_story_state';
 export const SESSION_KEY = 'ai_soul_studio_story_session';
 export const USER_ID_KEY = 'ai_soul_studio_story_user_id';
 export const PROJECT_ID_KEY = 'ai_soul_studio_story_project_id';
+
+export const GENRE_TO_PURPOSE: Record<string, VideoPurpose> = {
+    'Drama': 'story_drama',
+    'Comedy': 'story_comedy',
+    'Thriller': 'story_thriller',
+    'Sci-Fi': 'story_scifi',
+    'Action': 'story_action',
+    'Fantasy': 'story_fantasy',
+    'Romance': 'story_romance',
+    'Historical': 'story_historical',
+    'Animation': 'story_animation',
+};
+
+export function resolveStoryPurpose(genre: string | undefined | null): VideoPurpose {
+    return GENRE_TO_PURPOSE[genre || ''] ?? 'storytelling';
+}
+
+export function clearStoryLocalStorage(options: { keepProjectId?: boolean; keepUserId?: boolean } = {}): void {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    if (!options.keepProjectId) localStorage.removeItem(PROJECT_ID_KEY);
+    if (!options.keepUserId) localStorage.removeItem(USER_ID_KEY);
+}
 
 /**
  * Number of consecutive animation failures that triggers the circuit breaker

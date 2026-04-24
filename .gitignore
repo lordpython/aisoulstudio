@@ -39,6 +39,7 @@ temp
 .env
 .env.local
 .env.*.local
+.cloudrun.env.yaml
 client.json
 # Test data (generated/sample files)
 test_data/

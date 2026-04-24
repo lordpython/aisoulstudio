@@ -1,0 +1,93 @@
+# Git / CI / editor / tool caches
+.git
+.github
+.gitignore
+.gcloudignore
+.vscode
+.idea
+.cursor
+.windsurf
+.kiro
+.kilo
+.kilocode
+.kombai
+.trae
+.claude
+.gstack
+.agent
+.auto-claude
+
+# Submodule / orchestration scratch
+everything-claude-code
+memory
+
+# Node / build artifacts everywhere
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.vite/
+**/.vite/
+.turbo/
+**/.turbo/
+coverage/
+**/coverage/
+.next/
+**/.next/
+out/
+**/out/
+build/
+**/build/
+tsconfig.tsbuildinfo
+**/tsconfig.tsbuildinfo
+
+# Tests
+__tests__/
+**/__tests__/
+playwright-report/
+test-results/
+test-outputs/
+test_data/
+test_output/
+
+# Frontend package (deployed separately to Firebase Hosting)
+packages/frontend/
+
+# Logs / temp / OS noise
+**/*.log
+packages/server/temp/
+temp/
+*.DS_Store
+Thumbs.db
+
+# Secrets / env files
+.env
+.env.*
+.cloudrun.env.yaml
+deploy.log
+
+# Large docs / exports
+codebase-export.md
+codebase-map.html
+repomix.config.json
+docs/
+
+# Android / mobile
+android/
+ios/
+
+# 7z / archives
+*.7z
+*.zip
+*.tar.gz
+
+# Misc large binary/media at root
+*.mp4
+*.mov
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webm
+*.mp3
+*.wav

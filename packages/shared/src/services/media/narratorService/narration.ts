@@ -15,6 +15,7 @@ import { TONE_VOICE_MAP, LANGUAGE_VOICE_MAP, CHARACTER_VOICE_MAP, ExtendedVoiceC
 import { NarratorConfig, DEFAULT_NARRATOR_CONFIG, NarratorError, synthesizeSpeech, synthesizeMultiSpeaker, SpeakerConfig, calculateAudioDuration, buildDirectorNote, buildTripletDirectorNote } from "./ttsCore";
 import { getAutoStylePrompt } from "./voiceConfig";
 import { detectDialogue, hasDialogue, DialogueSegment } from "./dialogueDetection";
+import { buildShotNarrationFromVoiceovers } from "./voiceoverSplitter";
 
 const log = mediaLogger.child('Narrator');
 
@@ -158,11 +159,20 @@ export async function narrateAllShots(
     sessionId: string | undefined,
     existingStatus?: Record<string, 'pending' | 'success' | 'failed'>,
     existingShotNarrations?: Array<{ shotId: string; sceneId: string; audioUrl: string; duration: number; text: string }>,
+    voiceoversByScene?: ReadonlyMap<string, string>,
 ): Promise<Array<{ shotId: string; sceneId: string; audioBlob: Blob; duration: number; text: string }>> {
     const sceneActionMap = new Map<string, string>();
     for (const scene of screenplayScenes) {
         sceneActionMap.set(scene.id, scene.action);
     }
+
+    // When a scene-level voiceover map is provided, distribute each scene's
+    // voiceover across its shots proportionally by durationEst. Produces unique
+    // per-shot narration and avoids the "all 12 shots narrate the same text"
+    // failure mode from scene.action fallback.
+    const shotNarrationFromVO = voiceoversByScene && voiceoversByScene.size > 0
+        ? buildShotNarrationFromVoiceovers(voiceoversByScene, shots)
+        : null;
 
     const existingNarrationMap = new Map<string, NonNullable<typeof existingShotNarrations>[number]>(
         (existingShotNarrations || []).filter(n => n.audioUrl).map(n => [n.shotId, n])
@@ -184,7 +194,13 @@ export async function narrateAllShots(
 
     const tasks = shotsToProcess
         .map(shot => {
-            const rawText = shot.scriptSegment ?? sceneActionMap.get(shot.sceneId) ?? shot.description;
+            // Prefer distributed voiceover chunk (scene VO sliced across shots) →
+            // then LLM-generated per-shot scriptSegment (often empty in practice) →
+            // then scene action (last-resort, produces duplicate narration across shots).
+            const rawText = shotNarrationFromVO?.get(shot.id)
+                ?? shot.scriptSegment
+                ?? sceneActionMap.get(shot.sceneId)
+                ?? shot.description;
             const narrationText = cleanForTTS(rawText || '');
 
             if (!narrationText.trim()) {
