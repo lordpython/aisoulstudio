@@ -5,7 +5,7 @@
 import { Type } from "@google/genai";
 import { ImagePrompt } from "../../../types";
 import { parseSRTTimestamp } from "../../../utils/srtParser";
-import { ai, MODELS, withRetry } from "../../shared/apiClient";
+import { ai, MODELS, withRetry } from "../../ai/apiClient";
 import { VideoPurpose } from "../../../constants";
 import type { ImageStyleGuide } from "../../prompt/imageStyleGuide";
 import { countWords } from "../../utils/textProcessing";

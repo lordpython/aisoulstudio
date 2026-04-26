@@ -2,7 +2,7 @@
  * Narrator Service — TTS synthesis core (Gemini + DeAPI routing, PCM/WAV, throttle gate)
  */
 
-import { ai, API_KEY, MODELS, withRetry } from '../../shared/apiClient';
+import { ai, API_KEY, MODELS, withRetry } from '../../ai/apiClient';
 import { EmotionalTone, InstructionTriplet } from "@/types";
 import { VideoPurpose, type LanguageCode } from "@/constants";
 import { traceAsync } from "../../tracing";

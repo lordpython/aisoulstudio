@@ -6,7 +6,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { VideoPurpose, CAMERA_ANGLES, LIGHTING_MOODS } from "../../../constants";
 import { getPurposeGuidance, getSystemPersona, getStyleEnhancement, injectMasterStyle } from "../promptService";
-import { GEMINI_API_KEY, MODELS, withRetry } from "../../shared/apiClient";
+import { GEMINI_API_KEY, MODELS, withRetry } from "../../ai/apiClient";
 import { contentLogger } from '../../infrastructure/logger';
 
 import {

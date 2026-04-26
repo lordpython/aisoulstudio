@@ -8,7 +8,7 @@ import { ImagePrompt } from "../../../types";
 import { VideoPurpose } from "../../../constants";
 import { getSystemPersona, getStyleEnhancement } from "../promptService";
 import { parseSRTTimestamp } from "../../../utils/srtParser";
-import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "../../shared/apiClient";
+import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "../../ai/apiClient";
 import { generateCompleteFormatGuidance } from "../promptFormatService";
 import { agentDirectorLogger as agentLogger, LogLevel, type LogEntry } from "../../agent/agentLogger";
 import { agentMetrics } from "../../agent/agentMetrics";

@@ -20,7 +20,7 @@ import {
     ValidationResult,
     GeneratedImage
 } from "../../types";
-import { API_KEY, MODELS } from "../shared/apiClient";
+import { API_KEY, MODELS } from "../ai/apiClient";
 import { getEffectiveLegacyTone } from "./tripletUtils";
 import { contentLogger } from '../infrastructure/logger';
 

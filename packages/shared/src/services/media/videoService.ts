@@ -14,7 +14,7 @@ import { generateProfessionalVideoPrompt } from '../content/promptService';
 import { cloudAutosave } from '../cloud/cloudStorageService';
 import { logAICall } from '../infrastructure/aiLogService';
 import { mediaLogger } from '../infrastructure/logger';
-import { withRetry } from '../shared/apiClient';
+import { withRetry } from '../ai/apiClient';
 
 const log = mediaLogger.child('Video');
 

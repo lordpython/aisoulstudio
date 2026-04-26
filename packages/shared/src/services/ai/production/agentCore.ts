@@ -9,7 +9,7 @@
  * Also contains the multi-agent entry point and session management.
  */
 
-import { GEMINI_API_KEY } from "../../shared/apiClient";
+import { GEMINI_API_KEY } from "../../ai/apiClient";
 import { agentLogger } from "../../infrastructure/logger";
 import { ProductionState, ProductionProgress } from "./types";
 import { productionStore } from "./store";

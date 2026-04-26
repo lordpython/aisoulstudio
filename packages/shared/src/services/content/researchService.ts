@@ -8,8 +8,8 @@
  * Requirements: 3.5, 7.2, 7.6, 11.1–11.6, 20.2, 22.2
  */
 
-import { ParallelExecutionEngine, Task } from '../orchestration/parallelExecutionEngine';
-import { ai, MODELS } from '../shared/apiClient';
+import { ParallelExecutionEngine, Task } from '../ai/production/parallelExecutionEngine';
+import { ai, MODELS } from '../ai/apiClient';
 import { Type } from '@google/genai';
 import { chunkContent, tokenize, jaccardSimilarity } from '../utils/textProcessing';
 import { contentLogger } from '../infrastructure/logger';

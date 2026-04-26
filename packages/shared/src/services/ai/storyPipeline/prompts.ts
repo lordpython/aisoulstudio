@@ -2,7 +2,7 @@
  * Story Pipeline — Duration helpers and prompt builder functions
  */
 
-import { formatRegistry } from "../../format/formatRegistry";
+import { formatRegistry } from "../../pipelines/formatRegistry";
 import { loadTemplate, substituteVariables } from "../../prompt/templateLoader";
 import { detectLanguage } from "../../content/languageDetector";
 import type { ScreenplayScene, FormatMetadata, FormatAwareGenerationOptions } from "./schemas";

@@ -12,7 +12,7 @@
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
-import { API_KEY, MODELS } from '../shared/apiClient';
+import { API_KEY, MODELS } from '../ai/apiClient';
 import type { CharacterProfile } from "../../types";
 import { mediaLogger } from '../infrastructure/logger';
 

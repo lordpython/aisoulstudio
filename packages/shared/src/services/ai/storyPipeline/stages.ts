@@ -3,12 +3,12 @@
  */
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { GEMINI_API_KEY, MODELS } from "../../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "../../ai/apiClient";
 import { cleanForTTS } from "../../audio-processing/textSanitizer";
 import { agentLogger } from "../../infrastructure/logger";
 import { generateImageFromPrompt } from "../../media/imageService";
 import { buildImageStyleGuide } from "../../prompt/imageStyleGuide";
-import { ParallelExecutionEngine, type Task } from "../../orchestration/parallelExecutionEngine";
+import { ParallelExecutionEngine, type Task } from "../../ai/production/parallelExecutionEngine";
 import {
     BreakdownSchema,
     ScreenplaySchema,

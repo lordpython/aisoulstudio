@@ -13,7 +13,7 @@ const { mockGenerateContent } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
 }));
 
-vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
+vi.mock('../../packages/shared/src/services/ai/apiClient', () => ({
   ai: {
     models: {
       generateContent: mockGenerateContent,

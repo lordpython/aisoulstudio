@@ -10,8 +10,8 @@
 
 import type { FormatMetadata, VideoFormat, Scene, NarrationSegment, ScreenplayScene } from '../../types';
 import type { VideoPurpose } from '../../constants';
-import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from '../format/formatRouter';
-import { formatRegistry } from '../format/formatRegistry';
+import type { FormatPipeline, PipelineRequest, PipelineResult, PipelineCallbacks } from './formatRouter';
+import { formatRegistry } from './formatRegistry';
 import {
   buildBreakdownPrompt,
   buildScreenplayPrompt,
@@ -19,7 +19,7 @@ import {
   validateDurationConstraint,
   type FormatAwareGenerationOptions,
 } from '../ai/storyPipeline';
-import { ParallelExecutionEngine, type Task } from '../orchestration/parallelExecutionEngine';
+import { ParallelExecutionEngine, type Task } from '../ai/production/parallelExecutionEngine';
 import { CheckpointSystem } from '../project/checkpointSystem';
 import { narrateScene, getFormatVoiceForLanguage, type NarratorConfig } from '../media/narratorService';
 import type { LanguageCode } from '../../constants';
@@ -30,7 +30,7 @@ import { detectLanguage } from '../content/languageDetector';
 import { storyModeStore } from '../ai/production/store';
 import type { StoryModeState } from '../ai/production/types';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
+import { GEMINI_API_KEY, MODELS } from '../ai/apiClient';
 import type { z } from 'zod';
 import { agentLogger } from '../infrastructure/logger';
 import { enrichBrief } from '../ai/briefEnrichment';

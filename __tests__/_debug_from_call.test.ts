@@ -5,7 +5,7 @@ const { mockChainInvoke, fromCallLog } = vi.hoisted(() => ({
     fromCallLog: [] as string[],
 }));
 
-vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
+vi.mock('../../packages/shared/src/services/ai/apiClient', () => ({
     API_KEY: 'test-api-key',
     MODELS: { TEXT: 'gemini-test-model', IMAGE: 'img', VIDEO: 'vid', TTS: 'tts' },
 }));

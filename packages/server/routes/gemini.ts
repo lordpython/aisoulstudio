@@ -15,7 +15,7 @@ async function defaultGenerateContent(params: {
     contents: unknown;
     config?: Record<string, unknown>;
 }): Promise<unknown> {
-    const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    const { ai } = await import('@studio/shared/src/services/ai/apiClient.js');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (ai as any).models.generateContent(params);
 }
@@ -25,7 +25,7 @@ async function defaultGenerateImages(params: {
     prompt: string;
     config?: Record<string, unknown>;
 }): Promise<unknown> {
-    const { ai } = await import('@studio/shared/src/services/shared/apiClient.js');
+    const { ai } = await import('@studio/shared/src/services/ai/apiClient.js');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (ai as any).models.generateImages(params);
 }

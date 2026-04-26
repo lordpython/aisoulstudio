@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { ai, MODELS, withRetry } from "../shared/apiClient";
+import { ai, MODELS, withRetry } from "../ai/apiClient";
 import { agentLogger } from '../infrastructure/logger';
 
 const log = agentLogger.child('Enhancement');

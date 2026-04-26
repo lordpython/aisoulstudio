@@ -31,7 +31,7 @@ import {
   ProgressCallback,
   executeSubagent,
 } from "./index";
-import { MODELS } from "../../shared/apiClient";
+import { MODELS } from "../../ai/apiClient";
 import { createImportSubagent } from "./importSubagent";
 import { createContentSubagent } from "./contentSubagent";
 import { createMediaSubagent } from "./mediaSubagent";

@@ -6,7 +6,7 @@
  */
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { MODELS } from "../shared/apiClient";
+import { MODELS } from "../ai/apiClient";
 import { agentLogger } from "../infrastructure/logger";
 import type { ScreenplayScene, ShotlistEntry } from "@/types";
 import { withAILogging } from "../infrastructure/aiLogService";

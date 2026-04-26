@@ -14,7 +14,7 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence, RunnableLambda } from "@langchain/core/runnables";
 import { z } from "zod";
 import { ContentPlan, Scene, EmotionalTone, TransitionType } from "../../types";
-import { API_KEY, MODELS } from "../shared/apiClient";
+import { API_KEY, MODELS } from "../ai/apiClient";
 import { getSystemPersona, type Persona } from "../prompt/personaData";
 import { getStyleEnhancement, type StyleEnhancement } from "../prompt/styleEnhancements";
 import { type VideoPurpose, type LanguageCode, getLanguageName } from "../../constants";

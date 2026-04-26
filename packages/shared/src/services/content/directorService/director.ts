@@ -19,7 +19,7 @@ import {
   injectMasterStyle,
 } from "../promptService";
 import { parseSRTTimestamp } from "../../../utils/srtParser";
-import { GEMINI_API_KEY, VERTEX_PROJECT } from "../../shared/apiClient";
+import { GEMINI_API_KEY, VERTEX_PROJECT } from "../../ai/apiClient";
 import {
   AnalysisOutput,
   StoryboardOutput,

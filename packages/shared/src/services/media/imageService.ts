@@ -8,7 +8,7 @@
  * - Support for both Imagen and Gemini image models
  */
 
-import { ai, MODELS, withRetry } from '../shared/apiClient';
+import { ai, MODELS, withRetry } from '../ai/apiClient';
 import { refineAndCompressPrompt, compressPromptForGeneration, countWords } from '../content/promptService';
 import {
   buildImageStyleGuide,

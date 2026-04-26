@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Module mocks — hoisted before subject imports
 // ---------------------------------------------------------------------------
 
-vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
+vi.mock('../../packages/shared/src/services/ai/apiClient', () => ({
   GEMINI_API_KEY: 'test-key',
   MODELS: { TEXT: 'gemini-test', IMAGE: 'imagen-test', VIDEO: 'veo-test', TTS: 'tts-test' },
   ai: {},
@@ -60,7 +60,7 @@ vi.mock('../../packages/shared/src/services/prompt/templateLoader', () => ({
 }));
 
 // Mock formatRegistry to return a controlled format
-vi.mock('../../packages/shared/src/services/format/formatRegistry', () => ({
+vi.mock('../../packages/shared/src/services/pipelines/formatRegistry', () => ({
   formatRegistry: {
     getFormat: vi.fn((_id: string) => ({
       id: 'movie-animation',

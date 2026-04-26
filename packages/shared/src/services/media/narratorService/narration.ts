@@ -3,9 +3,9 @@
  */
 
 import { Scene, NarrationSegment, EmotionalTone, ShotlistEntry, ScreenplayScene } from "@/types";
-import { MODELS } from '../../shared/apiClient';
+import { MODELS } from '../../ai/apiClient';
 import { mediaLogger } from '../../infrastructure/logger';
-import { ParallelExecutionEngine } from "../../orchestration/parallelExecutionEngine";
+import { ParallelExecutionEngine } from "../../ai/production/parallelExecutionEngine";
 import { cleanForTTS } from "../../audio-processing/textSanitizer";
 import { traceAsync } from "../../tracing";
 import { cloudAutosave } from "../../cloud/cloudStorageService";

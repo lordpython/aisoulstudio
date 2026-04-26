@@ -26,7 +26,7 @@ import {
   downloadProjectJSON,
   importProjectFromJSON,
   downloadAsWebM,
-} from '@/services/format/exportFormatsService';
+} from '@/services/pipelines/exportFormatsService';
 
 interface ExportOptionsPanelProps {
   storyState: StoryState;

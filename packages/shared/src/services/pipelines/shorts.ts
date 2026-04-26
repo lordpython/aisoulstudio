@@ -9,8 +9,8 @@
  */
 
 import type { ScreenplayScene } from '../../types';
-import type { PipelineResult } from '../format/formatRouter';
-import { ParallelExecutionEngine } from '../orchestration/parallelExecutionEngine';
+import type { PipelineResult } from './formatRouter';
+import { ParallelExecutionEngine } from '../ai/production/parallelExecutionEngine';
 import { buildBreakdownSchema, buildScreenplaySchema } from './schemas';
 import { BasePipeline, type FormatConfig, type PipelineData } from './BasePipeline';
 

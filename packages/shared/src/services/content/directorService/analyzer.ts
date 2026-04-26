@@ -4,7 +4,7 @@
 
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { AnalysisSchema, AnalysisOutput, DirectorConfig, createModel } from "./schemas";
-import { withRetry } from '../../shared/apiClient';
+import { withRetry } from '../../ai/apiClient';
 import { contentLogger } from '../../infrastructure/logger';
 
 const log = contentLogger.child('Analyzer');

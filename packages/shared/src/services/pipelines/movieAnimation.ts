@@ -15,8 +15,8 @@
  */
 
 import type { FormatMetadata, VideoFormat } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from '../format/formatRouter';
-import { formatRegistry } from '../format/formatRegistry';
+import type { FormatPipeline, PipelineRequest, PipelineResult } from './formatRouter';
+import { formatRegistry } from './formatRegistry';
 import { runStoryPipeline, type StoryPipelineOptions, type StoryPipelineResult } from '../ai/storyPipeline';
 import { CheckpointSystem } from '../project/checkpointSystem';
 import { detectLanguage } from '../content/languageDetector';

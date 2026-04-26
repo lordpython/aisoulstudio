@@ -12,7 +12,7 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { agentLogger } from "../../../infrastructure/logger";
-import { GEMINI_API_KEY, MODELS } from "../../../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "../../../ai/apiClient";
 import { withAILogging } from "../../../infrastructure/aiLogService";
 import { StoryModeSchema, VerifyCharacterConsistencySchema, type StoryModeState } from "../types";
 import { storyModeStore, productionStore } from "../store";

@@ -7,7 +7,7 @@
  */
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { GEMINI_API_KEY, MODELS } from '../shared/apiClient';
+import { GEMINI_API_KEY, MODELS } from '../ai/apiClient';
 import { generateImageWithDeApi } from '../media/deapiService';
 import { DEAPI_DEFAULTS } from '../media/deapiService/models';
 import { getCharacterSeed } from '../media/imageService';

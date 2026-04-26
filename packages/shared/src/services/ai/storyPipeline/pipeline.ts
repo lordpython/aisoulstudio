@@ -6,7 +6,7 @@ import { agentLogger } from "../../infrastructure/logger";
 import { storyModeStore } from "../production/store";
 import type { StoryModeState } from "../production/types";
 import { cloudAutosave } from "../../cloud/cloudStorageService";
-import { formatRegistry } from "../../format/formatRegistry";
+import { formatRegistry } from "../../pipelines/formatRegistry";
 import type {
     StoryProgress,
     FormatAwareGenerationOptions,

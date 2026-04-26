@@ -9,9 +9,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MovieAnimationPipeline } from './movieAnimation';
-import { formatRegistry } from '../format/formatRegistry';
+import { formatRegistry } from './formatRegistry';
 import { storyModeStore } from '../ai/production/store';
-import type { PipelineRequest } from '../format/formatRouter';
+import type { PipelineRequest } from './formatRouter';
 import type { StoryModeState } from '../ai/production/types';
 
 // ============================================================================
@@ -30,7 +30,7 @@ vi.mock('../ai/storyPipeline', () => ({
   }),
 }));
 
-vi.mock('../shared/apiClient', () => ({
+vi.mock('../ai/apiClient', () => ({
   GEMINI_API_KEY: 'test-key',
   MODELS: { TEXT: 'gemini-test' },
   ai: {},

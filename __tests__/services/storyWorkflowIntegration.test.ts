@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock external services at the boundary — internals run real code
 // ---------------------------------------------------------------------------
 
-vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
+vi.mock('../../packages/shared/src/services/ai/apiClient', () => ({
   GEMINI_API_KEY: 'test-key-integration',
   MODELS: { TEXT: 'gemini-test', IMAGE: 'imagen-test', VIDEO: 'veo-test', TTS: 'tts-test' },
   ai: {},
@@ -68,7 +68,7 @@ vi.mock('../../packages/shared/src/services/prompt/templateLoader', () => ({
   }),
 }));
 
-vi.mock('../../packages/shared/src/services/format/formatRegistry', () => ({
+vi.mock('../../packages/shared/src/services/pipelines/formatRegistry', () => ({
   formatRegistry: {
     getFormat: vi.fn((_id: string) => ({
       id: 'documentary',
@@ -103,7 +103,7 @@ vi.mock('../../packages/shared/src/services/cloud/cloudStorageService', () => ({
     save: vi.fn().mockResolvedValue(undefined),
   },
 }));
-vi.mock('../../packages/shared/src/services/orchestration/parallelExecutionEngine', () => ({
+vi.mock('../../packages/shared/src/services/ai/production/parallelExecutionEngine', () => ({
   ParallelExecutionEngine: vi.fn().mockImplementation(() => ({
     run: vi.fn().mockResolvedValue([]),
   })),

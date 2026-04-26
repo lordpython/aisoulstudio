@@ -13,7 +13,7 @@
 
 import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "../ai/apiClient";
 import { agentLogger } from "../infrastructure/logger";
 import type {
     ProductionBrief,

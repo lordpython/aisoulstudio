@@ -25,7 +25,7 @@ const { mockChainInvoke } = vi.hoisted(() => ({
 // Module mocks — declared before imports (Vitest hoists these automatically)
 // ---------------------------------------------------------------------------
 
-vi.mock('../../packages/shared/src/services/shared/apiClient', () => ({
+vi.mock('../../packages/shared/src/services/ai/apiClient', () => ({
     API_KEY: 'test-api-key',
     MODELS: {
         TEXT: 'gemini-test-model',

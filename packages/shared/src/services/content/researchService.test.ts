@@ -26,7 +26,7 @@ import {
   extractFileContent,
 } from './researchService';
 import { tokenize, jaccardSimilarity, chunkContent } from '../utils/textProcessing';
-import { ParallelExecutionEngine, Task } from '../orchestration/parallelExecutionEngine';
+import { ParallelExecutionEngine, Task } from '../ai/production/parallelExecutionEngine';
 
 // ============================================================================
 // Arbitraries (fast-check generators)

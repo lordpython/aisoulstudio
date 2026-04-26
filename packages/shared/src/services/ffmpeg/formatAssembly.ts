@@ -18,7 +18,7 @@ import type {
   ScreenplayScene,
   TimelineClip,
 } from '../../types';
-import { formatRegistry } from '../format/formatRegistry';
+import { formatRegistry } from '../pipelines/formatRegistry';
 
 // ============================================================================
 // Assembly Rule Builder (Task 10.1)

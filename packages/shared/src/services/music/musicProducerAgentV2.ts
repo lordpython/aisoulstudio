@@ -14,7 +14,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { tool } from "@langchain/core/tools";
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { API_KEY, MODELS } from '../shared/apiClient';
+import { API_KEY, MODELS } from '../ai/apiClient';
 import { musicLogger } from '../infrastructure/logger';
 import {
   generateMusic,

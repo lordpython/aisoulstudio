@@ -1124,7 +1124,7 @@ export function useStoryGeneration(projectId?: string | null) {
                 }
             } else {
                 // Parallel generation via Gemini Imagen using ParallelExecutionEngine
-                const { ParallelExecutionEngine } = await import('@/services/orchestration/parallelExecutionEngine');
+                const { ParallelExecutionEngine } = await import('@/services/ai/production/parallelExecutionEngine');
                 const engine = new ParallelExecutionEngine();
 
                 // If we have existing images, extract style from the first one for consistency

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PipelineRequest } from '../format/formatRouter';
+import type { PipelineRequest } from './formatRouter';
 import type { ResearchResult } from '../content/researchService';
 
 // ============================================================================
@@ -53,7 +53,7 @@ vi.mock('../ai/storyPipeline', () => ({
   validateDurationConstraint: vi.fn().mockReturnValue({ valid: true, estimatedSeconds: 1800 }),
 }));
 
-vi.mock('../shared/apiClient', () => ({
+vi.mock('../ai/apiClient', () => ({
   GEMINI_API_KEY: 'test-key',
   MODELS: { TEXT: 'gemini-test' },
   ai: {},

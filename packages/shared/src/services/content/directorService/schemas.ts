@@ -4,7 +4,7 @@
 
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
-import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "../../shared/apiClient";
+import { GEMINI_API_KEY, VERTEX_PROJECT, MODELS } from "../../ai/apiClient";
 
 // --- Zod Schemas ---
 

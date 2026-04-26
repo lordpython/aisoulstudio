@@ -5,7 +5,7 @@
 
 import { Type } from "@google/genai";
 import { SubtitleItem } from "../../types";
-import { ai, MODELS, withRetry } from '../shared/apiClient';
+import { ai, MODELS, withRetry } from '../ai/apiClient';
 import { geminiLogger } from '../infrastructure/logger';
 
 const log = geminiLogger.child('Translation');

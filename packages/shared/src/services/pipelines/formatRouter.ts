@@ -11,7 +11,7 @@ import { formatRegistry } from './formatRegistry';
 import { VideoFormat, FormatMetadata, CheckpointState } from '../../types';
 import type { IndexedDocument } from '../content/documentParser';
 import type { CheckpointSystem } from '../project/checkpointSystem';
-import type { ExecutionProgress } from '../orchestration/parallelExecutionEngine';
+import type { ExecutionProgress } from '../ai/production/parallelExecutionEngine';
 
 /**
  * Pipeline request interface
