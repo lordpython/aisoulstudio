@@ -452,39 +452,91 @@ const pendingJobs = new Map<string, {
     timeout: NodeJS.Timeout;
 }>();
 
+// DeAPI webhook payload (https://docs.deapi.ai/execution-modes-and-integrations/webhooks):
+// {
+//   event: 'job.processing' | 'job.completed' | 'job.failed',
+//   delivery_id: string,
+//   timestamp: string,
+//   data: {
+//     job_request_id: string,
+//     status: 'processing' | 'done' | 'error',
+//     job_type: string,
+//     result_url?: string,
+//     error_code?: string,
+//     error_message?: string,
+//   }
+// }
+interface DeApiWebhookPayload {
+    event?: string;
+    delivery_id?: string;
+    timestamp?: string;
+    data?: {
+        job_request_id?: string;
+        status?: string;
+        result_url?: string;
+        error_code?: string;
+        error_message?: string;
+        // Legacy fallback fields some senders flatten onto the root object
+        request_id?: string;
+        error?: string;
+    };
+    // Legacy flat-shape fields retained for backward compatibility
+    request_id?: string;
+    result_url?: string;
+    error?: string;
+}
+
 router.post('/webhook', async (req: RawBodyRequest, res: Response): Promise<void> => {
     try {
-        // Safely destructure with fallback to prevent TypeError when req.body is undefined
-        const { event, request_id, result_url, error } = req.body ?? {};
-
         const webhookSecret = getWebhookSecret();
 
         if (!webhookSecret) {
             deapiLog.warn('Rejected webhook: DEAPI_WEBHOOK_SECRET is not configured on this server');
-            // 500 (not 503) — this is a server misconfiguration, not a transient outage.
-            // 503 would trigger LB/client retry storms against an issue that won't self-resolve.
             res.status(500).json({ error: 'Webhook endpoint is not available' });
             return;
         }
 
         if (!isWebhookAuthorized(req, webhookSecret)) {
-            deapiLog.warn('Rejected unauthorized webhook request');
+            deapiLog.warn('Rejected unauthorized webhook request', {
+                deliveryId: req.get('x-deapi-delivery-id'),
+                event: req.get('x-deapi-event'),
+            });
             res.status(401).json({ error: 'Unauthorized webhook' });
             return;
         }
 
-        deapiLog.info(`Webhook received: ${event} for ${request_id}`);
+        const body = (req.body ?? {}) as DeApiWebhookPayload;
+        const event = body.event ?? req.get('x-deapi-event') ?? '';
+        const data = body.data ?? {};
 
-        const pending = pendingJobs.get(request_id);
+        // Support both the documented nested shape and the legacy flat shape
+        const requestId = data.job_request_id ?? data.request_id ?? body.request_id ?? '';
+        const resultUrl = data.result_url ?? body.result_url;
+        const errorMessage = data.error_message ?? data.error ?? body.error;
+
+        deapiLog.info(
+            `Webhook received: ${event} for ${requestId || '(unknown request)'}`
+            + (data.job_type ? ` [${data.job_type}]` : ''),
+        );
+
+        if (!requestId) {
+            // Acknowledge to avoid retries — we've validated the signature already.
+            res.status(200).json({ received: true });
+            return;
+        }
+
+        const pending = pendingJobs.get(requestId);
         if (pending) {
-            clearTimeout(pending.timeout);
-            pendingJobs.delete(request_id);
-
-            if (event === 'job.completed' && result_url) {
-                pending.resolve(result_url);
+            if (event === 'job.completed' && resultUrl) {
+                clearTimeout(pending.timeout);
+                pendingJobs.delete(requestId);
+                pending.resolve(resultUrl);
             } else if (event === 'job.failed') {
-                pending.reject(new Error(error || 'Job failed'));
+                clearTimeout(pending.timeout);
+                pendingJobs.delete(requestId);
+                pending.reject(new Error(errorMessage || 'Job failed'));
             }
+            // job.processing — keep waiting; nothing to settle yet.
         }
 
         res.status(200).json({ received: true });

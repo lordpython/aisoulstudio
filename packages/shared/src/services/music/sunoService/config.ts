@@ -26,7 +26,7 @@ if (isBrowser) {
   log.info(`API Key configured: ${SUNO_API_KEY ? 'YES' : 'NO'}`);
 }
 
-export const SERVER_URL = getServerBaseUrl() || "http://localhost:3001";
+export const SERVER_URL = getServerBaseUrl() || (isBrowser ? "" : "http://localhost:3001");
 
 export async function callSunoProxy(endpoint: string, body?: any, method: string = "POST"): Promise<any> {
   await rateLimiter.waitForSlot();

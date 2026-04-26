@@ -57,6 +57,39 @@ export default defineConfig([
       "no-unused-vars": "off",
       "no-undef": "off", // TypeScript handles this
 
+      // --- Restrict deprecated import paths ---
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/services/shared/apiClient"],
+              message: "Deprecated shim removed. Import from 'services/ai/apiClient' instead.",
+            },
+            {
+              group: ["**/services/shared/robustUtils"],
+              message: "Deprecated shim removed. Import from 'services/utils/robustUtils' instead.",
+            },
+            {
+              group: ["**/services/format/formatRegistry"],
+              message: "Deprecated shim removed. Import from 'services/pipelines/formatRegistry' instead.",
+            },
+            {
+              group: ["**/services/format/formatRouter"],
+              message: "Deprecated shim removed. Import from 'services/pipelines/formatRouter' instead.",
+            },
+            {
+              group: ["**/services/format/formatValidation"],
+              message: "Deprecated shim removed. Import from 'services/pipelines/formatValidation' instead.",
+            },
+            {
+              group: ["**/services/orchestration/**"],
+              message: "Deprecated shim removed. Import from 'services/ai/production/*' instead.",
+            },
+          ],
+        },
+      ],
+
       // --- Clean Code Habits ---
       "no-console": ["warn", { allow: ["warn", "error", "info"] }], // Reminds you to clean up logs
       "no-debugger": "warn",

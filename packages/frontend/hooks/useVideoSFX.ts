@@ -20,7 +20,7 @@ import {
     canMixSFX,
     type MixConfig
 } from "@/services/audio-processing/audioMixerService";
-import { ProductionProgress } from "@/services/orchestration/orchestratorTypes";
+import { ProductionProgress } from "@/services/ai/production/orchestratorTypes";
 import { mediaLogger } from '@/services/infrastructure/logger';
 const log = mediaLogger.child('SFX');
 

@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
+import type { ExecutionProgress } from '@/services/ai/production/parallelExecutionEngine';
 import type { PipelineTask } from './PipelineProgress';
 
 // ============================================================================

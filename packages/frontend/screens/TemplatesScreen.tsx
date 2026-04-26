@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/useLanguage';
 import { ScreenLayout } from '@/components/layout/ScreenLayout';
 import { BlurFade } from '@/components/motion-primitives/blur-fade';
-import { formatRegistry } from '@/services/format/formatRegistry';
+import { formatRegistry } from '@/services/pipelines/formatRegistry';
 import type { FormatMetadata } from '@/types';
 
 const MAX_VISIBLE_GENRES = 4;

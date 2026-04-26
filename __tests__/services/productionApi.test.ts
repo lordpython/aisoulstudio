@@ -55,8 +55,8 @@ vi.mock('@studio/shared/src/services/cloud/serverBaseUrl', () => ({
 }));
 
 // Import after mocking so the module uses mocked buildServerUrl.
-import { subscribeToProductionRun } from '@studio/shared/src/services/orchestration/productionApi';
-import type { ProductionEvent } from '@studio/shared/src/services/orchestration/productionApi';
+import { subscribeToProductionRun } from '@studio/shared/src/services/ai/production/productionApi';
+import type { ProductionEvent } from '@studio/shared/src/services/ai/production/productionApi';
 
 describe('subscribeToProductionRun', () => {
   let mockES: ReturnType<typeof createMockEventSourceClass>;

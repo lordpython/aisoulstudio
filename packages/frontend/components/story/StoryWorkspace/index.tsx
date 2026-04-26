@@ -31,7 +31,7 @@ import { TTSEngineSelector } from '@/components/music/TTSEngineSelector';
 import { PipelineProgress } from '@/components/video-production/PipelineProgress';
 import { CheckpointOverlay } from '@/components/video-production/CheckpointOverlay';
 import { ReferenceDocumentUpload } from '@/components/import-export/ReferenceDocumentUpload';
-import { formatRegistry } from '@/services/format/formatRegistry';
+import { formatRegistry } from '@/services/pipelines/formatRegistry';
 import type { UseFormatPipelineReturn } from '@/hooks/useFormatPipeline';
 import type { TTSProvider, DeApiTtsModel } from '@/services/media/narratorService';
 

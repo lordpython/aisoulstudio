@@ -11,12 +11,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { VideoFormat, CheckpointState } from '@/types';
 import type { IndexedDocument } from '@/services/content/documentParser';
-import type { PipelineCallbacks, PipelineResult } from '@/services/format/formatRouter';
-import { formatRouter } from '@/services/format/formatRouter';
-import { formatRegistry } from '@/services/format/formatRegistry';
+import type { PipelineCallbacks, PipelineResult } from '@/services/pipelines/formatRouter';
+import { formatRouter } from '@/services/pipelines/formatRouter';
+import { formatRegistry } from '@/services/pipelines/formatRegistry';
 import { detectLanguage } from '@/services/content/languageDetector';
 import type { CheckpointSystem } from '@/services/project/checkpointSystem';
-import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
+import type { ExecutionProgress } from '@/services/ai/production/parallelExecutionEngine';
 import type { PipelineTask } from '@/components/video-production/PipelineProgress';
 import type { CheckpointApprovalPayload } from '@/components/video-production/CheckpointOverlay';
 

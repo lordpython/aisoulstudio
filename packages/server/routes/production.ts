@@ -13,7 +13,7 @@ import {
   type ProductionEvent,
   type ProductionSessionSnapshot,
   type ProductionStartRequest,
-} from '@studio/shared/src/services/orchestration/productionApi';
+} from '@studio/shared/src/services/ai/production/productionApi';
 import { resolveServerAssetUrl } from '@studio/shared/src/services/cloud/serverBaseUrl';
 import { createLogger } from '@studio/shared/src/services/infrastructure/logger';
 import type { ToolError } from '@studio/shared/src/services/agent/errorRecovery';

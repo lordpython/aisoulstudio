@@ -17,7 +17,7 @@ import {
     Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ProductionProgress, ProductionStage } from "@/services/orchestration/orchestratorTypes";
+import { ProductionProgress, ProductionStage } from "@/services/ai/production/orchestratorTypes";
 
 interface AgentProgressProps {
     progress: ProductionProgress | null;

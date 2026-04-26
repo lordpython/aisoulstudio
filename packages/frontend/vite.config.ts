@@ -95,17 +95,18 @@ export default defineConfig(({ mode }) => {
       //   4. Remove these client-side key definitions
       //
       // Note: Production builds do NOT expose these keys (mode !== "development" guard).
-      ...(mode === "development" && {
-        "process.env.VITE_GEMINI_API_KEY": JSON.stringify(
-          allEnv.VITE_GEMINI_API_KEY || viteEnv.VITE_GEMINI_API_KEY || "",
-        ),
-        "process.env.VITE_DEAPI_API_KEY": JSON.stringify(
-          allEnv.VITE_DEAPI_API_KEY || viteEnv.VITE_DEAPI_API_KEY || "",
-        ),
-        "process.env.DEAPI_API_KEY": JSON.stringify(
-          allEnv.VITE_DEAPI_API_KEY || viteEnv.VITE_DEAPI_API_KEY || "",
-        ),
-      }),
+      "process.env.VITE_GEMINI_API_KEY": JSON.stringify(
+        allEnv.VITE_GEMINI_API_KEY || viteEnv.VITE_GEMINI_API_KEY || "",
+      ),
+      "process.env.GOOGLE_API_KEY": JSON.stringify(
+        allEnv.VITE_GEMINI_API_KEY || viteEnv.VITE_GEMINI_API_KEY || "",
+      ),
+      "process.env.VITE_DEAPI_API_KEY": JSON.stringify(
+        allEnv.VITE_DEAPI_API_KEY || viteEnv.VITE_DEAPI_API_KEY || "",
+      ),
+      "process.env.DEAPI_API_KEY": JSON.stringify(
+        allEnv.VITE_DEAPI_API_KEY || viteEnv.VITE_DEAPI_API_KEY || "",
+      ),
     },
     resolve: {
       alias: [

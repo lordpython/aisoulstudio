@@ -17,11 +17,16 @@ import { getServerBaseUrl } from "../cloud/serverBaseUrl";
  *     mobile device so the app can reach the Express server over the LAN.
  *     e.g. VITE_SERVER_URL=http://192.168.1.42:3001
  *  2. Android emulator — 10.0.2.2 is the host loopback alias inside AVD.
- *  3. Default — localhost:3001 (works for web browser dev).
+ *  3. Browser — empty string so requests use relative URLs (works for both
+ *     Vite dev proxy and production Firebase Hosting rewrites to Cloud Run).
+ *  4. Node fallback — localhost:3001.
  */
 export const getServerUrl = (): string => {
     const baseUrl = getServerBaseUrl();
-    return baseUrl || "http://localhost:3001";
+    if (baseUrl) return baseUrl;
+    // In the browser, return empty string so callers build relative URLs.
+    // In Node (SSR/tests), fall back to localhost.
+    return typeof window === "undefined" ? "http://localhost:3001" : "";
 };
 
 export const SERVER_URL = getServerUrl();

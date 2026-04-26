@@ -18,7 +18,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ExecutionProgress } from '@/services/orchestration/parallelExecutionEngine';
+import type { ExecutionProgress } from '@/services/ai/production/parallelExecutionEngine';
 
 export interface PipelineTask {
   id: string;

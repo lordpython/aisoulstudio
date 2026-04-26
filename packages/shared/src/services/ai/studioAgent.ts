@@ -13,7 +13,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { GEMINI_API_KEY, MODELS } from "../shared/apiClient";
+import { GEMINI_API_KEY, MODELS } from "./apiClient";
 import { knowledgeBase } from "./rag/knowledgeBase";
 import { exampleLibrary } from "./rag/exampleLibrary";
 import { AI_CONFIG } from "./config";

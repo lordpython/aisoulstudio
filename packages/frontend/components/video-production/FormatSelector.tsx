@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VideoFormat, FormatMetadata } from '@/types';
-import { formatRegistry } from '@/services/format/formatRegistry';
+import { formatRegistry } from '@/services/pipelines/formatRegistry';
 
 // Map format IDs to lucide icons
 const FORMAT_ICONS: Record<VideoFormat, React.ElementType> = {

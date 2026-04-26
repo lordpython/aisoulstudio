@@ -10,8 +10,9 @@
 
 import express from '../../../packages/server/node_modules/express/index.js';
 import type { AddressInfo } from 'node:net';
+import crypto from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isAllowedWebhookUrl } from '../../../packages/server/routes/routeUtils';
+import { isAllowedWebhookUrl, isWebhookAuthorized, type RawBodyRequest } from '../../../packages/server/routes/routeUtils';
 
 // ---------------------------------------------------------------------------
 // isAllowedWebhookUrl unit tests (no server needed)
@@ -52,6 +53,85 @@ describe('isAllowedWebhookUrl', () => {
     // api.deapi.ai is always included by default.
     expect(isAllowedWebhookUrl('https://api.deapi.ai/webhook')).toBe(true);
   });
+});
+
+// ---------------------------------------------------------------------------
+// isWebhookAuthorized unit tests (DeAPI signing convention + replay protection)
+// ---------------------------------------------------------------------------
+
+const SECRET = 'test-secret-12345';
+
+function buildSignedRequest(opts: {
+    body: object;
+    timestamp?: number; // unix seconds; omit to skip the timestamp header
+    signaturePayload?: string; // override what's signed (for tampering tests)
+    signatureHeader?: string; // override the header value verbatim
+}): RawBodyRequest {
+    const rawBody = JSON.stringify(opts.body);
+    const headers: Record<string, string> = {};
+
+    if (opts.timestamp !== undefined) {
+        headers['x-deapi-timestamp'] = String(opts.timestamp);
+    }
+
+    const payload = opts.signaturePayload
+        ?? (opts.timestamp !== undefined ? `${opts.timestamp}.${rawBody}` : rawBody);
+    const digest = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
+    headers['x-deapi-signature'] = opts.signatureHeader ?? `sha256=${digest}`;
+
+    return {
+        rawBody,
+        body: opts.body,
+        get(name: string) {
+            return headers[name.toLowerCase()];
+        },
+    } as unknown as RawBodyRequest;
+}
+
+describe('isWebhookAuthorized — DeAPI signing convention', () => {
+    it('accepts a valid HMAC-SHA256 signature over `${timestamp}.${body}`', () => {
+        const req = buildSignedRequest({
+            body: { event: 'job.completed' },
+            timestamp: Math.floor(Date.now() / 1000),
+        });
+        expect(isWebhookAuthorized(req, SECRET)).toBe(true);
+    });
+
+    it('rejects a stale timestamp outside the 5-minute window', () => {
+        const sixMinAgo = Math.floor(Date.now() / 1000) - 6 * 60;
+        const req = buildSignedRequest({
+            body: { event: 'job.completed' },
+            timestamp: sixMinAgo,
+        });
+        expect(isWebhookAuthorized(req, SECRET)).toBe(false);
+    });
+
+    it('rejects a signature whose payload was tampered with', () => {
+        const ts = Math.floor(Date.now() / 1000);
+        const req = buildSignedRequest({
+            body: { event: 'job.completed' },
+            timestamp: ts,
+            // Sign over a different body than the one delivered
+            signaturePayload: `${ts}.${JSON.stringify({ event: 'job.failed' })}`,
+        });
+        expect(isWebhookAuthorized(req, SECRET)).toBe(false);
+    });
+
+    it('accepts legacy body-only signatures when no timestamp header is provided', () => {
+        const req = buildSignedRequest({
+            body: { event: 'job.completed' },
+            // omit timestamp — falls back to body-only signing
+        });
+        expect(isWebhookAuthorized(req, SECRET)).toBe(true);
+    });
+
+    it('rejects when no secret is configured even with a valid signature', () => {
+        const req = buildSignedRequest({
+            body: { event: 'job.completed' },
+            timestamp: Math.floor(Date.now() / 1000),
+        });
+        expect(isWebhookAuthorized(req, undefined)).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------

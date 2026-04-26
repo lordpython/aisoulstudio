@@ -162,9 +162,27 @@ function secureCompare(left: string, right: string): boolean {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+function hmacHex(secret: string, payload: string): string {
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+
 function getSignatureCandidates(secret: string, payload: string): string[] {
-  const digest = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  const digest = hmacHex(secret, payload);
   return [digest, `sha256=${digest}`];
+}
+
+/**
+ * Reject deliveries whose timestamp is more than this many seconds away from
+ * server time. DeAPI documents a 5-minute replay-protection window.
+ */
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
+
+function isFreshTimestamp(headerValue: string | undefined): boolean {
+  if (!headerValue) return false;
+  const numeric = Number(headerValue);
+  if (!Number.isFinite(numeric)) return false;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return Math.abs(nowSeconds - numeric) <= WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS;
 }
 
 export function isWebhookAuthorized(req: RawBodyRequest, secret?: string): boolean {
@@ -190,13 +208,31 @@ export function isWebhookAuthorized(req: RawBodyRequest, secret?: string): boole
   }
 
   const rawBody = req.rawBody ?? JSON.stringify(req.body ?? {});
-  const signatureCandidates = getSignatureCandidates(secret, rawBody);
   const signatureHeaders = [
     req.get('x-deapi-signature'),
     req.get('x-hub-signature-256'),
   ].filter((value): value is string => Boolean(value));
 
+  if (signatureHeaders.length === 0) {
+    return false;
+  }
+
+  // DeAPI signs `${timestamp}.${rawBody}` and requires the timestamp to be
+  // within a 5-minute window. Fall back to body-only signing for legacy
+  // GitHub-style senders that don't include a timestamp header.
+  const timestampHeader = req.get('x-deapi-timestamp');
+  const candidates: string[] = [];
+
+  if (timestampHeader) {
+    if (!isFreshTimestamp(timestampHeader)) {
+      return false;
+    }
+    candidates.push(...getSignatureCandidates(secret, `${timestampHeader}.${rawBody}`));
+  }
+
+  candidates.push(...getSignatureCandidates(secret, rawBody));
+
   return signatureHeaders.some((headerValue) =>
-    signatureCandidates.some((candidate) => secureCompare(headerValue, candidate))
+    candidates.some((candidate) => secureCompare(headerValue, candidate))
   );
 }

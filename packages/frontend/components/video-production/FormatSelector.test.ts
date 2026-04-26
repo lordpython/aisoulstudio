@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { formatRegistry } from '@/services/format/formatRegistry';
+import { formatRegistry } from '@/services/pipelines/formatRegistry';
 import { getGenresForFormat, getPlaceholderForFormat } from './FormatSelector';
 import type { VideoFormat } from '@/types';
 
