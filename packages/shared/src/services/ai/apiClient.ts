@@ -61,13 +61,10 @@ export const MODELS = {
   TEXT_GROUNDED: "gemini-3-flash-preview",
 
   // Alternative models
-  TEXT_EXP: "gemini-3.1-pro-preview", // Latest reasoning model
-  TEXT_LEGACY: "gemini-3.1-pro-preview",
-  IMAGE_STANDARD: "imagen-3.0-generate-001",
-  IMAGE_HD: "gemini-3.1-pro-preview", // Multimodal image understanding & generation
+  TEXT_EXP: "gemini-3.1-pro-preview", // Latest reasoning model (used by storyTools, characterService)
+  IMAGE_STANDARD: "imagen-3.0-generate-001", // Fallback target for getModelWithFallback
   VIDEO_STANDARD: "veo-3.1-generate-preview",
   VIDEO_FAST: "veo-3.1-fast-generate-preview",
-  VIDEO_LEGACY: "veo-3.1-fast-generate-preview",
 };
 
 /**
