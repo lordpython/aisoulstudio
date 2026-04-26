@@ -62,7 +62,6 @@ export const MODELS = {
 
   // Alternative models
   TEXT_EXP: "gemini-3.1-pro-preview", // Latest reasoning model (used by storyTools, characterService)
-  IMAGE_STANDARD: "imagen-3.0-generate-001", // Fallback target for getModelWithFallback
   VIDEO_STANDARD: "veo-3.1-generate-preview",
   VIDEO_FAST: "veo-3.1-fast-generate-preview",
 };
@@ -81,22 +80,6 @@ export function validateVertexConfig(): void {
       "4. (Optional) Set location: export GOOGLE_CLOUD_LOCATION=global"
     );
   }
-}
-
-/**
- * Helper function to handle quota exceeded errors gracefully.
- * Falls back to text model for image/video generation prompts.
- */
-export function getModelWithFallback(modelType: keyof typeof MODELS): string {
-  const model = MODELS[modelType];
-
-  // For image and video models that might hit quota limits,
-  // we can fall back to using the text model for prompt generation
-  if (modelType === 'IMAGE' || modelType === 'VIDEO') {
-    log.warn(`Using ${model} - may require quota increase for actual generation`);
-  }
-
-  return model;
 }
 
 // Typed parameter shapes for the two proxy methods
