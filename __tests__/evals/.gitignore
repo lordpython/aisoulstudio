@@ -1,0 +1,7 @@
+# Snapshots are recorded outputs from real API calls.
+# Tracked when stable; ignored while iterating to avoid accidental commits
+# of in-flux recordings. Remove this file when you want snapshots in git.
+snapshots/*.snap.json
+
+# Cost reports per run (local-only)
+cost-reports/

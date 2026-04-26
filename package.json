@@ -16,6 +16,7 @@
     "test:ui": "pnpm --filter @studio/frontend exec vitest --ui",
     "test:run": "pnpm --filter @studio/frontend test:run",
     "test:server": "vitest run --config vitest.config.ts",
+    "test:eval": "vitest run --config vitest.eval.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "test:agent": "npx tsx scripts/test-agent-node.ts",
     "test:pipeline": "npx tsx scripts/test-full-pipeline.ts",

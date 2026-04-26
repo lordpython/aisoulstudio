@@ -1,0 +1,41 @@
+{
+  "english": [
+    {
+      "id": "en-news-ai-policy",
+      "topic": "How the EU AI Act will reshape startup compliance in 2026",
+      "format": "news-politics",
+      "duration": 60,
+      "style": "Cinematic"
+    },
+    {
+      "id": "en-shorts-tip",
+      "topic": "Three keyboard shortcuts every developer wishes they learned earlier",
+      "format": "shorts",
+      "duration": 30,
+      "style": "Energetic"
+    },
+    {
+      "id": "en-doc-deep-sea",
+      "topic": "What we learned from the first ROV expedition to the Mariana Trench",
+      "format": "documentary",
+      "duration": 120,
+      "style": "Cinematic"
+    }
+  ],
+  "arabic": [
+    {
+      "id": "ar-edu-ai-education",
+      "topic": "ذكاء اصطناعي يغير مستقبل التعليم",
+      "format": "educational",
+      "duration": 30,
+      "style": "Cinematic"
+    },
+    {
+      "id": "ar-shorts-coffee",
+      "topic": "ثلاث طرق لتحضير القهوة العربية الأصيلة",
+      "format": "shorts",
+      "duration": 20,
+      "style": "Energetic"
+    }
+  ]
+}
