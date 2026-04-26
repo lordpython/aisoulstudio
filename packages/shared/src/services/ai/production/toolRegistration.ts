@@ -38,8 +38,11 @@ import {
 import {
     generateVideoTool,
     animateImageTool,
-    generateMusicTool,
 } from "./tools/mediaTools";
+// generateMusicTool intentionally omitted - music generation is only available
+// in the dedicated "Generate Music" mode (musicProducerAgentV2 has its own
+// local closure). Including it here previously was a mismatch with the
+// registry exclusion at line ~190.
 
 import {
     getProductionStatusTool,
@@ -71,7 +74,6 @@ export const productionTools: StructuredTool[] = [
     validatePlanTool,
     adjustTimingTool,
     // Media tools (MEDIA group)
-    generateMusicTool,
     generateVisualsTool,
     generateVideoTool, // Veo 3.1 text-to-video generation
     animateImageTool, // DeAPI image-to-video animation
