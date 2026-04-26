@@ -288,8 +288,12 @@ export function registerProductionTools(): void {
 
 // --- Initialization ---
 
-// Initialize tool registry on module load
-registerProductionTools();
+// Tool registry is no longer auto-initialized at module load. Callers that
+// rely on toolRegistry.* must invoke registerProductionTools() explicitly.
+// Note: as of 2026-04-26 no production code reads from toolRegistry; only
+// tests use it (and they manage state via toolRegistry.clear() in beforeEach).
+// Subagents consume the productionTools array directly, which is built at
+// module load without side effects on the registry.
 
 // --- Re-exports for convenience ---
 
