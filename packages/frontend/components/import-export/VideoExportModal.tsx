@@ -24,6 +24,7 @@ import {
   ExportProgress,
   ExportConfig,
 } from "@/services/ffmpeg";
+import { chooseExportEngine } from "@/services/ffmpeg/exportRouter";
 import { VideoSFXPlan } from "@/types";
 import { SceneAudioInfo } from "@/services/audio-processing/audioMixerService";
 import {
@@ -132,7 +133,25 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
     musicMasterVolume: 0.5,
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [useCloudRender, setUseCloudRender] = useState(true); // Default to server-side for faster encoding
+
+  // Compute size signals once for the routing decision.
+  const durationSec = songData.parsedSubtitles?.length
+    ? songData.parsedSubtitles[songData.parsedSubtitles.length - 1]!.endTime
+    : 0;
+  const sceneCount = songData.prompts?.length ?? 0;
+
+  // Default the toggle to whatever the router recommends with no preference.
+  // Users can still flip it; if they pick a risky combination we surface a warning.
+  const initialEngine = chooseExportEngine({ durationSec, sceneCount }).engine;
+  const [useCloudRender, setUseCloudRender] = useState(initialEngine === 'cloud');
+
+  // Re-evaluate when the user toggles to surface warnings for risky overrides.
+  const routingDecision = chooseExportEngine({
+    durationSec,
+    sceneCount,
+    userPreference: useCloudRender ? 'cloud' : 'browser',
+  });
+
   const [enableSFX, setEnableSFX] = useState(hasSFX);
 
   // Cleanup blob URL on unmount
@@ -162,7 +181,9 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
         sceneTimings: enableSFX ? sceneTimings : undefined,
       };
 
-      const exportFn = useCloudRender
+      // Router has the final word — capabilities (Capacitor, missing SAB) can
+      // override the user's choice; size limits only warn, not override.
+      const exportFn = routingDecision.engine === 'cloud'
         ? exportVideoWithFFmpeg
         : exportVideoClientSide;
       const result = await exportFn(
@@ -398,6 +419,20 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                     </CardContent>
                   </Card>
                 </div>
+                {routingDecision.warning && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      {routingDecision.warning}. Browser export may run out of memory —
+                      consider switching to Cloud.
+                    </span>
+                  </div>
+                )}
+                {!routingDecision.warning && useCloudRender !== (initialEngine === 'cloud') && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {routingDecision.reason}
+                  </p>
+                )}
               </div>
 
               {/* Orientation */}
