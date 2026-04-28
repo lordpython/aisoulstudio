@@ -56,9 +56,45 @@ interface StoredStorySession {
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 /**
+ * Sentinel error thrown when IndexedDB is unavailable (Node, SSR, etc.).
+ * Callers downgrade this to debug logging instead of treating it as a real
+ * persistence failure.
+ */
+export class IDBUnavailableError extends Error {
+    constructor() {
+        super('IndexedDB not available in this environment (Node/SSR)');
+        this.name = 'IDBUnavailableError';
+    }
+}
+
+function isIDBAvailable(): boolean {
+    return typeof indexedDB !== 'undefined';
+}
+
+/**
+ * True if the most recent persistence attempt was downgraded due to a
+ * non-browser environment. Used to silence log spam after the first miss.
+ */
+let unavailableLogged = false;
+
+function handlePersistenceError(operation: string, error: unknown): void {
+    if (error instanceof IDBUnavailableError) {
+        if (!unavailableLogged) {
+            log.debug(`${operation}: IndexedDB unavailable (Node/SSR) — persistence disabled`);
+            unavailableLogged = true;
+        }
+        return;
+    }
+    log.error(`Failed to ${operation} in IndexedDB:`, error);
+}
+
+/**
  * Get or create the IndexedDB database connection
  */
 async function getDB(): Promise<IDBPDatabase> {
+    if (!isIDBAvailable()) {
+        throw new IDBUnavailableError();
+    }
     if (dbPromise) return dbPromise;
 
     dbPromise = openDB(DB_NAME, DB_VERSION, {
@@ -155,7 +191,7 @@ export async function saveProductionSession(sessionId: string, state: Production
         await db.put('sessions', record);
         log.debug(`Saved session ${sessionId} (${record.metadata.sceneCount} scenes)`);
     } catch (error) {
-        log.error('Failed to save session to IndexedDB:', error);
+        handlePersistenceError('save session', error);
         // Don't throw - persistence failure shouldn't break the app
     }
 }
@@ -182,7 +218,7 @@ export async function loadProductionSession(sessionId: string): Promise<Producti
         log.info(`Loaded session ${sessionId} from IndexedDB`);
         return state;
     } catch (error) {
-        log.error('Failed to load session from IndexedDB:', error);
+        handlePersistenceError('load session', error);
         return null;
     }
 }
@@ -198,7 +234,7 @@ export async function deleteProductionSession(sessionId: string): Promise<void> 
         await db.delete('blobs', `${sessionId}-video`);
         log.debug(`Deleted session ${sessionId}`);
     } catch (error) {
-        log.error('Failed to delete session from IndexedDB:', error);
+        handlePersistenceError('delete session', error);
     }
 }
 
@@ -218,7 +254,7 @@ export async function listRecoverableSessions(): Promise<SessionMetadata[]> {
         log.info(`Found ${sessions.length} recoverable sessions`);
         return sessions;
     } catch (error) {
-        log.error('Failed to list sessions from IndexedDB:', error);
+        handlePersistenceError('list sessions', error);
         return [];
     }
 }
@@ -232,7 +268,7 @@ export async function hasPersistedSession(sessionId: string): Promise<boolean> {
         const record = await db.get('sessions', sessionId);
         return !!record;
     } catch (error) {
-        log.error('Failed to check session in IndexedDB:', error);
+        handlePersistenceError('check session', error);
         return false;
     }
 }
@@ -247,7 +283,7 @@ export async function getMostRecentIncompleteSession(): Promise<SessionMetadata 
         const incomplete = sessions.find(s => !s.isComplete);
         return incomplete ?? null;
     } catch (error) {
-        log.error('Failed to get recent incomplete session:', error);
+        handlePersistenceError('get recent incomplete session', error);
         return null;
     }
 }
@@ -270,7 +306,7 @@ export async function saveStorySession(sessionId: string, state: StoryModeState)
         await db.put('story-sessions', record);
         log.debug(`Saved story session ${sessionId}`);
     } catch (error) {
-        log.error('Failed to save story session to IndexedDB:', error);
+        handlePersistenceError('save story session', error);
     }
 }
 
@@ -283,7 +319,7 @@ export async function loadStorySession(sessionId: string): Promise<StoryModeStat
         const record = await db.get('story-sessions', sessionId) as StoredStorySession | undefined;
         return record?.state ?? null;
     } catch (error) {
-        log.error('Failed to load story session from IndexedDB:', error);
+        handlePersistenceError('load story session', error);
         return null;
     }
 }
@@ -301,7 +337,7 @@ export async function saveBlob(id: string, blob: Blob): Promise<void> {
         await db.put('blobs', { id, blob, savedAt: Date.now() });
         log.debug(`Saved blob ${id} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
     } catch (error) {
-        log.error('Failed to save blob to IndexedDB:', error);
+        handlePersistenceError('save blob', error);
     }
 }
 
@@ -314,7 +350,7 @@ export async function loadBlob(id: string): Promise<Blob | null> {
         const record = await db.get('blobs', id) as { id: string; blob: Blob } | undefined;
         return record?.blob ?? null;
     } catch (error) {
-        log.error('Failed to load blob from IndexedDB:', error);
+        handlePersistenceError('load blob', error);
         return null;
     }
 }
@@ -348,7 +384,7 @@ export async function saveAILog(entry: AILogEntry): Promise<void> {
         const db = await getDB();
         await db.put('ai-logs', entry);
     } catch (error) {
-        log.error('Failed to save AI log:', error);
+        handlePersistenceError('save AI log', error);
     }
 }
 
@@ -361,7 +397,7 @@ export async function getAILogsForSession(sessionId: string): Promise<AILogEntry
         const logs = await db.getAllFromIndex('ai-logs', 'sessionId', sessionId) as AILogEntry[];
         return logs.sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
-        log.error('Failed to get AI logs:', error);
+        handlePersistenceError('get AI logs', error);
         return [];
     }
 }
@@ -387,7 +423,7 @@ export async function deleteAILogsForSession(sessionId: string): Promise<void> {
         }
         await tx.done;
     } catch (error) {
-        log.error('Failed to delete AI logs:', error);
+        handlePersistenceError('delete AI logs', error);
     }
 }
 
@@ -418,7 +454,7 @@ export async function cleanupOldSessions(maxAgeDays: number = 7): Promise<number
 
         return oldSessions.length;
     } catch (error) {
-        log.error('Failed to cleanup old sessions:', error);
+        handlePersistenceError('cleanup old sessions', error);
         return 0;
     }
 }
@@ -435,7 +471,7 @@ export async function clearAllPersistedData(): Promise<void> {
         await db.clear('ai-logs');
         log.info('Cleared all persisted data');
     } catch (error) {
-        log.error('Failed to clear persisted data:', error);
+        handlePersistenceError('clear persisted data', error);
     }
 }
 
@@ -461,7 +497,7 @@ export async function getStorageStats(): Promise<{ sessionCount: number; storyCo
             estimatedSizeMB: totalSize / 1024 / 1024,
         };
     } catch (error) {
-        log.error('Failed to get storage stats:', error);
+        handlePersistenceError('get storage stats', error);
         return { sessionCount: 0, storyCount: 0, estimatedSizeMB: 0 };
     }
 }
