@@ -1,21 +1,29 @@
 /**
  * Movie/Animation Pipeline
  *
- * Thin wrapper around the existing story pipeline (services/ai/storyPipeline.ts)
- * that implements the FormatPipeline interface for the format router.
+ * Adapter around the legacy story pipeline (services/ai/storyPipeline/)
+ * that implements the FormatPipeline interface and emits the same
+ * checkpoint/cancellation events the BasePipeline subclasses do.
  *
- * Design:
- * - Keeps existing 2-layer architecture intact:
- *   - services/ai/storyPipeline.ts (core functions)
- *   - services/ai/production/tools/storyTools.ts (LangChain tool wrappers)
- * - Adds format metadata and FormatPipeline interface compliance
- * - Integrates with CheckpointSystem and ParallelExecutionEngine where possible
+ * Why this is NOT a BasePipeline subclass:
+ *   The legacy storyPipeline runs an act-based flow (breakdown -> screenplay
+ *   -> characters -> shotlist -> visuals -> voiceover) that does not map
+ *   onto BasePipeline's script -> visuals -> audio template. A full port
+ *   requires either generalizing BasePipeline to support both shapes or
+ *   rewriting storyPipeline to fit. Both are multi-week tasks; tracked as
+ *   future work.
  *
- * Requirements: 24.1, 24.2, 24.3
+ * What this PR adds vs. the previous wrapper:
+ *   - Accepts the same `callbacks: PipelineCallbacks` parameter the other
+ *     7 pipelines accept (was silently dropped before).
+ *   - Surfaces the CheckpointSystem to the UI via onCheckpointSystemCreated.
+ *   - Forwards onCheckpointCreated events from approval gates.
+ *   - Wires onCancelRequested for graceful cancellation.
+ *   - Forwards storyPipeline progress events through a typed log path.
  */
 
 import type { FormatMetadata, VideoFormat } from '../../types';
-import type { FormatPipeline, PipelineRequest, PipelineResult } from './formatRouter';
+import type { FormatPipeline, PipelineCallbacks, PipelineRequest, PipelineResult } from './formatRouter';
 import { formatRegistry } from './formatRegistry';
 import { runStoryPipeline, type StoryPipelineOptions, type StoryPipelineResult } from '../ai/storyPipeline';
 import { CheckpointSystem } from '../project/checkpointSystem';
@@ -40,22 +48,32 @@ export class MovieAnimationPipeline implements FormatPipeline {
   }
 
   /**
-   * Execute the Movie/Animation pipeline by delegating to the existing
-   * runStoryPipeline function. This ensures backward compatibility while
-   * providing a consistent FormatPipeline interface.
-   *
-   * Requirements: 24.1 (use existing pipeline), 24.3 (format integration)
+   * Execute the Movie/Animation pipeline by delegating to runStoryPipeline,
+   * but wired to the standard FormatPipeline event surface so the UI can
+   * subscribe to the same events as every other format.
    */
-  async execute(request: PipelineRequest): Promise<PipelineResult> {
+  async execute(request: PipelineRequest, callbacks?: PipelineCallbacks): Promise<PipelineResult> {
     const language = request.language ?? detectLanguage(request.idea);
     const metadata = this.getMetadata();
 
-    const checkpoints = new CheckpointSystem({ maxCheckpoints: metadata.checkpointCount });
+    let cancelled = false;
+    const checkpoints = new CheckpointSystem({
+      maxCheckpoints: metadata.checkpointCount,
+      onCheckpointCreated: callbacks?.onCheckpointCreated,
+    });
+    callbacks?.onCheckpointSystemCreated?.(checkpoints);
+    callbacks?.onCancelRequested?.(() => {
+      cancelled = true;
+      checkpoints.dispose();
+    });
 
     log.info(`Starting Movie/Animation pipeline: "${request.idea.slice(0, 60)}..." [${language}]`);
 
     try {
-      // Build options compatible with the existing pipeline
+      if (cancelled) {
+        return { success: false, error: 'Cancelled before start' };
+      }
+
       const pipelineOptions: StoryPipelineOptions = {
         topic: request.idea,
         generateCharacterRefs: true,
@@ -69,7 +87,6 @@ export class MovieAnimationPipeline implements FormatPipeline {
         },
       };
 
-      // Delegate to existing pipeline
       const result: StoryPipelineResult = await runStoryPipeline(pipelineOptions);
 
       if (!result.success) {
@@ -80,7 +97,7 @@ export class MovieAnimationPipeline implements FormatPipeline {
       // Retrieve the session state populated by the story pipeline
       const state = storyModeStore.get(result.sessionId);
 
-      // Ensure format metadata is present in state (Requirement 24.2)
+      // Ensure format metadata is present in state
       if (state && !state.formatId) {
         state.formatId = FORMAT_ID;
         state.language = language;
