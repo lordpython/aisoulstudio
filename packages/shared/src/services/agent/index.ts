@@ -25,11 +25,7 @@ export {
 // Tool Registry exports
 export {
     ToolGroup,
-    TOOL_GROUP_ORDER,
     toolRegistry,
-    isValidGroupTransition,
-    getNextGroup,
-    getGroupDependencyDescription,
     createToolDefinition,
     type ToolDefinition,
 } from './toolRegistry';
