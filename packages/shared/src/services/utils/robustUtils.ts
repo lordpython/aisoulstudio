@@ -333,6 +333,49 @@ export async function withRetry<T>(
   }
 }
 
+/**
+ * Run a primary model call through `withRetry`; on terminal failure, fall back
+ * to a secondary model call (also through `withRetry`).
+ *
+ * Use when a pipeline can tolerate the latency/cost shift of a different model
+ * rather than failing the whole step. The fallback is invoked once, after the
+ * primary's retries are exhausted (or its circuit breaker is open). If the
+ * fallback also fails, its error is thrown; the primary error is attached as
+ * `cause` for diagnostics.
+ *
+ * @example
+ * const result = await withModelFallback(
+ *   () => ai.models.generateContent({ model: MODELS.TEXT, contents }),
+ *   () => ai.models.generateContent({ model: MODELS.TEXT_EXP, contents }),
+ * );
+ */
+export async function withModelFallback<T>(
+  primaryFn: () => Promise<T>,
+  fallbackFn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1000,
+  backoffFactor = 2,
+): Promise<T> {
+  try {
+    return await withRetry(primaryFn, retries, delayMs, backoffFactor);
+  } catch (primaryError) {
+    const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
+    log.warn(`Primary model failed after retries, falling back. Primary error: ${primaryMessage}`);
+
+    try {
+      return await withRetry(fallbackFn, retries, delayMs, backoffFactor);
+    } catch (fallbackError) {
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      log.error(`Fallback model also failed: ${fallbackMessage}`);
+      if (fallbackError instanceof Error && primaryError instanceof Error) {
+        // Preserve primary error context for debugging without losing the fallback stack
+        (fallbackError as Error & { cause?: unknown }).cause = primaryError;
+      }
+      throw fallbackError;
+    }
+  }
+}
+
 // ============================================================
 // BLOB URL MANAGEMENT
 // ============================================================

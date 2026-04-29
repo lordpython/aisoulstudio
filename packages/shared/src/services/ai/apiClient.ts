@@ -212,4 +212,4 @@ export interface RetryConfig {
 }
 
 // Re-export retry utilities (implementations live in robustUtils.ts)
-export { withRetry, getCircuitBreakerStatus, resetCircuitBreaker } from '../utils/robustUtils';
+export { withRetry, withModelFallback, getCircuitBreakerStatus, resetCircuitBreaker } from '../utils/robustUtils';
