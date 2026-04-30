@@ -99,7 +99,7 @@ export function AppRouter() {
             <Route path="/projects/:projectId" element={<ProjectDefaultRedirect />} />
             <Route path="/projects/:projectId/story" element={<StudioScreen />} />
             <Route path="/projects/:projectId/video" element={<StudioScreen />} />
-            <Route path="/projects/:projectId/music" element={<StudioScreen />} />
+            <Route path="/projects/:projectId/music" element={<VisualizerScreen />} />
             <Route path="/projects/:projectId/preview" element={<PreviewScreen />} />
             <Route path="/projects/:projectId/settings" element={<ProjectSettingsScreen />} />
 

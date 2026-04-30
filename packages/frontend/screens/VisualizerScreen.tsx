@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
@@ -47,9 +47,11 @@ export default function VisualizerScreen() {
   const { t, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const routeParams = useParams<{ projectId?: string }>();
 
-  // Get projectId from URL (e.g., /visualizer?projectId=abc123)
-  const projectId = searchParams.get('projectId') || undefined;
+  // Canonical route: /projects/:projectId/music
+  // Legacy fallback: /visualizer?projectId=abc123
+  const projectId = routeParams.projectId ?? searchParams.get('projectId') ?? undefined;
 
   // Project and auth hooks
   const { project, sessionId } = useProjectSession(projectId);
