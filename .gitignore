@@ -67,3 +67,20 @@ nul
 aistudiosoul.7z
 .gstack/
 scripts/output/
+
+# Generated production artifacts (videos, intermediate assets) - never commit
+packages/frontend/public/production_*/
+packages/frontend/public/grok-video-*.mp4
+packages/frontend/public/image_*_animated_*.png
+
+# Stray scratch files
+Untitled-*.md
+Untitled-*.ps1
+StoryIdea.txt
+prompt.md
+daily-status
+deploy.log
+server_start*.log
+codebase-export.md
+codebase-map.html
+repomix-output.xml
