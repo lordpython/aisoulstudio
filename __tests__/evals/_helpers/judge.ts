@@ -80,7 +80,10 @@ Include every dimension exactly once.`;
     ai.models.generateContent({
       model,
       contents: prompt,
-      config: { temperature: 0, maxOutputTokens: 1024 },
+      // 4096 leaves headroom for 5+ dimensions of structured JSON. 1024 was
+      // truncating mid-string on multi-dimension rubrics, which silently
+      // failed every behavioral eval with "Judge returned non-JSON response".
+      config: { temperature: 0, maxOutputTokens: 4096 },
     }),
   );
 
