@@ -1,6 +1,11 @@
 packages:
   - "packages/*"
 
+# Centralized dependency versions — referenced via "catalog:" in package.json.
+# Prevents version drift when the same lib is consumed by multiple workspace packages.
+catalog:
+  "@google/genai": ^1.38.0
+
 onlyBuiltDependencies:
   - "@firebase/util"
   - esbuild

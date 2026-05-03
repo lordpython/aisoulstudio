@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@google/genai':
+      specifier: ^1.38.0
+      version: 1.38.0
+
 importers:
 
   .:
@@ -45,7 +51,7 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
       '@google/genai':
-        specifier: ^1.38.0
+        specifier: 'catalog:'
         version: 1.38.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
@@ -223,7 +229,7 @@ importers:
         specifier: ^7.18.0
         version: 7.18.0
       '@google/genai':
-        specifier: ^1.38.0
+        specifier: 'catalog:'
         version: 1.38.0
       '@langchain/community':
         specifier: ^1.1.7
@@ -293,7 +299,7 @@ importers:
         specifier: ^7.18.0
         version: 7.18.0
       '@google/genai':
-        specifier: ^1.38.0
+        specifier: 'catalog:'
         version: 1.38.0
       '@langchain/community':
         specifier: ^1.1.7
