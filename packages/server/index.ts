@@ -75,7 +75,7 @@ const productionLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Production run limit reached (5/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
-  skip: (req) => req.method !== 'POST' || !req.path.includes('/start'),
+  skip: (req) => !(req.method === 'POST' && req.path === '/start'),
 });
 
 const deapiLimiter = rateLimit({
