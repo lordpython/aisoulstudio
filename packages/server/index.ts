@@ -18,6 +18,7 @@ import sunoRoutes from './routes/suno.js';
 import cloudRoutes from './routes/cloud.js';
 import directorRoutes from './routes/director.js';
 import productionRoutes from './routes/production.js';
+import { createProductionLimiter } from './middleware/productionLimiter.js';
 
 // Import job queue and worker pool
 import { jobQueue } from './services/jobQueue/index.js';
@@ -69,14 +70,7 @@ const geminiLimiter = rateLimit({
   message: { success: false, error: 'Gemini rate limit exceeded. Try again in a minute.', code: 'RATE_LIMIT_EXCEEDED' },
 });
 
-const productionLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Production run limit reached (5/hour). Try again later.', code: 'RATE_LIMIT_EXCEEDED' },
-  skip: (req) => !(req.method === 'POST' && req.path === '/start'),
-});
+const productionLimiter = createProductionLimiter();
 
 const deapiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
