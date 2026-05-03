@@ -37,5 +37,91 @@
       "duration": 20,
       "style": "Energetic"
     }
-  ]
+  ],
+  "youtubeNarrator": {
+    "english": [
+      {
+        "id": "en-yt-historical-fact",
+        "topic": "How the Library of Alexandria was actually destroyed",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["historical depth", "multiple sourcing", "narrative arc"]
+      },
+      {
+        "id": "en-yt-recent-tech",
+        "topic": "The state of AI agent benchmarks in 2026 and why most are gamed",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["current events", "technical accuracy", "skeptical framing"]
+      },
+      {
+        "id": "en-yt-explainer",
+        "topic": "Why airplanes can fly upside down — explained without math",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["physics intuition", "accessible language", "common misconception correction"]
+      },
+      {
+        "id": "en-yt-niche",
+        "topic": "The economics behind why coffee shops always smell so good",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["business reasoning", "sensory detail", "everyday relevance"]
+      },
+      {
+        "id": "en-yt-policy",
+        "topic": "Are dark patterns illegal under the EU's Digital Services Act?",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["legal precision", "cited cases", "balanced framing"]
+      }
+    ],
+    "arabic": [
+      {
+        "id": "ar-yt-historical",
+        "topic": "كيف بنى العثمانيون نظامهم البريدي قبل ظهور القطار",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["historical depth", "Ottoman context", "Arabic narrative voice"]
+      },
+      {
+        "id": "ar-yt-tech",
+        "topic": "ثورة الذكاء الاصطناعي في اللغة العربية: أين نحن في 2026",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["current state", "Arabic NLP specifics", "no English borrowing"]
+      },
+      {
+        "id": "ar-yt-everyday",
+        "topic": "لماذا تفضل النحلات الخريف على الصيف",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["scientific accuracy", "approachable Arabic", "natural-world detail"]
+      },
+      {
+        "id": "ar-yt-cultural",
+        "topic": "أصل اسم بغداد ولماذا اختارها المنصور عاصمة للخلافة العباسية",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["primary-source citation", "Abbasid history", "classical Arabic register"]
+      },
+      {
+        "id": "ar-yt-modern",
+        "topic": "كيف تغير وادي السيليكون منذ عام 2020",
+        "format": "youtube-narrator",
+        "duration": 180,
+        "style": "B-roll Documentary",
+        "expectedTraits": ["recent timeline", "tech industry awareness", "Arabic technical vocabulary"]
+      }
+    ]
+  }
 }
